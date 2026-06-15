@@ -13,17 +13,18 @@
 # limitations under the License.
 import base64
 import typing
-from typing import Optional, Union
+from typing import Union
 from urllib.parse import urljoin
 
 import requests
-from nuclio.auth import AuthInfo as NuclioAuthInfo
 from nuclio.auth import AuthKinds as NuclioAuthKinds
 
 import mlrun
+import mlrun.auth.nuclio
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.helpers
 import mlrun.common.schemas as schemas
+import mlrun.common.schemas.auth
 import mlrun.common.types
 from mlrun.model import ModelObj
 from mlrun.platforms.iguazio import min_iguazio_versions
@@ -55,12 +56,17 @@ class Authenticator(typing.Protocol):
             == schemas.APIGatewayAuthenticationMode.access_key.value
         ):
             return AccessKeyAuth()
+        elif (
+            api_gateway_spec.authenticationMode
+            == schemas.APIGatewayAuthenticationMode.iguazio.value
+        ):
+            return IguazioAuth()
         else:
             return NoneAuth()
 
     def to_scheme(
         self,
-    ) -> Optional[dict[str, Optional[schemas.APIGatewayBasicAuth]]]:
+    ) -> dict[str, schemas.APIGatewayBasicAuth | None] | None:
         return None
 
 
@@ -94,7 +100,7 @@ class BasicAuth(APIGatewayAuthenticator):
 
     def to_scheme(
         self,
-    ) -> Optional[dict[str, Optional[schemas.APIGatewayBasicAuth]]]:
+    ) -> dict[str, schemas.APIGatewayBasicAuth | None] | None:
         return {
             "basicAuth": schemas.APIGatewayBasicAuth(
                 username=self._username, password=self._password
@@ -112,16 +118,26 @@ class AccessKeyAuth(APIGatewayAuthenticator):
         return schemas.APIGatewayAuthenticationMode.access_key.value
 
 
+class IguazioAuth(APIGatewayAuthenticator):
+    """
+    An API gateway authenticator with Iguazio authentication.
+    """
+
+    @property
+    def authentication_mode(self) -> str:
+        return schemas.APIGatewayAuthenticationMode.iguazio.value
+
+
 class APIGatewayMetadata(ModelObj):
     _dict_fields = ["name", "namespace", "labels", "annotations", "creation_timestamp"]
 
     def __init__(
         self,
         name: str,
-        namespace: Optional[str] = None,
-        labels: Optional[dict] = None,
-        annotations: Optional[dict] = None,
-        creation_timestamp: Optional[str] = None,
+        namespace: str | None = None,
+        labels: dict | None = None,
+        annotations: dict | None = None,
+        creation_timestamp: str | None = None,
     ):
         """
         :param name: The name of the API gateway
@@ -169,13 +185,13 @@ class APIGatewaySpec(ModelObj):
             "mlrun.runtimes.nuclio.serving.ServingRuntime",
             "mlrun.runtimes.nuclio.application.ApplicationRuntime",
         ],
-        project: Optional[str] = None,
+        project: str | None = None,
         description: str = "",
-        host: Optional[str] = None,
+        host: str | None = None,
         path: str = "/",
-        authentication: Optional[APIGatewayAuthenticator] = NoneAuth(),
-        canary: Optional[list[int]] = None,
-        ports: Optional[list[int]] = None,
+        authentication: APIGatewayAuthenticator | None = NoneAuth(),
+        canary: list[int] | None = None,
+        ports: list[int] | None = None,
     ):
         """
         :param functions: The list of functions associated with the API gateway
@@ -226,8 +242,8 @@ class APIGatewaySpec(ModelObj):
             "mlrun.runtimes.nuclio.serving.ServingRuntime",
             "mlrun.runtimes.nuclio.application.ApplicationRuntime",
         ],
-        canary: Optional[list[int]] = None,
-        ports: Optional[list[int]] = None,
+        canary: list[int] | None = None,
+        ports: list[int] | None = None,
     ):
         self.functions = self._validate_functions(project=project, functions=functions)
 
@@ -319,8 +335,7 @@ class APIGatewaySpec(ModelObj):
                 )
             if func.metadata.project != project:
                 raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"input function {function_name} "
-                    f"does not belong to this project"
+                    f"input function {function_name} does not belong to this project"
                 )
             function_uri = mlrun.utils.generate_object_uri(
                 project,
@@ -333,7 +348,7 @@ class APIGatewaySpec(ModelObj):
 
 
 class APIGatewayStatus(ModelObj):
-    def __init__(self, state: Optional[schemas.APIGatewayState] = None):
+    def __init__(self, state: schemas.APIGatewayState | None = None):
         self.state = state or schemas.APIGatewayState.none
 
 
@@ -349,7 +364,7 @@ class APIGateway(ModelObj):
         self,
         metadata: APIGatewayMetadata,
         spec: APIGatewaySpec,
-        status: Optional[APIGatewayStatus] = None,
+        status: APIGatewayStatus | None = None,
     ):
         """
         Initialize the APIGateway instance.
@@ -389,10 +404,10 @@ class APIGateway(ModelObj):
     def invoke(
         self,
         method="POST",
-        headers: Optional[dict] = None,
-        credentials: Optional[tuple[str, str]] = None,
-        path: Optional[str] = None,
-        body: Optional[Union[str, bytes, dict]] = None,
+        headers: dict | None = None,
+        credentials: tuple[str, str] | None = None,
+        path: str | None = None,
+        body: Union[str, bytes, dict] | None = None,
         **kwargs,
     ):
         """
@@ -417,7 +432,7 @@ class APIGateway(ModelObj):
                 )
         if not self.is_ready():
             raise mlrun.errors.MLRunPreconditionFailedError(
-                f"API gateway is not ready. " f"Current state: {self.status.state}"
+                f"API gateway is not ready. Current state: {self.status.state}"
             )
 
         auth = None
@@ -430,7 +445,7 @@ class APIGateway(ModelObj):
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     "API Gateway invocation requires authentication. Please pass credentials"
                 )
-            auth = NuclioAuthInfo(
+            auth = mlrun.auth.nuclio.NuclioAuthInfo(
                 username=credentials[0], password=credentials[1]
             ).to_requests_auth()
 
@@ -440,23 +455,30 @@ class APIGateway(ModelObj):
         ):
             # inject access key from env
             if credentials:
-                auth = NuclioAuthInfo(
+                auth = mlrun.auth.nuclio.NuclioAuthInfo(
                     username=credentials[0],
                     password=credentials[1],
                     mode=NuclioAuthKinds.iguazio,
                 ).to_requests_auth()
             else:
-                auth = NuclioAuthInfo().from_envvar().to_requests_auth()
+                auth = (
+                    mlrun.auth.nuclio.NuclioAuthInfo().from_envvar().to_requests_auth()
+                )
             if not auth:
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     "API Gateway invocation requires authentication. Please set V3IO_ACCESS_KEY env var"
                 )
+        if (
+            self.spec.authentication.authentication_mode
+            == schemas.APIGatewayAuthenticationMode.iguazio.value
+        ):
+            auth = mlrun.auth.nuclio.NuclioAuthInfo.from_envvar().to_requests_auth()
         url = urljoin(self.invoke_url, path or "")
 
         # Determine the correct keyword argument for the body
         if isinstance(body, dict):
             kwargs["json"] = body
-        elif isinstance(body, (str, bytes)):
+        elif isinstance(body, str | bytes):
             kwargs["data"] = body
 
         return requests.request(
@@ -526,6 +548,13 @@ class APIGateway(ModelObj):
         Set access key authentication for the API gateway.
         """
         self.spec.authentication = AccessKeyAuth()
+
+    @min_nuclio_versions("1.15.10")
+    def with_iguazio_auth(self):
+        """
+        Set iguazio authentication for the API gateway.
+        """
+        self.spec.authentication = IguazioAuth()
 
     def with_canary(
         self,

@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from collections.abc import Iterator
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -57,9 +57,9 @@ class TestModelMonitoringSchedulesFileEndpoint:
             project="abc", endpoint_id="reoko1220a"
         )
         file.create()
-        assert (
-            file._item.get().decode() == "{}"
-        ), "The newly created schedules file is different than expected"
+        assert file._item.get().decode() == "{}", (
+            "The newly created schedules file is different than expected"
+        )
 
     def test_delete_non_existent_file(self) -> None:
         ModelMonitoringSchedulesFileEndpoint(
@@ -145,9 +145,9 @@ class TestModelMonitoringSchedulesFileChief:
             project="abc",
         )
         file.create()
-        assert (
-            file._item.get().decode() == "{}"
-        ), "The newly created schedules file is different than expected"
+        assert file._item.get().decode() == "{}", (
+            "The newly created schedules file is different than expected"
+        )
 
     def test_delete_non_existent_file(self) -> None:
         ModelMonitoringSchedulesFileChief(
@@ -234,8 +234,8 @@ class TestModelMonitoringSchedulesFileApplication:
 
         ep1_uid = "aknak2s"
         ep2_uid = "9339rkd"
-        dt1 = datetime(2020, 10, 2, 1, tzinfo=timezone.utc)
-        dt2 = datetime(2020, 10, 2, 2, tzinfo=timezone.utc)
+        dt1 = datetime(2020, 10, 2, 1, tzinfo=UTC)
+        dt2 = datetime(2020, 10, 2, 2, tzinfo=UTC)
 
         with file:
             assert file.get_endpoint_last_analyzed(ep1_uid) is None
@@ -261,9 +261,9 @@ def test_delete_folder() -> None:
         filesystem = file._fs
 
     delete_model_monitoring_schedules_folder(project)
-    assert not filesystem.exists(
-        _get_monitoring_schedules_folder_path(project)
-    ), "Schedules folder should have been removed"
+    assert not filesystem.exists(_get_monitoring_schedules_folder_path(project)), (
+        "Schedules folder should have been removed"
+    )
 
 
 @pytest.fixture
@@ -287,6 +287,6 @@ def test_delete_user_application_folder() -> None:
         filesystem = file._fs
 
     delete_model_monitoring_schedules_user_folder(project)
-    assert not filesystem.exists(
-        _get_monitoring_schedules_user_folder_path(project)
-    ), "Schedules folder should have been removed"
+    assert not filesystem.exists(_get_monitoring_schedules_user_folder_path(project)), (
+        "Schedules folder should have been removed"
+    )

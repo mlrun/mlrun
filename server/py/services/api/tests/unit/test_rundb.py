@@ -189,5 +189,5 @@ def test_list_runs(db: RunDBInterface):
 
 def test_container_override():
     factory = mlrun.db.factory.RunDBFactory()
-    run_db = factory.create_run_db(url="mock://")
+    run_db = factory.create_run_db(url="sqlite://::memory::")
     assert isinstance(run_db, sqldb.SQLRunDB)

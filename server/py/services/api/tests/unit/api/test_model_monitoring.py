@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 from collections.abc import Iterator
 from http import HTTPStatus
 from typing import Any
@@ -19,6 +20,11 @@ from unittest.mock import Mock, patch
 
 import pytest
 from fastapi.testclient import TestClient
+
+import mlrun.common.schemas
+import mlrun.errors
+import mlrun.runtimes.nuclio.function
+import mlrun.utils.helpers
 
 
 @pytest.fixture
@@ -71,3 +77,154 @@ def test_delete_model_monitoring_metrics(
             application_name=params.get("application-name"),
             endpoint_ids=params.get("endpoint-id"),
         )
+
+
+class TestUpdateControllerAuthToken:
+    """Tests for ML-12021: Preserve auth token in update_model_monitoring_controller"""
+
+    TOKEN_NAME = "my-iguazio-token"
+
+    def test_auth_token_round_trips_through_nuclio_spec(self):
+        spec = mlrun.runtimes.nuclio.function.NuclioSpec()
+        mlrun.utils.helpers.set_auth_token_name(spec, self.TOKEN_NAME)
+
+        spec_dict = spec.to_dict()
+        extracted = spec_dict.get("auth", {}).get("token_name")
+
+        assert extracted == self.TOKEN_NAME
+
+    def test_nuclio_spec_without_auth_extracts_none(self):
+        spec = mlrun.runtimes.nuclio.function.NuclioSpec()
+
+        spec_dict = spec.to_dict()
+        extracted = spec_dict.get("auth", {}).get("token_name")
+
+        assert extracted is None
+
+    @patch(
+        "services.api.api.endpoints.model_monitoring.process_model_monitoring_secret"
+    )
+    def test_common_params_propagates_token_to_monitoring_deployment(
+        self, _mock_secret
+    ):
+        from services.api.api.endpoints.model_monitoring import _CommonParams
+
+        commons = _CommonParams(
+            project="test-project",
+            auth_info=mlrun.common.schemas.AuthInfo(),
+            db_session=Mock(),
+            auth_token_name=self.TOKEN_NAME,
+        )
+
+        deployment = commons.get_monitoring_deployment()
+
+        assert deployment._auth_token_name == self.TOKEN_NAME
+
+
+class TestGetModelMonitoringURL:
+    """Tests for the GET /projects/{project}/model-monitoring/stream-pod-http-url endpoint."""
+
+    _PROJECT = "test-mm-url"
+    _URL_PATH = f"projects/{_PROJECT}/model-monitoring/stream-pod-http-url"
+
+    @pytest.fixture(autouse=True)
+    def _bypass_auth(self):
+        with patch("framework.api.deps.authenticate_request"):
+            with patch(
+                "framework.utils.auth.verifier.AuthVerifier.query_project_permissions"
+            ):
+                yield
+
+    @pytest.fixture
+    def mock_get_function(self):
+        with patch("services.api.crud.Functions.get_function") as mock:
+            yield mock
+
+    def test_function_not_found_returns_404(self, client, mock_get_function):
+        # Real get_function raises MLRunNotFoundError when the function is missing;
+        # get_stream_url must translate that into a project-scoped message pointing
+        # the user at project.enable_model_monitoring().
+        mock_get_function.side_effect = mlrun.errors.MLRunNotFoundError(
+            f"Function tag not found {self._PROJECT}/model-monitoring-stream"
+        )
+        resp = client.get(self._URL_PATH)
+        assert resp.status_code == HTTPStatus.NOT_FOUND, resp.text
+        assert "enable_model_monitoring" in resp.text
+
+    def test_not_ready_still_returns_url(self, client, mock_get_function, caplog):
+        # A non-ready stream pod must not block the caller: return the URL anyway
+        # and log a warning so the operator knows the URL may not be reachable yet.
+        mock_get_function.return_value = {
+            "status": {
+                "state": "deploying",
+                "internal_invocation_urls": ["internal:8080"],
+            }
+        }
+        with caplog.at_level(logging.WARNING):
+            resp = client.get(self._URL_PATH)
+        assert resp.status_code == HTTPStatus.OK, resp.text
+        assert resp.json() == "http://internal:8080"
+        assert any(
+            "is not in ready state" in record.message
+            and record.levelno == logging.WARNING
+            for record in caplog.records
+        ), f"expected not-ready warning, got: {[r.message for r in caplog.records]}"
+
+    def test_not_ready_without_url_returns_none(
+        self, client, mock_get_function, caplog
+    ):
+        # Non-ready and no URL yet → None, with the not-ready warning still emitted.
+        mock_get_function.return_value = {
+            "status": {"state": "deploying", "internal_invocation_urls": []}
+        }
+        with caplog.at_level(logging.WARNING):
+            resp = client.get(self._URL_PATH)
+        assert resp.status_code == HTTPStatus.OK, resp.text
+        assert resp.json() is None
+        assert any(
+            "is not in ready state" in record.message
+            and record.levelno == logging.WARNING
+            for record in caplog.records
+        ), f"expected not-ready warning, got: {[r.message for r in caplog.records]}"
+
+    @pytest.mark.parametrize("state", ["error", "unhealthy"])
+    def test_failed_state_returns_412(self, client, mock_get_function, state):
+        # Terminal failure states (`error`, `unhealthy`) — the deploy/caller cannot
+        # rely on a broken stream, so we must raise (412) rather than silently
+        # returning the URL. `unhealthy` is nuclio-only and distinct from `error`.
+        mock_get_function.return_value = {
+            "status": {
+                "state": state,
+                "internal_invocation_urls": ["internal:8080"],
+            }
+        }
+        resp = client.get(self._URL_PATH)
+        assert resp.status_code == HTTPStatus.PRECONDITION_FAILED, resp.text
+        assert "terminal failure state" in resp.text
+        assert state in resp.text
+
+    def test_returns_internal_url(self, client, mock_get_function):
+        # Even when external_invocation_urls is populated, always use the internal URL.
+        mock_get_function.return_value = {
+            "status": {
+                "state": "ready",
+                "external_invocation_urls": ["external-host:8080/path"],
+                "internal_invocation_urls": ["internal:8080"],
+            }
+        }
+        resp = client.get(self._URL_PATH)
+        assert resp.status_code == HTTPStatus.OK, resp.text
+        assert resp.json() == "http://internal:8080"
+
+    def test_returns_none_when_no_internal_url(self, client, mock_get_function):
+        # No internal_invocation_urls → return None (external URL is not used).
+        mock_get_function.return_value = {
+            "status": {
+                "state": "ready",
+                "external_invocation_urls": ["external-host:8080/path"],
+                "internal_invocation_urls": [],
+            }
+        }
+        resp = client.get(self._URL_PATH)
+        assert resp.status_code == HTTPStatus.OK, resp.text
+        assert resp.json() is None

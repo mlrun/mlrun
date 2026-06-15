@@ -33,7 +33,14 @@ class DaskFeatureMerger(BaseMerger):
             ) from exc
 
         self.client = engine_args.get("dask_client")
+        self._local_client = False
         self._dask_cluster_uri = engine_args.get("dask_cluster_uri")
+
+    def close(self):
+        if self._local_client and self.client is not None:
+            self.client.close()
+            self.client = None
+            self._local_client = False
 
     def _reset_index(self, df):
         to_drop = df.index.name is None
@@ -136,6 +143,7 @@ class DaskFeatureMerger(BaseMerger):
                 self.client = function.client
             else:
                 self.client = Client()
+                self._local_client = True
 
     def _get_engine_df(
         self,

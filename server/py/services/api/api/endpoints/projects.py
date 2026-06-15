@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import datetime
 import http
-from typing import Optional
 
 import fastapi
 import semver
@@ -29,6 +29,7 @@ import framework.api.utils
 import framework.utils.auth.verifier
 import framework.utils.clients.chief
 import framework.utils.helpers
+import framework.utils.project_formats
 import services.api.crud
 from framework.utils.singletons.project_member import get_project_member
 
@@ -42,7 +43,7 @@ router = fastapi.APIRouter()
         http.HTTPStatus.ACCEPTED.value: {},
     },
 )
-def create_project(
+async def create_project(
     project: mlrun.common.schemas.Project,
     response: fastapi.Response,
     # TODO: we're in a http request context here, therefore it doesn't make sense that by default it will hold the
@@ -55,15 +56,27 @@ def create_project(
         framework.api.deps.get_db_session
     ),
 ):
-    project, is_running_in_background = get_project_member().create_project(
+    if mlrun.mlconf.is_iguazio_v4_mode():
+        await framework.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.project_global,
+            mlrun.common.schemas.AuthorizationAction.create,
+            auth_info,
+        )
+    project, is_running_in_background = await run_in_threadpool(
+        get_project_member().create_project,
         db_session,
         project,
-        auth_info.projects_role,
-        auth_info.session,
+        auth_info,
         wait_for_completion=wait_for_completion,
     )
     if is_running_in_background:
         return fastapi.Response(status_code=http.HTTPStatus.ACCEPTED.value)
+
+    await framework.utils.auth.verifier.AuthVerifier().ensure_project_permissions(
+        project.metadata.name,
+        auth_info,
+    )
+
     response.status_code = http.HTTPStatus.CREATED.value
     return project
 
@@ -88,17 +101,23 @@ async def store_project(
         framework.api.deps.get_db_session
     ),
 ):
+    await _ensure_project_create_or_update_permissions(db_session, name, auth_info)
     project, is_running_in_background = await run_in_threadpool(
         get_project_member().store_project,
         db_session,
         name,
         project,
-        auth_info.projects_role,
-        auth_info.session,
+        auth_info,
         wait_for_completion=wait_for_completion,
     )
     if is_running_in_background:
         return fastapi.Response(status_code=http.HTTPStatus.ACCEPTED.value)
+
+    await framework.utils.auth.verifier.AuthVerifier().ensure_project_permissions(
+        project.metadata.name,
+        auth_info,
+    )
+
     return project
 
 
@@ -109,7 +128,7 @@ async def store_project(
         http.HTTPStatus.ACCEPTED.value: {},
     },
 )
-def patch_project(
+async def patch_project(
     project: dict,
     name: str,
     patch_mode: mlrun.common.schemas.PatchMode = fastapi.Header(
@@ -126,13 +145,24 @@ def patch_project(
         framework.api.deps.get_db_session
     ),
 ):
-    project, is_running_in_background = get_project_member().patch_project(
+    # In IG4 mode, apply fine-grained permission checks
+    # In IG3 mode, skip the check when the request comes from the leader; otherwise fall back to the standard
+    # project-update permission to preserve backward compatibility.
+    if mlrun.mlconf.is_iguazio_v4_mode():
+        await _verify_patch_project_permissions(name, project, auth_info)
+    elif not framework.utils.helpers.is_request_from_leader(auth_info.projects_role):
+        await framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
+            name,
+            mlrun.common.schemas.AuthorizationAction.update,
+            auth_info,
+        )
+    project, is_running_in_background = await run_in_threadpool(
+        get_project_member().patch_project,
         db_session,
         name,
         project,
         patch_mode,
-        auth_info.projects_role,
-        auth_info.session,
+        auth_info,
         wait_for_completion=wait_for_completion,
     )
     if is_running_in_background:
@@ -157,16 +187,26 @@ async def get_project(
         get_project_member().get_project,
         db_session,
         name,
-        auth_info.session,
+        auth_info,
         format_=format_,
     )
-    # skip permission check if it's the leader
-    if not framework.utils.helpers.is_request_from_leader(auth_info.projects_role):
-        await framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
-            name,
-            mlrun.common.schemas.AuthorizationAction.read,
-            auth_info,
-        )
+    # skip permission check if it's the leader in iguazio v3 mode
+    if (
+        mlrun.mlconf.is_iguazio_v4_mode()
+        or not framework.utils.helpers.is_request_from_leader(auth_info.projects_role)
+    ):
+        # If the requesting user is the project owner, populate the OPA owner
+        # cache and skip the permissions query. This mitigates the OPA manifest
+        # propagation race on multi-pod deployments.
+        verifier = framework.utils.auth.verifier.AuthVerifier()
+        if verifier.is_project_owner(auth_info, project):
+            verifier.add_allowed_project_for_owner(name, auth_info)
+        else:
+            await verifier.query_project_permissions(
+                name,
+                mlrun.common.schemas.AuthorizationAction.read,
+                auth_info,
+            )
     return project
 
 
@@ -198,11 +238,31 @@ async def delete_project(
     # check if project exists
     try:
         project = await run_in_threadpool(
-            get_project_member().get_project, db_session, name, auth_info.session
+            get_project_member().get_project, db_session, name, auth_info
         )
     except mlrun.errors.MLRunNotFoundError:
         logger.info("Project not found, nothing to delete", project=name)
         return fastapi.Response(status_code=http.HTTPStatus.NO_CONTENT.value)
+
+    # skip permission check if it's the leader in iguazio v3 mode
+    if (
+        mlrun.mlconf.is_iguazio_v4_mode()
+        or not framework.utils.helpers.is_request_from_leader(auth_info.projects_role)
+    ):
+        # Owners are trusted via spec.owner; populate the OPA owner cache
+        # and skip the permissions query. This mitigates the OPA manifest
+        # propagation race on multi-pod deployments, and keeps the owner
+        # short-circuit in place for retries / follow-up calls if the
+        # delete fails.
+        verifier = framework.utils.auth.verifier.AuthVerifier()
+        if verifier.is_project_owner(auth_info, project):
+            verifier.add_allowed_project_for_owner(name, auth_info)
+        else:
+            await verifier.query_project_permissions(
+                name,
+                mlrun.common.schemas.AuthorizationAction.delete,
+                auth_info,
+            )
 
     # delete project can be responsible for deleting schedules. Schedules are running only on chief,
     # that is why we re-route requests to chief
@@ -264,7 +324,6 @@ async def delete_project(
             db_session,
             name,
             deletion_strategy,
-            auth_info.projects_role,
             auth_info,
             wait_for_completion=wait_for_completion,
         )
@@ -316,9 +375,12 @@ async def list_projects(
     format_: mlrun.common.formatters.ProjectFormat = fastapi.Query(
         mlrun.common.formatters.ProjectFormat.full, alias="format"
     ),
-    owner: Optional[str] = None,
+    owner: str | None = None,
     labels: list[str] = fastapi.Query(None, alias="label"),
     state: mlrun.common.schemas.ProjectState = None,
+    updated_after: datetime.datetime | None = fastapi.Query(
+        None, alias="updated_after"
+    ),
     auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
         framework.api.deps.authenticate_request
     ),
@@ -327,17 +389,21 @@ async def list_projects(
     ),
 ):
     allowed_project_names = None
-    # skip permission check if it's the leader
-    if not framework.utils.helpers.is_request_from_leader(auth_info.projects_role):
+    # skip permission check if it's the leader in iguazio v3 mode
+    if (
+        mlrun.mlconf.is_iguazio_v4_mode()
+        or not framework.utils.helpers.is_request_from_leader(auth_info.projects_role)
+    ):
         projects_output = await run_in_threadpool(
             get_project_member().list_projects,
             db_session,
+            auth_info,
             owner,
             mlrun.common.formatters.ProjectFormat.name_only,
             labels,
             state,
-            auth_info.projects_role,
-            auth_info.session,
+            None,
+            updated_after,
         )
         allowed_project_names = await framework.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions(
             projects_output.projects,
@@ -346,13 +412,13 @@ async def list_projects(
     return await run_in_threadpool(
         get_project_member().list_projects,
         db_session,
+        auth_info,
         owner,
         format_,
         labels,
         state,
-        auth_info.projects_role,
-        auth_info.session,
         allowed_project_names,
+        updated_after,
     )
 
 
@@ -360,7 +426,7 @@ async def list_projects(
     "/project-summaries", response_model=mlrun.common.schemas.ProjectSummariesOutput
 )
 async def list_project_summaries(
-    owner: Optional[str] = None,
+    owner: str | None = None,
     labels: list[str] = fastapi.Query(None, alias="label"),
     state: mlrun.common.schemas.ProjectState = None,
     auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
@@ -373,34 +439,28 @@ async def list_project_summaries(
     projects_output = await run_in_threadpool(
         get_project_member().list_projects,
         db_session,
+        auth_info,
         owner,
         mlrun.common.formatters.ProjectFormat.name_only,
         labels,
         state,
-        auth_info.projects_role,
-        auth_info.session,
     )
     allowed_project_names = projects_output.projects
-    # skip permission check if it's the leader
-    if not framework.utils.helpers.is_request_from_leader(auth_info.projects_role):
-        auth_verifier = framework.utils.auth.verifier.AuthVerifier()
-        allowed_project_names = await auth_verifier.filter_project_resources_by_permissions(
-            resource_type=mlrun.common.schemas.AuthorizationResourceTypes.project_summaries,
-            resources=allowed_project_names,
-            project_and_resource_name_extractor=lambda project: (
-                project,
-                "",
-            ),
-            auth_info=auth_info,
-            action=mlrun.common.schemas.AuthorizationAction.read,
+    # skip permission check if it's the leader in iguazio v3 mode
+    if (
+        mlrun.mlconf.is_iguazio_v4_mode()
+        or not framework.utils.helpers.is_request_from_leader(auth_info.projects_role)
+    ):
+        allowed_project_names = await framework.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions(
+            allowed_project_names,
+            auth_info,
         )
     return await get_project_member().list_project_summaries(
         db_session,
+        auth_info,
         owner,
         labels,
         state,
-        auth_info.projects_role,
-        auth_info.session,
         allowed_project_names,
     )
 
@@ -418,10 +478,13 @@ async def get_project_summary(
     ),
 ):
     project_summary = await get_project_member().get_project_summary(
-        db_session, name, auth_info.session
+        db_session, name, auth_info
     )
-    # skip permission check if it's the leader
-    if not framework.utils.helpers.is_request_from_leader(auth_info.projects_role):
+    # skip permission check if it's the leader in iguazio v3 mode
+    if (
+        mlrun.mlconf.is_iguazio_v4_mode()
+        or not framework.utils.helpers.is_request_from_leader(auth_info.projects_role)
+    ):
         await framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
             name,
             mlrun.common.schemas.AuthorizationAction.read,
@@ -463,13 +526,14 @@ async def load_project(
         spec=mlrun.common.schemas.ProjectSpec(source=url),
     )
 
+    await _ensure_project_create_or_update_permissions(db_session, name, auth_info)
+
     # Ensure the project exists before calling the remote load_project function
     project, _ = await fastapi.concurrency.run_in_threadpool(
         get_project_member().create_project,
         db_session=db_session,
         project=project,
-        projects_role=auth_info.projects_role,
-        leader_session=auth_info.session,
+        auth_info=auth_info,
     )
 
     # Storing secrets in project
@@ -512,3 +576,115 @@ async def load_project(
         project=project,
     )
     return {"data": run.to_dict()}
+
+
+async def _verify_patch_project_permissions(
+    project_name: str,
+    project_patch: dict,
+    auth_info: mlrun.common.schemas.AuthInfo,
+):
+    """Apply fine-grained permission checks for project patch requests.
+
+    If the patch modifies spec.owner, verify the caller has management-level owner-update permission
+      (/mgmt/projects/{project}/owner – update).
+    If the patch modifies any other project properties, verify the caller has the regular resource-level
+    project-update permission
+      (/resources/projects/{project} – update).
+    If both kinds of changes are present, both checks must pass.
+    """
+    auth_verifier = framework.utils.auth.verifier.AuthVerifier()
+    modifies_owner = _patch_modifies_owner(project_patch)
+    modifies_other = _patch_modifies_non_owner_fields(project_patch)
+
+    if modifies_owner:
+        await auth_verifier.query_project_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.project_owner,
+            project_name,
+            "",
+            mlrun.common.schemas.AuthorizationAction.update,
+            auth_info,
+            resource_namespace=mlrun.common.schemas.AuthorizationResourceNamespace.mgmt,
+        )
+
+    # Run the regular resource-level check when non-owner fields are touched, or as a fallback when the patch doesn't
+    # modify the owner either (e.g. empty body), so that no request bypasses permission verification entirely.
+    if modifies_other or not modifies_owner:
+        await auth_verifier.query_project_permissions(
+            project_name,
+            mlrun.common.schemas.AuthorizationAction.update,
+            auth_info,
+        )
+
+
+def _patch_modifies_owner(project_patch: dict) -> bool:
+    """Check whether the patch dict modifies spec.owner."""
+    return "owner" in project_patch.get("spec", {})
+
+
+def _patch_modifies_non_owner_fields(project_patch: dict) -> bool:
+    """Check whether the patch dict contains fields beyond spec.owner."""
+    # Any top-level key other than "spec" is a non-owner modification.
+    for key in project_patch:
+        if key != "spec":
+            return True
+    # Only "spec" at top level — check whether spec itself contains keys beyond "owner"
+    spec = project_patch.get("spec", {})
+    return any(key != "owner" for key in spec)
+
+
+async def _ensure_project_create_or_update_permissions(
+    db_session: sqlalchemy.orm.Session,
+    project_name: str,
+    auth_info: mlrun.common.schemas.AuthInfo,
+):
+    """Ensure create or update permissions based on project existence."""
+    # Only check leader header in iguazio v3
+    if (
+        not mlrun.mlconf.is_iguazio_v4_mode()
+        and framework.utils.helpers.is_request_from_leader(auth_info.projects_role)
+    ):
+        return
+
+    try:
+        # Fetch name + owner so we can short-circuit the OPA query when the
+        # requesting user owns the project (mirrors `ensure_project` behavior).
+        project = await run_in_threadpool(
+            get_project_member().get_project,
+            db_session,
+            project_name,
+            auth_info,
+            format_=framework.utils.project_formats.ProjectFormatCustomSelection(
+                [
+                    framework.utils.project_formats.ProjectFormatCustom.name,
+                    framework.utils.project_formats.ProjectFormatCustom.owner,
+                ]
+            ),
+        )
+        project_exists = True
+    except mlrun.errors.MLRunNotFoundError:
+        project = None
+        project_exists = False
+
+    if project_exists:
+        # If the requesting user is the project owner, populate the OPA owner
+        # cache and skip the permissions query. This mitigates the OPA manifest
+        # propagation race on multi-pod deployments.
+        verifier = framework.utils.auth.verifier.AuthVerifier()
+        if verifier.is_project_owner(auth_info, project):
+            verifier.add_allowed_project_for_owner(project_name, auth_info)
+        else:
+            await verifier.query_project_permissions(
+                project_name,
+                mlrun.common.schemas.AuthorizationAction.update,
+                auth_info,
+            )
+        return
+
+    # In Iguazio v4 mode, mlrun is the project leader and main entrypoint so we must ensure
+    # that the user has create permissions for projects.
+    if mlrun.mlconf.is_iguazio_v4_mode():
+        await framework.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.project_global,
+            mlrun.common.schemas.AuthorizationAction.create,
+            auth_info,
+        )

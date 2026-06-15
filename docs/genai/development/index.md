@@ -13,7 +13,7 @@ fine-tuning-llms
 ```
 
 **See also**
-- {ref}`genai_01_basic_tutorial`
+- {ref}`genai-01-basic-tutorial`
 - {ref}`realtime-monitor-drift-tutor`
 - {ref}`model-monitoring-overview`
 - {ref}`alerts-notifications`

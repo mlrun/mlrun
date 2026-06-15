@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Optional
+from typing import Any
 
 from sqlalchemy.orm import Session
 
@@ -20,7 +20,7 @@ import mlrun.common.formatters
 import mlrun.common.schemas
 import mlrun.common.schemas.model_monitoring.grafana as grafana_schemas
 from mlrun.errors import MLRunBadRequestError
-from mlrun.utils import logger
+from mlrun.utils import logger, run_in_threadpool
 
 import framework.utils.auth.verifier
 import services.api.crud
@@ -45,8 +45,8 @@ def grafana_list_projects(
 
     projects_output = get_project_member().list_projects(
         db_session,
+        auth_info=auth_info,
         format_=mlrun.common.formatters.ProjectFormat.name_only,
-        leader_session=auth_info.session,
     )
     return projects_output.projects
 
@@ -74,7 +74,8 @@ async def grafana_list_endpoints_uids(
             mlrun.common.schemas.AuthorizationAction.read,
             auth_info,
         )
-    endpoint_list = await services.api.crud.ModelEndpoints().list_model_endpoints(
+    endpoint_list = await run_in_threadpool(
+        services.api.crud.ModelEndpoints().list_model_endpoints,
         db_session=db_session,
         project=project,
         latest_only=True,
@@ -153,7 +154,8 @@ async def grafana_list_endpoints(
     # Endpoint type filter - will be used to filter the router models
     filter_router = query_parameters.get("filter_router", None)
 
-    endpoint_list = await services.api.crud.ModelEndpoints().list_model_endpoints(
+    endpoint_list = await run_in_threadpool(
+        services.api.crud.ModelEndpoints().list_model_endpoints,
         db_session=db_session,
         project=project,
         model_name=model,
@@ -266,7 +268,7 @@ def drop_grafana_escape_chars(query_parameters: dict[str, str]):
 
 
 def validate_query_parameters(
-    query_parameters: dict[str, str], supported_endpoints: Optional[set[str]] = None
+    query_parameters: dict[str, str], supported_endpoints: set[str] | None = None
 ):
     """Validates the parameters sent via Grafana's SimpleJson query"""
     if "target_endpoint" not in query_parameters:

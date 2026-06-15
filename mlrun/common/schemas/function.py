@@ -36,6 +36,9 @@ class FunctionState:
     unknown = "unknown"
     ready = "ready"
     error = "error"  # represents deployment error
+    # nuclio-only: pod is up but failing health checks. Distinct from `error` —
+    # nuclio reports it as a raw string and does not map it to FunctionState.error.
+    unhealthy = "unhealthy"
 
     deploying = "deploying"
     # there is currently an abuse usage of the builder (lower) pod state as the function state, ideally these two would
@@ -44,6 +47,10 @@ class FunctionState:
     pending = "pending"
     # same goes for the build which is not coming from the pod, but is used and we can't just omit it for BC reasons
     build = "build"
+    # `building` is a presentational state: persisted to status.state so the UI shows an in-progress
+    #  build/deploy as "Deploying". On the application build path it's only persisted, never put in the
+    # `x-mlrun-function-status` header, so the SDK build-watch still polls the raw pod phase (running/pending).
+    building = "building"
 
     # for pipeline steps
     skipped = "skipped"
@@ -65,6 +72,13 @@ class FunctionState:
             cls.ready,
             cls.error,
             cls.skipped,
+        ]
+
+    @classmethod
+    def failed_states(cls):
+        return [
+            cls.error,
+            cls.unhealthy,
         ]
 
 
@@ -92,31 +106,31 @@ class SecurityContextEnrichmentModes(mlrun.common.types.StrEnum):
 
 
 class ImagePullSecret(pydantic.v1.BaseModel):
-    default: typing.Optional[str]
+    default: str | None
 
 
 class Pipelines(pydantic.v1.BaseModel):
-    kfp_pod_user_unix_id: typing.Optional[int]
+    kfp_pod_user_unix_id: int | None
 
 
 class SecurityContext(pydantic.v1.BaseModel):
-    default: typing.Optional[str]
-    enrichment_mode: typing.Optional[SecurityContextEnrichmentModes]
-    enrichment_group_id: typing.Optional[int]
-    pipelines: typing.Optional[Pipelines]
+    default: str | None
+    enrichment_mode: SecurityContextEnrichmentModes | None
+    enrichment_group_id: int | None
+    pipelines: Pipelines | None
 
 
 class ServiceAccount(pydantic.v1.BaseModel):
-    default: typing.Optional[str]
+    default: str | None
 
 
 class StateThresholds(pydantic.v1.BaseModel):
-    default: typing.Optional[dict[str, str]]
+    default: dict[str, str] | None
 
 
 class Backoff(pydantic.v1.BaseModel):
-    default_base_delay: typing.Optional[str]
-    min_base_delay: typing.Optional[str]
+    default_base_delay: str | None
+    min_base_delay: str | None
 
 
 class RetrySpec(pydantic.v1.BaseModel):
@@ -124,19 +138,43 @@ class RetrySpec(pydantic.v1.BaseModel):
 
 
 class FunctionSpec(pydantic.v1.BaseModel):
-    image_pull_secret: typing.Optional[ImagePullSecret]
-    security_context: typing.Optional[SecurityContext]
-    service_account: typing.Optional[ServiceAccount]
-    state_thresholds: typing.Optional[StateThresholds]
-    retry: typing.Optional[RetrySpec]
+    image_pull_secret: ImagePullSecret | None
+    security_context: SecurityContext | None
+    service_account: ServiceAccount | None
+    state_thresholds: StateThresholds | None
+    retry: RetrySpec | None
 
     class Config:
         extra = pydantic.v1.Extra.allow
 
 
 class Function(pydantic.v1.BaseModel):
-    spec: typing.Optional[FunctionSpec]
-    application: typing.Optional[dict[str, typing.Any]]
+    spec: FunctionSpec | None
+    application: dict[str, typing.Any] | None
 
     class Config:
         extra = pydantic.v1.Extra.allow
+
+
+class BatchingSpec(pydantic.v1.BaseModel):
+    # Set to True to enable batching
+    enabled: bool
+    # Maximal events to batch together. Default size is 10.
+    batch_size: int | None
+    # The maximum amount of time to wait before processing the batch. Default timeout is 1s.
+    # Once this time passes, the batch is processed even if it hasn’t reached the full batch size.
+    timeout: str | None
+
+    def get_nuclio_batch_config(self):
+        if not self.enabled:
+            return None
+
+        config = {"mode": "enable"}
+
+        if self.batch_size:
+            config["batchSize"] = self.batch_size
+
+        if self.timeout:
+            config["timeout"] = self.timeout
+
+        return config

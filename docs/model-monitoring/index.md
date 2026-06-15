@@ -62,10 +62,10 @@ For each model that is served in a model serving function, there is a model endp
 
 The model endpoint APIs are:
 
-- {py:meth}`https://docs.mlrun.org/en/latest/api/mlrun.db/index.html#mlrun.db.httpdb.HTTPRunDB.get_model_endpoint`
-- {py:meth}`https://docs.mlrun.org/en/latest/api/mlrun.db/index.html#mlrun.db.httpdb.HTTPRunDB.list_model_endpoints`
-- {py:meth}`https://docs.mlrun.org/en/latest/api/mlrun.projects/index.html#mlrun.projects.MlrunProject.list_model_endpoints`
-- {py:meth}`https://docs.mlrun.org/en/latest/api/mlrun.db/index.html#mlrun.db.httpdb.HTTPRunDB.get_metrics_by_multiple_endpoints`
+- {py:meth}`~mlrun.db.httpdb.HTTPRunDB.get_model_endpoint`
+- {py:meth}`~mlrun.db.httpdb.HTTPRunDB.list_model_endpoints`
+- {py:meth}`~mlrun.projects.MlrunProject.list_model_endpoints`
+- {py:meth}`~mlrun.db.httpdb.HTTPRunDB.get_metrics_by_multiple_endpoints`
 
 All model monitoring endpoints are presented in the UI with information about the actual inference, including data on the inputs, outputs, and results.
 The Model Endpoints tab presents the overall metrics. From there you can select an endpoint and view the Overview, Features Analysis, and the Metrics tabs. 
@@ -79,15 +79,14 @@ For example:
 (mm-tsdb-streaming-platforms)=
 ## Selecting the streaming and TSDB platforms
 
-Model monitoring supports Kafka or V3IO as streaming platforms, and TDEngine or V3IO TSDB platforms.
+Model monitoring supports Kafka or V3IO as streaming platforms, and TimescaleDB (PostgreSQL) or V3IO TSDB platforms.
 
 The recommended versions are:
-
-- TDEngine: `3.3.2.0`
+- TimescaleDB: PostgreSQL `17` with TimescaleDB extension
 - Kafka: `3.9.0` self-hosted, or Confluent Cloud (tested against `7.9`)
 
-Before you deploy the model monitoring or serving function, you need to set the credentials with {py:meth}`mlrun.projects.MlrunProject.set_model_monitoring_credentials`.
-See also [Configuring TDengine and Kafka for model monitoring](../install/kubernetes.md#configuring-tdengine-and-kafka-for-model-monitoring).
+Before you deploy the model monitoring or serving function, you need to set the credentials with {py:meth}`~mlrun.projects.MlrunProject.set_model_monitoring_credentials`.
+See also [Configuring TimescaleDB and Kafka for model monitoring](../install-mlrun-ce/mlrun-ce-development-notes.md#configuring-timescaledb-and-kafka-for-model-monitoring).
 
 ## Model monitoring applications
 
@@ -100,6 +99,7 @@ tailored for classical ML models (not LLMs, gen AI, deep-learning models, etc.).
 - Kullback–Leibler Divergence (KLD) &mdash; The measure of how the probability distribution of actual predictions is different from the second model's
   trained reference probability distribution.
 
+You can import model monitoring applications from the [MLRun hub](https://www.mlrun.org/hub/). Each application has complete usage instructions.</br>
 You can create your own model monitoring applications for LLMs, gen AI, deep-learning models, etc., based on the
 {py:class}`~mlrun.model_monitoring.applications.ModelMonitoringApplicationBase` class.
 See {ref}`mm-applications`.</br>
@@ -151,7 +151,6 @@ When ramping up the scale of your model monitoring, take note of these limitatio
 - Up to 200 small projects (model endpoints < 100)
 - On each project and per 10 minute base-period:
   - Up to 50,000 results/metrics can be captured (V3IO-TSDB)
-  - Up to 5,000 results/metrics can be captured (TDengine-TSDB)
   
 **These numbers can vary depending on the overall system stress level and the TSDB performance.**
 

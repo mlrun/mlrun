@@ -414,6 +414,33 @@ class TestFunctions(TestDatabaseBase):
                 assert function["metadata"]["tag"] == ""
                 assert function["status"] is None
 
+    def test_list_functions_empty_project_list_returns_empty(self):
+        # Cross-project listing for a user with no accessible projects resolves to an
+        # empty project list. That must yield an empty result, not an error.
+        self._db.store_function(
+            self._db_session,
+            function={"metadata": {"name": "some-function"}},
+            name="some-function",
+            project=self.project,
+            tag="latest",
+            versioned=True,
+        )
+
+        functions = self._db.list_functions(self._db_session, project=[])
+        assert len(functions) == 0
+
+        # A populated project list still filters normally (the empty-list relaxation doesn't
+        # weaken the list path).
+        functions = self._db.list_functions(self._db_session, project=[self.project])
+        assert len(functions) == 1
+
+    @pytest.mark.parametrize("project", [None, ""])
+    def test_list_functions_missing_project_raises(self, project):
+        # A truly missing project (None / "") applies no project filter, so it must keep
+        # raising rather than silently listing across all projects.
+        with pytest.raises(mlrun.errors.MLRunMissingProjectError):
+            self._db.list_functions(self._db_session, project=project)
+
     def test_list_functions_by_tag(self):
         tag = "function_name_1"
 
@@ -921,9 +948,9 @@ class TestFunctions(TestDatabaseBase):
 
         functions = self._db.list_functions(self._db_session, project=self.project)
 
-        assert (
-            len(functions) == number_of_functions
-        ), f"Expected {number_of_functions} results, got {len(functions)}"
+        assert len(functions) == number_of_functions, (
+            f"Expected {number_of_functions} results, got {len(functions)}"
+        )
 
         expected_names = [
             f"function-{i}" for i in range(number_of_functions - 1, -1, -1)
@@ -931,9 +958,9 @@ class TestFunctions(TestDatabaseBase):
 
         for function, expected_name in zip(functions, expected_names):
             function_name = function["metadata"]["name"]
-            assert (
-                function_name == expected_name
-            ), f"Expected {expected_name}, got {function_name}"
+            assert function_name == expected_name, (
+                f"Expected {expected_name}, got {function_name}"
+            )
 
     def test_list_functions_orders_by_id_when_updated_is_identical(self):
         # this test verifies that when updated date is identical, functions should be ordered by function id
@@ -963,9 +990,9 @@ class TestFunctions(TestDatabaseBase):
 
         functions = self._db.list_functions(self._db_session, project=self.project)
 
-        assert (
-            len(functions) == number_of_functions
-        ), f"Expected {number_of_functions} results, got {len(functions)}"
+        assert len(functions) == number_of_functions, (
+            f"Expected {number_of_functions} results, got {len(functions)}"
+        )
 
         expected_names = [
             f"function-{i}" for i in range(number_of_functions - 1, -1, -1)
@@ -973,9 +1000,9 @@ class TestFunctions(TestDatabaseBase):
 
         for function, expected_name in zip(functions, expected_names):
             function_name = function["metadata"]["name"]
-            assert (
-                function_name == expected_name
-            ), f"Expected {expected_name}, got {function_name}"
+            assert function_name == expected_name, (
+                f"Expected {expected_name}, got {function_name}"
+            )
 
     def test_list_functions_orders_by_tag_id(self):
         # This test verifies that when a function has multiple tags, the returned list is ordered by tag ID descending.
@@ -996,9 +1023,9 @@ class TestFunctions(TestDatabaseBase):
 
         functions = self._db.list_functions(self._db_session, project=self.project)
 
-        assert (
-            len(functions) == number_of_tags
-        ), f"Expected {number_of_tags} results, got {len(functions)}"
+        assert len(functions) == number_of_tags, (
+            f"Expected {number_of_tags} results, got {len(functions)}"
+        )
 
         # Extract the tags from returned functions
         returned_tags = [function["metadata"]["tag"] for function in functions]

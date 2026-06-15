@@ -14,7 +14,7 @@
 
 import time
 import unittest.mock
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 import pandas as pd
 
@@ -196,9 +196,9 @@ class TestAggregationQueries:
         can_use_pre_agg = handler._pre_aggregate_manager.can_use_pre_aggregates(
             interval=optimal_interval, agg_funcs=["avg"]
         )
-        assert (
-            can_use_pre_agg
-        ), f"Pre-aggregates should be available for interval {optimal_interval}"
+        assert can_use_pre_agg, (
+            f"Pre-aggregates should be available for interval {optimal_interval}"
+        )
 
         # Test the method
         result = handler.get_avg_latency(
@@ -263,9 +263,9 @@ class TestAggregationQueries:
             query=f"SELECT COUNT(*) FROM {cagg_name} WHERE endpoint_id = 'test_endpoint'"
         )
         row_count = check_result.data[0][0] if check_result and check_result.data else 0
-        assert (
-            row_count > 0
-        ), f"Continuous aggregate {cagg_name} has no data for test_endpoint"
+        assert row_count > 0, (
+            f"Continuous aggregate {cagg_name} has no data for test_endpoint"
+        )
 
         # Test the method
         handler = query_test_helper_with_aggregates.create_results_handler()
@@ -291,9 +291,9 @@ class TestAggregationQueries:
         # Verify the aggregated result status (should be MAX of our test data)
         # MAX(detected=2, potential_detection=1) should be 2 (detected)
         status_value = test_data_results["result_status"].iloc[0]
-        assert (
-            status_value == mm_schemas.ResultStatusApp.detected.value
-        ), f"Expected detected (MAX status), got {status_value}"
+        assert status_value == mm_schemas.ResultStatusApp.detected.value, (
+            f"Expected detected (MAX status), got {status_value}"
+        )
 
     def test_get_drift_status_raw_query(self, query_test_helper_with_aggregates):
         """Test get_drift_status without interval (raw query path)."""
@@ -538,10 +538,9 @@ class TestLatestMetricsCalculation:
         )  # DISTINCT ON (result_name) returns 1 record for 'drift_result'
 
         # Verify the exact expected result (latest by timestamp: endpoint_3 at 12:15:00)
-        from datetime import timezone
 
         expected_result = mm_schemas.ApplicationResultRecord(
-            time=datetime(2024, 1, 15, 12, 15, 0, tzinfo=timezone.utc),
+            time=datetime(2024, 1, 15, 12, 15, 0, tzinfo=UTC),
             value=0.6,
             kind=mm_schemas.ResultKindApp.concept_drift,
             status=mm_schemas.ResultStatusApp.potential_detection,
@@ -552,70 +551,39 @@ class TestLatestMetricsCalculation:
 
 
 class TestEndpointCounting:
-    """Tests for endpoint counting operations."""
+    """Tests for endpoint counting operations.
 
-    def test_count_processed_model_endpoints_no_data(self, query_test_helper):
+    The count_processed_model_endpoints method counts unique endpoints per application
+    from both METRICS and APP_RESULTS tables (UNION logic) - an endpoint is counted
+    if it has data in EITHER table.
+
+    Note: count_processed_model_endpoints is in the connector class as it queries multiple tables.
+    """
+
+    def test_count_processed_model_endpoints_no_data(self, connector):
         """Test count_processed_model_endpoints with no data."""
-        # Create predictions handler using test helper
-        predictions_handler = query_test_helper.create_predictions_handler()
-
-        result = predictions_handler.count_processed_model_endpoints(
+        result = connector.count_processed_model_endpoints(
             start=datetime(2024, 1, 1),
             end=datetime(2024, 1, 2),
-            application_names=["test_app"],  # Test application name
+            application_names=["test_app"],
         )
 
         assert result.get("test_app", 0) == 0  # No data for test application
 
-    def test_count_processed_model_endpoints_with_data(self, query_test_helper):
-        """Test count_processed_model_endpoints with sample data and application linkage."""
-        # Create predictions handler using test helper
-        predictions_handler = query_test_helper.create_predictions_handler()
+    def test_count_processed_model_endpoints_with_metrics_data(self, connector):
+        """Test count_processed_model_endpoints with data in METRICS table."""
+        metrics_table = connector._tables[mm_schemas.TimescaleDBTables.METRICS]
 
-        connection = query_test_helper.connection
-        predictions_table = query_test_helper.table_schemas[
-            mm_schemas.TimescaleDBTables.PREDICTIONS
-        ]
-        metrics_table = query_test_helper.table_schemas[
-            mm_schemas.TimescaleDBTables.METRICS
-        ]
-
-        # Insert prediction data for multiple unique endpoints
-        predictions_data = [
-            ("endpoint_1", datetime(2024, 1, 15, 12, 0, 0)),
-            ("endpoint_2", datetime(2024, 1, 15, 12, 5, 0)),
-            (
-                "endpoint_1",
-                datetime(2024, 1, 15, 12, 10, 0),
-            ),  # Duplicate endpoint - should count as 1
-            ("endpoint_3", datetime(2024, 1, 15, 12, 15, 0)),
-        ]
-
-        for endpoint_id, test_time in predictions_data:
-            connection.run(
-                statements=[
-                    f"""
-                    INSERT INTO {predictions_table.full_name()}
-                    (end_infer_time, endpoint_id, latency, custom_metrics,
-                     estimated_prediction_count, effective_sample_count)
-                    VALUES ('{test_time}', '{endpoint_id}', 0.1, '{{}}', 1.0, 1)
-                    """
-                ]
-            )
-
-        # Insert metrics data to link endpoints to applications (needed for JOIN query)
+        # Insert metrics data for multiple endpoints with different applications
         metrics_data = [
             ("endpoint_1", "test_app", datetime(2024, 1, 15, 12, 0, 0)),
             ("endpoint_2", "test_app", datetime(2024, 1, 15, 12, 5, 0)),
-            (
-                "endpoint_3",
-                "other_app",
-                datetime(2024, 1, 15, 12, 15, 0),
-            ),  # Different app
+            ("endpoint_1", "test_app", datetime(2024, 1, 15, 12, 10, 0)),  # Duplicate
+            ("endpoint_3", "other_app", datetime(2024, 1, 15, 12, 15, 0)),
         ]
 
         for endpoint_id, app_name, test_time in metrics_data:
-            connection.run(
+            connector._connection.run(
                 statements=[
                     f"""
                     INSERT INTO {metrics_table.full_name()}
@@ -625,69 +593,128 @@ class TestEndpointCounting:
                 ]
             )
 
-        result = predictions_handler.count_processed_model_endpoints(
+        result = connector.count_processed_model_endpoints(
             start=datetime(2024, 1, 15),
             end=datetime(2024, 1, 16),
-            application_names=["test_app"],  # Test application name
+            application_names=["test_app"],
         )
 
-        # Should now have 2 unique endpoints (endpoint_1 and endpoint_2) for test_app
-        assert (
-            result["test_app"] == 2
-        )  # endpoint_1 and endpoint_2 are linked to test_app
+        # Should have 2 unique endpoints for test_app (endpoint_1 and endpoint_2)
+        assert result["test_app"] == 2
 
         # Test with different application
-        result_other = predictions_handler.count_processed_model_endpoints(
+        result_other = connector.count_processed_model_endpoints(
             start=datetime(2024, 1, 15),
             end=datetime(2024, 1, 16),
             application_names=["other_app"],
         )
 
-        assert result_other["other_app"] == 1  # Only endpoint_3 is linked to other_app
+        assert result_other["other_app"] == 1  # Only endpoint_3
 
-    def test_count_processed_model_endpoints_time_filtering(self, query_test_helper):
-        """Test that count_processed_model_endpoints respects time range."""
-        # Create predictions handler using test helper
-        predictions_handler = query_test_helper.create_predictions_handler()
+    def test_count_processed_model_endpoints_with_app_results_data(self, connector):
+        """Test count_processed_model_endpoints with data in APP_RESULTS table."""
+        app_results_table = connector._tables[mm_schemas.TimescaleDBTables.APP_RESULTS]
 
-        connection = query_test_helper.connection
-        predictions_table = query_test_helper.table_schemas[
-            mm_schemas.TimescaleDBTables.PREDICTIONS
+        # Insert app_results data for multiple endpoints
+        app_results_data = [
+            ("endpoint_1", "test_app", datetime(2024, 1, 15, 12, 0, 0)),
+            ("endpoint_2", "test_app", datetime(2024, 1, 15, 12, 5, 0)),
         ]
 
+        for endpoint_id, app_name, test_time in app_results_data:
+            connector._connection.run(
+                statements=[
+                    f"""
+                    INSERT INTO {app_results_table.full_name()}
+                    (end_infer_time, start_infer_time, endpoint_id, application_name,
+                     result_name, result_value, result_status, result_kind)
+                    VALUES ('{test_time}', '{test_time}', '{endpoint_id}', '{app_name}',
+                            'test_result', 0.95, 0, 1)
+                    """
+                ]
+            )
+
+        result = connector.count_processed_model_endpoints(
+            start=datetime(2024, 1, 15),
+            end=datetime(2024, 1, 16),
+            application_names=["test_app"],
+        )
+
+        # Should have 2 unique endpoints from APP_RESULTS
+        assert result["test_app"] == 2
+
+    def test_count_processed_model_endpoints_union_behavior(self, connector):
+        """Test that endpoints in EITHER metrics OR app_results are counted (UNION)."""
+        metrics_table = connector._tables[mm_schemas.TimescaleDBTables.METRICS]
+        app_results_table = connector._tables[mm_schemas.TimescaleDBTables.APP_RESULTS]
+
+        test_time = datetime(2024, 1, 15, 12, 0, 0)
+
+        # endpoint_1: only in METRICS
+        connector._connection.run(
+            statements=[
+                f"""
+                INSERT INTO {metrics_table.full_name()}
+                (end_infer_time, start_infer_time, endpoint_id, application_name, metric_name, metric_value)
+                VALUES ('{test_time}', '{test_time}', 'endpoint_1', 'test_app', 'metric', 0.5)
+                """
+            ]
+        )
+
+        # endpoint_2: only in APP_RESULTS
+        connector._connection.run(
+            statements=[
+                f"""
+                INSERT INTO {app_results_table.full_name()}
+                (end_infer_time, start_infer_time, endpoint_id, application_name,
+                 result_name, result_value, result_status, result_kind)
+                VALUES ('{test_time}', '{test_time}', 'endpoint_2', 'test_app',
+                        'result', 0.5, 0, 1)
+                """
+            ]
+        )
+
+        # endpoint_3: in BOTH tables
+        connector._connection.run(
+            statements=[
+                f"""
+                INSERT INTO {metrics_table.full_name()}
+                (end_infer_time, start_infer_time, endpoint_id, application_name, metric_name, metric_value)
+                VALUES ('{test_time}', '{test_time}', 'endpoint_3', 'test_app', 'metric', 0.5)
+                """,
+                f"""
+                INSERT INTO {app_results_table.full_name()}
+                (end_infer_time, start_infer_time, endpoint_id, application_name,
+                 result_name, result_value, result_status, result_kind)
+                VALUES ('{test_time}', '{test_time}', 'endpoint_3', 'test_app',
+                        'result', 0.5, 0, 1)
+                """,
+            ]
+        )
+
+        result = connector.count_processed_model_endpoints(
+            start=datetime(2024, 1, 15),
+            end=datetime(2024, 1, 16),
+            application_names=["test_app"],
+        )
+
+        # Should count all 3 unique endpoints (UNION behavior)
+        assert result["test_app"] == 3
+
+    def test_count_processed_model_endpoints_time_filtering(self, connector):
+        """Test that count_processed_model_endpoints respects time range."""
+        metrics_table = connector._tables[mm_schemas.TimescaleDBTables.METRICS]
+
         # Insert data both inside and outside the query time range
-        endpoints_data = [
+        metrics_data = [
             ("endpoint_1", datetime(2024, 1, 14, 12, 0, 0)),  # Before range
             ("endpoint_2", datetime(2024, 1, 15, 12, 0, 0)),  # In range
             ("endpoint_3", datetime(2024, 1, 15, 12, 5, 0)),  # In range
             ("endpoint_4", datetime(2024, 1, 17, 12, 0, 0)),  # After range
         ]
 
-        for endpoint_id, test_time in endpoints_data:
-            connection.run(
-                statements=[
-                    f"""
-                    INSERT INTO {predictions_table.full_name()}
-                    (end_infer_time, endpoint_id, latency, custom_metrics,
-                     estimated_prediction_count, effective_sample_count)
-                    VALUES ('{test_time}', '{endpoint_id}', 0.1, '{{}}', 1.0, 1)
-                    """
-                ]
-            )
-
-        # Insert metrics data to link endpoints to application (required for JOIN)
-        metrics_table = query_test_helper.table_schemas[
-            mm_schemas.TimescaleDBTables.METRICS
-        ]
-
-        # Link only the endpoints within time range to test_app
-        metrics_data = [
-            ("endpoint_2", datetime(2024, 1, 15, 12, 0, 0)),  # In range
-            ("endpoint_3", datetime(2024, 1, 15, 12, 5, 0)),  # In range
-        ]
-
         for endpoint_id, test_time in metrics_data:
-            connection.run(
+            connector._connection.run(
                 statements=[
                     f"""
                     INSERT INTO {metrics_table.full_name()}
@@ -698,12 +725,11 @@ class TestEndpointCounting:
             )
 
         # Query for specific time range (only 2024-01-15 to 2024-01-16)
-        result = predictions_handler.count_processed_model_endpoints(
+        result = connector.count_processed_model_endpoints(
             start=datetime(2024, 1, 15),
             end=datetime(2024, 1, 16),
             application_names=["test_app"],
         )
 
-        assert (
-            result["test_app"] == 2
-        )  # Only endpoint_2 and endpoint_3 are within time range and linked to test_app
+        # Only endpoint_2 and endpoint_3 are within time range
+        assert result["test_app"] == 2

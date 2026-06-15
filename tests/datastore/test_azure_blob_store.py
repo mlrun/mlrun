@@ -605,15 +605,15 @@ class TestAzureBlobStore:
 
         for case in test_cases:
             schema, endpoint, parsed_url = parse_url(case["url"])
-            assert (
-                schema == case["expected_schema"]
-            ), f"Schema mismatch for {case['url']}"
-            assert (
-                endpoint == case["expected_endpoint"]
-            ), f"Endpoint mismatch for {case['url']}"
-            assert (
-                parsed_url.netloc == case["expected_netloc"]
-            ), f"Netloc mismatch for {case['url']}"
+            assert schema == case["expected_schema"], (
+                f"Schema mismatch for {case['url']}"
+            )
+            assert endpoint == case["expected_endpoint"], (
+                f"Endpoint mismatch for {case['url']}"
+            )
+            assert parsed_url.netloc == case["expected_netloc"], (
+                f"Netloc mismatch for {case['url']}"
+            )
 
     def test_convert_key_to_remote_path_wasbs(self):
         """Test _convert_key_to_remote_path for WASBS URLs uses container, not hostname"""
@@ -692,3 +692,171 @@ class TestAzureBlobStore:
             # Falls back to endpoint (hostname) - not ideal but maintains backward compatibility
             expected = "testdata.blob.core.windows.net/path/to/file.txt"
             assert result == expected
+
+    @pytest.mark.parametrize(
+        "env_vars",
+        [
+            {
+                "AZURE_STORAGE_ACCOUNT_NAME": "teststorage",
+                "AZURE_STORAGE_ACCOUNT_KEY": "mlrun-key",
+                "AZURE_STORAGE_CLIENT_ID": "storage-client-id",
+                "AZURE_STORAGE_CLIENT_SECRET": "storage-client-secret",
+                "AZURE_STORAGE_TENANT_ID": "storage-tenant-id",
+            },
+            {
+                "AZURE_STORAGE_ACCOUNT": "teststorage",
+                "AZURE_STORAGE_ACCESS_KEY": "sdk-key",
+                "AZURE_CLIENT_ID": "sdk-client-id",
+                "AZURE_CLIENT_SECRET": "sdk-client-secret",
+                "AZURE_TENANT_ID": "sdk-tenant-id",
+            },
+        ],
+        ids=["mlrun_env_vars", "standard_azure_sdk_env_vars"],
+    )
+    def test_storage_options_resolves_azure_credential_env_vars(self, env_vars):
+        """Test that storage_options picks up both AZURE_STORAGE_* and standard Azure SDK env var names."""
+        store = self._create_store(schema="az", endpoint="mycontainer")
+
+        with patch.object(store, "_get_secret_or_env") as mock_get_secret:
+            mock_get_secret.side_effect = lambda key: env_vars.get(key)
+
+            options = store.storage_options
+
+        assert options["account_name"] == "teststorage"
+        assert options["account_key"] is not None
+        assert options["client_id"] is not None
+        assert options["client_secret"] is not None
+        assert options["tenant_id"] is not None
+
+    def test_storage_options_workload_identity_drops_partial_triple(self):
+        """ML-12668: a client_id without a secret (workload identity) is dropped and anon set False."""
+        env_vars = {
+            "AZURE_STORAGE_ACCOUNT_NAME": "teststorage",
+            "AZURE_CLIENT_ID": "wi-client-id",
+            "AZURE_TENANT_ID": "wi-tenant-id",
+            # no client secret anywhere — the webhook injects only id/tenant/federated-token-file
+        }
+        store = self._create_store(schema="az", endpoint="mycontainer")
+
+        with patch.object(store, "_get_secret_or_env") as mock_get_secret:
+            mock_get_secret.side_effect = lambda key: env_vars.get(key)
+            options = store.storage_options
+
+        assert "client_id" not in options
+        assert "tenant_id" not in options
+        assert options["anon"] is False
+        assert options["account_name"] == "teststorage"
+
+    def test_storage_options_keeps_full_service_principal(self):
+        """A full service principal (client_id + client_secret + tenant_id) is preserved, anon untouched."""
+        env_vars = {
+            "AZURE_STORAGE_ACCOUNT_NAME": "teststorage",
+            "AZURE_CLIENT_ID": "sp-client-id",
+            "AZURE_CLIENT_SECRET": "sp-client-secret",
+            "AZURE_TENANT_ID": "sp-tenant-id",
+        }
+        store = self._create_store(schema="az", endpoint="mycontainer")
+
+        with patch.object(store, "_get_secret_or_env") as mock_get_secret:
+            mock_get_secret.side_effect = lambda key: env_vars.get(key)
+            options = store.storage_options
+
+        assert options["client_id"] == "sp-client-id"
+        assert options["client_secret"] == "sp-client-secret"
+        assert options["tenant_id"] == "sp-tenant-id"
+        assert "anon" not in options
+
+    def test_storage_options_account_key_only_unchanged(self):
+        """Account-key auth has no client_id, so the WI branch must not fire — no anon key added."""
+        env_vars = {
+            "AZURE_STORAGE_ACCOUNT_NAME": "teststorage",
+            "AZURE_STORAGE_ACCOUNT_KEY": "the-key",
+        }
+        store = self._create_store(schema="az", endpoint="mycontainer")
+
+        with patch.object(store, "_get_secret_or_env") as mock_get_secret:
+            mock_get_secret.side_effect = lambda key: env_vars.get(key)
+            options = store.storage_options
+
+        assert options["account_key"] == "the-key"
+        assert "client_id" not in options
+        assert "anon" not in options
+
+    def test_do_connect_workload_identity_uses_default_credential(self):
+        """With anon=False and no key/SAS/client_id, _do_connect uses DefaultAzureCredential."""
+        store = self._create_store(schema="az", endpoint="mycontainer")
+        mock_storage_options = {"account_name": "teststorage", "anon": False}
+
+        with (
+            patch.object(store, "_storage_options", mock_storage_options),
+            patch("azure.identity.DefaultAzureCredential") as mock_default,
+            patch("azure.identity.ClientSecretCredential") as mock_client_secret,
+            patch("mlrun.datastore.azure_blob.BlobServiceClient") as mock_blob_client,
+        ):
+            store._do_connect()
+
+        mock_default.assert_called_once()
+        mock_client_secret.assert_not_called()
+        _, kwargs = mock_blob_client.call_args
+        assert kwargs["credential"] is mock_default.return_value
+
+    def test_do_connect_service_principal_uses_client_secret_credential(self):
+        """A full service principal still builds a ClientSecretCredential with the supplied secret."""
+        store = self._create_store(schema="az", endpoint="mycontainer")
+        mock_storage_options = {
+            "account_name": "teststorage",
+            "client_id": "sp-client-id",
+            "client_secret": "sp-client-secret",
+            "tenant_id": "sp-tenant-id",
+        }
+
+        with (
+            patch.object(store, "_storage_options", mock_storage_options),
+            patch("azure.identity.DefaultAzureCredential") as mock_default,
+            patch("azure.identity.ClientSecretCredential") as mock_client_secret,
+            patch("mlrun.datastore.azure_blob.BlobServiceClient") as mock_blob_client,
+        ):
+            store._do_connect()
+
+        mock_client_secret.assert_called_once_with(
+            tenant_id="sp-tenant-id",
+            client_id="sp-client-id",
+            client_secret="sp-client-secret",
+        )
+        mock_default.assert_not_called()
+        _, kwargs = mock_blob_client.call_args
+        assert kwargs["credential"] is mock_client_secret.return_value
+
+    def test_filesystem_missing_account_name_and_connection_string_raises(self):
+        """ML-12692: az:// with neither account_name nor connection_string fails fast.
+
+        This is the Azure identity path: credentials are routed via anon=False, but the
+        storage account name was never supplied. Instead of letting adlfs raise its cryptic
+        'Must provide ... account_name with credentials', we raise a clear MLRun error.
+        """
+        store = self._create_store(schema="az", endpoint="data")
+        mock_storage_options = {"anon": False, "container": "data"}
+
+        with patch.object(store, "_storage_options", mock_storage_options):
+            with pytest.raises(
+                mlrun.errors.MLRunInvalidArgumentError, match="account_name"
+            ):
+                _ = store.filesystem
+
+    def test_filesystem_with_account_name_does_not_raise(self):
+        """When account_name is present, the account-name guard does not trigger."""
+        store = self._create_store(schema="az", endpoint="data")
+        mock_storage_options = {"account_name": "teststorage", "anon": False}
+
+        with (
+            patch.object(store, "_storage_options", mock_storage_options),
+            patch("mlrun.datastore.azure_blob.get_filesystem_class") as mock_get_class,
+            patch(
+                "mlrun.datastore.azure_blob.make_datastore_schema_sanitizer"
+            ) as mock_make_fs,
+        ):
+            result = store.filesystem
+
+        mock_get_class.assert_called_once()
+        mock_make_fs.assert_called_once()
+        assert result is mock_make_fs.return_value

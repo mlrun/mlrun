@@ -13,8 +13,9 @@
 # limitations under the License.
 
 from abc import ABC
+from collections.abc import Callable
 from enum import Enum
-from typing import Callable, Union
+from typing import Union
 
 import pandas as pd
 from sklearn.base import is_classifier, is_regressor

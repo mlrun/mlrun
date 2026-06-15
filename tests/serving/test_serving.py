@@ -385,16 +385,16 @@ def test_ensemble_infer():
         event = MockEvent(testdata, path=url, method="POST")
         resp = context.mlrun_handler(context, event)
         data = json.loads(resp.body)
-        assert data["outputs"] == {
-            "predictions": [expected]
-        }, f"wrong model response {data['outputs']}"
+        assert data["outputs"] == {"predictions": [expected]}, (
+            f"wrong model response {data['outputs']}"
+        )
 
         event = MockEvent(testdata_2, path=url)
         resp = context.mlrun_handler(context, event)
         data = json.loads(resp.body)
-        assert data["outputs"] == {
-            "predictions": [expected] * 2
-        }, f"wrong model response {data['outputs']}"
+        assert data["outputs"] == {"predictions": [expected] * 2}, (
+            f"wrong model response {data['outputs']}"
+        )
 
     context = init_ctx(
         ensemble_spec,
@@ -418,16 +418,16 @@ def test_ensemble_infer_classification(executor):
         event = MockEvent(testdata, path=url)
         resp = context.mlrun_handler(context, event)
         data = json.loads(resp.body)
-        assert data["outputs"] == {
-            "predictions": [expected]
-        }, f"wrong model response {data['outputs']}"
+        assert data["outputs"] == {"predictions": [expected]}, (
+            f"wrong model response {data['outputs']}"
+        )
 
         event = MockEvent(testdata_2, path=url)
         resp = context.mlrun_handler(context, event)
         data = json.loads(resp.body)
-        assert data["outputs"] == {
-            "predictions": [expected] * 2
-        }, f"wrong model response {data['outputs']}"
+        assert data["outputs"] == {"predictions": [expected] * 2}, (
+            f"wrong model response {data['outputs']}"
+        )
 
     context = init_ctx(
         ensemble_spec_classification,
@@ -457,16 +457,16 @@ def test_ensemble_infer_with_weights(ensemble_spec_parm, executor):
         event = MockEvent(testdata, path=url)
         resp = context.mlrun_handler(context, event)
         data = json.loads(resp.body)
-        assert data["outputs"] == {
-            "predictions": [expected]
-        }, f"wrong model response {data['outputs']}"
+        assert data["outputs"] == {"predictions": [expected]}, (
+            f"wrong model response {data['outputs']}"
+        )
 
         event = MockEvent(testdata_2, path=url)
         resp = context.mlrun_handler(context, event)
         data = json.loads(resp.body)
-        assert data["outputs"] == {
-            "predictions": [expected] * 2
-        }, f"wrong model response {data['outputs']}"
+        assert data["outputs"] == {"predictions": [expected] * 2}, (
+            f"wrong model response {data['outputs']}"
+        )
 
     context = init_ctx(
         ensemble_spec_parm,
@@ -537,17 +537,17 @@ def test_v2_async_mode():
     context.logger.info("test not ready, should return err 408")
     event = MockEvent("", path="/v2/models/m5/ready", method="GET")
     resp = context.mlrun_handler(context, event)
-    assert (
-        resp.status_code == 408
-    ), f"didnt get proper ready resp, expected 408, got {resp.status_code}"
+    assert resp.status_code == 408, (
+        f"didnt get proper ready resp, expected 408, got {resp.status_code}"
+    )
 
     event = MockEvent(testdata, path="/v2/models/m5/infer")
     resp = context.mlrun_handler(context, event)
     context.logger.info("model responded")
     logger.info(resp)
-    assert (
-        resp.status_code != 200
-    ), f"expected failure, got {resp.status_code} {resp.body}"
+    assert resp.status_code != 200, (
+        f"expected failure, got {resp.status_code} {resp.body}"
+    )
 
     event = MockEvent(
         '{"model": "m5", "inputs": [5]}', trigger=MockTrigger(kind="stream")
@@ -582,17 +582,17 @@ def test_v2_get_modelmeta(rundb_mock):
     # test model m2 name, ver (none), inputs and outputs
     resp = server.test("/v2/models/m2/", method="GET")
     logger.info(f"resp: {resp}")
-    assert (
-        resp["name"] == "m2" and resp["model_endpoint_uid"] == "m2_uid"
-    ), f"wrong get model meta response {resp}"
+    assert resp["name"] == "m2" and resp["model_endpoint_uid"] == "m2_uid", (
+        f"wrong get model meta response {resp}"
+    )
     assert len(resp["inputs"]) == 4 and len(resp["outputs"]) == 1
     assert resp["inputs"][0]["value_type"] == "float"
 
     # test versioned model m3 metadata + get method not explicit
     resp = server.test("/v2/models/m3/versions/v2")
-    assert (
-        resp["name"] == "m3" and resp["model_endpoint_uid"] == "m3_uid"
-    ), f"wrong get model meta response {resp}"
+    assert resp["name"] == "m3" and resp["model_endpoint_uid"] == "m3_uid", (
+        f"wrong get model meta response {resp}"
+    )
 
     # test raise if model doesnt exist
     with pytest.raises(RuntimeError):
@@ -734,18 +734,14 @@ def test_sampling_percentage(rundb_mock):
     server = fn.to_mock_server()
     for i in range(500):
         server.test("/v2/models/my/infer", testdata)
-    assert (
-        (len(server.context.stream.output_stream.event_list)) == 241
-    ), (
+    assert (len(server.context.stream.output_stream.event_list)) == 241, (
         "expected stream to get 241 messages"
     )  # On seed 0, 241 is the expected value for 50% sample rate on 500 events
 
     # Let's test it again, this time using inputs that include 20 features
     for i in range(500):
         server.test("/v2/models/my/infer", testdata_20)
-    assert (
-        (len(server.context.stream.output_stream.event_list)) == 508
-    ), (
+    assert (len(server.context.stream.output_stream.event_list)) == 508, (
         "expected stream to get 508 messages"
     )  # On seed 0, 508 is the expected value for 50% sample rate on 1,000 events
 
@@ -791,9 +787,9 @@ def test_model_chained():
     resp = server.test(body={"req": {"inputs": [5]}})
     server.wait_for_completion()
     assert list(resp.keys()) == ["req", "m1", "m2"], "unexpected keys in resp"
-    assert (
-        resp["m1"]["outputs"] == 5 * 2 and resp["m2"]["outputs"] == 5 * 3
-    ), "unexpected model results"
+    assert resp["m1"]["outputs"] == 5 * 2 and resp["m2"]["outputs"] == 5 * 3, (
+        "unexpected model results"
+    )
 
 
 def test_mock_deploy():
@@ -895,11 +891,11 @@ def test_add_route_exceeds_max_models():
             server.graph.add_route(f"test_key_{key}", class_name=ModelTestingClass)
 
     # edit existing model
-    server.graph.add_route(f"test_key_{key-1}", class_name=ModelTestingClass)
+    server.graph.add_route(f"test_key_{key - 1}", class_name=ModelTestingClass)
 
-    assert (
-        len(server.graph.routes) == max_models
-    ), f"expected to have {max_models} models"
+    assert len(server.graph.routes) == max_models, (
+        f"expected to have {max_models} models"
+    )
 
 
 def test_serialize():
@@ -930,3 +926,88 @@ def test_execute_graph_dataitem_parameter_validation():
         match=r".*data.*DataItem.*inputs.*params.*",
     ):
         execute_graph(context, data=123, batching=False)
+
+
+class _StubAzureVaultStore:
+    """
+    Minimal stub for mlrun.secrets.AzureVaultStore so tests never touch Azure.
+    Only needs to be constructible and expose add_source; behavior is irrelevant
+    for these validation tests since we assert before any real call is needed.
+    """
+
+    def __init__(self, *args, **kwargs):
+        pass
+
+    def add_source(self, *args, **kwargs):
+        return None
+
+
+def test_function_with_secrets_azure_vault_blocks_auth_secret_name(monkeypatch):
+    # Ensure we never touch the real Azure implementation
+    monkeypatch.setattr(mlrun.secrets, "AzureVaultStore", _StubAzureVaultStore)
+
+    serving_function_under_test = mlrun.new_function("tests", kind="serving")
+
+    forbidden_k8s_secret_name = "mlrun-auth-secrets.anything"
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as raised_exception_info:
+        serving_function_under_test.with_secrets(
+            "azure_vault",
+            {
+                "name": "vault1",
+                "k8s_secret": forbidden_k8s_secret_name,
+                "tenant_id": "t",
+                "vault_url": "https://x",
+                "secrets": [],  # required by secrets store path
+            },
+        )
+
+    raised_exception_text = str(raised_exception_info.value)
+    assert "Forbidden secret" in raised_exception_text
+    assert forbidden_k8s_secret_name in raised_exception_text
+
+
+def test_function_with_secrets_azure_vault_allows_non_auth_secret(monkeypatch):
+    # Stub Azure so we don't require tenant/client_id config
+    monkeypatch.setattr(mlrun.secrets, "AzureVaultStore", _StubAzureVaultStore)
+
+    serving_function_under_test = mlrun.new_function("tests", kind="serving")
+
+    allowed_k8s_secret_name = "regular-k8s-secret-name"
+    # Should not raise
+    serving_function_under_test.with_secrets(
+        "azure_vault",
+        {
+            "name": "vault1",
+            "k8s_secret": allowed_k8s_secret_name,
+            "tenant_id": "t",
+            "vault_url": "https://x",
+            "secrets": [],  # minimal valid payload for add_source
+        },
+    )
+
+
+def test_setup_model_monitoring_not_supported_for_serving():
+    serving_fn = mlrun.new_function("test-serving", kind="serving")
+    with pytest.raises(NotImplementedError, match="set_tracking"):
+        serving_fn.setup_model_monitoring([])
+
+
+def test_deploy_after_set_tracking_does_not_invoke_setup_model_monitoring(rundb_mock):
+    # set_tracking() is the supported path for serving monitoring; setup_model_monitoring()
+    # raises NotImplementedError on serving. Deploying after set_tracking() must NOT route
+    # through setup_model_monitoring (which would break the deploy).
+    serving_fn = mlrun.new_function("test-serving", kind="serving")
+    serving_fn.set_topology("router")
+    serving_fn.add_model(
+        "my",
+        ".",
+        class_name=ModelTestingClass(multiplier=100),
+    )
+    serving_fn.set_tracking(stream_path="dummy://")
+    assert serving_fn.spec.track_models is True
+
+    with patch.object(
+        serving_fn, "setup_model_monitoring", autospec=True
+    ) as mock_setup:
+        serving_fn.deploy()
+    mock_setup.assert_not_called()

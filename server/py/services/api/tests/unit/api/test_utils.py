@@ -16,6 +16,7 @@ import base64
 import json
 import pathlib
 import unittest.mock
+from contextlib import nullcontext as does_not_raise
 from http import HTTPStatus
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -28,18 +29,21 @@ from kubernetes.client.models import V1ConfigMap, V1ObjectMeta
 from sqlalchemy.orm import Session
 
 import mlrun
+import mlrun.common.constants
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.k8s_utils
 import mlrun.runtimes.mounts
 import mlrun.runtimes.pod
 import mlrun.utils
+from mlrun.common.types import AuthenticationMode
 from server.py.framework.api.utils import (
     _generate_function_and_task_from_submit_run_body,
 )
 
 import framework.api.utils
 import framework.utils.clients.iguazio.v3
+import framework.utils.singletons.db
 import services.api.crud
 import services.api.crud.runtimes.nuclio
 import services.api.tests.unit.api.utils
@@ -106,9 +110,9 @@ def test_submit_run_sync(db: Session, client: TestClient):
             db, project, submit_job_body["task"]["metadata"]["name"]
         )
     )
-    assert (
-        updated_schedule.cron_trigger.to_crontab() == "0 1 * * *"
-    ), "schedule was not updated"
+    assert updated_schedule.cron_trigger.to_crontab() == "0 1 * * *", (
+        "schedule was not updated"
+    )
 
 
 def test_submit_run_sync_schedule_with_function_overrides(
@@ -1853,6 +1857,83 @@ async def test_update_functions_with_deletion_info(db: sqlalchemy.orm.Session):
     assert function["status"]["deletion_task_id"] == deletion_task_id
 
 
+@pytest.mark.asyncio
+async def test_delete_application_artifacts_handles_failure(
+    db: sqlalchemy.orm.Session,
+):
+    """Verify that deleting an application runtime function also deletes its source artifacts."""
+    project = "my_project"
+    function_name = "my-app"
+    function_tag = "latest"
+
+    function = {
+        "kind": "application",
+        "metadata": {"name": function_name, "tag": function_tag},
+        "status": {},
+    }
+    services.api.crud.Functions().store_function(
+        db, project=project, function=function, name=function_name, tag=function_tag
+    )
+
+    # Store a source artifact with the labels that _upload_source_as_artifact sets
+    source_artifact = {
+        "metadata": {
+            "labels": {
+                mlrun.common.constants.MLRunInternalLabels.function_name: function_name,
+                mlrun.common.constants.MLRunInternalLabels.system_generated: "true",
+            },
+            "tag": "latest",
+        },
+        "kind": "artifact",
+    }
+    framework.utils.singletons.db.get_db().store_artifact(
+        db,
+        key=f"{function_name}-source",
+        artifact=source_artifact,
+        tag="latest",
+        project=project,
+    )
+
+    # Verify the artifact exists
+    artifacts = services.api.crud.Artifacts().list_artifacts(
+        db,
+        project=project,
+        name=f"{function_name}-source",
+        tag="*",
+    )
+    assert len(artifacts) == 1
+
+    # Call the cleanup function
+    await framework.api.utils._delete_application_source_artifacts(
+        db, project, function_name, mlrun.common.schemas.AuthInfo()
+    )
+
+    # Verify the artifact was deleted
+    artifacts = services.api.crud.Artifacts().list_artifacts(
+        db,
+        project=project,
+        name=f"{function_name}-source",
+        tag="*",
+    )
+    assert len(artifacts) == 0
+
+
+@pytest.mark.asyncio
+async def test_delete_application_source_artifacts_tolerates_failure():
+    """Verify that artifact cleanup failure does not raise."""
+    with patch.object(
+        services.api.crud.Artifacts,
+        "delete_artifacts",
+        side_effect=Exception("db error"),
+    ):
+        await framework.api.utils._delete_application_source_artifacts(
+            MagicMock(),
+            "my_project",
+            "my-app",
+            mlrun.common.schemas.AuthInfo(),
+        )
+
+
 @pytest.mark.parametrize(
     "project_image,workflow_image,client_version,expected_image",
     [
@@ -2043,3 +2124,351 @@ def test_setenv_from_the_project_secret(secret_name, expect_exception, kind):
         else:
             # Should not raise
             framework.api.utils.validate_function_env_vars(function)
+
+
+@pytest.mark.parametrize(
+    "provided_token, resolved_token, expected_secret_name",
+    [
+        # auto-discovery resolves to default token
+        (None, "default", "mlrun-auth-secret-abc123"),
+        # explicit token validated
+        ("custom-token", "custom-token", "mlrun-auth-secret-def456"),
+    ],
+)
+def test_resolve_auth_secret_name(
+    monkeypatch, provided_token, resolved_token, expected_secret_name
+):
+    mlrun.mlconf.httpdb.authentication.mode = AuthenticationMode.IGUAZIO_V4
+
+    # Mock resolve_auth_token_name to return the resolved token
+    def mock_resolve_auth_token_name(provided_token_name, user_id):
+        assert user_id == "test-user"
+        return resolved_token
+
+    monkeypatch.setattr(
+        services.api.utils.helpers,
+        "resolve_auth_token_name",
+        mock_resolve_auth_token_name,
+    )
+
+    k8s_helper = unittest.mock.Mock()
+    k8s_helper._resolve_auth_secret_name.return_value = expected_secret_name
+
+    monkeypatch.setattr(
+        "framework.utils.singletons.k8s.get_k8s_helper",
+        lambda: k8s_helper,
+    )
+
+    result = services.api.utils.helpers.resolve_auth_token_secret_name(
+        provided_token, user_id="test-user"
+    )
+
+    assert result == expected_secret_name
+
+    # Verify the function computes secret name from resolved token
+    k8s_helper._resolve_auth_secret_name.assert_called_once_with(
+        "test-user", resolved_token
+    )
+
+
+@pytest.fixture
+def mock_k8s_helper(monkeypatch):
+    """Fixture that provides a mock k8s_helper."""
+    k8s_helper = unittest.mock.Mock()
+    monkeypatch.setattr(
+        "framework.utils.singletons.k8s.get_k8s_helper",
+        lambda: k8s_helper,
+    )
+    return k8s_helper
+
+
+@pytest.mark.parametrize(
+    "provided_token_name,token_data,expected_token",
+    [
+        # Provided token is validated and returned
+        ("my-token", [{"name": "my-token", "token": "jwt-for-my-token"}], "my-token"),
+        # Auto-discovery returns default token
+        (
+            None,
+            [
+                {"name": "token-a", "token": "jwt-for-token-a"},
+                {"name": "default", "token": "jwt-for-default"},
+            ],
+            "default",
+        ),
+    ],
+)
+def test_resolve_auth_token_name_success(
+    monkeypatch, mock_k8s_helper, provided_token_name, token_data, expected_token
+):
+    """Test successful token resolution (both provided and auto-discovery)."""
+    mock_k8s_helper.get_user_secret_tokens_as_igz_yml_data.return_value = token_data
+
+    mock_resolve = unittest.mock.Mock(return_value=expected_token)
+    monkeypatch.setattr(
+        "framework.utils.clients.iguazio.v4.Client.resolve_token_from_igz_yml",
+        mock_resolve,
+    )
+
+    result = services.api.utils.helpers.resolve_auth_token_name(
+        provided_token_name=provided_token_name, user_id="test-user"
+    )
+
+    assert result == expected_token
+
+    # Verify k8s helper was called correctly
+    mock_k8s_helper.get_user_secret_tokens_as_igz_yml_data.assert_called_once_with(
+        "test-user", provided_token_name
+    )
+
+    # Verify resolve_token_from_igz_yml was called with correct arguments
+    mock_resolve.assert_called_once()
+    call_args = mock_resolve.call_args
+    assert call_args[0][1] == "test-user"  # user_id
+    assert call_args[0][2] == provided_token_name  # token_name
+
+
+def test_resolve_auth_token_name_k8s_error_token_not_found(mock_k8s_helper):
+    """Test that k8s 400 error propagates when a specific token is not found."""
+    mock_k8s_helper.get_user_secret_tokens_as_igz_yml_data.side_effect = (
+        mlrun.errors.MLRunBadRequestError("Token not found")
+    )
+
+    with pytest.raises(mlrun.errors.MLRunBadRequestError, match="Token not found"):
+        services.api.utils.helpers.resolve_auth_token_name(
+            provided_token_name="my-token", user_id="test-user"
+        )
+
+
+def test_resolve_auth_token_name_k8s_error_no_tokens(mock_k8s_helper):
+    """Test that k8s 400 error propagates when no token name is provided and no tokens exist."""
+    mock_k8s_helper.get_user_secret_tokens_as_igz_yml_data.side_effect = (
+        mlrun.errors.MLRunBadRequestError("No tokens found for user 'test-user'")
+    )
+
+    with pytest.raises(mlrun.errors.MLRunBadRequestError, match="No tokens found"):
+        services.api.utils.helpers.resolve_auth_token_name(
+            provided_token_name=None, user_id="test-user"
+        )
+
+
+@pytest.mark.parametrize(
+    "provided_token_name,token_data,error_message,expected_match",
+    [
+        # Provided token rejected by SDK as invalid
+        (
+            "my-token",
+            [{"name": "my-token", "token": "expired-jwt"}],
+            "Token 'my-token' not found or invalid for user 'test-user'",
+            "Token 'my-token' not found or invalid",
+        ),
+        # Auto-discovery finds no valid tokens
+        (
+            None,
+            [{"name": "expired-token", "token": "jwt-for-expired-token"}],
+            "No valid tokens found for user 'test-user'",
+            "No valid tokens found",
+        ),
+    ],
+)
+def test_resolve_auth_token_name_sdk_error(
+    monkeypatch,
+    mock_k8s_helper,
+    provided_token_name,
+    token_data,
+    error_message,
+    expected_match,
+):
+    """Test that SDK validation errors propagate correctly."""
+    mock_k8s_helper.get_user_secret_tokens_as_igz_yml_data.return_value = token_data
+
+    monkeypatch.setattr(
+        "framework.utils.clients.iguazio.v4.Client.resolve_token_from_igz_yml",
+        unittest.mock.Mock(side_effect=mlrun.errors.MLRunNotFoundError(error_message)),
+    )
+
+    with pytest.raises(mlrun.errors.MLRunNotFoundError, match=expected_match):
+        services.api.utils.helpers.resolve_auth_token_name(
+            provided_token_name=provided_token_name, user_id="test-user"
+        )
+
+
+@pytest.mark.parametrize(
+    "allowed_secret, expected_allowed",
+    [
+        (None, None),
+        ("sa-allowed-1,sa-allowed-2", ["sa-allowed-1", "sa-allowed-2"]),
+    ],
+)
+@pytest.mark.parametrize(
+    "forbidden_secret, forbidden_conf, auth_info, expected_forbidden",
+    [
+        # No forbidden service accounts
+        (None, "", mlrun.common.schemas.AuthInfo(), []),
+        # Forbidden from conf only
+        (
+            [],
+            "sa-forbidden-1,sa-forbidden-2",
+            mlrun.common.schemas.AuthInfo(),
+            ["sa-forbidden-1", "sa-forbidden-2"],
+        ),
+        # Forbidden from secret only
+        (
+            "sa-forbidden-1,sa-forbidden-2",
+            "",
+            mlrun.common.schemas.AuthInfo(),
+            ["sa-forbidden-1", "sa-forbidden-2"],
+        ),
+        # Secret extends conf
+        (
+            "sa-forbidden-3,sa-forbidden-4",
+            "sa-forbidden-1,sa-forbidden-2",
+            mlrun.common.schemas.AuthInfo(),
+            ["sa-forbidden-1", "sa-forbidden-2", "sa-forbidden-3", "sa-forbidden-4"],
+        ),
+        # filter out auth info service accounts
+        (
+            "sa-forbidden-1,sa-forbidden-2",
+            "",
+            mlrun.common.schemas.AuthInfo(
+                username="sa-forbidden-1",
+                kind=mlrun.common.schemas.AuthInfoKind.service_account,
+            ),
+            ["sa-forbidden-2"],
+        ),
+    ],
+)
+@pytest.mark.parametrize(
+    "default_secret, default_conf, expected_default",
+    [
+        # Default from conf
+        (
+            None,
+            "sa-default-conf",
+            "sa-default-conf",
+        ),
+        # Default from secret
+        (
+            "sa-default-secret",
+            "",
+            "sa-default-secret",
+        ),
+        # Secret overrides conf
+        (
+            "sa-default-secret",
+            "sa-default-conf",
+            "sa-default-secret",
+        ),
+        # No default
+        (
+            None,
+            "",
+            "",
+        ),
+    ],
+)
+def test_resolve_project_service_account_details(
+    allowed_secret: list[str],
+    expected_allowed: list[str],
+    forbidden_secret: list[str],
+    forbidden_conf: str,
+    auth_info: mlrun.common.schemas.AuthInfo,
+    expected_forbidden: list[str],
+    default_secret: str,
+    default_conf: str,
+    expected_default: str,
+):
+    mlrun.mlconf.function.spec.service_account.forbidden_service_accounts = (
+        forbidden_conf
+    )
+    mlrun.mlconf.function.spec.service_account.default = default_conf
+
+    def _mock_generate_client_project_secret_key(_, name):
+        return name
+
+    def _mock_get_project_secret(
+        project: str,
+        provider: mlrun.common.schemas.SecretProviderName,
+        secret_key: str,
+        token: str | None = None,
+        allow_secrets_from_k8s: bool = False,
+        allow_internal_secrets: bool = False,
+        key_map_secret_key: str | None = None,
+    ):
+        return {
+            "allowed": allowed_secret,
+            "forbidden": forbidden_secret,
+            "default": default_secret,
+        }[secret_key]
+
+    mock_secrets_crud = unittest.mock.Mock()
+    mock_secrets_crud.generate_client_project_secret_key = (
+        _mock_generate_client_project_secret_key
+    )
+    mock_secrets_crud.get_project_secret = _mock_get_project_secret
+
+    # logic from _validate_service_account_details, to determine if we expect an exception,
+    # this is tested in a separate test below: test_test_resolve_project_service_account_details_validity
+    expectation = does_not_raise()
+    if expected_default and (
+        (expected_allowed and expected_default not in expected_allowed)
+        or (expected_forbidden and expected_default in expected_forbidden)
+    ):
+        expectation = pytest.raises(mlrun.errors.MLRunInvalidArgumentError)
+
+    with patch(
+        "services.api.crud.secrets.Secrets",
+        return_value=mock_secrets_crud,
+    ):
+        with expectation:
+            (
+                resolved_allowed,
+                resolved_forbidden,
+                resolved_default,
+            ) = framework.api.utils.resolve_project_service_account_details(
+                project_name="test-project",
+                auth_info=auth_info,
+            )
+
+            assert resolved_allowed == expected_allowed
+            assert resolved_forbidden == expected_forbidden
+            assert resolved_default == expected_default
+
+
+@pytest.mark.parametrize(
+    "allowed, forbidden, default, expectation",
+    [
+        # Empty values (should pass)
+        ([], [], "", does_not_raise()),
+        ([], [], None, does_not_raise()),
+        # Empty lists, default set (should pass)
+        ([], [], "sa-default", does_not_raise()),
+        # Default in allowed (should pass)
+        (["sa-1", "sa-default"], [], "sa-default", does_not_raise()),
+        # Default not in forbidden (should pass)
+        ([], ["sa-2", "sa-3"], "sa-default", does_not_raise()),
+        # Default not in allowed (should raise)
+        (
+            ["sa-1", "sa-2"],
+            [],
+            "sa-default",
+            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+        ),
+        # Default in forbidden (should raise)
+        (
+            [],
+            ["sa-default", "sa-2"],
+            "sa-default",
+            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+        ),
+    ],
+)
+def test_test_resolve_project_service_account_details_validity(
+    allowed, forbidden, default, expectation
+):
+    with expectation:
+        framework.api.utils._validate_service_account_details(
+            allowed_service_accounts=allowed,
+            forbidden_service_accounts=forbidden,
+            default_service_account=default,
+        )

@@ -164,8 +164,8 @@ myst_xref_missing = "ignore"
 
 # These substitutions point to the relevant mlrun docs for the current CE version
 myst_substitutions = {
-    "version": "1.9.x",
-    "ceversion": "v0.9.0",
+    "version": "1.10.0",
+    "ceversion": "v0.10.0",
     "releasedocumentation": "docs.mlrun.org/en/stable/index.html",
 }
 
@@ -196,6 +196,12 @@ redirects = {
     "concepts/monitoring": "model-monitoring.html",
     "monitoring/index": "../model-monitoring/index.html",
     "monitoring/model-monitoring": "model-monitoring/index.html",
+    "install/kubernetes": "install-mlrun-ce/kubernetes-install.html",
+    "install/aws-install": "install-mlrun-ce/aws-install.html",
+    "install/remote": "setup-guide.html",
+    "serving/realtime-pipelines": "serving/writing-custom-steps.html",
+    "serving/model-serving-get-started": "serving/getting-started.html",
+    "serving/available-steps": "serving/basic-steps.html",
 }
 
 smartquotes = False
@@ -203,6 +209,13 @@ smartquotes = False
 # Do not invert all images by default in dark mode
 inverter_all = False
 
+# Timeout (seconds) for a single request
+linkcheck_timeout = 120
+# Number of retries before marking a link broken
+linkcheck_retries = 5
+# Workers num(reduce if sites throttle CI)
+linkcheck_workers = 3
+# A list of regular expressions that match URIs that should not be checked when doing a linkcheck
 linkcheck_ignore = [
     # Ignore all the links to local files
     r"^(?!https?://).*",
@@ -224,8 +237,6 @@ linkcheck_ignore = [
     "https://docs.confident-ai.com/docs/",
     # Returns 404 though link is valid
     "https://docs.databricks.com/aws/en/reference/jobs-2.0-api",
-    # can be removed after v1.8.0 is released:
-    "https://docs.mlrun.org/en/stable/api/mlrun.datastore/index.html#mlrun.datastore.datastore_profile.TDEngineDatastoreProfile",
     # Mckinsey restricted
     "https://ollama.com/download",
     "https://ollama.com/library/llama3",
@@ -273,6 +284,39 @@ def setup(app):
         or environ.get("READTHEDOCS_VERSION_TYPE") == "external"
     ):
         app.connect("build-finished", create_llms_txt)
+
+    # When requested, validate stable docs links against latest during linkcheck only.
+    # Usage:
+    #   REPLACE_STABLE_WITH_LATEST_FOR_LINKCHECK=True make -C docs linkcheck
+    if environ.get("REPLACE_STABLE_WITH_LATEST_FOR_LINKCHECK"):
+        app.connect(
+            "linkcheck-process-uri",
+            _linkcheck_process_uri_replace_stable_with_latest,
+        )
+
+
+def _replace_mlrun_docs_stable_with_latest(uri: str) -> str:
+    """
+    Rewrite docs.mlrun.org stable links to latest.
+
+    This is intended to be used for Sphinx linkcheck runs only (so we don't change the generated docs),
+    to allow validating links against the "latest" docs when "stable" is not available / not desired.
+    """
+    # Keep scheme (http/https) as-is, replace only docs.mlrun.org/en/stable[/...]
+    return re.sub(
+        r"^(https?://docs\.mlrun\.org/en/)stable(?=/|$)",
+        r"\1latest",
+        uri,
+    )
+
+
+def _linkcheck_process_uri_replace_stable_with_latest(
+    app, uri: str, *args, **kwargs
+) -> str:
+    # This event is emitted by Sphinx's linkcheck builder; we keep the guard anyway for safety.
+    if getattr(getattr(app, "builder", None), "name", None) != "linkcheck":
+        return uri
+    return _replace_mlrun_docs_stable_with_latest(uri)
 
 
 # default header for llms.txt file

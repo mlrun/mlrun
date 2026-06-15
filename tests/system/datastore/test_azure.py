@@ -179,7 +179,7 @@ class TestAzureBlobSystem(TestMLRunSystem):
         )
 
         azure_path = (
-            f"{self._bucket_name}/{target_path[target_path.index(self.test_dir):]}"
+            f"{self._bucket_name}/{target_path[target_path.index(self.test_dir) :]}"
         )
         # Check for ML-6587 regression
         assert self._azure_fs.exists(azure_path)

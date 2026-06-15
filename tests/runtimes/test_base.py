@@ -13,8 +13,10 @@
 # limitations under the License.
 
 import base64
+import copy
 import json
 import os
+import pickle
 import shutil
 import tempfile
 
@@ -56,7 +58,7 @@ class TestAutoMount:
         runtime.run(
             name=self.name,
             project=self.project,
-            artifact_path=self.artifact_path,
+            output_path=self.artifact_path,
             watch=False,
         )
 
@@ -154,9 +156,9 @@ class TestAutoMount:
         encoded = self._generate_runtime().spec.build.resolve_requirements(
             requirements, requirements_file
         )
-        assert (
-            encoded == encoded_requirements
-        ), f"Failed to encode {requirements.extend(requirements_in_file)} as file {requirements_file}"
+        assert encoded == encoded_requirements, (
+            f"Failed to encode {requirements.extend(requirements_in_file)} as file {requirements_file}"
+        )
 
     def test_fill_credentials(self, rundb_mock):
         """
@@ -309,6 +311,79 @@ class TestAutoMount:
         self._execute_run(runtime)
         rundb_mock.assert_env_variables(expected_env)
 
+    @pytest.mark.parametrize(
+        "params_string, expected",
+        [
+            (
+                "secret_name=my_secret,keys=key1;key2;key3",
+                {"secret_name": "my_secret", "keys": "key1;key2;key3"},
+            ),
+            (
+                "secret_name=my_secret",
+                {"secret_name": "my_secret"},
+            ),
+            (
+                "secret_name=my_secret,keys=single_key",
+                {"secret_name": "my_secret", "keys": "single_key"},
+            ),
+        ],
+    )
+    def test_get_storage_auto_mount_params_with_semicolon_keys(
+        self, params_string, expected
+    ):
+        mlconf.storage.auto_mount_params = params_string
+        result = mlconf.get_storage_auto_mount_params()
+        assert result == expected
+
+    @pytest.mark.parametrize("with_cleartext", [True, False])
+    @pytest.mark.parametrize("with_keys", [True, False])
+    def test_auto_mount_secret_env(self, with_keys, with_cleartext, rundb_mock):
+        secret_name = "my-test-secret"
+        keys = ["KEY_A", "KEY_B", "KEY_C"]
+        cleartext = {"PLAIN_VAR": "plainval", "REGION": "eastus"}
+
+        mlconf.storage.auto_mount_type = "secret_env"
+
+        # Simple string params (semicolons separate keys to avoid conflict
+        # with the comma delimiter used by auto_mount_params)
+        params = f"secret_name={secret_name}"
+        if with_keys:
+            params += f",keys={';'.join(keys)}"
+        if with_cleartext:
+            # semicolon-delimited key:value string
+            params += ",cleartext_env=" + ";".join(
+                f"{k}:{v}" for k, v in cleartext.items()
+            )
+        mlconf.storage.auto_mount_params = params
+
+        # Generate the runtime and execute the run
+        # then verify that the expected environment variables were set from the secret
+        runtime = self._generate_runtime()
+        self._execute_run(runtime)
+        rundb_mock.assert_env_from_secret(
+            secret_name,
+            keys if with_keys else [],
+            cleartext_env=cleartext if with_cleartext else None,
+        )
+
+        # Try with base64-encoded JSON params
+        rundb_mock.reset()
+        params_dict: dict = {"secret_name": secret_name}
+        if with_keys:
+            params_dict["keys"] = keys
+        if with_cleartext:
+            params_dict["cleartext_env"] = cleartext
+        mlconf.storage.auto_mount_params = base64.b64encode(
+            json.dumps(params_dict).encode()
+        )
+        runtime = self._generate_runtime()
+        self._execute_run(runtime)
+        rundb_mock.assert_env_from_secret(
+            secret_name,
+            keys if with_keys else [],
+            cleartext_env=cleartext if with_cleartext else None,
+        )
+
     def _create_temp_requirements_file(self, requirements):
         with tempfile.NamedTemporaryFile(
             delete=False, dir=self._temp_dir, suffix=".txt"
@@ -326,3 +401,121 @@ class TestAutoMount:
         self._execute_run(runtime)
 
         rundb_mock.assert_runtime_categories(expected_categories)
+
+    @pytest.mark.parametrize(
+        "initial_volumes,initial_mounts,expected_volumes,expected_mounts",
+        [
+            # No volumes or mounts
+            ([], [], [], []),
+            # Only auth secret volume → removed
+            (
+                [
+                    {
+                        "name": "secret",
+                        "secret": {
+                            "secretName": "mlrun-auth-secrets.abc",
+                            "items": [],
+                        },
+                    }
+                ],
+                [{"name": "secret", "mountPath": "/var/mlrun-secrets/auth"}],
+                [],
+                [],
+            ),
+            # Non-auth secret volume → preserved
+            (
+                [
+                    {
+                        "name": "user-secret",
+                        "secret": {
+                            "secretName": "my-user-secret",
+                            "items": [],
+                        },
+                    }
+                ],
+                [{"name": "user-secret", "mountPath": "/some/path"}],
+                [
+                    {
+                        "name": "user-secret",
+                        "secret": {
+                            "secretName": "my-user-secret",
+                            "items": [],
+                        },
+                    }
+                ],
+                [{"name": "user-secret", "mountPath": "/some/path"}],
+            ),
+            # Mixed auth + non-auth → remove only auth
+            (
+                [
+                    {
+                        "name": "auth-secret",
+                        "secret": {
+                            "secretName": "mlrun-auth-secrets.abc",
+                            "items": [],
+                        },
+                    },
+                    {
+                        "name": "other-secret",
+                        "secret": {
+                            "secretName": "other-secret",
+                            "items": [],
+                        },
+                    },
+                ],
+                [
+                    {"name": "auth-secret", "mountPath": "/var/mlrun-secrets/auth"},
+                    {"name": "other-secret", "mountPath": "/some/path"},
+                ],
+                [
+                    {
+                        "name": "other-secret",
+                        "secret": {
+                            "secretName": "other-secret",
+                            "items": [],
+                        },
+                    }
+                ],
+                [{"name": "other-secret", "mountPath": "/some/path"}],
+            ),
+        ],
+    )
+    def test_remove_auth_secret_volumes(
+        self,
+        initial_volumes,
+        initial_mounts,
+        expected_volumes,
+        expected_mounts,
+    ):
+        runtime = self._generate_runtime()
+        runtime.spec.volumes = initial_volumes
+        runtime.spec.volume_mounts = initial_mounts
+
+        runtime.remove_auth_secret_volumes()
+
+        assert runtime.spec.volumes == expected_volumes
+        assert runtime.spec.volume_mounts == expected_mounts
+
+
+@pytest.mark.parametrize(
+    "clone",
+    [copy.deepcopy, lambda obj: pickle.loads(pickle.dumps(obj))],
+    ids=["deepcopy", "pickle"],
+)
+def test_runtime_copy_drops_live_db_connection(clone):
+    """A copied/pickled runtime must not carry the live run-DB connection.
+
+    The connection holds an HTTP session/socket pool; cloning it both wastes
+    sockets and (before the session fix) produced a half-initialized session.
+    ``_get_db`` recreates the connection lazily on the copy, so dropping it is
+    safe. Regression guard for the ML-12648 deepcopy path.
+    """
+    runtime = KubejobRuntime()
+    runtime.metadata.name = "copy-fn"
+    runtime._db_conn = "live-connection"  # stand-in for an HTTPRunDB
+
+    restored = clone(runtime)
+
+    assert restored._db_conn is None
+    # The original keeps its connection - only the copy is detached.
+    assert runtime._db_conn == "live-connection"

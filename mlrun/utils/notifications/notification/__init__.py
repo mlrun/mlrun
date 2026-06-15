@@ -24,7 +24,7 @@ import mlrun.utils.notifications.notification.slack as slack
 import mlrun.utils.notifications.notification.webhook as webhook
 
 
-class NotificationTypes(str, enum.Enum):
+class NotificationTypes(enum.StrEnum):
     console = notifications.NotificationKind.console.value
     git = notifications.NotificationKind.git.value
     ipython = notifications.NotificationKind.ipython.value

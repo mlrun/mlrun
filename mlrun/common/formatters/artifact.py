@@ -24,7 +24,7 @@ class ArtifactFormat(ObjectFormat, mlrun.common.types.StrEnum):
     minimal = "minimal"
 
     @staticmethod
-    def format_method(_format: str) -> typing.Optional[typing.Callable]:
+    def format_method(_format: str) -> typing.Callable | None:
         return {
             ArtifactFormat.full: None,
             ArtifactFormat.minimal: ArtifactFormat.filter_obj_method(

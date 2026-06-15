@@ -15,7 +15,7 @@
 import enum
 
 
-class StrEnum(str, enum.Enum):
+class StrEnum(enum.StrEnum):
     def __str__(self):
         return self.value
 

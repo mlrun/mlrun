@@ -40,12 +40,11 @@ router = fastapi.APIRouter(prefix="/projects/{project}/runtime-resources")
 )
 async def list_runtime_resources(
     project: str,
-    label_selector: typing.Optional[str] = fastapi.Query(None, alias="label-selector"),
-    kind: typing.Optional[str] = None,
-    object_id: typing.Optional[str] = fastapi.Query(None, alias="object-id"),
-    group_by: typing.Optional[
-        mlrun.common.schemas.ListRuntimeResourcesGroupByField
-    ] = fastapi.Query(None, alias="group-by"),
+    label_selector: str | None = fastapi.Query(None, alias="label-selector"),
+    kind: str | None = None,
+    object_id: str | None = fastapi.Query(None, alias="object-id"),
+    group_by: mlrun.common.schemas.ListRuntimeResourcesGroupByField
+    | None = fastapi.Query(None, alias="group-by"),
     auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
         framework.api.deps.authenticate_request
     ),
@@ -61,9 +60,9 @@ async def list_runtime_resources(
 )
 async def delete_runtime_resources(
     project: str,
-    label_selector: typing.Optional[str] = fastapi.Query(None, alias="label-selector"),
-    kind: typing.Optional[str] = None,
-    object_id: typing.Optional[str] = fastapi.Query(None, alias="object-id"),
+    label_selector: str | None = fastapi.Query(None, alias="label-selector"),
+    kind: str | None = None,
+    object_id: str | None = fastapi.Query(None, alias="object-id"),
     force: bool = False,
     grace_period: int = fastapi.Query(
         mlrun.mlconf.runtime_resources_deletion_grace_period, alias="grace-period"
@@ -91,11 +90,11 @@ async def _delete_runtime_resources(
     db_session: sqlalchemy.orm.Session,
     auth_info: mlrun.common.schemas.AuthInfo,
     project: str,
-    label_selector: typing.Optional[str] = None,
-    kind: typing.Optional[str] = None,
-    object_id: typing.Optional[str] = None,
+    label_selector: str | None = None,
+    kind: str | None = None,
+    object_id: str | None = None,
     force: bool = False,
-    grace_period: typing.Optional[int] = None,
+    grace_period: int | None = None,
     return_body: bool = True,
 ) -> typing.Union[
     mlrun.common.schemas.GroupedByProjectRuntimeResourcesOutput, fastapi.Response
@@ -171,12 +170,10 @@ async def _delete_runtime_resources(
 async def _list_runtime_resources(
     project: str,
     auth_info: mlrun.common.schemas.AuthInfo,
-    label_selector: typing.Optional[str] = None,
-    group_by: typing.Optional[
-        mlrun.common.schemas.ListRuntimeResourcesGroupByField
-    ] = None,
-    kind_filter: typing.Optional[str] = None,
-    object_id: typing.Optional[str] = None,
+    label_selector: str | None = None,
+    group_by: mlrun.common.schemas.ListRuntimeResourcesGroupByField | None = None,
+    kind_filter: str | None = None,
+    object_id: str | None = None,
 ) -> typing.Union[
     mlrun.common.schemas.RuntimeResourcesOutput,
     mlrun.common.schemas.GroupedByJobRuntimeResourcesOutput,
@@ -200,9 +197,9 @@ async def _list_runtime_resources(
 async def _get_runtime_resources_allowed_projects(
     project: str,
     auth_info: mlrun.common.schemas.AuthInfo,
-    label_selector: typing.Optional[str] = None,
-    kind: typing.Optional[str] = None,
-    object_id: typing.Optional[str] = None,
+    label_selector: str | None = None,
+    kind: str | None = None,
+    object_id: str | None = None,
     action: mlrun.common.schemas.AuthorizationAction = mlrun.common.schemas.AuthorizationAction.read,
 ) -> tuple[
     list[str],

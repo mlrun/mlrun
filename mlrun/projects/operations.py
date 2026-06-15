@@ -11,10 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 import typing
-import warnings
-from typing import Optional, Union
+from typing import Union
 
 import mlrun
 import mlrun.common.constants as mlrun_constants
@@ -58,44 +56,43 @@ def _get_engine_and_function(function, project=None):
 
 def run_function(
     function: Union[str, mlrun.runtimes.BaseRuntime],
-    handler: Optional[Union[str, typing.Callable]] = None,
+    handler: Union[str, typing.Callable] | None = None,
     name: str = "",
-    params: Optional[dict] = None,
-    hyperparams: Optional[dict] = None,
+    params: dict | None = None,
+    hyperparams: dict | None = None,
     hyper_param_options: mlrun.model.HyperParamOptions = None,
-    inputs: Optional[dict] = None,
-    outputs: Optional[list[str]] = None,
+    inputs: dict | None = None,
+    outputs: list[str] | None = None,
     workdir: str = "",
-    labels: Optional[dict] = None,
+    labels: dict | None = None,
     base_task: mlrun.model.RunTemplate = None,
     watch: bool = True,
-    local: Optional[bool] = None,
-    verbose: Optional[bool] = None,
-    selector: Optional[str] = None,
+    local: bool | None = None,
+    verbose: bool | None = None,
+    selector: str | None = None,
     project_object=None,
-    auto_build: Optional[bool] = None,
+    auto_build: bool | None = None,
     schedule: Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
-    artifact_path: Optional[str] = None,
-    notifications: Optional[list[mlrun.model.Notification]] = None,
-    returns: Optional[list[Union[str, dict[str, str]]]] = None,
-    builder_env: Optional[list] = None,
-    reset_on_run: Optional[bool] = None,
-    output_path: Optional[str] = None,
-    retry: Optional[Union[mlrun.model.Retry, dict]] = None,
+    notifications: list[mlrun.model.Notification] | None = None,
+    returns: "list[str | mlrun.LogHint] | None" = None,
+    builder_env: dict | None = None,
+    reset_on_run: bool | None = None,
+    output_path: str | None = None,
+    retry: Union[mlrun.model.Retry, dict] | None = None,
 ) -> Union[mlrun.model.RunObject, mlrun_pipelines.models.PipelineNodeWrapper]:
     """Run a local or remote task as part of a local/kubeflow pipeline
 
-    run_function() allow you to execute a function locally, on a remote cluster, or as part of an automated workflow
-    function can be specified as an object or by name (str), when the function is specified by name it is looked up
-    in the current project eliminating the need to redefine/edit functions.
+    run_function() allows you to execute a function locally, on a remote cluster, or as part of an automated workflow.
+    The function can be specified as an object or by name (str). When the function is specified by name it is looked up
+    in the current project, eliminating the need to redefine/edit functions.
 
-    when functions run as part of a workflow/pipeline (project.run()) some attributes can be set at the run level,
+    When functions run as part of a workflow/pipeline (project.run()) some attributes can be set at the run level,
     e.g. local=True will run all the functions locally, setting artifact_path will direct all outputs to the same path.
-    project runs provide additional notifications/reporting and exception handling.
-    inside a Kubeflow pipeline (KFP) run_function() generates KFP node (see PipelineNodeWrapper) which forms a DAG
-    some behavior may differ between regular runs and deferred KFP runs.
+    Project runs provide additional notifications/reporting and exception handling.
+    Inside a Kubeflow pipeline (KFP) run_function() generates KFP node (see PipelineNodeWrapper) which forms a DAG.
+    Some behavior may differ between regular runs and deferred KFP runs.
 
-    example (use with function object)::
+    Example (use with function object)::
 
         LABELS = "is_error"
         MODEL_CLASS = "sklearn.ensemble.RandomForestClassifier"
@@ -107,7 +104,7 @@ def run_function(
             inputs={"dataset": DATA_PATH},
         )
 
-    example (use with project)::
+    Example (use with project)::
 
         # create a project with two functions (local and from hub)
         project = mlrun.new_project(project_name, "./proj)
@@ -119,7 +116,7 @@ def run_function(
         run2 = run_function("train", params={"label_columns": LABELS, "model_class": MODEL_CLASS},
                                      inputs={"dataset": run1.outputs["data"]})
 
-    example (use in pipeline)::
+    Example (use in pipeline)::
 
         @dsl.pipeline(name="test pipeline", description="test")
         def my_pipe(url=""):
@@ -158,20 +155,21 @@ def run_function(
                             (which will be converted to the class using its `from_crontab` constructor),
                             see this link for help:
                             https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron
-    :param artifact_path:   (deprecated) path to store artifacts, when running in a workflow this will be set
-                            automatically
     :param notifications:   list of notifications to push when the run is completed
     :param returns:         List of log hints - configurations for how to log the returning values from the handler's
                             run (as artifacts or results). The list's length must be equal to the amount of returning
                             objects. A log hint may be given as:
 
-                            * A string of the key to use to log the returning value as result or as an artifact. To
-                              specify The artifact type, it is possible to pass a string in the following structure:
-                              "<key> : <type>". Available artifact types can be seen in `mlrun.ArtifactType`. If no
-                              artifact type is specified, the object's default artifact type will be used.
-                            * A dictionary of configurations to use when logging. Further info per object type and
-                              artifact type can be given there. The artifact key must appear in the dictionary as
-                              "key": "the_key".
+                            * A ``LogHint`` object with the key and extra configurations.
+                            * A "shortcut" string of the key to use to log the returning value as result or as an
+                              artifact. To specify The artifact type, it is possible to pass a string in the following
+                              structure: "<key> : <type>". Available artifact types can be seen in `mlrun.ArtifactType`.
+                              If no artifact type is specified, the object's default artifact type will be used.
+                              Packing kwargs can be passed alongside the artifact type using square brackets:
+                              ``"<key> : <type>[<kwarg1>=<value1>, <kwarg2>=<value2>]"``.
+                              Itemization can also be specified before the key using the following structure:
+                              "<unbundle-level> * <key>". If unbundle level is not specified, the default is full
+                              unbundling.
     :param builder_env:     env vars dict for source archive config/credentials e.g. builder_env={"GIT_TOKEN": token}
     :param reset_on_run:    When True, function python modules would reload prior to code execution.
                             This ensures latest code changes are executed. This argument must be used in
@@ -185,14 +183,15 @@ def run_function(
                             If not provided, the default backoff delay is 30 seconds.
     :return: MLRun RunObject or PipelineNodeWrapper
     """
-    if artifact_path:
-        warnings.warn(
-            "'artifact_path' parameter is deprecated in 1.10.0 and will be removed in 1.12.0, "
-            "use 'output_path' instead.",
-            # TODO: Remove this in 1.12.0
-            FutureWarning,
+    if (
+        isinstance(function, mlrun.runtimes.KubejobRuntime)
+        and function.serving_spec
+        and handler is not None
+    ):
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "handler cannot be specified when running a KubeJobRuntime with a serving spec"
         )
-    output_path = output_path or artifact_path
+
     engine, function = _get_engine_and_function(function, project_object)
     task = mlrun.new_task(
         handler=handler,
@@ -234,32 +233,34 @@ def run_function(
         if local and project and function.spec.build.source:
             workdir = workdir or project.spec.get_code_path()
 
-        # remove this filter once the artifact_path parameter is deprecated in 1.12.0
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", category=FutureWarning)
-            run_result = function.run(
-                name=name,
-                runspec=task,
-                workdir=workdir,
-                verbose=verbose,
-                watch=watch,
-                local=local,
-                output_path=output_path
-                # workflow output_path has precedence over the project artifact_path equivalent to passing
-                # output_path to function.run() has precedence over the project.artifact_path and the default one
-                or pipeline_context.workflow_artifact_path
-                or (project.artifact_path if project else None),
-                auto_build=auto_build,
-                schedule=schedule,
-                notifications=notifications,
-                builder_env=builder_env,
-                reset_on_run=reset_on_run,
-            )
+        # builder_env is used when auto_build triggers deploy(); set on build spec so it
+        # reaches the build flow via func.to_dict() when launcher calls runtime.deploy()
+        if builder_env:
+            existing = function.spec.build.builder_env or {}
+            function.spec.build.builder_env = {**existing, **builder_env}
+
+        run_result = function.run(
+            name=name,
+            runspec=task,
+            workdir=workdir,
+            verbose=verbose,
+            watch=watch,
+            local=local,
+            output_path=output_path
+            # workflow output_path has precedence over the project artifact_path equivalent to passing
+            # output_path to function.run() has precedence over the project.artifact_path and the default one
+            or pipeline_context.workflow_artifact_path
+            or (project.artifact_path if project else None),
+            auto_build=auto_build,
+            schedule=schedule,
+            notifications=notifications,
+            reset_on_run=reset_on_run,
+        )
         if run_result:
             run_result._notified = False
             pipeline_context.runs_map[run_result.uid()] = run_result
-            run_result.after = (
-                lambda x: run_result
+            run_result.after = lambda x: (
+                run_result
             )  # emulate KFP op, .after() will be ignored
         return run_result
 
@@ -282,19 +283,19 @@ class BuildStatus:
 
 def build_function(
     function: Union[str, mlrun.runtimes.BaseRuntime],
-    with_mlrun: Optional[bool] = None,
+    with_mlrun: bool | None = None,
     skip_deployed: bool = False,
     image=None,
     base_image=None,
-    commands: Optional[list] = None,
+    commands: list | None = None,
     secret_name=None,
-    requirements: Optional[Union[str, list[str]]] = None,
-    requirements_file: Optional[str] = None,
+    requirements: Union[str, list[str]] | None = None,
+    requirements_file: str | None = None,
     mlrun_version_specifier=None,
-    builder_env: Optional[dict] = None,
+    builder_env: dict | None = None,
     project_object=None,
     overwrite_build_params: bool = True,
-    extra_args: Optional[str] = None,
+    extra_args: str | None = None,
     force_build: bool = False,
 ) -> Union[BuildStatus, mlrun_pipelines.models.PipelineNodeWrapper]:
     """deploy ML function, build container with its dependencies
@@ -312,10 +313,16 @@ def build_function(
     :param builder_env:     Kaniko builder pod env vars dict (for config/credentials)
         e.g. builder_env={"GIT_TOKEN": token}, does not work yet in KFP
     :param project_object:  Override the project object to use, will default to the project set in the runtime context.
-    :param overwrite_build_params:  Overwrite existing build configuration (currently applies to
-        requirements and commands)
-        * False: The new params are merged with the existing
-        * True: The existing params are replaced by the new ones
+    :param overwrite_build_params: Overwrite existing build configuration (currently only
+            applies to requirements and commands).
+
+            * False: The values passed in this call are merged with the project's stored values.
+            * True: The values passed in this call replace the project's stored values for commands
+              and requirements. Parameters not explicitly passed retain their stored values.
+
+            To remove existing stored values, use ``overwrite_build_params=True`` and pass the values
+            explicitly like this ``(commands=[""], requirements=[""])``.
+
     :param extra_args:  A string containing additional builder arguments in the format of command-line options,
         e.g. extra_args="--skip-tls-verify --build-arg A=val"
     :param force_build: Force building the image, even when no changes were made
@@ -385,13 +392,13 @@ class DeployStatus:
 
 def deploy_function(
     function: Union[str, mlrun.runtimes.BaseRuntime],
-    models: Optional[list] = None,
-    env: Optional[dict] = None,
-    tag: Optional[str] = None,
-    verbose: Optional[bool] = None,
-    builder_env: Optional[dict] = None,
+    models: list | None = None,
+    env: dict | None = None,
+    tag: str | None = None,
+    verbose: bool | None = None,
+    builder_env: dict | None = None,
     project_object=None,
-    mock: Optional[bool] = None,
+    mock: bool | None = None,
 ) -> Union[DeployStatus, mlrun_pipelines.models.PipelineNodeWrapper]:
     """deploy real-time (nuclio based) functions
 
@@ -405,6 +412,7 @@ def deploy_function(
     :param project_object:  override the project object to use, will default to the project set in the runtime context.
     """
     engine, function = _get_engine_and_function(function, project_object)
+    # TODO in ML-11599 need to handle redeployment with different auth token name
     if function.kind not in mlrun.runtimes.RuntimeKinds.nuclio_runtimes():
         raise mlrun.errors.MLRunInvalidArgumentError(
             "deploy is used with real-time functions, for other kinds use build_function()"

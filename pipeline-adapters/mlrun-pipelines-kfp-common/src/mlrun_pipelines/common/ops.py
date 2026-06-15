@@ -25,7 +25,6 @@ import os
 import zipfile
 from ast import literal_eval
 from copy import deepcopy
-from typing import Union
 
 import yaml
 from kubernetes.client import V1EnvVar, V1EnvVarSource, V1SecretKeySelector
@@ -33,6 +32,7 @@ from kubernetes.client import V1EnvVar, V1EnvVarSource, V1SecretKeySelector
 import mlrun
 import mlrun.common.constants
 import mlrun.common.schemas
+import mlrun.runtime_configuration_context
 import mlrun_pipelines.common.constants
 import mlrun_pipelines.common.models
 from mlrun.config import config
@@ -66,24 +66,24 @@ def mlrun_op(
     image: str = "",
     runobj=None,
     command: str = "",
-    secrets: typing.Optional[list] = None,
-    params: typing.Optional[dict] = None,
+    secrets: list | None = None,
+    params: dict | None = None,
     job_image=None,
-    hyperparams: typing.Optional[dict] = None,
+    hyperparams: dict | None = None,
     param_file: str = "",
-    labels: typing.Optional[dict] = None,
+    labels: dict | None = None,
     selector: str = "",
-    inputs: typing.Optional[dict] = None,
-    outputs: typing.Optional[list] = None,
+    inputs: dict | None = None,
+    outputs: list | None = None,
     in_path: str = "",
     out_path: str = "",
     mode: str = "",
     handler: str = "",
-    more_args: typing.Optional[list] = None,
+    more_args: list | None = None,
     hyper_param_options=None,
     verbose=None,
     scrape_metrics=False,
-    returns: typing.Optional[list[Union[str, dict[str, str]]]] = None,
+    returns: "list[str | mlrun.LogHint] | None" = None,
     auto_build: bool = False,
 ):
     """mlrun KubeFlow pipelines operator, use to form pipeline steps
@@ -122,16 +122,18 @@ def mlrun_op(
     :param job_image name of the image user for the job
     :param verbose:  add verbose prints/logs
     :param scrape_metrics:  whether to add the `mlrun/scrape-metrics` label to this run's resources
-    :param returns: List of configurations for how to log the returning values from the handler's run (as artifacts or
-                    results). The list's length must be equal to the amount of returning objects. A configuration may be
-                    given as:
-
-                    * A string of the key to use to log the returning value as result or as an artifact. To specify
-                      The artifact type, it is possible to pass a string in the following structure:
+    :param returns: List of log hints - configurations for how to log the returning values from the handler's run (as
+                    artifacts or results). The list's length must be equal to the amount of returning objects. A log
+                    hint may be given as:
+                    * A ``LogHint`` object with the key and extra configurations.
+                    * A "shortcut" string of the key to use to log the returning value as result or as an artifact. To
+                      specify The artifact type, it is possible to pass a string in the following structure:
                       "<key> : <type>". Available artifact types can be seen in `mlrun.ArtifactType`. If no artifact
-                      type is specified, the object's default artifact type will be used.
-                    * A dictionary of configurations to use when logging. Further info per object type and artifact
-                      type can be given there. The artifact key must appear in the dictionary as "key": "the_key".
+                      type is specified, the object's default artifact type will be used. Packing kwargs can be passed
+                      alongside the artifact type using square brackets:
+                      ``"<key> : <type>[<kwarg1>=<value1>, <kwarg2>=<value2>]"``. Itemization can also be specified
+                      before the key using the following structure: "<unbundle-level> * <key>". If unbundle level is not
+                      specified, the default is full unbundling.
     :param auto_build: when set to True and the function require build it will be built on the first
                        function run, use only if you dont plan on changing the build config between runs
 
@@ -265,8 +267,12 @@ def mlrun_op(
 
     mlrun.runtimes.utils.enrich_run_labels(labels)
 
+    auth_token_name = mlrun.runtime_configuration_context.RuntimeConfigurationContext.get_auth_token_name()
+
     if name:
         cmd += ["--name", name]
+    if auth_token_name:
+        cmd += ["--runtime-config", f"auth_token_name={auth_token_name}"]
     if func_url:
         cmd += ["-f", func_url]
     for secret in secrets:
@@ -276,11 +282,20 @@ def mlrun_op(
     for xpram, val in hyperparams.items():
         cmd += ["-x", f"{xpram}={val}"]
     for input_param, val in inputs.items():
-        cmd += ["-i", f"{input_param}={val}"]
+        cmd += [
+            "-i",
+            f"{input_param}={json.dumps(val) if isinstance(val, dict | list) else val}",
+        ]
     for log_hint in returns:
+        # TODO: When moving to Pydantic v2, change `dict` to `model_dump`.
+        # TODO: Log hint as dict will be removed in MLRun 1.13, so no need to check inner if.
         cmd += [
             "--returns",
-            json.dumps(log_hint) if isinstance(log_hint, dict) else log_hint,
+            json.dumps(
+                log_hint.dict() if isinstance(log_hint, mlrun.LogHint) else log_hint
+            )
+            if isinstance(log_hint, mlrun.LogHint | dict)
+            else log_hint,
         ]
     for label, val in labels.items():
         cmd += ["--label", f"{label}={val}"]
@@ -350,7 +365,7 @@ def build_op(
     func_url=None,
     image=None,
     base_image=None,
-    commands: typing.Optional[list] = None,
+    commands: list | None = None,
     secret_name="",
     with_mlrun=True,
     skip_deployed=False,
@@ -391,8 +406,8 @@ def deploy_op(
     func_url=None,
     source="",
     project="",
-    models: typing.Optional[list] = None,
-    env: typing.Optional[dict] = None,
+    models: list | None = None,
+    env: dict | None = None,
     tag="",
     verbose=False,
 ):
@@ -570,7 +585,7 @@ def show_kfp_run(run, html_display_id=None, dag_display_id=None, with_html=True)
 
 
 def is_num(v):
-    return isinstance(v, (int, float, complex))
+    return isinstance(v, int | float | complex)
 
 
 def write_kfpmeta(struct):
@@ -730,11 +745,13 @@ def _enrich_gpu_limits(function, task):
         task.container.add_resource_limit(resource_name, resource_value)
 
 
-def replace_kfp_plaintext_secret_env_vars_with_secret_refs(
+def process_kfp_workflow_secret_references(
     byte_buffer: bytes,
     content_type: str,
     env_var_names: list[str],
     secrets_store: "SecretsStore",
+    auth_secret_name: str | None = None,
+    auth_info: mlrun.common.schemas.AuthInfo | None = None,
 ) -> bytes:
     if content_type.endswith(
         "zip"
@@ -744,6 +761,8 @@ def replace_kfp_plaintext_secret_env_vars_with_secret_refs(
             byte_buffer=byte_buffer,
             env_var_names=env_var_names,
             secrets_store=secrets_store,
+            auth_secret_name=auth_secret_name,
+            auth_info=auth_info,
         )
         return modified_zip_bytes
     elif content_type.endswith(("yaml", "plain")):
@@ -751,6 +770,8 @@ def replace_kfp_plaintext_secret_env_vars_with_secret_refs(
             yaml_bytes=byte_buffer,
             env_var_names=env_var_names,
             secrets_store=secrets_store,
+            auth_secret_name=auth_secret_name,
+            auth_info=auth_info,
         )
         return modified_yaml_bytes
     else:
@@ -761,11 +782,20 @@ def _enrich_kfp_workflow_credentials_in_subprocess(
     byte_buffer: bytes,
     env_var_names: list[str],
     secrets_store: "SecretsStore",
+    auth_secret_name: str | None = None,
+    auth_info: mlrun.common.schemas.AuthInfo | None = None,
 ) -> bytes:
     queue = multiprocessing.Queue()
     process = multiprocessing.Process(
         target=_enrich_wrapper,
-        args=(queue, byte_buffer, env_var_names, secrets_store),
+        args=(
+            queue,
+            byte_buffer,
+            env_var_names,
+            secrets_store,
+            auth_secret_name,
+            auth_info,
+        ),
     )
     process.start()
     result = queue.get()
@@ -778,11 +808,15 @@ def _enrich_wrapper(
     byte_buffer: bytes,
     env_var_names: list[str],
     secrets_store: "SecretsStore",
+    auth_secret_name: str | None = None,
+    auth_info: mlrun.common.schemas.AuthInfo | None = None,
 ):
     result = _enrich_kfp_workflow_zip_credentials(
         byte_buffer=byte_buffer,
         env_var_names=env_var_names,
         secrets_store=secrets_store,
+        auth_secret_name=auth_secret_name,
+        auth_info=auth_info,
     )
     queue.put(result)
 
@@ -791,6 +825,8 @@ def _enrich_kfp_workflow_zip_credentials(
     byte_buffer: bytes,
     env_var_names: list[str],
     secrets_store: "SecretsStore",
+    auth_secret_name: str | None = None,
+    auth_info: mlrun.common.schemas.AuthInfo | None = None,
 ) -> bytes:
     in_memory_zip = io.BytesIO(byte_buffer)
     with zipfile.ZipFile(in_memory_zip, "r") as zip_read:
@@ -806,6 +842,8 @@ def _enrich_kfp_workflow_zip_credentials(
                 yaml_bytes=file_data,
                 env_var_names=env_var_names,
                 secrets_store=secrets_store,
+                auth_secret_name=auth_secret_name,
+                auth_info=auth_info,
             )
             files_data[file_name] = modified_yaml
 
@@ -821,6 +859,8 @@ def _enrich_kfp_workflow_yaml_credentials(
     yaml_bytes: bytes,
     env_var_names: list[str],
     secrets_store: "SecretsStore",
+    auth_secret_name: str | None = None,
+    auth_info: mlrun.common.schemas.AuthInfo | None = None,
 ) -> bytes:
     """
     Modifies the given workflow YAML to add secret environment variables to container specifications.
@@ -828,6 +868,8 @@ def _enrich_kfp_workflow_yaml_credentials(
     environment variables accordingly.
     """
     workflow_dict = yaml.safe_load(yaml_bytes)
+    workflow_dict = add_auth_mount_to_argo_pods(workflow_dict, auth_secret_name)
+
     # Determine the KFP version by checking the 'apiVersion' field
     api_version = (
         workflow_dict.get("api_version") or workflow_dict.get("apiVersion", "").lower()
@@ -847,6 +889,7 @@ def _enrich_kfp_workflow_yaml_credentials(
                     env_var_names=env_var_names,
                     container=container,
                     secrets_store=secrets_store,
+                    auth_info=auth_info,
                 )
 
         return yaml.safe_dump(workflow_dict).encode()
@@ -858,6 +901,7 @@ def _enrich_kfp_workflow_yaml_credentials(
                     env_var_names=env_var_names,
                     task=task,
                     secrets_store=secrets_store,
+                    auth_info=auth_info,
                 )
         result = yaml.safe_dump(workflow_dict).encode()
         return result
@@ -867,10 +911,46 @@ def _enrich_kfp_workflow_yaml_credentials(
         )
 
 
+def add_auth_mount_to_argo_pods(
+    workflow_dict: dict, auth_secret_name: str | None = None
+) -> dict:
+    if auth_secret_name:
+        volume = {
+            "name": "secret",
+            "secret": {
+                "secretName": auth_secret_name,
+                "items": [
+                    {
+                        "key": "tokensFile",
+                        "path": mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_FILE,
+                    }
+                ],
+            },
+        }
+        volume_mount = {
+            "name": "secret",
+            "mountPath": mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_PATH,
+        }
+
+        for template in workflow_dict["spec"]["templates"]:
+            # Skip DAG-only templates
+            if "container" not in template:
+                continue
+
+            # Add volumes to the template
+            template.setdefault("volumes", []).append(volume)
+
+            # Add volumeMounts to the container
+            template["container"].setdefault("volumeMounts", []).append(volume_mount)
+
+    return workflow_dict
+
+
 def _replace_secret_envs_in_argocd_template(
     env_var_names: list[str],
     container: dict,
     secrets_store: "SecretsStore",
+    auth_info: mlrun.common.schemas.AuthInfo | None = None,
 ) -> None:
     """
     Replaces specified environment variables in the container with secret references.
@@ -882,6 +962,7 @@ def _replace_secret_envs_in_argocd_template(
         env_var_names=env_var_names,
         secret_name_to_secret_ref=secret_name_to_secret_ref,
         secrets_store=secrets_store,
+        auth_info=auth_info,
     )
 
     cmd_parts = container.get("command", [])
@@ -890,6 +971,7 @@ def _replace_secret_envs_in_argocd_template(
         env_var_names=env_var_names,
         secret_name_to_secret_ref=secret_name_to_secret_ref,
         secrets_store=secrets_store,
+        auth_info=auth_info,
     )
 
 
@@ -897,6 +979,7 @@ def _replace_secret_envs_in_tekton_template(
     env_var_names: list[str],
     task: dict,
     secrets_store: "SecretsStore",
+    auth_info: mlrun.common.schemas.AuthInfo | None = None,
 ) -> None:
     secret_name_to_secret_ref = {}
     step_template = task.get("stepTemplate", {})
@@ -905,6 +988,7 @@ def _replace_secret_envs_in_tekton_template(
         env_var_names=env_var_names,
         secret_name_to_secret_ref=secret_name_to_secret_ref,
         secrets_store=secrets_store,
+        auth_info=auth_info,
     )
 
 
@@ -913,6 +997,7 @@ def _replace_secret_vars_in_function_spec(
     env_var_names: list[str],
     secret_name_to_secret_ref: dict[str, V1EnvVar],
     secrets_store: "SecretsStore",
+    auth_info: mlrun.common.schemas.AuthInfo | None = None,
 ) -> None:
     """
     Replaces specified environment variables in the function spec within cmd_parts.
@@ -935,6 +1020,7 @@ def _replace_secret_vars_in_function_spec(
                 env_var_names=env_var_names,
                 secret_name_to_secret_ref=secret_name_to_secret_ref,
                 secrets_store=secrets_store,
+                auth_info=auth_info,
             )
             cmd_parts[cmd_part_index + 1] = repr(func_data)
             break
@@ -944,10 +1030,12 @@ def _create_secret_env_var_for_pipeline(
     name: str,
     value: str,
     secrets_store: "SecretsStore",
+    auth_info: mlrun.common.schemas.AuthInfo | None = None,
 ) -> V1EnvVar:
+    secret_username = auth_info.user_id if auth_info and auth_info.user_id else name
     secret_name = secrets_store.store_auth_secret(
         secret=mlrun.common.schemas.AuthSecretData(
-            username=name,
+            username=secret_username,
             access_key=value,
         ),
     )
@@ -971,6 +1059,7 @@ def _replace_env_vars_with_secrets(
     env_var_names: list[str],
     secret_name_to_secret_ref: dict[str, V1EnvVar],
     secrets_store: "SecretsStore",
+    auth_info: mlrun.common.schemas.AuthInfo | None = None,
 ) -> list[dict]:
     """
     Helper function to replace environment variables with secrets.
@@ -989,6 +1078,7 @@ def _replace_env_vars_with_secrets(
                     name=env_var_name,
                     value=value,
                     secrets_store=secrets_store,
+                    auth_info=auth_info,
                 )
                 secret_name_to_secret_ref[env_var_name] = secret_env_var
             env_vars[env_var_index] = _create_env_for_container(secret_env_var)

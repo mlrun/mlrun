@@ -11,10 +11,32 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import typing
+import re
 from abc import ABC, abstractmethod
+from datetime import UTC, datetime
 
 import mlrun.common.schemas
+from mlrun.config import config as mlconf
+
+_AUTH_SECRET_NAME_TEMPLATE = re.escape(
+    mlconf.secret_stores.kubernetes.auth_secret_name.format(
+        hashed_access_key="",
+    )
+)
+AUTH_SECRET_PATTERN = re.compile(f"^{_AUTH_SECRET_NAME_TEMPLATE}.*")
+
+
+def validate_not_forbidden_secret(secret_name: str) -> None:
+    """
+    Forbid client-supplied references to internal MLRun auth/project secrets.
+    No-op when running inside the API server (API enrichments are allowed).
+    """
+    if not secret_name or mlrun.config.is_running_as_api():
+        return
+    if AUTH_SECRET_PATTERN.match(secret_name):
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"Forbidden secret '{secret_name}' matches MLRun auth-secret pattern."
+        )
 
 
 class SecretProviderInterface(ABC):
@@ -57,21 +79,22 @@ class SecretProviderInterface(ABC):
     @abstractmethod
     def store_user_token_secret(
         self,
-        username: str,
+        auth_info: mlrun.common.schemas.AuthInfo,
         token_name: str,
         token: str,
         expiration: int,
+        issued_at: int,
         force: bool = False,
-        namespace: typing.Optional[str] = None,
-    ) -> typing.Optional[mlrun.common.schemas.SecretEventActions]:
+        namespace: str | None = None,
+    ) -> mlrun.common.schemas.SecretEventActions | None:
         pass
 
     @abstractmethod
     def get_user_token_secret_value(
         self,
-        username: str,
+        user_id: str,
         token_name: str,
-        namespace: typing.Optional[str] = None,
+        namespace: str | None = None,
     ) -> str:
         pass
 
@@ -79,16 +102,16 @@ class SecretProviderInterface(ABC):
     def list_user_token_secrets(
         self,
         username: str,
-        namespace: typing.Optional[str] = None,
+        namespace: str | None = None,
     ) -> list[mlrun.common.schemas.SecretTokenInfo]:
         pass
 
     @abstractmethod
     def delete_user_token_secret(
         self,
-        username: str,
+        user_id: str,
         token_name: str,
-        namespace: typing.Optional[str] = None,
+        namespace: str | None = None,
     ) -> None:
         pass
 
@@ -170,37 +193,60 @@ class InMemorySecretProvider(SecretProviderInterface):
 
     def store_user_token_secret(
         self,
-        username: str,
+        auth_info: mlrun.common.schemas.AuthInfo,
         token_name: str,
         token: str,
         expiration: int,
+        issued_at: int,
         force: bool = False,
-        namespace: typing.Optional[str] = None,
-    ) -> typing.Optional[mlrun.common.schemas.SecretEventActions]:
-        raise NotImplementedError()
+        namespace: str | None = None,
+    ) -> mlrun.common.schemas.SecretEventActions | None:
+        secret_name = self.resolve_user_token_secret_name(auth_info.user_id, token_name)
+        self.secrets_map[secret_name] = {
+            "token": token,
+            "expiration": datetime.fromtimestamp(expiration, tz=UTC),
+            "issued_at": datetime.fromtimestamp(issued_at, tz=UTC),
+            "user_id": auth_info.user_id,
+            "username": auth_info.username,
+            "token_name": token_name,
+        }
+        return mlrun.common.schemas.SecretEventActions.created
 
     def get_user_token_secret_value(
         self,
-        username: str,
+        user_id: str,
         token_name: str,
-        namespace: typing.Optional[str] = None,
+        namespace: str | None = None,
     ) -> str:
-        raise NotImplementedError()
+        secret_name = self.resolve_user_token_secret_name(user_id, token_name)
+        return self.secrets_map[secret_name]["token"]
 
     def list_user_token_secrets(
         self,
         username: str,
-        namespace: typing.Optional[str] = None,
+        namespace: str | None = None,
     ) -> list[mlrun.common.schemas.SecretTokenInfo]:
-        raise NotImplementedError()
+        secret_names = list(self.secrets_map.keys())
+        return [
+            mlrun.common.schemas.SecretTokenInfo(
+                name=self.secrets_map[secret_name]["token_name"],
+                expiration=self.secrets_map[secret_name]["expiration"],
+                issued_at=self.secrets_map[secret_name]["issued_at"],
+                user_id=self.secrets_map[secret_name]["user_id"],
+                username=self.secrets_map[secret_name]["username"],
+            )
+            for secret_name in secret_names
+            if username == "*" or self.secrets_map[secret_name]["username"] == username
+        ]
 
     def delete_user_token_secret(
         self,
-        username: str,
+        user_id: str,
         token_name: str,
-        namespace: typing.Optional[str] = None,
+        namespace: str | None = None,
     ) -> None:
-        raise NotImplementedError()
+        secret_name = self.resolve_user_token_secret_name(user_id, token_name)
+        del self.secrets_map[secret_name]
 
     @staticmethod
     def _generate_auth_secret_data(username: str, access_key: str):
@@ -216,3 +262,7 @@ class InMemorySecretProvider(SecretProviderInterface):
     @staticmethod
     def resolve_auth_secret_name(username: str, access_key: str) -> str:
         return f"secret-ref-{username}-{access_key}"
+
+    @staticmethod
+    def resolve_user_token_secret_name(user_id: str, token_name: str) -> str:
+        return f"user-secret-ref-{user_id}-{token_name}"

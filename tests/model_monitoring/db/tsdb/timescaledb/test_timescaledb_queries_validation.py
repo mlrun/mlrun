@@ -96,6 +96,44 @@ class TestParameterValidation:
             == "Invalid 'endpoint_ids' filter: must be a string or a list of strings"
         )
 
+    def test_combine_filters_parenthesizes_or_with_and(self):
+        """combine_filters must wrap each operand so OR doesn't escape AND scope.
+
+        Without wrapping, ``endpoint_id='x' AND (a=1) OR (a=2)`` is parsed as
+        ``(endpoint_id='x' AND a=1) OR (a=2)`` — the second branch bypasses the
+        endpoint filter and scans the entire table (ML-11691).
+        """
+        from mlrun.model_monitoring.db.tsdb.timescaledb.utils.timescaledb_query_builder import (
+            TimescaleDBQueryBuilder,
+        )
+
+        endpoint_filter = TimescaleDBQueryBuilder.build_endpoint_filter("ep1")
+        results_filter = TimescaleDBQueryBuilder.build_results_filter(
+            [
+                mm_schemas.ModelEndpointMonitoringMetric(
+                    project="p",
+                    app="app1",
+                    name="drift",
+                    type=mm_schemas.ModelEndpointMonitoringMetricType.RESULT,
+                ),
+                mm_schemas.ModelEndpointMonitoringMetric(
+                    project="p",
+                    app="app2",
+                    name="perf",
+                    type=mm_schemas.ModelEndpointMonitoringMetricType.RESULT,
+                ),
+            ]
+        )
+        combined = TimescaleDBQueryBuilder.combine_filters(
+            [endpoint_filter, results_filter]
+        )
+
+        assert combined == (
+            "(endpoint_id='ep1') AND "
+            "((application_name = 'app1' AND result_name = 'drift') "
+            "OR (application_name = 'app2' AND result_name = 'perf'))"
+        )
+
 
 class TestPreAggregateExceptionHandling:
     """Tests for pre-aggregate exception handling and fallback logic."""

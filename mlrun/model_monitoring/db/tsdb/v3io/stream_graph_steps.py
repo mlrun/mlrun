@@ -44,7 +44,7 @@ def _normalize_dict_for_v3io_frames(event: dict[str, Any]) -> dict[str, Any]:
         items = {}
         for k, v in d.items():
             new_key = norm_key(k)
-            full_key = f"{parent_key}.{new_key}" if parent_key else new_key
+            full_key = f"{parent_key}:{new_key}" if parent_key else new_key
             if isinstance(v, dict):
                 items.update(flatten_dict(v, full_key))
             else:

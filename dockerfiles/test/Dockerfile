@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 ARG MLRUN_UV_IMAGE=ghcr.io/astral-sh/uv:latest
-ARG MLRUN_PYTHON_VERSION=3.9
-ARG MLRUN_PIP_VERSION=25.0
+ARG MLRUN_PYTHON_VERSION=3.11
+ARG MLRUN_PIP_VERSION=26.0
 ARG DOCKER_DEFAULT_PLATFORM=linux/amd64
 
 FROM ${MLRUN_UV_IMAGE} AS uv-image
@@ -83,13 +83,5 @@ COPY examples examples
 
 ENV PYTHONPATH="/mlrun/tests:/mlrun/automation:/mlrun/server/py/schemas/proto"
 
-# TODO: remove this once iguazio package is released to PyPI and move to requirements.txt
-# Install iguazio package from Test PyPI only for Python 3.11
-RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
-    if [ "${MLRUN_PYTHON_VERSION}" = "3.11" ]; then \
-      uv pip install --index-url https://test.pypi.org/simple/ \
-        --extra-index-url https://pypi.org/simple \
-        iguazio~=0.0.1a14 --python-version ${MLRUN_PYTHON_VERSION}; \
-    else \
-      echo "Skipping iguazio install for Python ${MLRUN_PYTHON_VERSION}"; \
-    fi
+# plant uv for next phases usage
+COPY --from=uv-image /uv /bin/uv

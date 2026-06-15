@@ -32,7 +32,6 @@ import mlrun.errors
 import mlrun.utils.helpers
 from mlrun.utils import get_in, logger
 
-import framework.utils.clients.helpers as clients_helpers
 import framework.utils.helpers
 import framework.utils.projects.remotes.leader as project_leader
 from framework.utils.clients.iguazio.base import BaseAsyncClient, BaseClient
@@ -96,7 +95,7 @@ class _JobCache:
                 self._delete_locks[project] = threading.Lock()
             return self._delete_locks[project]
 
-    def get_delete_job_id(self, project: str) -> typing.Optional[str]:
+    def get_delete_job_id(self, project: str) -> str | None:
         return self._delete_jobs.get(project, {}).get("job_id")
 
     def set_delete_job(self, project: str, job_id: str):
@@ -192,7 +191,7 @@ class Client(
         return typing.cast(igz_mgmt.SmtpConnection, smtp_configurations[0])
 
     def get_or_create_access_key(
-        self, session: str, planes: typing.Optional[list[str]] = None
+        self, session: str, planes: list[str] | None = None
     ) -> str:
         if planes is None:
             planes = [
@@ -221,6 +220,7 @@ class Client(
         self,
         session: str,
         project: mlrun.common.schemas.Project,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         wait_for_completion: bool = True,
     ) -> bool:
         self._logger.debug("Creating project in Iguazio", project=project.metadata.name)
@@ -238,6 +238,7 @@ class Client(
         session: str,
         name: str,
         project: mlrun.common.schemas.Project,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ):
         self._logger.debug("Updating project in Iguazio", name=name)
         body = self._transform_mlrun_project_to_iguazio_project(project)
@@ -247,6 +248,7 @@ class Client(
         self,
         session: str,
         name: str,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         deletion_strategy: mlrun.common.schemas.DeletionStrategy = mlrun.common.schemas.DeletionStrategy.default(),
         wait_for_completion: bool = True,
     ) -> bool:
@@ -301,9 +303,9 @@ class Client(
     def list_projects(
         self,
         session: str,
-        updated_after: typing.Optional[datetime.datetime] = None,
-        page_size: typing.Optional[int] = None,
-    ) -> tuple[list[mlrun.common.schemas.Project], typing.Optional[datetime.datetime]]:
+        updated_after: datetime.datetime | None = None,
+        page_size: int | None = None,
+    ) -> tuple[list[mlrun.common.schemas.Project], datetime.datetime | None]:
         project_names, latest_updated_at = self._list_project_names(
             session, updated_after, page_size
         )
@@ -313,6 +315,7 @@ class Client(
         self,
         session: str,
         name: str,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ) -> mlrun.common.schemas.Project:
         return self._get_project_from_iguazio(session, name)
 
@@ -320,6 +323,7 @@ class Client(
         self,
         session: str,
         name: str,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ) -> mlrun.common.schemas.ProjectOwner:
         response = self._get_project_from_iguazio_without_parsing(
             session, name, enrich_owner_access_key=True
@@ -349,7 +353,7 @@ class Client(
         )
 
     @framework.utils.helpers.lru_cache_with_ttl(maxsize=1, ttl_seconds=60 * 2)
-    def try_get_grafana_service_url(self, session: str) -> typing.Optional[str]:
+    def try_get_grafana_service_url(self, session: str) -> str | None:
         """
         Try to find a ready grafana app service, and return its URL
         If nothing found, returns None
@@ -398,9 +402,9 @@ class Client(
     def _list_project_names(
         self,
         session: str,
-        updated_after: typing.Optional[datetime.datetime] = None,
-        page_size: typing.Optional[int] = None,
-    ) -> tuple[list[str], typing.Optional[datetime.datetime]]:
+        updated_after: datetime.datetime | None = None,
+        page_size: int | None = None,
+    ) -> tuple[list[str], datetime.datetime | None]:
         params = {}
         if updated_after is not None:
             time_string = updated_after.isoformat().split("+")[0]
@@ -439,9 +443,7 @@ class Client(
             for project_name in project_names
         ]
 
-    def _find_latest_updated_at(
-        self, response_body: dict
-    ) -> typing.Optional[datetime.datetime]:
+    def _find_latest_updated_at(self, response_body: dict) -> datetime.datetime | None:
         latest_updated_at = None
         for iguazio_project in response_body["data"]:
             updated_at = datetime.datetime.fromisoformat(
@@ -483,7 +485,7 @@ class Client(
         session: str,
         name: str,
         deletion_strategy: mlrun.common.schemas.DeletionStrategy = mlrun.common.schemas.DeletionStrategy.default(),
-    ) -> typing.Optional[str]:
+    ) -> str | None:
         self._logger.debug(
             "Deleting project in Iguazio",
             name=name,
@@ -593,7 +595,7 @@ class Client(
         session: str,
         job_id: str,
         error_message: str = "",
-        timeout: typing.Optional[int] = 360,  # in seconds
+        timeout: int | None = 360,  # in seconds
     ):
         def _verify_job_in_terminal_state():
             job_response_body = self._get_job_from_iguazio(session, job_id)
@@ -706,7 +708,7 @@ class Client(
     @staticmethod
     def _resolve_params_from_response_body(
         response_body: typing.Mapping[typing.Any, typing.Any],
-    ) -> tuple[typing.Optional[str], typing.Optional[list[str]]]:
+    ) -> tuple[str | None, list[str] | None]:
         context_auth = get_in(
             response_body, "data.attributes.context.authentication", {}
         )
@@ -863,9 +865,7 @@ class Client(
             )
         return mlrun_project
 
-    def _prepare_request_kwargs(
-        self, session: typing.Optional[str], path: str, *, kwargs: dict
-    ):
+    def _prepare_request_kwargs(self, session: str | None, path: str, *, kwargs: dict):
         # support session being already a cookie
         session_cookie = session
         if (
@@ -886,7 +886,10 @@ class Client(
             kwargs[mlrun.common.schemas.HeaderNames.cookies] = cookies
         if kwargs.get("timeout") is None:
             kwargs["timeout"] = 20
-        clients_helpers.add_project_role_headers_if_needed(path, kwargs)
+        kwargs["headers"] = framework.utils.clients.helpers.enrich_headers(
+            headers=kwargs.get("headers"),
+            path=path,
+        )
         # requests no longer supports header values to be enum (https://github.com/psf/requests/pull/6154)
         # convert to strings. Do the same for params for niceness
         for kwarg in ["headers", "params"]:
@@ -895,10 +898,10 @@ class Client(
                 if isinstance(dict_[key], enum.Enum):
                     dict_[key] = dict_[key].value
 
-    def _extract_ctx(self, response_body: dict) -> typing.Optional[str]:
+    def _extract_ctx(self, response_body: dict) -> str | None:
         return response_body.get("meta", {}).get("ctx")
 
-    def _extract_error_message(self, response_body: dict) -> typing.Optional[str]:
+    def _extract_error_message(self, response_body: dict) -> str | None:
         errors = response_body.get("errors", [])
         return str(errors) if errors else None
 

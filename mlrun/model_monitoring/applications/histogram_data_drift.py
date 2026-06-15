@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from dataclasses import dataclass
-from typing import Final, Optional, Protocol, Union, cast
+from typing import Final, Protocol, Union, cast
 
 import numpy as np
 from pandas import DataFrame, Series
@@ -133,7 +133,7 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
 
     def __init__(
         self,
-        value_classifier: Optional[ValueClassifier] = None,
+        value_classifier: ValueClassifier | None = None,
         produce_json_artifact: bool = False,
         produce_plotly_artifact: bool = False,
     ) -> None:
@@ -144,9 +144,9 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
         :param produce_plotly_artifact: Whether to produce the Plotly artifact or not, ``False`` by default.
         """
         self._value_classifier = value_classifier or DataDriftClassifier()
-        assert self._REQUIRED_METRICS <= set(
-            self.metrics
-        ), "TVD and Hellinger distance are required for the general data drift result"
+        assert self._REQUIRED_METRICS <= set(self.metrics), (
+            "TVD and Hellinger distance are required for the general data drift result"
+        )
 
         self._produce_json_artifact = produce_json_artifact
         self._produce_plotly_artifact = produce_plotly_artifact

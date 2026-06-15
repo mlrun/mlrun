@@ -1,9 +1,57 @@
 {
-  "demos": [
-    "demo-fraud",
-    "demo-mask-detection",
-    "demo-monitoring-and-feedback-loop",
-    "demo-call-center",
-    "demo-sagemaker"
-  ]
+  "1.11.0": {
+    "demos": [
+        "demo-monitoring-and-feedback-loop",
+        "demo-call-center",
+        "demo-banking-agent"
+      ]
+  },
+  "1.10.0": {
+    "demos": [
+        "demo-fraud",
+        "demo-monitoring-and-feedback-loop",
+        "demo-call-center",
+        "demo-banking-agent"
+      ]
+  },
+  "1.10.1": {
+    "demos": [
+        "demo-fraud",
+        "demo-monitoring-and-feedback-loop",
+        "demo-call-center",
+        "demo-banking-agent"
+      ]
+  },
+  "1.10.2": {
+    "demos": [
+        "demo-fraud",
+        "demo-monitoring-and-feedback-loop",
+        "demo-call-center",
+        "demo-banking-agent"
+      ]
+  },  
+  "1.10.3": {
+    "demos": [
+        "demo-fraud",
+        "demo-monitoring-and-feedback-loop",
+        "demo-call-center",
+        "demo-banking-agent"
+      ]
+  },
+  "1.9.2": {
+    "demos": [
+        "demo-fraud",
+        "demo-mask-detection",
+        "demo-monitoring-and-feedback-loop",
+        "demo-call-center",
+        "demo-sagemaker"
+      ]
+  },
+  "development": {
+    "demos": [
+        "demo-monitoring-and-feedback-loop",
+        "demo-call-center",
+        "demo-banking-agent"
+      ]
+  }
 }

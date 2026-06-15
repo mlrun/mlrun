@@ -77,9 +77,9 @@ class TestMain(tests.integration.sdk_api.base.TestMLRunIntegration):
         end_time = datetime.datetime.now()
         print(out)
         assert out.find("state: completed") != -1, out
-        assert (
-            end_time - start_time
-        ).seconds >= time_to_sleep, "run did not wait for completion"
+        assert (end_time - start_time).seconds >= time_to_sleep, (
+            "run did not wait for completion"
+        )
 
     def test_main_run_hyper(self):
         out = self._exec_run(
@@ -376,7 +376,8 @@ class TestMain(tests.integration.sdk_api.base.TestMLRunIntegration):
             self._exec_run("./handler.py", args.split(), "test_main_local_source")
         assert (
             f"source ({examples_path}) must be a compressed (tar.gz / zip) file, "
-            f"a git repo, a file path or in the project's context (.)" in str(e.value)
+            f"a git repo, a file path, a store URI, or in the project's context (.)"
+            in str(e.value)
         )
 
     def test_main_run_archive_subdir(self):

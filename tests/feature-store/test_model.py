@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 
 import pytest
 
@@ -99,8 +99,8 @@ def test_different_target_path_scenarios_for_run_id(
         ("", False, True, None),
         (datetime(2021, 5, 25, 10, 30, 29, 592000), False, True, None),
         (datetime(2021, 5, 25, 10, 30, 29, 592000), True, True, None),
-        (datetime(2021, 5, 25, 10, 30, 29, 592000, timezone.utc), False, True, 0),
-        (datetime(2021, 5, 25, 10, 30, 29, 592000, timezone.utc), True, True, 0),
+        (datetime(2021, 5, 25, 10, 30, 29, 592000, UTC), False, True, 0),
+        (datetime(2021, 5, 25, 10, 30, 29, 592000, UTC), True, True, 0),
         ("2021-05-25T10:30:29.abc", False, False, None),
         ("2021-05-25T10:30:29.abc", True, False, None),
         ("2021-05-25T10:30:29.592", False, True, None),
@@ -122,7 +122,7 @@ def test_parquet_source_with_iso_start_or_end_time(
         if time_delta is None:
             tzinfo = None
         else:
-            tzinfo = timezone.utc if time_delta == 0 else timezone(time_delta)
+            tzinfo = UTC if time_delta == 0 else timezone(time_delta)
         actual = datetime(2021, 5, 25, 10, 30, 29, 592000, tzinfo)
         source = ParquetSource(
             "srcpar",

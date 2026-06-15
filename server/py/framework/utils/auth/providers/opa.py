@@ -24,6 +24,7 @@ import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils.helpers
 import mlrun.utils.singleton
+import mlrun.utils.thread
 from mlrun.utils import logger
 
 import framework.utils.auth.providers.base as auth
@@ -36,7 +37,10 @@ class Provider(
 ):
     def __init__(self) -> None:
         super().__init__()
-        self._session: typing.Optional[mlrun.utils.AsyncClientWithRetry] = None
+        self._sessions = mlrun.utils.thread.ThreadLocalClient(
+            factory=self._get_new_async_session,
+            close_callback=lambda async_session: async_session.close(),
+        )
         self._api_url = mlrun.mlconf.httpdb.authorization.opa.address
         self._permission_query_path = (
             mlrun.mlconf.httpdb.authorization.opa.permission_query_path
@@ -204,10 +208,10 @@ class Provider(
         url = f"{self._api_url}{path}"
         if kwargs.get("timeout") is None:
             kwargs["timeout"] = self._request_timeout
-        await self._ensure_session()
+        async_session = self._sessions.get()
         response = None
         try:
-            response = await self._session.request(
+            response = await async_session.request(
                 method, url, verify_ssl=False, **kwargs
             )
             if not response.ok:
@@ -262,8 +266,8 @@ class Provider(
         }
         return body
 
-    async def _ensure_session(self):
-        if not self._session:
-            self._session = mlrun.utils.AsyncClientWithRetry(
-                logger=logger,
-            )
+    @staticmethod
+    def _get_new_async_session():
+        return mlrun.utils.AsyncClientWithRetry(
+            logger=logger,
+        )

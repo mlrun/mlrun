@@ -11,8 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from collections.abc import Awaitable
-from typing import Any, Callable, Optional, Union
+from collections.abc import AsyncGenerator, Awaitable, Callable, Generator
+from typing import Any, Union
 
 import mlrun.errors
 from mlrun.common.types import StrEnum
@@ -65,6 +65,7 @@ class ModelProvider(BaseRemoteClient):
     """
 
     support_async = False
+    supports_streaming = False
 
     def __init__(
         self,
@@ -72,8 +73,8 @@ class ModelProvider(BaseRemoteClient):
         kind,
         name,
         endpoint="",
-        secrets: Optional[dict] = None,
-        default_invoke_kwargs: Optional[dict] = None,
+        secrets: dict | None = None,
+        default_invoke_kwargs: dict | None = None,
     ):
         super().__init__(
             parent=parent, name=name, kind=kind, endpoint=endpoint, secrets=secrets
@@ -81,6 +82,43 @@ class ModelProvider(BaseRemoteClient):
         self.default_invoke_kwargs = default_invoke_kwargs or {}
         self._client = None
         self._async_client = None
+
+    @staticmethod
+    def _validate_and_detect_batch_invocation(
+        messages: Union[list[dict], list[list[dict]]],
+    ) -> bool:
+        """
+        Validate messages format and detect if this is a batch invocation.
+
+        :param messages: Either a list of message dicts (single) or list of message lists (batch)
+        :return: True if batch invocation, False if single invocation
+        :raises MLRunInvalidArgumentError: If messages format is invalid (mixed types or strings)
+        """
+        if not messages or not isinstance(messages, list):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Messages must be a non-empty list of dictionaries or list of lists of dictionaries."
+            )
+
+        # Check if user mistakenly passed a list of strings
+        has_str = any(isinstance(item, str) for item in messages)
+        if has_str:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Invalid messages format: list of strings is not supported. "
+                "Messages must be a list of dicts (single invocation) or list of lists of dicts (batch invocation)."
+            )
+
+        has_list = any(isinstance(item, list) for item in messages)
+        has_dict = any(isinstance(item, dict) for item in messages)
+
+        if has_list and has_dict:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Invalid messages format: cannot mix list and dict items. "
+                "Use either all lists for batch invocation or all dicts for single invocation."
+            )
+
+        if has_list:
+            return True
+        return False
 
     @staticmethod
     def _extract_string_output(response: Any) -> str:
@@ -143,7 +181,7 @@ class ModelProvider(BaseRemoteClient):
         return self._client
 
     @property
-    def model(self) -> Optional[str]:
+    def model(self) -> str | None:
         """
         Returns the model identifier used by the underlying SDK.
 
@@ -164,9 +202,7 @@ class ModelProvider(BaseRemoteClient):
             )
         return self._async_client
 
-    def custom_invoke(
-        self, operation: Optional[Callable] = None, **invoke_kwargs
-    ) -> Any:
+    def custom_invoke(self, operation: Callable | None = None, **invoke_kwargs) -> Any:
         """
         Invokes a model operation from a provider (e.g., OpenAI, Hugging Face, etc.) with the given keyword arguments.
 
@@ -180,7 +216,7 @@ class ModelProvider(BaseRemoteClient):
         raise NotImplementedError("custom_invoke method is not implemented")
 
     async def async_custom_invoke(
-        self, operation: Optional[Callable[..., Awaitable[Any]]] = None, **invoke_kwargs
+        self, operation: Callable[..., Awaitable[Any]] | None = None, **invoke_kwargs
     ) -> Any:
         """
         Asynchronously invokes a model operation from a provider (e.g., OpenAI, Hugging Face, etc.)
@@ -196,7 +232,7 @@ class ModelProvider(BaseRemoteClient):
 
     def invoke(
         self,
-        messages: Union[list[dict], Any],
+        messages: Union[list[dict], list[list[dict]]],
         invoke_response_format: InvokeResponseFormat = InvokeResponseFormat.FULL,
         **invoke_kwargs,
     ) -> Union[str, dict[str, Any], Any]:
@@ -261,7 +297,7 @@ class ModelProvider(BaseRemoteClient):
 
     async def async_invoke(
         self,
-        messages: list[dict],
+        messages: Union[list[dict], list[list[dict]]],
         invoke_response_format=InvokeResponseFormat.FULL,
         **invoke_kwargs,
     ) -> Union[str, dict[str, Any], Any]:
@@ -323,3 +359,40 @@ class ModelProvider(BaseRemoteClient):
 
         """
         raise NotImplementedError("async_invoke is not implemented")
+
+    def invoke_stream(
+        self,
+        messages: list[dict],
+        **invoke_kwargs,
+    ) -> Generator[str, None, None]:
+        """
+        Invokes a generative AI model in streaming mode, yielding text tokens as they are generated.
+
+        :param messages:        A list of dictionaries representing the conversation history.
+                                Must be a single conversation (not a batch).
+        :param invoke_kwargs:   Additional keyword arguments passed to the underlying model API call.
+        :return:                A generator yielding text tokens as strings.
+        """
+        raise NotImplementedError(
+            f"{self.__class__.__name__} does not support streaming"
+        )
+
+    async def async_invoke_stream(
+        self,
+        messages: list[dict],
+        **invoke_kwargs,
+    ) -> AsyncGenerator[str, None]:
+        """
+        Asynchronously invokes a generative AI model in streaming mode, yielding text tokens
+        as they are generated.
+
+        :param messages:        A list of dictionaries representing the conversation history.
+                                Must be a single conversation (not a batch).
+        :param invoke_kwargs:   Additional keyword arguments passed to the underlying model API call.
+        :return:                An async generator yielding text tokens as strings.
+        """
+        raise NotImplementedError(
+            f"{self.__class__.__name__} does not support async streaming"
+        )
+        # yield is needed to make this an async generator function
+        yield

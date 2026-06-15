@@ -12,9 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import pathlib
+import unittest.mock
+
+import pytest
+from click.testing import CliRunner
 
 import mlrun.projects
-from mlrun.__main__ import load_notification
+from mlrun.__main__ import load_notification, main
 from mlrun.artifacts.plots import PlotArtifact
 from mlrun.lists import ArtifactList
 
@@ -76,3 +80,97 @@ def generate_artifact(name, uid=None, kind=None):
         artifact["metadata"]["uid"] = uid
 
     return artifact
+
+
+@pytest.mark.parametrize(
+    "project",
+    [None, "my-project"],
+)
+def test_cli_load_source_success(project):
+    # Test load-source CLI with and without an explicit project
+    runner = CliRunner()
+    source_uri = "store://artifacts/my-project/handler.py"
+
+    cli_args = ["load-source", source_uri]
+    if project:
+        cli_args.extend(["--project", project])
+
+    with unittest.mock.patch(
+        "mlrun.__main__.load_source_code",
+        return_value=("/home/mlrun_code", "/home/mlrun_code/handler.py"),
+    ) as mock_load:
+        result = runner.invoke(main, cli_args)
+
+    assert result.exit_code == 0
+    assert "Successfully loaded source to:" in result.output
+    mock_load.assert_called_once_with(
+        source_uri=source_uri,
+        target_dir="/home/mlrun_code",
+        project=project,
+    )
+
+
+def test_cli_load_source_failure():
+    # Test that CLI properly reports errors and exits with code 1
+    runner = CliRunner()
+
+    with unittest.mock.patch(
+        "mlrun.__main__.load_source_code",
+        side_effect=ValueError("Artifact not found"),
+    ):
+        result = runner.invoke(
+            main,
+            ["load-source", "store://artifacts/project/file.py"],
+        )
+
+    assert result.exit_code == 1
+    assert "Error loading source:" in result.output
+
+
+@pytest.mark.parametrize(
+    "source_uri,expected_target",
+    [
+        ("git://github.com/org/repo.git#main", "/home/mlrun_code"),
+        ("https://example.com/source.zip", "/home/mlrun_code"),
+        ("https://example.com/source.tar.gz", "/home/mlrun_code"),
+    ],
+)
+def test_cli_load_source_git_and_archives(source_uri, expected_target):
+    # Test load-source CLI with git and archive sources
+    runner = CliRunner()
+
+    with unittest.mock.patch(
+        "mlrun.__main__.load_source_code",
+        return_value=(expected_target, None),
+    ) as mock_load:
+        result = runner.invoke(main, ["load-source", source_uri])
+
+    assert result.exit_code == 0
+    assert "Successfully loaded source to:" in result.output
+    mock_load.assert_called_once_with(
+        source_uri=source_uri,
+        target_dir=expected_target,
+        project=None,
+    )
+
+
+def test_cli_load_source_custom_target():
+    # Test load-source CLI with custom target directory
+    runner = CliRunner()
+    source_uri = "git://github.com/org/repo.git"
+    custom_target = "/custom/path"
+
+    with unittest.mock.patch(
+        "mlrun.__main__.load_source_code",
+        return_value=(custom_target, None),
+    ) as mock_load:
+        result = runner.invoke(
+            main, ["load-source", source_uri, "--target", custom_target]
+        )
+
+    assert result.exit_code == 0
+    mock_load.assert_called_once_with(
+        source_uri=source_uri,
+        target_dir=custom_target,
+        project=None,
+    )

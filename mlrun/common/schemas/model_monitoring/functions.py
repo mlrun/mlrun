@@ -14,7 +14,6 @@
 
 import enum
 from datetime import datetime
-from typing import Optional
 
 from pydantic.v1 import BaseModel
 
@@ -36,17 +35,17 @@ class FunctionSummary(BaseModel):
     application_class: str
     project_name: str
     updated_time: datetime
-    status: Optional[str] = None
-    base_period: Optional[int] = None
-    stats: Optional[dict] = None
+    status: str | None = None
+    base_period: int | None = None
+    stats: dict | None = None
 
     @classmethod
     def from_function_dict(
         cls,
         func_dict: dict,
         func_type=FunctionsType.APPLICATION,
-        base_period: Optional[int] = None,
-        stats: Optional[dict] = None,
+        base_period: int | None = None,
+        stats: dict | None = None,
     ):
         """
         Create a FunctionSummary instance from a dictionary.

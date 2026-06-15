@@ -12,14 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import json
+import os
 from ast import literal_eval
+from collections.abc import Callable
 from os import environ
-from typing import Callable, Optional, Union
+from typing import Union
 
 import mlrun.auth.utils
 import mlrun.utils.helpers
+from mlrun.config import is_running_as_api
 
-from .utils import AzureVaultStore, list2dict, logger
+from .utils import AzureVaultStore, list2dict
 
 
 class SecretsStore:
@@ -51,6 +54,11 @@ class SecretsStore:
                 self._secrets[prefix + k] = str(v)
 
         elif kind == "file":
+            # Ensure files cannot be open from inside the API
+            if is_running_as_api():
+                raise RuntimeError(
+                    "add_source of kind 'file' is not allowed from the API"
+                )
             with open(source) as fp:
                 lines = fp.read().splitlines()
                 secrets_dict = list2dict(lines)
@@ -152,9 +160,9 @@ class SecretsStore:
 def get_secret_or_env(
     key: str,
     secret_provider: Union[dict, SecretsStore, Callable, None] = None,
-    default: Optional[str] = None,
-    prefix: Optional[str] = None,
-) -> Optional[str]:
+    default: str | None = None,
+    prefix: str | None = None,
+) -> str | None:
     """Retrieve value of a secret, either from a user-provided secret store, or from environment variables.
     The function will retrieve a secret value, attempting to find it according to the following order:
 
@@ -194,7 +202,7 @@ def get_secret_or_env(
         key = f"{prefix}_{key}"
 
     if secret_provider:
-        if isinstance(secret_provider, (dict, SecretsStore)):
+        if isinstance(secret_provider, dict | SecretsStore):
             secret_value = secret_provider.get(key)
         else:
             secret_value = secret_provider(key)
@@ -219,7 +227,7 @@ def get_secret_or_env(
 
 def _find_value_in_json_env_lists(
     secret_name: str,
-) -> Optional[str]:
+) -> str | None:
     """
     Scan all environment variables. If any env var contains a JSON-encoded list
     of dicts shaped like {'name': str, 'value': str|None, 'value_from': ...},
@@ -251,27 +259,40 @@ def _find_value_in_json_env_lists(
 @mlrun.utils.iguazio_v4_only
 def sync_secret_tokens() -> None:
     """
-    Synchronize local secret tokens with the backend.
+    Synchronize local secret tokens with the backend. Doesn't sync when running from a runtime.
 
     This function:
-      1. Reads the local token file (default: ~/.igz.yml, configurable via
-         `mlrun.mlconf.auth_with_oauth_token.token_file`).
-      2. Validates its content and converts validated tokens into `SecretToken` objects.
-      3. Uploads the tokens to the backend.
-      4. Logs a warning if any tokens were updated on the backend due to newer
-         expiration times found locally.
+      1. Reads the local token file (defaults to `mlrun.mlconf.auth_with_oauth_token.token_file` value).
+      2. Validates its content and resolves the token currently in use into a `SecretToken` object.
+      3. Uploads the token to the backend.
+      4. Logs a warning if the token was updated on the backend due to a newer
+         expiration time found locally.
     """
-    # TODO: Runtime Context Check - Avoid sending a backend request when running inside a runtime, where secrets
-    #  are already injected via Kubernetes and syncing is unnecessary
 
-    secret_tokens = mlrun.auth.utils.load_and_prepare_secret_tokens()
+    # Do not sync tokens from the file when using the offline token environment variable.
+    # The offline token from the env var takes precedence over the file.
+    # Using the env var is not the recommended approach, and tokens from the env var
+    # will not be saved as secrets in the backend.
+    if os.getenv("MLRUN_AUTH_OFFLINE_TOKEN") or mlrun.utils.is_running_in_runtime():
+        return
 
-    # The log_warning=False flag ensures the SDK doesn’t log unnecessary warnings about local file updates, since
-    # this method reads from the file, not updates it.
-    response = mlrun.get_run_db().store_secret_tokens(secret_tokens, log_warning=False)
+    # The import is needed here to prevent a circular import, since this method is called from the mlrun.db connection.
+    from mlrun.db import get_run_db
 
-    if response.updated_tokens:
-        logger.warning(
-            "Some tokens were updated on the backend due to newer expiration found locally",
-            updated_tokens=response.updated_tokens,
+    secret_tokens = mlrun.auth.utils.load_and_prepare_secret_tokens(
+        auth_user_id=get_run_db().token_provider.authenticated_user_id,
+        raise_on_error=False,
+    )
+
+    if not secret_tokens:
+        raise mlrun.errors.MLRunRuntimeError(
+            "Authentication succeeded, but the token was not synced to the backend "
+            "since no valid token was found after validation. "
+            "Check your token file for malformed, expired, or mismatched tokens: "
+            f"{mlrun.mlconf.auth_with_oauth_token.token_file}"
         )
+
+    # The log_warning=False flag ensures the SDK doesn't log
+    # unnecessary warnings about local file updates, since
+    # this method reads from the file, not updates it.
+    get_run_db().store_secret_token(secret_tokens[0], log_warning=False)

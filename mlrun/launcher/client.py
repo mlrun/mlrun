@@ -12,16 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import abc
-from typing import Optional
 
 import IPython.display
 
+import mlrun
 import mlrun.common.constants as mlrun_constants
 import mlrun.errors
 import mlrun.launcher.base as launcher
 import mlrun.lists
 import mlrun.model
+import mlrun.runtime_configuration_context
 import mlrun.runtimes
+import mlrun.runtimes.utils
 import mlrun.utils
 import mlrun.utils.version
 
@@ -34,7 +36,7 @@ class ClientBaseLauncher(launcher.BaseLauncher, abc.ABC):
     def enrich_runtime(
         self,
         runtime: "mlrun.runtimes.base.BaseRuntime",
-        project_name: Optional[str] = "",
+        project_name: str | None = "",
         full: bool = True,
         client_version: str = "",
     ):
@@ -42,6 +44,16 @@ class ClientBaseLauncher(launcher.BaseLauncher, abc.ABC):
         runtime._fill_credentials()
         if project_name:
             runtime.metadata.project = project_name
+
+        # Shift image -> base_image only when artifact reqs were just merged,
+        # so is_deployed() doesn't short-circuit to True before auto_build.
+        if (
+            runtime.metadata.project
+            and mlrun.runtimes.utils.enrich_function_from_code_artifact(
+                runtime, runtime.metadata.project
+            )
+        ):
+            runtime.prepare_image_for_deploy()
 
     @staticmethod
     def prepare_image_for_deploy(runtime: "mlrun.runtimes.BaseRuntime"):
@@ -62,8 +74,6 @@ class ClientBaseLauncher(launcher.BaseLauncher, abc.ABC):
         ):
             image = mlrun.mlconf.function_defaults.image_by_kind.to_dict()[runtime.kind]
 
-        mlrun.utils.helpers.warn_on_deprecated_image(image)
-
         # TODO: need a better way to decide whether a function requires a build
         if require_build and image and not runtime.spec.build.base_image:
             # when the function require build use the image as the base_image for the build
@@ -72,17 +82,21 @@ class ClientBaseLauncher(launcher.BaseLauncher, abc.ABC):
 
     @staticmethod
     def _store_function(
-        runtime: "mlrun.runtimes.BaseRuntime", run: "mlrun.run.RunObject"
+        runtime: "mlrun.runtimes.BaseRuntime", run: "mlrun.model.RunObject"
     ):
         run.metadata.labels[mlrun_constants.MLRunInternalLabels.kind] = runtime.kind
         mlrun.runtimes.utils.enrich_run_labels(
             run.metadata.labels, [mlrun_constants.MLRunInternalLabels.owner]
         )
-        if run.spec.output_path:
-            run.spec.output_path = run.spec.output_path.replace(
-                "{{run.user}}",
-                run.metadata.labels[mlrun_constants.MLRunInternalLabels.owner],
-            )
+
+        # Set the auth token name from RuntimeConfiguration context manager (if used)
+        auth_token_name = mlrun.runtime_configuration_context.RuntimeConfigurationContext.get_auth_token_name()
+        mlrun.utils.helpers.set_auth_token_name(run.spec, auth_token_name)
+
+        run.spec.output_path = mlrun.runtimes.utils.resolve_run_user_template(
+            run.spec.output_path,
+            run.metadata.labels.get(mlrun_constants.MLRunInternalLabels.owner),
+        )
         db = runtime._get_db()
         if db and runtime.kind != "handler":
             struct = runtime.to_dict()
@@ -114,7 +128,7 @@ class ClientBaseLauncher(launcher.BaseLauncher, abc.ABC):
             pass
 
     @staticmethod
-    def _log_track_results(is_child: bool, result: dict, run: "mlrun.run.RunObject"):
+    def _log_track_results(is_child: bool, result: dict, run: "mlrun.model.RunObject"):
         """
         log commands to track results
         in jupyter, displays a table widget with the result

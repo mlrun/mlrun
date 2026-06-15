@@ -45,3 +45,19 @@ class MLRunPackageUnpackingError(MLRunPackageError):
     """
 
     pass
+
+
+class MLRunPackageBundlingError(MLRunPackageError):
+    """
+    An error that may be raised during a `mlrun.Packager.bundle` method.
+    """
+
+    pass
+
+
+class MLRunPackageUnbundlingError(MLRunPackageError):
+    """
+    An error that may be raised during a `mlrun.Packager.unbundle` method.
+    """
+
+    pass

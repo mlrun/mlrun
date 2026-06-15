@@ -15,7 +15,7 @@
 import os
 import uuid
 from abc import abstractmethod
-from typing import Optional, Union
+from typing import Union
 
 from sqlalchemy.orm import Session
 
@@ -88,11 +88,11 @@ class BaseRunner(metaclass=mlrun.utils.singleton.Singleton):
         runner: mlrun.run.KubejobRuntime,
         project: mlrun.common.schemas.ProjectOut,
         labels: dict[str, str],
-        workflow_request: Optional[mlrun.common.schemas.WorkflowRequest] = None,
+        workflow_request: mlrun.common.schemas.WorkflowRequest | None = None,
         auth_info: mlrun.common.schemas.AuthInfo = None,
-        rerun_request: Optional[mlrun.common.schemas.RerunWorkflowRequest] = None,
+        rerun_request: mlrun.common.schemas.RerunWorkflowRequest | None = None,
         artifact_path: str = "",
-        original_runner_owner: Optional[str] = None,
+        original_runner_owner: str | None = None,
     ) -> mlrun_model.RunObject:
         """
         Prepare the run object and execute the runner.
@@ -107,11 +107,17 @@ class BaseRunner(metaclass=mlrun.utils.singleton.Singleton):
         :param original_runner_owner: Owner of the original workflow runner.
         :return: RunObject with run metadata, results, and status.
         """
+        auth_token_name = (
+            workflow_request.spec.auth_token_name
+            if workflow_request and workflow_request.spec
+            else None
+        )
         self._enrich_run_labels_and_env(
             labels=labels,
             runner=runner,
             auth_username=auth_info.username,
             original_runner_owner=original_runner_owner,
+            auth_token_name=auth_token_name,
         )
 
         run_object = self._prepare_run_object(
@@ -121,6 +127,9 @@ class BaseRunner(metaclass=mlrun.utils.singleton.Singleton):
             run_name=runner.metadata.name,
             rerun_request=rerun_request,
         )
+
+        # Set auth token name on run spec so the workflow runner can use it to mount the secret token
+        mlrun_utils.helpers.set_auth_token_name(run_object.spec, auth_token_name)
 
         # We want to store the secret params as k8s secret, so later we can access them with the project internal secret
         # key that was created.
@@ -133,7 +142,7 @@ class BaseRunner(metaclass=mlrun.utils.singleton.Singleton):
         #  make sure it is safe for scheduling and project load endpoint.
         return runner.run(
             runspec=run_object,
-            artifact_path=artifact_path,
+            output_path=artifact_path,
             local=False,
             watch=False,
             auth_info=auth_info,
@@ -146,7 +155,7 @@ class BaseRunner(metaclass=mlrun.utils.singleton.Singleton):
         labels: dict[str, str],
         workflow_request: mlrun.common.schemas.WorkflowRequest,
         rerun_request: mlrun.common.schemas.RerunWorkflowRequest,
-        run_name: Optional[str] = None,
+        run_name: str | None = None,
     ) -> mlrun_model.RunObject:
         """
         Abstract method to prepare the run object.
@@ -166,13 +175,13 @@ class BaseRunner(metaclass=mlrun.utils.singleton.Singleton):
         save: bool,
         handler: str,
         parameters: dict,
-        notifications: Optional[list[mlrun_model.Notification]] = None,
-        run_name: Optional[str] = None,
-        is_context: Optional[bool] = None,
-        labels: Optional[dict[str, str]] = None,
-        scrape_metrics: Optional[bool] = None,
-        output_path: Optional[str] = None,
-        uid: Optional[str] = None,
+        notifications: list[mlrun_model.Notification] | None = None,
+        run_name: str | None = None,
+        is_context: bool | None = None,
+        labels: dict[str, str] | None = None,
+        scrape_metrics: bool | None = None,
+        output_path: str | None = None,
+        uid: str | None = None,
     ) -> mlrun_model.RunObject:
         """
         Create a RunObject with the given parameters.
@@ -245,8 +254,9 @@ class BaseRunner(metaclass=mlrun.utils.singleton.Singleton):
     def _enrich_run_labels_and_env(
         labels: dict,
         runner: mlrun.run.KubejobRuntime,
-        auth_username: Optional[str] = None,
-        original_runner_owner: Optional[str] = None,
+        auth_username: str | None = None,
+        original_runner_owner: str | None = None,
+        auth_token_name: str | None = None,
     ):
         """
         Enriches the run labels and environment variables for the workflow runner.
@@ -257,6 +267,7 @@ class BaseRunner(metaclass=mlrun.utils.singleton.Singleton):
         :param runner: Workflow runner function object.
         :param auth_username: Username from authentication info.
         :param original_runner_owner: Owner of the original workflow runner.
+        :param auth_token_name: Name of the authentication token to use.
         """
         owner_to_enrich = (
             original_runner_owner if original_runner_owner else auth_username
@@ -268,12 +279,17 @@ class BaseRunner(metaclass=mlrun.utils.singleton.Singleton):
             mlrun_constants.MLRunInternalLabels.client_python_version
         )
         # TODO: Remove this when KFP 1 support is removed
-        # Until KFP 2 - The runner always runs with python 3.9 therefore we need to explicitly
-        # specify the user client python version
         if client_python_version:
             runner.set_env("MLRUN_PYTHON_VERSION", client_python_version)
             labels[mlrun_constants.MLRunInternalLabels.client_python_version] = (
                 client_python_version
+            )
+
+        # Set auth token name via config env var for workflow-runner to use during pipeline compilation.
+        if auth_token_name:
+            runner.set_env(
+                "MLRUN_AUTH_WITH_OAUTH_TOKEN__TOKEN_NAME",
+                auth_token_name,
             )
 
     @staticmethod
@@ -330,9 +346,9 @@ class LoadRunner(BaseRunner, metaclass=mlrun.utils.singleton.Singleton):
         self,
         project: mlrun.common.schemas.ProjectOut,
         labels: dict[str, str],
-        run_name: Optional[str] = None,
-        workflow_request: Optional[mlrun.common.schemas.WorkflowRequest] = None,
-        rerun_request: Optional[mlrun.common.schemas.WorkflowRequest] = None,
+        run_name: str | None = None,
+        workflow_request: mlrun.common.schemas.WorkflowRequest | None = None,
+        rerun_request: mlrun.common.schemas.WorkflowRequest | None = None,
     ) -> mlrun_model.RunObject:
         """
         Prepare the RunObject for loading the project.
@@ -417,7 +433,12 @@ class WorkflowRunners(BaseRunner, metaclass=mlrun.utils.singleton.Singleton):
             mlrun_constants.MLRunInternalLabels.job_type: mlrun_constants.JOB_TYPE_WORKFLOW_RUNNER,
             mlrun_constants.MLRunInternalLabels.workflow: workflow_request.spec.name,
         }
-        self._enrich_run_labels_and_env(labels, runner, auth_info.username)
+        self._enrich_run_labels_and_env(
+            labels,
+            runner,
+            auth_info.username,
+            auth_token_name=workflow_request.spec.auth_token_name,
+        )
 
         # Generate unique UID
         meta_uid = uuid.uuid4().hex
@@ -429,6 +450,10 @@ class WorkflowRunners(BaseRunner, metaclass=mlrun.utils.singleton.Singleton):
             run_name=workflow_request.spec.name,
             uid=meta_uid,
             scrape_metrics=mlrun_config.config.scrape_metrics,
+        )
+
+        mlrun_utils.helpers.set_auth_token_name(
+            run_object.spec, workflow_request.spec.auth_token_name
         )
 
         # Mask notification parameters
@@ -498,10 +523,10 @@ class WorkflowRunners(BaseRunner, metaclass=mlrun.utils.singleton.Singleton):
         project: mlrun.common.schemas.ProjectOut,
         labels: dict[str, str],
         workflow_request: mlrun.common.schemas.WorkflowRequest,
-        run_name: Optional[str] = None,
-        uid: Optional[str] = None,
-        scrape_metrics: Optional[str] = None,
-        rerun_request: Optional[mlrun.common.schemas.RerunWorkflowRequest] = None,
+        run_name: str | None = None,
+        uid: str | None = None,
+        scrape_metrics: str | None = None,
+        rerun_request: mlrun.common.schemas.RerunWorkflowRequest | None = None,
     ) -> mlrun_model.RunObject:
         """
         Prepare the RunObject for running the workflow.
@@ -546,6 +571,7 @@ class WorkflowRunners(BaseRunner, metaclass=mlrun.utils.singleton.Singleton):
             local=workflow_request.spec.run_local,
             subpath=project.spec.subpath,
             url=source,
+            run_setup=workflow_request.spec.run_setup,
         )
 
         run_object = self._create_run_object(
@@ -673,7 +699,7 @@ class RerunRunner(BaseRunner, metaclass=mlrun.utils.singleton.Singleton):
         run_uid: str,
         rerun_request: mlrun.common.schemas.RerunWorkflowRequest,
         auth_info: mlrun.common.schemas.AuthInfo = None,
-        original_runner_owner: Optional[str] = None,
+        original_runner_owner: str | None = None,
     ) -> mlrun_model.RunObject:
         """
         Run a rerun workflow runner.
@@ -711,10 +737,10 @@ class RerunRunner(BaseRunner, metaclass=mlrun.utils.singleton.Singleton):
         project: mlrun.common.schemas.ProjectOut,
         labels: dict[str, str],
         rerun_request: mlrun.common.schemas.RerunWorkflowRequest,
-        workflow_request: Optional[mlrun.common.schemas.WorkflowRequest] = None,
-        run_name: Optional[str] = None,
-        uid: Optional[str] = None,
-        scrape_metrics: Optional[str] = None,
+        workflow_request: mlrun.common.schemas.WorkflowRequest | None = None,
+        run_name: str | None = None,
+        uid: str | None = None,
+        scrape_metrics: str | None = None,
     ) -> mlrun_model.RunObject:
         """
         Prepare the RunObject for rerunning the workflow.

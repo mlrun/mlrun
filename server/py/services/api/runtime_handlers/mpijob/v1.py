@@ -12,12 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import copy
-import typing
 from datetime import datetime
 
 from kubernetes import client
 
 import mlrun.common.constants as mlrun_constants
+import mlrun.common.schemas
 import mlrun.k8s_utils
 import mlrun.utils.helpers
 from mlrun import mlconf
@@ -53,6 +53,7 @@ class MpiV1RuntimeHandler(AbstractMPIJobRuntimeHandler):
         run: mlrun.run.RunObject,
         execution: mlrun.execution.MLClientCtx,
         meta: client.V1ObjectMeta,
+        auth_info: mlrun.common.schemas.AuthInfo = None,
     ) -> dict:
         pod_labels = copy.deepcopy(meta.labels)
         pod_labels[mlrun_constants.MLRunInternalLabels.job] = meta.name
@@ -60,7 +61,7 @@ class MpiV1RuntimeHandler(AbstractMPIJobRuntimeHandler):
         # create base pod templates
         launcher_pod_template = copy.deepcopy(self._mpijob_pod_template)
         worker_pod_template = copy.deepcopy(self._mpijob_pod_template)
-        command, args, extra_env = self._get_cmd_args(runtime, run)
+        command, args, extra_env = self._get_cmd_args(runtime, run, auth_info=auth_info)
 
         # configure pod templates for both launcher and worker
         self._configure_pod_template(
@@ -107,6 +108,8 @@ class MpiV1RuntimeHandler(AbstractMPIJobRuntimeHandler):
             )
         self._update_container(pod_template, "volumeMounts", runtime.spec.volume_mounts)
         self._update_container(pod_template, "env", extra_env + runtime.spec.env)
+        if runtime.spec.env_from:
+            self._update_container(pod_template, "envFrom", runtime.spec.env_from)
         if runtime.spec.image_pull_policy:
             self._update_container(
                 pod_template,
@@ -227,7 +230,7 @@ class MpiV1RuntimeHandler(AbstractMPIJobRuntimeHandler):
 
     def _resolve_crd_object_status_info(
         self, crd_object: dict
-    ) -> tuple[bool, typing.Optional[datetime], typing.Optional[str]]:
+    ) -> tuple[bool, datetime | None, str | None]:
         """
         reference for MPIJob Status:
         https://github.com/kubeflow/mpi-operator/blob/v0.3.0/pkg/apis/kubeflow/v1/types.go#L29

@@ -74,8 +74,8 @@ class ArtifactMetadata(ModelObj):
 
     def to_dict(
         self,
-        fields: typing.Optional[list] = None,
-        exclude: typing.Optional[list] = None,
+        fields: list | None = None,
+        exclude: list | None = None,
         strip: bool = False,
     ):
         """return long dict form of the artifact"""
@@ -84,9 +84,7 @@ class ArtifactMetadata(ModelObj):
         )
 
     @classmethod
-    def from_dict(
-        cls, struct=None, fields=None, deprecated_fields: typing.Optional[dict] = None
-    ):
+    def from_dict(cls, struct=None, fields=None, deprecated_fields: dict | None = None):
         fields = fields or cls._dict_fields + cls._extra_fields
         return super().from_dict(
             struct, fields=fields, deprecated_fields=deprecated_fields
@@ -128,8 +126,8 @@ class ArtifactSpec(ModelObj):
         db_key=None,
         extra_data=None,
         body=None,
-        unpackaging_instructions: typing.Optional[dict] = None,
-        parent_uri: typing.Optional[str] = None,
+        unpackaging_instructions: dict | None = None,
+        parent_uri: str | None = None,
     ):
         self.src_path = src_path
         self.target_path = target_path
@@ -155,8 +153,8 @@ class ArtifactSpec(ModelObj):
 
     def to_dict(
         self,
-        fields: typing.Optional[list] = None,
-        exclude: typing.Optional[list] = None,
+        fields: list | None = None,
+        exclude: list | None = None,
         strip: bool = False,
     ):
         """return long dict form of the artifact"""
@@ -165,9 +163,7 @@ class ArtifactSpec(ModelObj):
         )
 
     @classmethod
-    def from_dict(
-        cls, struct=None, fields=None, deprecated_fields: typing.Optional[dict] = None
-    ):
+    def from_dict(cls, struct=None, fields=None, deprecated_fields: dict | None = None):
         fields = fields or cls._dict_fields + cls._extra_fields
         return super().from_dict(
             struct, fields=fields, deprecated_fields=deprecated_fields
@@ -221,7 +217,7 @@ class Artifact(ModelObj):
         size=None,
         target_path=None,
         project=None,
-        src_path: typing.Optional[str] = None,
+        src_path: str | None = None,
         metadata: ArtifactMetadata = None,
         spec: ArtifactSpec = None,
     ):
@@ -380,7 +376,7 @@ class Artifact(ModelObj):
                 struct[field] = val.base_dict()
         return struct
 
-    def upload(self, artifact_path: typing.Optional[str] = None):
+    def upload(self, artifact_path: str | None = None):
         """
         internal, upload to target store
         :param artifact_path: required only for when generating target_path from artifact hash
@@ -393,9 +389,7 @@ class Artifact(ModelObj):
             if src_path and os.path.isfile(src_path):
                 self._upload_file(source_path=src_path, artifact_path=artifact_path)
 
-    def _upload_body(
-        self, body, target=None, artifact_path: typing.Optional[str] = None
-    ):
+    def _upload_body(self, body, target=None, artifact_path: str | None = None):
         body_hash = None
         if not target and not self.spec.target_path:
             if not mlrun.mlconf.artifacts.generate_target_path_from_artifact_hash:
@@ -418,8 +412,8 @@ class Artifact(ModelObj):
     def _upload_file(
         self,
         source_path: str,
-        target_path: typing.Optional[str] = None,
-        artifact_path: typing.Optional[str] = None,
+        target_path: str | None = None,
+        artifact_path: str | None = None,
     ):
         file_hash = None
         if not target_path and not self.spec.target_path:
@@ -682,7 +676,7 @@ class DirArtifact(Artifact):
     def is_dir(self):
         return True
 
-    def upload(self, artifact_path: typing.Optional[str] = None):
+    def upload(self, artifact_path: str | None = None):
         """
         internal, upload to target store
         :param artifact_path: required only for when generating target_path from artifact hash
@@ -781,7 +775,7 @@ def upload_extra_data(
     extra_data: dict,
     prefix="",
     update_spec=False,
-    artifact_path: typing.Optional[str] = None,
+    artifact_path: str | None = None,
 ):
     """upload extra data to the artifact store"""
     if not extra_data:
@@ -914,6 +908,5 @@ def fill_artifact_object_hash(object_dict, iteration=None, producer_id=None):
 def verify_target_path(artifact: Artifact):
     if not artifact.get_target_path():
         raise mlrun.errors.MLRunInvalidArgumentError(
-            f"artifact {artifact.uri} "
-            f"does not have a valid/persistent offline target"
+            f"artifact {artifact.uri} does not have a valid/persistent offline target"
         )

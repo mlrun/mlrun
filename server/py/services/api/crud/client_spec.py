@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional
+import os
+from typing import Any
 
 import mlrun.common.schemas
 import mlrun.utils.singleton
@@ -27,12 +28,24 @@ class ClientSpec(
 ):
     def get_client_spec(
         self,
-        client_version: Optional[str] = None,
-        client_python_version: Optional[str] = None,
+        client_version: str | None = None,
+        client_python_version: str | None = None,
     ) -> mlrun.common.schemas.ClientSpec:
         mpijob_crd_version = (
             framework.utils.runtimes.mpijob.resolve_mpijob_crd_version()
         )
+
+        oauth_internal_token_endpoint = None
+        oauth_external_token_endpoint = None
+        if config.is_iguazio_v4_mode():
+            oauth_external_token_endpoint = os.path.join(
+                config.iguazio_api_url_ingress,
+                config.httpdb.authentication.iguazio.authentication_endpoint,
+            )
+            oauth_internal_token_endpoint = os.path.join(
+                config.iguazio_api_url,
+                config.httpdb.authentication.iguazio.authentication_endpoint,
+            )
 
         return mlrun.common.schemas.ClientSpec(
             version=config.version,
@@ -51,6 +64,9 @@ class ClientSpec(
                 client_python_version=client_python_version,
             ),
             kfp_url=config.kfp_url,
+            kfp_default_workflow_timeout=self._get_config_value_if_not_default(
+                "kfp_default_workflow_timeout"
+            ),
             dask_kfp_image=self._resolve_image_by_client_versions(
                 config.dask_kfp_image, client_version, client_python_version
             ),
@@ -124,11 +140,31 @@ class ClientSpec(
             authentication_mode=self._get_config_value_if_not_default(
                 "httpdb.authentication.mode"
             ),
+            authorization_namespaces_resources=self._get_config_value_if_not_default(
+                "httpdb.authorization.namespaces.resources"
+            ),
+            oauth_internal_token_endpoint=oauth_internal_token_endpoint,
+            oauth_external_token_endpoint=oauth_external_token_endpoint,
+            default_runtime_image_by_kind=self._get_config_value_diff_from_default(
+                "function_defaults.image_by_kind"
+            ),
+            telemetry_enabled=self._get_config_value_if_not_default(
+                "telemetry.enabled"
+            ),
+            telemetry_otlp_endpoint=self._get_config_value_if_not_default(
+                "telemetry.otlp_endpoint"
+            ),
+            telemetry_insecure=self._get_config_value_if_not_default(
+                "telemetry.insecure"
+            ),
+            telemetry_model_monitoring_interval=self._get_config_value_if_not_default(
+                "telemetry.model_monitoring.interval"
+            ),
         )
 
     @staticmethod
     def _resolve_image_by_client_versions(
-        image: str, client_version: Optional[str] = None, client_python_version=None
+        image: str, client_version: str | None = None, client_python_version=None
     ):
         """
         This method main purpose is to provide enriched images for deployment processes which are being executed on
@@ -150,19 +186,57 @@ class ClientSpec(
             return mlrun.utils.helpers.enrich_image_url(image)
 
     @staticmethod
-    def _get_config_value_if_not_default(config_key):
+    def _get_config_value_current_and_default(config_key: str) -> tuple[Any, Any]:
         config_key_parts = config_key.split(".")
+
         current_config_value = config
-        current_default_config_value = default_config
+        default_config_value = default_config
+
         for config_key_part in config_key_parts:
             current_config_value = getattr(current_config_value, config_key_part)
-            current_default_config_value = current_default_config_value.get(
-                config_key_part, ""
-            )
+            default_config_value = default_config_value.get(config_key_part, "")
+
         # when accessing attribute in Config, if the object is of type Mapping it returns the object in type Config
         if isinstance(current_config_value, Config):
             current_config_value = current_config_value.to_dict()
-        if current_config_value == current_default_config_value:
+
+        return current_config_value, default_config_value
+
+    @staticmethod
+    def _get_config_value_if_not_default(config_key: str) -> Any:
+        current_config_value, default_config_value = (
+            ClientSpec._get_config_value_current_and_default(config_key)
+        )
+
+        if current_config_value == default_config_value:
             return None
         else:
             return current_config_value
+
+    @staticmethod
+    def _get_config_value_diff_from_default(config_key: str) -> dict[Any, Any] | None:
+        """
+        For a key in the configuration pointing to a dictionary return a
+        dictionary of all keys within that differ from the default. If no keys
+        differ it will return None instead. If either the current or default
+        value at this key is not a dictionary it will raise a TypeError.
+
+        :param config_key: the key within the config, multiple keys can be joined with .
+        :return: either a dict of changed keys with their new value or None
+        """
+        current_config_value, default_config_value = (
+            ClientSpec._get_config_value_current_and_default(config_key)
+        )
+
+        if not isinstance(current_config_value, dict) or not isinstance(
+            default_config_value, dict
+        ):
+            raise TypeError("can only compute diff between two dictionaries")
+
+        changes = {
+            key: value
+            for key, value in current_config_value.items()
+            if key not in default_config_value or value != default_config_value[key]
+        }
+
+        return changes or None

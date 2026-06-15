@@ -66,7 +66,7 @@ jobs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - id: set-matrix
         uses: ./.github/actions/image-matrix-prep
         with:
@@ -80,7 +80,7 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJson(needs.matrix_prep.outputs.matrix) }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Cleanup disk
         run: |
@@ -110,7 +110,7 @@ jobs:
           fi
 
       - name: Scan image
-        uses: anchore/scan-action@568b89d27fc18c60e56937bff480c91c772cd993 # 7.1.0
+        uses: anchore/scan-action@e1165082ffb1fe366ebaf02d8526e7c4989ea9d2 # 7.4.0
         id: scan
         with:
           image: ${{ steps.resolve_image_name.outputs.image_name }}
@@ -131,7 +131,7 @@ jobs:
     name: Scan file system
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Define output format
         id: output-format
@@ -148,7 +148,7 @@ jobs:
           fi
 
       - name: Scan fs
-        uses: anchore/scan-action@568b89d27fc18c60e56937bff480c91c772cd993 # 7.1.0
+        uses: anchore/scan-action@e1165082ffb1fe366ebaf02d8526e7c4989ea9d2 # 7.4.0
         id: scan
         with:
           path: "."

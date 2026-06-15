@@ -11,9 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 import enum
 import http
+import os
 import re
 import time
 import traceback
@@ -22,7 +22,7 @@ import warnings
 from copy import deepcopy
 from datetime import datetime, timedelta
 from os import environ, path, remove
-from typing import Literal, Optional, Union
+from typing import Literal, Union
 from urllib.parse import urlparse
 from uuid import UUID
 
@@ -40,8 +40,10 @@ import mlrun.common.schemas
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.common.schemas.model_monitoring.model_endpoints as mm_endpoints
 import mlrun.common.types
+import mlrun.k8s_utils
 import mlrun.platforms
 import mlrun.projects
+import mlrun.runtime_configuration_context
 import mlrun.runtimes.nuclio.api_gateway
 import mlrun.runtimes.nuclio.function
 import mlrun.utils
@@ -131,7 +133,7 @@ class HTTPRunDB(RunDBInterface):
         r"\/?user-secrets/tokens",
     ]
 
-    def __init__(self, url):
+    def __init__(self, url, *, credentials: "mlrun.client.Credentials | None" = None):
         self.server_version = ""
         self.session = None
         self._wait_for_project_terminal_state_retry_interval = 3
@@ -142,24 +144,54 @@ class HTTPRunDB(RunDBInterface):
             version.Version().get_python_version()
         )
 
+        self.user = None
+        self.password = None
+        self.token_provider = None
+        # Default per-request headers from explicit Credentials.extra_headers.
+        self._default_headers: dict[str, str] = {}
+        self.base_url = None
+        self._parsed_url = None
+        # When provided, auth is bound to this instance and the env-/
+        # config-derived fallback paths are bypassed entirely.
+        self._explicit_credentials = credentials
+
         self._enrich_and_validate(url)
 
     def _enrich_and_validate(self, url):
-        parsed_url = urlparse(url)
-        scheme = parsed_url.scheme.lower()
-        if scheme not in ("http", "https"):
-            raise ValueError(
-                f"Invalid URL scheme {scheme} for HTTPRunDB, only http(s) is supported"
-            )
-
-        endpoint = parsed_url.hostname
-        if parsed_url.port:
-            endpoint += f":{parsed_url.port}"
-        base_url = f"{parsed_url.scheme}://{endpoint}{parsed_url.path}"
+        base_url, parsed_url = self._resolve_api_urls(url)
 
         self.base_url = base_url
-        username = parsed_url.username or config.httpdb.user
-        password = parsed_url.password or config.httpdb.password
+        self._parsed_url = parsed_url
+        if self._apply_explicit_credentials():
+            return
+        self.user = parsed_url.username or config.httpdb.user
+        self.password = parsed_url.password or config.httpdb.password
+        self._init_token_provider_from_env()
+
+    def _apply_explicit_credentials(self) -> bool:
+        """Apply ``self._explicit_credentials`` if present and not env-mode.
+
+        Returns True when explicit credentials took over (caller should
+        skip the legacy URL/env path); False otherwise.
+        """
+        c = self._explicit_credentials
+        if c is None or c.use_env:
+            return False
+        self.user = c.username
+        self.password = c.password
+        self.token_provider = (
+            mlrun.auth.StaticTokenProvider(c.token) if c.token is not None else None
+        )
+        self._default_headers = dict(c.extra_headers or {})
+        return True
+
+    def _init_token_provider_from_env(self):
+        """
+        Initialize token provider according to current config.
+
+        Must be called after `connect()` synced config from server (client-spec), since
+        some auth flows (e.g. Iguazio V4 OAuth token) require values fetched from the API.
+        """
         self.token_provider = None
 
         if config.auth_with_client_id.enabled:
@@ -172,24 +204,27 @@ class HTTPRunDB(RunDBInterface):
         elif config.auth_with_oauth_token.enabled:
             self.token_provider = mlrun.auth.IGTokenProvider(
                 token_endpoint=config.auth_token_endpoint,
+                timeout=config.auth_with_oauth_token.request_timeout,
             )
         else:
             username, password, token = mlrun.platforms.add_or_refresh_credentials(
-                parsed_url.hostname, username, password, config.httpdb.token
+                self._parsed_url.hostname,
+                self.user,
+                self.password,
+                config.httpdb.token,
             )
+            self.user = username
+            self.password = password
 
             if token:
                 self.token_provider = mlrun.auth.StaticTokenProvider(token)
-
-        self.user = username
-        self.password = password
 
     def __repr__(self):
         cls = self.__class__.__name__
         return f"{cls}({self.base_url!r})"
 
     @staticmethod
-    def get_api_path_prefix(version: Optional[str] = None) -> str:
+    def get_api_path_prefix(version: str | None = None) -> str:
         """
         :param version: API version to use, None (the default) will mean to use the default value from mlrun.config,
          for un-versioned api set an empty string.
@@ -202,7 +237,7 @@ class HTTPRunDB(RunDBInterface):
         )
         return api_version_path
 
-    def get_base_api_url(self, path: str, version: Optional[str] = None) -> str:
+    def get_base_api_url(self, path: str, version: str | None = None) -> str:
         path_prefix = self.get_api_path_prefix(version)
         url = f"{self.base_url}/{path_prefix}/{path}"
         return url
@@ -286,6 +321,10 @@ class HTTPRunDB(RunDBInterface):
                 }
             )
 
+        # Apply defaults only when not set by auth logic or per-call headers.
+        for header_name, header_value in self._default_headers.items():
+            kw.setdefault("headers", {}).setdefault(header_name, header_value)
+
         # requests no longer supports header values to be enum (https://github.com/psf/requests/pull/6154)
         # convert to strings. Do the same for params for niceness
         for dict_ in [headers, params]:
@@ -298,9 +337,13 @@ class HTTPRunDB(RunDBInterface):
 
         retry_on_put = self._is_retry_put_allowed(method, path)
 
-        # if the method is POST or PUT, we need to update the session with the appropriate retry policy
-        if not self.session or method in ("POST", "PUT"):
+        # Reuse the existing session across all requests. For POST/PUT, update the
+        # retry policy in-place instead of creating a new session (which would leak
+        # the old session's urllib3 PoolManager and its TCP connections).
+        if not self.session:
             self.session = self._init_session(retry_on_post, retry_on_put)
+        elif method in ("POST", "PUT"):
+            self.session.update_retry_methods(retry_on_post, retry_on_put)
 
         try:
             response = self.session.request(
@@ -405,7 +448,7 @@ class HTTPRunDB(RunDBInterface):
     @staticmethod
     def process_paginated_responses(
         responses: typing.Generator[requests.Response, None, None], key: str = "data"
-    ) -> tuple[list[typing.Any], Optional[str]]:
+    ) -> tuple[list[typing.Any], str | None]:
         """
         Processes the paginated responses and returns the combined data
         """
@@ -464,7 +507,7 @@ class HTTPRunDB(RunDBInterface):
 
         return True
 
-    def connect(self, secrets=None):
+    def connect(self, secrets=None) -> typing.Self:
         """Connect to the MLRun API server. Must be called prior to executing any other method.
         The code utilizes the URL for the API server from the configuration - ``config.dbpath``.
 
@@ -475,7 +518,8 @@ class HTTPRunDB(RunDBInterface):
         """
         # hack to allow unit tests to instantiate HTTPRunDB without a real server behind
         if "mock-server" in self.base_url:
-            return
+            return self
+
         resp = self.api_call("GET", "client-spec", timeout=5)
         try:
             server_cfg = resp.json()
@@ -550,6 +594,10 @@ class HTTPRunDB(RunDBInterface):
             )
             config.kfp_image = server_cfg.get("kfp_image") or config.kfp_image
             config.kfp_url = server_cfg.get("kfp_url") or config.kfp_url
+            config.kfp_default_workflow_timeout = (
+                server_cfg.get("kfp_default_workflow_timeout")
+                or config.kfp_default_workflow_timeout
+            )
             config.dask_kfp_image = (
                 server_cfg.get("dask_kfp_image") or config.dask_kfp_image
             )
@@ -621,7 +669,7 @@ class HTTPRunDB(RunDBInterface):
             )
             for prefix in ["default", "user_space", "monitoring_application"]:
                 store_prefix_value = model_monitoring_store_prefixes.get(prefix)
-                if server_prefix_value is not None:
+                if store_prefix_value is not None:
                     setattr(
                         config.model_endpoint_monitoring.store_prefixes,
                         prefix,
@@ -632,12 +680,72 @@ class HTTPRunDB(RunDBInterface):
                 or config.httpdb.authentication.mode
             )
 
+            config.httpdb.authorization.namespaces.resources = (
+                server_cfg.get("authorization_namespaces_resources")
+                or config.httpdb.authorization.namespaces.resources
+            )
+
+            # Iguazio V4 OAuth token config auto-initialization
+            if (
+                config.httpdb.authentication.mode
+                == mlrun.common.types.AuthenticationMode.IGUAZIO_V4.value
+            ):
+                if not config.auth_with_oauth_token.token_file:
+                    user_token_file = os.path.expanduser("~/.igz.yml")
+
+                    # runtimes
+                    # TODO: change to os.getenv("MLRUN_RUNTIME_KIND")
+                    # when https://github.com/mlrun/mlrun/pull/9121 is done.
+                    if (
+                        mlrun.k8s_utils.is_running_inside_kubernetes_cluster()
+                        and not os.environ.get("JPY_SESSION_NAME")
+                    ):
+                        user_token_file = os.path.join(
+                            mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_PATH,
+                            mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_FILE,
+                        )
+
+                    config.auth_with_oauth_token.token_file = user_token_file
+
+                # if running inside kubernetes, use the internal endpoint, otherwise use the external endpoint
+                if mlrun.k8s_utils.is_running_inside_kubernetes_cluster():
+                    config.auth_token_endpoint = server_cfg.get(
+                        "oauth_internal_token_endpoint"
+                    )
+                else:
+                    config.auth_token_endpoint = server_cfg.get(
+                        "oauth_external_token_endpoint"
+                    )
+
+                config.auth_with_oauth_token.enabled = True
+
+            default_runtime_image_by_kind = (
+                server_cfg.get("default_runtime_image_by_kind") or {}
+            )
+            for kind, image_value in default_runtime_image_by_kind.items():
+                if hasattr(config.function_defaults.image_by_kind, kind):
+                    setattr(config.function_defaults.image_by_kind, kind, image_value)
+
+            if server_cfg.get("telemetry_enabled") is not None:
+                config.telemetry.enabled = server_cfg["telemetry_enabled"]
+            if server_cfg.get("telemetry_otlp_endpoint") is not None:
+                config.telemetry.otlp_endpoint = server_cfg["telemetry_otlp_endpoint"]
+            if server_cfg.get("telemetry_insecure") is not None:
+                config.telemetry.insecure = server_cfg["telemetry_insecure"]
+            if server_cfg.get("telemetry_model_monitoring_interval") is not None:
+                config.telemetry.model_monitoring.interval = server_cfg[
+                    "telemetry_model_monitoring_interval"
+                ]
+
         except Exception as exc:
             logger.warning(
                 "Failed syncing config from server",
                 exc=err_to_str(exc),
                 traceback=traceback.format_exc(),
             )
+
+        # Initialize token provider after syncing config from server
+        self._init_token_provider_from_env()
 
         if config.is_iguazio_v4_mode() and config.auth_with_oauth_token.enabled:
             mlrun.secrets.sync_secret_tokens()
@@ -956,24 +1064,23 @@ class HTTPRunDB(RunDBInterface):
 
     def list_runs(
         self,
-        name: Optional[str] = None,
-        uid: Optional[Union[str, list[str]]] = None,
-        project: Optional[str] = None,
-        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
-        states: typing.Optional[list[mlrun.common.runtimes.constants.RunStates]] = None,
+        name: str | None = None,
+        uid: Union[str, list[str]] | None = None,
+        project: str | None = None,
+        labels: Union[str, dict[str, str | None], list[str]] | None = None,
+        states: list[mlrun.common.runtimes.constants.RunStates] | None = None,
         sort: bool = True,
         iter: bool = False,
-        start_time_from: Optional[datetime] = None,
-        start_time_to: Optional[datetime] = None,
-        last_update_time_from: Optional[datetime] = None,
-        last_update_time_to: Optional[datetime] = None,
-        end_time_from: Optional[datetime] = None,
-        end_time_to: Optional[datetime] = None,
-        partition_by: Optional[
-            Union[mlrun.common.schemas.RunPartitionByField, str]
-        ] = None,
+        start_time_from: datetime | None = None,
+        start_time_to: datetime | None = None,
+        last_update_time_from: datetime | None = None,
+        last_update_time_to: datetime | None = None,
+        end_time_from: datetime | None = None,
+        end_time_to: datetime | None = None,
+        partition_by: Union[mlrun.common.schemas.RunPartitionByField, str]
+        | None = None,
         rows_per_partition: int = 1,
-        partition_sort_by: Optional[Union[mlrun.common.schemas.SortField, str]] = None,
+        partition_sort_by: Union[mlrun.common.schemas.SortField, str] | None = None,
         partition_order: Union[
             mlrun.common.schemas.OrderType, str
         ] = mlrun.common.schemas.OrderType.desc,
@@ -998,12 +1105,14 @@ class HTTPRunDB(RunDBInterface):
         :param uid: Unique ID of the run, or a list of run UIDs.
         :param project: Project that the runs belongs to. If not specified, the active project will be used.
         :param labels: Filter runs by label key-value pairs or key existence. This can be provided as:
-            - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
-            or `{"label": None}` to check for key existence.
-            - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
-            or just `"label"` for key existence.
-            - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
-            the specified key-value pairs or key existence.
+
+                       - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
+                         or `{"label": None}` to check for key existence.
+                       - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
+                         or just `"label"` for key existence.
+                       - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
+                         the specified key-value pairs or key existence.
+
         :param states: List only runs whose state is one of the provided states.
         :param sort: Whether to sort the result according to their start time. Otherwise, results will be
             returned by their internal order in the DB (order will not be guaranteed).
@@ -1053,11 +1162,11 @@ class HTTPRunDB(RunDBInterface):
     def paginated_list_runs(
         self,
         *args,
-        page: Optional[int] = None,
-        page_size: Optional[int] = None,
-        page_token: Optional[str] = None,
+        page: int | None = None,
+        page_size: int | None = None,
+        page_token: str | None = None,
         **kwargs,
-    ) -> tuple[RunList, Optional[str]]:
+    ) -> tuple[RunList, str | None]:
         """List runs with support for pagination and various filtering options.
 
         This method retrieves a paginated list of runs based on the specified filter parameters.
@@ -1074,7 +1183,9 @@ class HTTPRunDB(RunDBInterface):
             # Fetch next page using the pagination token from the previous response
             runs, token = db.paginated_list_runs(project="my-project", page_token=token)
             # Fetch runs for a specific page (e.g., page 3)
-            runs, token = db.paginated_list_runs(project="my-project", page=3, page_size=5)
+            runs, token = db.paginated_list_runs(
+                project="my-project", page=3, page_size=5
+            )
 
             # Automatically iterate over all pages without explicitly specifying the page number
             runs = []
@@ -1110,10 +1221,10 @@ class HTTPRunDB(RunDBInterface):
 
     def del_runs(
         self,
-        name: Optional[str] = None,
-        project: Optional[str] = None,
-        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
-        state: Optional[mlrun.common.runtimes.constants.RunStates] = None,
+        name: str | None = None,
+        project: str | None = None,
+        labels: Union[str, dict[str, str | None], list[str]] | None = None,
+        state: mlrun.common.runtimes.constants.RunStates | None = None,
         days_ago: int = 0,
     ):
         """Delete a group of runs identified by the parameters of the function.
@@ -1125,12 +1236,14 @@ class HTTPRunDB(RunDBInterface):
         :param name: Name of the task which the runs belong to.
         :param project: Project to which the runs belong.
         :param labels: Filter runs by label key-value pairs or key existence. This can be provided as:
-            - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
-            or `{"label": None}` to check for key existence.
-            - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
-            or just `"label"` for key existence.
-            - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
-            the specified key-value pairs or key existence.
+
+                        - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
+                          or `{"label": None}` to check for key existence.
+                        - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
+                          or just `"label"` for key existence.
+                        - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
+                          the specified key-value pairs or key existence.
+
         :param state: Filter only runs which are in this state.
         :param days_ago: Filter runs whose start time is newer than this parameter.
         """
@@ -1233,7 +1346,7 @@ class HTTPRunDB(RunDBInterface):
         deletion_strategy: mlrun.common.schemas.artifact.ArtifactsDeletionStrategies = (
             mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.metadata_only
         ),
-        secrets: Optional[dict] = None,
+        secrets: dict | None = None,
         iter=None,
     ):
         """Delete an artifact.
@@ -1268,30 +1381,26 @@ class HTTPRunDB(RunDBInterface):
 
     def list_artifacts(
         self,
-        name: Optional[str] = None,
-        project: Optional[str] = None,
-        tag: Optional[str] = None,
-        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
-        since: Optional[datetime] = None,
-        until: Optional[datetime] = None,
-        iter: Optional[int] = None,
+        name: str | None = None,
+        project: str | None = None,
+        tag: str | None = None,
+        labels: Union[str, dict[str, str | None], list[str]] | None = None,
+        since: datetime | None = None,
+        until: datetime | None = None,
+        iter: int | None = None,
         best_iteration: bool = False,
-        kind: Optional[str] = None,
+        kind: str | None = None,
         category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
-        tree: Optional[str] = None,
-        producer_uri: Optional[str] = None,
-        parent: Optional[str] = None,
-        format_: Optional[
-            mlrun.common.formatters.ArtifactFormat
-        ] = mlrun.common.formatters.ArtifactFormat.full,
-        limit: Optional[int] = None,
-        partition_by: Optional[
-            Union[mlrun.common.schemas.ArtifactPartitionByField, str]
-        ] = None,
+        tree: str | None = None,
+        producer_uri: str | None = None,
+        parent: str | None = None,
+        format_: mlrun.common.formatters.ArtifactFormat
+        | None = mlrun.common.formatters.ArtifactFormat.full,
+        partition_by: Union[mlrun.common.schemas.ArtifactPartitionByField, str]
+        | None = None,
         rows_per_partition: int = 1,
-        partition_sort_by: Optional[
-            Union[mlrun.common.schemas.SortField, str]
-        ] = mlrun.common.schemas.SortField.updated,
+        partition_sort_by: Union[mlrun.common.schemas.SortField, str]
+        | None = mlrun.common.schemas.SortField.updated,
         partition_order: Union[
             mlrun.common.schemas.OrderType, str
         ] = mlrun.common.schemas.OrderType.desc,
@@ -1317,12 +1426,14 @@ class HTTPRunDB(RunDBInterface):
         :param project: Project name.
         :param tag: Return artifacts assigned this tag.
         :param labels: Filter artifacts by label key-value pairs or key existence. This can be provided as:
-            - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
-            or `{"label": None}` to check for key existence.
-            - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
-            or just `"label"` for key existence.
-            - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
-            the specified key-value pairs or key existence.
+
+                       - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
+                         or `{"label": None}` to check for key existence.
+                       - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
+                         or just `"label"` for key existence.
+                       - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
+                         the specified key-value pairs or key existence.
+
         :param since: Return artifacts updated after this date (as datetime object).
         :param until: Return artifacts updated before this date (as datetime object).
         :param iter: Return artifacts from a specific iteration (where ``iter=0`` means the root iteration). If
@@ -1337,7 +1448,6 @@ class HTTPRunDB(RunDBInterface):
             points to a run and is used to filter artifacts by the run that produced them when the artifact producer id
             is a workflow id (artifact was created as part of a workflow).
         :param format_: The format in which to return the artifacts. Default is 'full'.
-        :param limit: Deprecated - Maximum number of artifacts to return (will be removed in 1.11.0).
         :param partition_by: Field to group results by. When `partition_by` is specified, the `partition_sort_by`
             parameter must be provided as well.
         :param rows_per_partition: How many top rows (per sorting defined by `partition_sort_by` and `partition_order`)
@@ -1361,12 +1471,11 @@ class HTTPRunDB(RunDBInterface):
             tree=tree,
             producer_uri=producer_uri,
             format_=format_,
-            limit=limit,
             partition_by=partition_by,
             rows_per_partition=rows_per_partition,
             partition_sort_by=partition_sort_by,
             partition_order=partition_order,
-            return_all=not limit,
+            return_all=True,
             parent=parent,
         )
         return artifacts
@@ -1374,11 +1483,11 @@ class HTTPRunDB(RunDBInterface):
     def paginated_list_artifacts(
         self,
         *args,
-        page: Optional[int] = None,
-        page_size: Optional[int] = None,
-        page_token: Optional[str] = None,
+        page: int | None = None,
+        page_size: int | None = None,
+        page_token: str | None = None,
         **kwargs,
-    ) -> tuple[ArtifactList, Optional[str]]:
+    ) -> tuple[ArtifactList, str | None]:
         """List artifacts with support for pagination and various filtering options.
 
         This method retrieves a paginated list of artifacts based on the specified filter parameters.
@@ -1438,12 +1547,12 @@ class HTTPRunDB(RunDBInterface):
 
     def del_artifacts(
         self,
-        name: Optional[str] = None,
-        project: Optional[str] = None,
-        tag: Optional[str] = None,
-        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
+        name: str | None = None,
+        project: str | None = None,
+        tag: str | None = None,
+        labels: Union[str, dict[str, str | None], list[str]] | None = None,
         days_ago=0,
-        tree: Optional[str] = None,
+        tree: str | None = None,
     ):
         """Delete artifacts referenced by the parameters.
 
@@ -1561,15 +1670,15 @@ class HTTPRunDB(RunDBInterface):
 
     def list_functions(
         self,
-        name: Optional[str] = None,
-        project: Optional[str] = None,
-        tag: Optional[str] = None,
-        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
-        since: Optional[datetime] = None,
-        until: Optional[datetime] = None,
-        kind: Optional[str] = None,
+        name: str | None = None,
+        project: str | None = None,
+        tag: str | None = None,
+        labels: Union[str, dict[str, str | None], list[str]] | None = None,
+        since: datetime | None = None,
+        until: datetime | None = None,
+        kind: str | None = None,
         format_: mlrun.common.formatters.FunctionFormat = mlrun.common.formatters.FunctionFormat.full,
-        states: typing.Optional[list[mlrun.common.schemas.FunctionState]] = None,
+        states: list[mlrun.common.schemas.FunctionState] | None = None,
     ):
         """Retrieve a list of functions, filtered by specific criteria.
 
@@ -1607,11 +1716,11 @@ class HTTPRunDB(RunDBInterface):
     def paginated_list_functions(
         self,
         *args,
-        page: Optional[int] = None,
-        page_size: Optional[int] = None,
-        page_token: Optional[str] = None,
+        page: int | None = None,
+        page_size: int | None = None,
+        page_token: str | None = None,
         **kwargs,
-    ) -> tuple[list[dict], Optional[str]]:
+    ) -> tuple[list[dict], str | None]:
         """List functions with support for pagination and various filtering options.
 
         This method retrieves a paginated list of functions based on the specified filter parameters.
@@ -1671,13 +1780,11 @@ class HTTPRunDB(RunDBInterface):
 
     def list_runtime_resources(
         self,
-        project: Optional[str] = None,
-        label_selector: Optional[str] = None,
-        kind: Optional[str] = None,
-        object_id: Optional[str] = None,
-        group_by: Optional[
-            mlrun.common.schemas.ListRuntimeResourcesGroupByField
-        ] = None,
+        project: str | None = None,
+        label_selector: str | None = None,
+        kind: str | None = None,
+        object_id: str | None = None,
+        group_by: mlrun.common.schemas.ListRuntimeResourcesGroupByField | None = None,
     ) -> Union[
         mlrun.common.schemas.RuntimeResourcesOutput,
         mlrun.common.schemas.GroupedByJobRuntimeResourcesOutput,
@@ -1737,17 +1844,18 @@ class HTTPRunDB(RunDBInterface):
 
     def delete_runtime_resources(
         self,
-        project: Optional[str] = None,
-        label_selector: Optional[str] = None,
-        kind: Optional[str] = None,
-        object_id: Optional[str] = None,
+        project: str | None = None,
+        label_selector: str | None = None,
+        kind: str | None = None,
+        object_id: str | None = None,
         force: bool = False,
-        grace_period: Optional[int] = None,
+        grace_period: int | None = None,
     ) -> mlrun.common.schemas.GroupedByProjectRuntimeResourcesOutput:
         """Delete all runtime resources which are in terminal state.
 
-        :param project: Delete only runtime resources of a specific project, by default None, which will delete only
-            from the projects you're authorized to delete from.
+        :param project: Delete only runtime resources of a specific project. By default None, which will attempt to
+            delete from all projects. The operation will fail with an access denied error if runtime resources exist
+            in projects the user is not authorized to delete from.
         :param label_selector: Delete only runtime resources matching the label selector.
         :param kind: The kind of runtime to delete. May be one of `['dask', 'job', 'spark', 'remote-spark', 'mpijob']`
         :param object_id: The identifier of the mlrun object to delete its runtime resources. for most function
@@ -1828,11 +1936,11 @@ class HTTPRunDB(RunDBInterface):
     def list_schedules(
         self,
         project: str,
-        name: Optional[str] = None,
+        name: str | None = None,
         kind: mlrun.common.schemas.ScheduleKinds = None,
         include_last_run: bool = False,
-        next_run_time_since: Optional[datetime] = None,
-        next_run_time_until: Optional[datetime] = None,
+        next_run_time_since: datetime | None = None,
+        next_run_time_until: datetime | None = None,
     ) -> mlrun.common.schemas.SchedulesOutput:
         """Retrieve list of schedules of specific name or kind.
 
@@ -1878,9 +1986,9 @@ class HTTPRunDB(RunDBInterface):
         self,
         func: BaseRuntime,
         with_mlrun: bool,
-        mlrun_version_specifier: Optional[str] = None,
+        mlrun_version_specifier: str | None = None,
         skip_deployed: bool = False,
-        builder_env: Optional[dict] = None,
+        builder_env: dict | None = None,
         force_build: bool = False,
     ):
         """Build the pod image for a function, for execution on a remote cluster. This is executed by the MLRun
@@ -1922,7 +2030,7 @@ class HTTPRunDB(RunDBInterface):
     def deploy_nuclio_function(
         self,
         func: mlrun.runtimes.RemoteRuntime,
-        builder_env: Optional[dict] = None,
+        builder_env: dict | None = None,
     ):
         """
         Deploy a Nuclio function.
@@ -2081,7 +2189,7 @@ class HTTPRunDB(RunDBInterface):
 
     def start_function(
         self,
-        func_url: Optional[str] = None,
+        func_url: str | None = None,
         function: "mlrun.runtimes.BaseRuntime" = None,
     ) -> mlrun.common.schemas.BackgroundTask:
         """Execute a function remotely, Used for ``dask`` functions.
@@ -2126,12 +2234,12 @@ class HTTPRunDB(RunDBInterface):
 
     def list_project_background_tasks(
         self,
-        project: Optional[str] = None,
-        state: Optional[str] = None,
-        created_from: Optional[datetime] = None,
-        created_to: Optional[datetime] = None,
-        last_update_time_from: Optional[datetime] = None,
-        last_update_time_to: Optional[datetime] = None,
+        project: str | None = None,
+        state: str | None = None,
+        created_from: datetime | None = None,
+        created_to: datetime | None = None,
+        last_update_time_from: datetime | None = None,
+        last_update_time_to: datetime | None = None,
     ) -> list[mlrun.common.schemas.BackgroundTask]:
         """
         Retrieve updated information on project background tasks being executed.
@@ -2257,7 +2365,7 @@ class HTTPRunDB(RunDBInterface):
         :param project:         The project of the pipeline
         :param pipeline:        Pipeline function or path to .yaml/.zip pipeline file.
         :param arguments:       A dictionary of arguments to pass to the pipeline.
-        :param experiment:      A name to assign for the specific experiment.
+        :param experiment:      (deprecated) A name to assign for the specific experiment.
         :param run:             A name for this specific run.
         :param namespace:       Kubernetes namespace to execute the pipeline in.
         :param artifact_path:   A path to artifacts used by this pipeline.
@@ -2266,6 +2374,13 @@ class HTTPRunDB(RunDBInterface):
                                 workflow and all its resources are deleted)
         :param timeout:         Timeout for the API call.
         """
+        if experiment is not None:
+            warnings.warn(
+                "The 'experiment' parameter is deprecated and will be removed in 1.13.0. "
+                "Pipelines are automatically scoped by project.",
+                # TODO: Remove this in 1.13.0
+                FutureWarning,
+            )
 
         if isinstance(pipeline, str):
             pipe_file = pipeline
@@ -2300,7 +2415,9 @@ class HTTPRunDB(RunDBInterface):
             remove(pipe_file)
 
         try:
-            params = {"namespace": namespace, "experiment": experiment, "run": run}
+            params = {"namespace": namespace, "run": run}
+            if experiment is not None:
+                params["experiment"] = experiment
             resp = self.api_call(
                 "POST",
                 f"projects/{project}/pipelines",
@@ -2326,14 +2443,14 @@ class HTTPRunDB(RunDBInterface):
     def list_pipelines(
         self,
         project: str,
-        namespace: Optional[str] = None,
+        namespace: str | None = None,
         sort_by: str = "",
         page_token: str = "",
         filter_: str = "",
         format_: Union[
             str, mlrun.common.formatters.PipelineFormat
         ] = mlrun.common.formatters.PipelineFormat.metadata_only,
-        page_size: Optional[int] = None,
+        page_size: int | None = None,
     ) -> mlrun.common.schemas.PipelinesOutput:
         """Retrieve a list of KFP pipelines. This function can be invoked to get all pipelines from all projects,
         by specifying ``project=*``, in which case pagination can be used and the various sorting and pagination
@@ -2375,12 +2492,12 @@ class HTTPRunDB(RunDBInterface):
     def get_pipeline(
         self,
         run_id: str,
-        namespace: Optional[str] = None,
+        namespace: str | None = None,
         timeout: int = 30,
         format_: Union[
             str, mlrun.common.formatters.PipelineFormat
         ] = mlrun.common.formatters.PipelineFormat.summary,
-        project: Optional[str] = None,
+        project: str | None = None,
     ):
         """Retrieve details of a specific pipeline using its run ID (as provided when the pipeline was executed)."""
 
@@ -2406,7 +2523,7 @@ class HTTPRunDB(RunDBInterface):
         self,
         run_id: str,
         project: str,
-        namespace: Optional[str] = None,
+        namespace: str | None = None,
         timeout: int = 30,
         submit_mode: str = "",
     ):
@@ -2477,7 +2594,7 @@ class HTTPRunDB(RunDBInterface):
         self,
         run_id: str,
         project: str,
-        namespace: Optional[str] = None,
+        namespace: str | None = None,
         timeout: int = 30,
     ):
         """
@@ -2588,8 +2705,8 @@ class HTTPRunDB(RunDBInterface):
         self,
         name: str,
         project: str = "",
-        tag: Optional[str] = None,
-        uid: Optional[str] = None,
+        tag: str | None = None,
+        uid: str | None = None,
     ) -> FeatureSet:
         """Retrieve a ~mlrun.feature_store.FeatureSet` object. If both ``tag`` and ``uid`` are not specified, then
         the object tagged ``latest`` will be retrieved.
@@ -2609,11 +2726,11 @@ class HTTPRunDB(RunDBInterface):
 
     def list_features_v2(
         self,
-        project: Optional[str] = None,
-        name: Optional[str] = None,
-        tag: Optional[str] = None,
-        entities: Optional[list[str]] = None,
-        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
+        project: str | None = None,
+        name: str | None = None,
+        tag: str | None = None,
+        entities: list[str] | None = None,
+        labels: Union[str, dict[str, str | None], list[str]] | None = None,
     ) -> dict[str, list[dict]]:
         """List feature-sets which contain specific features. This function may return multiple versions of the same
         feature-set if a specific tag is not requested. Note that the various filters of this function actually
@@ -2651,10 +2768,10 @@ class HTTPRunDB(RunDBInterface):
 
     def list_entities_v2(
         self,
-        project: Optional[str] = None,
-        name: Optional[str] = None,
-        tag: Optional[str] = None,
-        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
+        project: str | None = None,
+        name: str | None = None,
+        tag: str | None = None,
+        labels: Union[str, dict[str, str | None], list[str]] | None = None,
     ) -> dict[str, list[dict]]:
         """Retrieve a list of entities and their mapping to the containing feature-sets. This function is similar
         to the :py:func:`~list_features_v2` function, and uses the same logic. However, the entities are matched
@@ -2707,13 +2824,13 @@ class HTTPRunDB(RunDBInterface):
 
     def list_feature_sets(
         self,
-        project: Optional[str] = None,
-        name: Optional[str] = None,
-        tag: Optional[str] = None,
-        state: Optional[str] = None,
-        entities: Optional[list[str]] = None,
-        features: Optional[list[str]] = None,
-        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
+        project: str | None = None,
+        name: str | None = None,
+        tag: str | None = None,
+        state: str | None = None,
+        entities: list[str] | None = None,
+        features: list[str] | None = None,
+        labels: Union[str, dict[str, str | None], list[str]] | None = None,
         partition_by: Union[
             mlrun.common.schemas.FeatureStorePartitionByField, str
         ] = None,
@@ -2929,8 +3046,8 @@ class HTTPRunDB(RunDBInterface):
         self,
         name: str,
         project: str = "",
-        tag: Optional[str] = None,
-        uid: Optional[str] = None,
+        tag: str | None = None,
+        uid: str | None = None,
     ) -> FeatureVector:
         """Return a specific feature-vector referenced by its tag or uid. If none are provided, ``latest`` tag will
         be used."""
@@ -2944,11 +3061,11 @@ class HTTPRunDB(RunDBInterface):
 
     def list_feature_vectors(
         self,
-        project: Optional[str] = None,
-        name: Optional[str] = None,
-        tag: Optional[str] = None,
-        state: Optional[str] = None,
-        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
+        project: str | None = None,
+        name: str | None = None,
+        tag: str | None = None,
+        state: str | None = None,
+        labels: Union[str, dict[str, str | None], list[str]] | None = None,
         partition_by: Union[
             mlrun.common.schemas.FeatureStorePartitionByField, str
         ] = None,
@@ -2965,12 +3082,14 @@ class HTTPRunDB(RunDBInterface):
         :param tag: Match feature-vectors with specific tag.
         :param state: Match feature-vectors with a specific state.
         :param labels: Filter feature-vectors by label key-value pairs or key existence. This can be provided as:
-            - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
-            or `{"label": None}` to check for key existence.
-            - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
-            or just `"label"` for key existence.
-            - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
-            the specified key-value pairs or key existence.
+
+                       - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
+                         or `{"label": None}` to check for key existence.
+                       - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
+                         or just `"label"` for key existence.
+                       - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
+                         the specified key-value pairs or key existence.
+
         :param partition_by: Field to group results by. Only allowed value is `name`. When `partition_by` is specified,
             the `partition_sort_by` parameter must be provided as well.
         :param rows_per_partition: How many top rows (per sorting defined by `partition_sort_by` and `partition_order`)
@@ -3198,11 +3317,11 @@ class HTTPRunDB(RunDBInterface):
 
     def list_projects(
         self,
-        owner: Optional[str] = None,
+        owner: str | None = None,
         format_: Union[
             str, mlrun.common.formatters.ProjectFormat
         ] = mlrun.common.formatters.ProjectFormat.name_only,
-        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
+        labels: Union[str, dict[str, str | None], list[str]] | None = None,
         state: Union[str, mlrun.common.schemas.ProjectState] = None,
     ) -> list[Union[mlrun.projects.MlrunProject, str]]:
         """Return a list of the existing projects, potentially filtered by specific criteria.
@@ -3215,12 +3334,14 @@ class HTTPRunDB(RunDBInterface):
             - ``full``  - Return full project objects.
 
         :param labels: Filter projects by label key-value pairs or key existence. This can be provided as:
-            - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
-            or `{"label": None}` to check for key existence.
-            - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
-            or just `"label"` for key existence.
-            - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
-            the specified key-value pairs or key existence.
+
+                       - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
+                         or `{"label": None}` to check for key existence.
+                       - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
+                         or just `"label"` for key existence.
+                       - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
+                         the specified key-value pairs or key existence.
+
         :param state: Filter by project's state. Can be either ``online`` or ``archived``.
         """
         labels = self._parse_labels(labels)
@@ -3426,7 +3547,7 @@ class HTTPRunDB(RunDBInterface):
         provider: Union[
             str, mlrun.common.schemas.SecretProviderName
         ] = mlrun.common.schemas.SecretProviderName.kubernetes,
-        secrets: Optional[dict] = None,
+        secrets: dict | None = None,
     ):
         """Create project-context secrets using either ``vault`` or ``kubernetes`` provider.
         When using with Vault, this will create needed Vault structures for storing secrets in project-context, and
@@ -3470,11 +3591,11 @@ class HTTPRunDB(RunDBInterface):
     def list_project_secrets(
         self,
         project: str,
-        token: Optional[str] = None,
+        token: str | None = None,
         provider: Union[
             str, mlrun.common.schemas.SecretProviderName
         ] = mlrun.common.schemas.SecretProviderName.kubernetes,
-        secrets: Optional[list[str]] = None,
+        secrets: list[str] | None = None,
     ) -> mlrun.common.schemas.SecretsData:
         """Retrieve project-context secrets from Vault.
 
@@ -3517,7 +3638,7 @@ class HTTPRunDB(RunDBInterface):
         provider: Union[
             str, mlrun.common.schemas.SecretProviderName
         ] = mlrun.common.schemas.SecretProviderName.kubernetes,
-        token: Optional[str] = None,
+        token: str | None = None,
     ) -> mlrun.common.schemas.SecretKeysData:
         """Retrieve project-context secret keys from Vault or Kubernetes.
 
@@ -3563,7 +3684,7 @@ class HTTPRunDB(RunDBInterface):
         provider: Union[
             str, mlrun.common.schemas.SecretProviderName
         ] = mlrun.common.schemas.SecretProviderName.kubernetes,
-        secrets: Optional[list[str]] = None,
+        secrets: list[str] | None = None,
     ):
         """Delete project-context secrets from Kubernetes.
 
@@ -3711,9 +3832,8 @@ class HTTPRunDB(RunDBInterface):
     def create_model_endpoint(
         self,
         model_endpoint: mlrun.common.schemas.ModelEndpoint,
-        creation_strategy: Optional[
-            mm_constants.ModelEndpointCreationStrategy
-        ] = mm_constants.ModelEndpointCreationStrategy.INPLACE,
+        creation_strategy: mm_constants.ModelEndpointCreationStrategy
+        | None = mm_constants.ModelEndpointCreationStrategy.INPLACE,
     ) -> mlrun.common.schemas.ModelEndpoint:
         """
         Creates a DB record with the given model_endpoint record.
@@ -3747,9 +3867,9 @@ class HTTPRunDB(RunDBInterface):
         self,
         name: str,
         project: str,
-        function_name: Optional[str] = None,
-        function_tag: Optional[str] = None,
-        endpoint_id: Optional[str] = None,
+        function_name: str | None = None,
+        function_tag: str | None = None,
+        endpoint_id: str | None = None,
     ):
         """
         Deletes the DB record of a given model endpoint, project and endpoint_id are used for lookup
@@ -3777,21 +3897,20 @@ class HTTPRunDB(RunDBInterface):
     def list_model_endpoints(
         self,
         project: str,
-        names: Optional[Union[str, list[str]]] = None,
-        function_name: Optional[str] = None,
-        function_tag: Optional[str] = None,
-        model_name: Optional[str] = None,
-        model_tag: Optional[str] = None,
-        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
-        start: Optional[datetime] = None,
-        end: Optional[datetime] = None,
+        names: Union[str, list[str]] | None = None,
+        function_name: str | None = None,
+        function_tag: str | None = None,
+        model_name: str | None = None,
+        model_tag: str | None = None,
+        labels: Union[str, dict[str, str | None], list[str]] | None = None,
+        start: datetime | None = None,
+        end: datetime | None = None,
         tsdb_metrics: bool = False,
-        metric_list: Optional[list[str]] = None,
+        metric_list: list[str] | None = None,
         top_level: bool = False,
-        modes: Optional[
-            Union[mm_constants.EndpointMode, list[mm_constants.EndpointMode]]
-        ] = None,
-        uids: Optional[list[str]] = None,
+        modes: Union[mm_constants.EndpointMode, list[mm_constants.EndpointMode]]
+        | None = None,
+        uids: list[str] | None = None,
         latest_only: bool = False,
     ) -> mlrun.common.schemas.ModelEndpointList:
         """
@@ -3855,11 +3974,11 @@ class HTTPRunDB(RunDBInterface):
         self,
         name: str,
         project: str,
-        function_name: Optional[str] = None,
-        function_tag: Optional[str] = None,
-        endpoint_id: Optional[str] = None,
+        function_name: str | None = None,
+        function_tag: str | None = None,
+        endpoint_id: str | None = None,
         tsdb_metrics: bool = True,
-        metric_list: Optional[list[str]] = None,
+        metric_list: list[str] | None = None,
         feature_analysis: bool = False,
     ) -> mlrun.common.schemas.ModelEndpoint:
         """
@@ -3903,9 +4022,9 @@ class HTTPRunDB(RunDBInterface):
         name: str,
         project: str,
         attributes: dict,
-        function_name: Optional[str] = None,
-        function_tag: Optional[str] = None,
-        endpoint_id: Optional[str] = None,
+        function_name: str | None = None,
+        function_tag: str | None = None,
+        endpoint_id: str | None = None,
     ) -> None:
         """
         Updates a model endpoint with the given attributes.
@@ -3964,33 +4083,36 @@ class HTTPRunDB(RunDBInterface):
         self,
         project: str,
         base_period: int = 10,
-        image: str = "mlrun/mlrun",
+        image: str | None = None,
     ) -> None:
         """
         Redeploy model monitoring application controller function.
 
-        :param project:                  Project name.
-        :param base_period:              The time period in minutes in which the model monitoring controller function
-                                         triggers. By default, the base period is 10 minutes.
-        :param image: The image of the model monitoring controller function.
-                                         By default, the image is mlrun/mlrun.
+        :param project:     Project name.
+        :param base_period: The time period in minutes in which the model monitoring controller function
+                            triggers. By default, the base period is 10 minutes.
+        :param image:       The image of the model monitoring controller function.
+                            Defaults to
+                            ``mlrun.mlconf.function_defaults.image_by_kind.nuclio``.
         """
+        params = {"base_period": base_period}
+        if image is not None:
+            params["image"] = image
         self.api_call(
             method=mlrun.common.types.HTTPMethod.PATCH,
             path=f"projects/{project}/model-monitoring/controller",
-            params={
-                "base_period": base_period,
-                "image": image,
-            },
+            params=params,
         )
 
     def enable_model_monitoring(
         self,
         project: str,
         base_period: int = 10,
-        image: str = "mlrun/mlrun",
+        image: str | None = None,
         deploy_histogram_data_drift_app: bool = True,
-        fetch_credentials_from_sys_config: bool = False,
+        lag_threshold: int | None = None,
+        lag_event_cooldown: int | None = None,
+        otlp_enabled: bool = False,
     ) -> None:
         """
         Deploy model monitoring application controller, writer and stream functions.
@@ -4005,20 +4127,36 @@ class HTTPRunDB(RunDBInterface):
                                                   function triggers. By default, the base period is 10 minutes.
         :param image:                             The image of the model monitoring controller, writer & monitoring
                                                   stream functions, which are real time nuclio functions.
-                                                  By default, the image is mlrun/mlrun.
+                                                  Defaults to
+                                                  ``mlrun.mlconf.function_defaults.image_by_kind.nuclio``.
         :param deploy_histogram_data_drift_app:   If true, deploy the default histogram-based data drift application.
-        :param fetch_credentials_from_sys_config: If true, fetch the credentials from the system configuration.
+        :param lag_threshold:                     Lag threshold in minutes for writer lag detection.
+        :param lag_event_cooldown:                Cooldown in minutes between consecutive lag events per worker.
+        :param otlp_enabled:                      If true, monitoring application results and metrics are also
+                                                  exported via OpenTelemetry. Persisted to
+                                                  ``project.spec.model_monitoring.otlp_enabled``.
 
         """
+        auth_token_name = mlrun.runtime_configuration_context.RuntimeConfigurationContext.get_auth_token_name()
+
+        params = {
+            "base_period": base_period,
+            "deploy_histogram_data_drift_app": deploy_histogram_data_drift_app,
+            "auth_token_name": auth_token_name,
+            "otlp_enabled": otlp_enabled,
+        }
+        # Only forward `image` when caller specified one — otherwise let the
+        # API server resolve it from `function_defaults.image_by_kind.nuclio`.
+        if image is not None:
+            params["image"] = image
+        if lag_threshold is not None:
+            params["lag_threshold"] = lag_threshold
+        if lag_event_cooldown is not None:
+            params["lag_event_cooldown"] = lag_event_cooldown
         self.api_call(
             method=mlrun.common.types.HTTPMethod.PUT,
             path=f"projects/{project}/model-monitoring/",
-            params={
-                "base_period": base_period,
-                "image": image,
-                "deploy_histogram_data_drift_app": deploy_histogram_data_drift_app,
-                "fetch_credentials_from_sys_config": fetch_credentials_from_sys_config,
-            },
+            params=params,
             timeout=300,  # 5 minutes
         )
 
@@ -4029,7 +4167,7 @@ class HTTPRunDB(RunDBInterface):
         delete_stream_function: bool = False,
         delete_histogram_data_drift_app: bool = True,
         delete_user_applications: bool = False,
-        user_application_list: Optional[list[str]] = None,
+        user_application_list: list[str] | None = None,
     ) -> bool:
         """
         Disable model monitoring application controller, writer, stream, histogram data drift application
@@ -4132,7 +4270,7 @@ class HTTPRunDB(RunDBInterface):
     def set_model_monitoring_credentials(
         self,
         project: str,
-        credentials: dict[str, Optional[str]],
+        credentials: dict[str, str | None],
         replace_creds: bool,
     ) -> None:
         """
@@ -4152,7 +4290,7 @@ class HTTPRunDB(RunDBInterface):
         self,
         project: str,
         application_name: str,
-        endpoint_ids: Optional[list[str]] = None,
+        endpoint_ids: list[str] | None = None,
     ) -> None:
         """
         Delete model endpoints metrics values.
@@ -4168,13 +4306,30 @@ class HTTPRunDB(RunDBInterface):
             params={"endpoint-id": endpoint_ids, "application-name": application_name},
         )
 
+    def get_model_monitoring_url(self, project: str) -> str | None:
+        """
+        Get the HTTP URL of the model monitoring stream pod for the given project.
+
+        :param project: The name of the project.
+        :return: HTTP URL of the model monitoring stream pod, or None if no HTTP trigger is configured.
+            A non-ready stream pod still returns its URL — the URL may not be reachable until
+            the pod becomes ready.
+        :raises mlrun.errors.MLRunNotFoundError: if the stream function is not deployed.
+        :raises mlrun.errors.MLRunPreconditionFailedError: if the stream function is in terminal error state.
+        """
+        resp = self.api_call(
+            method=mlrun.common.types.HTTPMethod.GET,
+            path=f"projects/{project}/model-monitoring/stream-pod-http-url",
+        )
+        return resp.json()
+
     def get_monitoring_function_summaries(
         self,
         project: str,
-        start: Optional[datetime] = None,
-        end: Optional[datetime] = None,
-        names: Optional[Union[list[str], str]] = None,
-        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
+        start: datetime | None = None,
+        end: datetime | None = None,
+        names: Union[list[str], str] | None = None,
+        labels: Union[str, dict[str, str | None], list[str]] | None = None,
         include_stats: bool = False,
         include_infra: bool = True,
     ) -> list[FunctionSummary]:
@@ -4182,8 +4337,12 @@ class HTTPRunDB(RunDBInterface):
         Get monitoring function summaries for the specified project.
 
         :param project: The name of the project.
-        :param start: Start time for filtering the results (optional).
-        :param end: End time for filtering the results (optional).
+        :param start: The start time of the monitoring applications’ statistics.
+            If not defined, the default is 24 hours ago.
+            Required timezone, applicable only when `include_stats` is set to True.
+        :param end: The end time of the monitoring applications’ statistics.
+            If not defined, the default is now.
+            Required timezone, applicable only when `include_stats` is set to True.
         :param names: List of function names to filter by (optional).
         :param labels: Labels to filter by (optional).
         :param include_stats: Whether to include statistics in the response (default is False).
@@ -4218,18 +4377,20 @@ class HTTPRunDB(RunDBInterface):
         self,
         project: str,
         function_name: str,
-        start: Optional[datetime] = None,
-        end: Optional[datetime] = None,
+        start: datetime | None = None,
+        end: datetime | None = None,
         include_latest_metrics: bool = False,
     ) -> FunctionSummary:
         """
         Get a monitoring function summary for the specified project and function.
-        :param project:                The name of the project.
-        :param function_name:          The name of the function.
-        :param start:                  Start time for filtering the results (optional).
-        :param end:                    End time for filtering the results (optional).
-        :param include_latest_metrics: Whether to include the latest metrics in the response (default is False).
 
+        :param project: The name of the project.
+        :param function_name: The name of the function.
+        :param start: The start time of the monitoring application's statistics.
+            If not defined, the default is 24 hours ago. Required timezone.
+        :param end: The end time of the monitoring application's statistics.
+            If not defined, the default is now. Required timezone.
+        :param include_latest_metrics: Whether to include the latest metrics in the response (default is False).
         :return: A FunctionSummary object containing information about the monitoring function.
         """
 
@@ -4331,9 +4492,9 @@ class HTTPRunDB(RunDBInterface):
 
     def list_hub_sources(
         self,
-        item_name: Optional[str] = None,
-        tag: Optional[str] = None,
-        version: Optional[str] = None,
+        item_name: str | None = None,
+        tag: str | None = None,
+        version: str | None = None,
         item_type: HubSourceType = HubSourceType.functions,
     ) -> list[mlrun.common.schemas.hub.IndexedHubSource]:
         """
@@ -4386,8 +4547,8 @@ class HTTPRunDB(RunDBInterface):
     def get_hub_catalog(
         self,
         source_name: str,
-        version: Optional[str] = None,
-        tag: Optional[str] = None,
+        version: str | None = None,
+        tag: str | None = None,
         force_refresh: bool = False,
         object_type: HubSourceType = HubSourceType.functions,
     ):
@@ -4420,7 +4581,7 @@ class HTTPRunDB(RunDBInterface):
         self,
         source_name: str,
         item_name: str,
-        version: Optional[str] = None,
+        version: str | None = None,
         tag: str = "latest",
         force_refresh: bool = False,
         item_type: HubSourceType = HubSourceType.functions,
@@ -4438,7 +4599,7 @@ class HTTPRunDB(RunDBInterface):
         :param item_type: The type of item to retrieve from the hub source (e.g: functions, modules).
         :returns: :py:class:`~mlrun.common.schemas.hub.HubItem`.
         """
-        path = (f"hub/sources/{source_name}/items/{item_name}",)
+        path = f"hub/sources/{source_name}/items/{item_name}"
         params = {
             "version": version,
             "tag": tag,
@@ -4453,7 +4614,7 @@ class HTTPRunDB(RunDBInterface):
         source_name: str,
         item_name: str,
         asset_name: str,
-        version: Optional[str] = None,
+        version: str | None = None,
         tag: str = "latest",
         item_type: HubSourceType = HubSourceType.functions,
     ):
@@ -4542,7 +4703,7 @@ class HTTPRunDB(RunDBInterface):
             mlrun.common.schemas.APIGateway,
             mlrun.runtimes.nuclio.api_gateway.APIGateway,
         ],
-        project: Optional[str] = None,
+        project: str | None = None,
     ) -> mlrun.common.schemas.APIGateway:
         """
         Stores an API Gateway.
@@ -4566,7 +4727,7 @@ class HTTPRunDB(RunDBInterface):
         )
         return mlrun.common.schemas.APIGateway(**response.json())
 
-    def trigger_migrations(self) -> Optional[mlrun.common.schemas.BackgroundTask]:
+    def trigger_migrations(self) -> mlrun.common.schemas.BackgroundTask | None:
         """Trigger migrations (will do nothing if no migrations are needed) and wait for them to finish if actually
         triggered
 
@@ -4581,7 +4742,7 @@ class HTTPRunDB(RunDBInterface):
 
     def refresh_smtp_configuration(
         self,
-    ) -> Optional[mlrun.common.schemas.BackgroundTask]:
+    ) -> mlrun.common.schemas.BackgroundTask | None:
         """Refresh smtp configuration and wait for the task to finish
 
         :returns: :py:class:`~mlrun.common.schemas.BackgroundTask`.
@@ -4597,7 +4758,7 @@ class HTTPRunDB(RunDBInterface):
         self,
         project: str,
         run_uid: str,
-        notifications: Optional[list[mlrun.model.Notification]] = None,
+        notifications: list[mlrun.model.Notification] | None = None,
     ):
         """
         Set notifications on a run. This will override any existing notifications on the run.
@@ -4623,7 +4784,7 @@ class HTTPRunDB(RunDBInterface):
         self,
         project: str,
         schedule_name: str,
-        notifications: Optional[list[mlrun.model.Notification]] = None,
+        notifications: list[mlrun.model.Notification] | None = None,
     ):
         """
         Set notifications on a schedule. This will override any existing notifications on the schedule.
@@ -4649,7 +4810,7 @@ class HTTPRunDB(RunDBInterface):
         self,
         notification_objects: list[mlrun.model.Notification],
         run_uid: str,
-        project: Optional[str] = None,
+        project: str | None = None,
         mask_params: bool = True,
     ):
         """
@@ -4678,12 +4839,12 @@ class HTTPRunDB(RunDBInterface):
             mlrun.common.schemas.WorkflowSpec,
             dict,
         ],
-        arguments: Optional[dict] = None,
-        artifact_path: Optional[str] = None,
-        source: Optional[str] = None,
-        run_name: Optional[str] = None,
-        namespace: Optional[str] = None,
-        notifications: Optional[list[mlrun.model.Notification]] = None,
+        arguments: dict | None = None,
+        artifact_path: str | None = None,
+        source: str | None = None,
+        run_name: str | None = None,
+        namespace: str | None = None,
+        notifications: list[mlrun.model.Notification] | None = None,
     ) -> mlrun.common.schemas.WorkflowResponse:
         """
         Submitting workflow for a remote execution.
@@ -4700,6 +4861,8 @@ class HTTPRunDB(RunDBInterface):
 
         :returns:    :py:class:`~mlrun.common.schemas.WorkflowResponse`.
         """
+        auth_token_name = mlrun.runtime_configuration_context.RuntimeConfigurationContext.get_auth_token_name()
+
         image = (
             workflow_spec.image
             if hasattr(workflow_spec, "image")
@@ -4728,6 +4891,7 @@ class HTTPRunDB(RunDBInterface):
             req["spec"] = workflow_spec
         req["spec"]["image"] = image
         req["spec"]["name"] = workflow_name
+        req["spec"]["auth_token_name"] = auth_token_name
         if notifications:
             req["notifications"] = [
                 notification.to_dict() for notification in notifications
@@ -4793,7 +4957,7 @@ class HTTPRunDB(RunDBInterface):
         self,
         name: str,
         url: str,
-        secrets: Optional[dict] = None,
+        secrets: dict | None = None,
         save_secrets: bool = True,
     ) -> str:
         """
@@ -4836,7 +5000,7 @@ class HTTPRunDB(RunDBInterface):
 
     def get_datastore_profile(
         self, name: str, project: str
-    ) -> Optional[mlrun.common.schemas.DatastoreProfile]:
+    ) -> mlrun.common.schemas.DatastoreProfile | None:
         project = project or config.active_project
         _path = self._path_of("datastore-profiles", project, name)
 
@@ -4982,7 +5146,7 @@ class HTTPRunDB(RunDBInterface):
         return AlertConfig.from_dict(response.json())
 
     def list_alerts_configs(
-        self, project="", limit: Optional[int] = None, offset: Optional[int] = None
+        self, project="", limit: int | None = None, offset: int | None = None
     ) -> list[AlertConfig]:
         """
         Retrieve list of alerts of a project.
@@ -5065,18 +5229,16 @@ class HTTPRunDB(RunDBInterface):
 
     def list_alert_activations(
         self,
-        project: Optional[str] = None,
-        name: Optional[str] = None,
-        since: Optional[datetime] = None,
-        until: Optional[datetime] = None,
-        entity: Optional[str] = None,
-        severity: Optional[
-            list[Union[mlrun.common.schemas.alert.AlertSeverity, str]]
-        ] = None,
-        entity_kind: Optional[
-            Union[mlrun.common.schemas.alert.EventEntityKind, str]
-        ] = None,
-        event_kind: Optional[Union[mlrun.common.schemas.alert.EventKind, str]] = None,
+        project: str | None = None,
+        name: str | None = None,
+        since: datetime | None = None,
+        until: datetime | None = None,
+        entity: str | None = None,
+        severity: list[Union[mlrun.common.schemas.alert.AlertSeverity, str]]
+        | None = None,
+        entity_kind: Union[mlrun.common.schemas.alert.EventEntityKind, str]
+        | None = None,
+        event_kind: Union[mlrun.common.schemas.alert.EventKind, str] | None = None,
     ) -> mlrun.common.schemas.AlertActivations:
         """
         Retrieve a list of all alert activations.
@@ -5109,11 +5271,11 @@ class HTTPRunDB(RunDBInterface):
     def paginated_list_alert_activations(
         self,
         *args,
-        page: Optional[int] = None,
-        page_size: Optional[int] = None,
-        page_token: Optional[str] = None,
+        page: int | None = None,
+        page_size: int | None = None,
+        page_token: str | None = None,
         **kwargs,
-    ) -> tuple[AlertActivations, Optional[str]]:
+    ) -> tuple[AlertActivations, str | None]:
         """List alerts activations with support for pagination and various filtering options.
 
         This method retrieves a paginated list of alert activations based on the specified filter parameters.
@@ -5192,7 +5354,7 @@ class HTTPRunDB(RunDBInterface):
         return mlrun.common.schemas.AlertActivation(**response.json())
 
     def get_project_summary(
-        self, project: Optional[str] = None
+        self, project: str | None = None
     ) -> mlrun.common.schemas.ProjectSummary:
         """
         Retrieve the summary of a project.
@@ -5210,8 +5372,8 @@ class HTTPRunDB(RunDBInterface):
     def get_drift_over_time(
         self,
         project: str,
-        start: Optional[datetime] = None,
-        end: Optional[datetime] = None,
+        start: datetime | None = None,
+        end: datetime | None = None,
     ) -> mlrun.common.schemas.model_monitoring.ModelEndpointDriftValues:
         """
         Get drift counts over time for the project.
@@ -5290,68 +5452,132 @@ class HTTPRunDB(RunDBInterface):
         log_warning: bool = True,
         force: bool = False,
     ) -> mlrun.common.schemas.StoreSecretTokensResponse:
-        """
-        Store or update multiple secret tokens in the MLRun backend.
-
-        Example::
-
-            from mlrun.common.schemas import SecretToken
-
-            tokens = [
-                SecretToken(name="token1", token="dummy-token-1"),
-                SecretToken(name="token2", token="dummy-token-2"),
-            ]
-            db.store_secret_tokens(tokens)
-
-        :param secret_tokens: List of SecretToken objects with 'name' and 'token' fields.
-        :param force: Whether to force update tokens if they already exist. Defaults to False.
-        :param log_warning: Whether to log a warning about local config file sync. Defaults to True.
-        :return: StoreSecretTokensResponse object indicating which tokens were created, updated, or skipped.
-        """
-        if not secret_tokens:
-            raise MLRunInvalidArgumentError("No secret tokens provided")
-
-        response = self._store_secret_tokens(
-            secret_tokens=secret_tokens,
-            force=force,
-            error="store multiple user secret tokens",
+        raise NotImplementedError(
+            "Storing multiple secret tokens is not supported; a single token is "
+            "stored per user. Use `store_secret_token` instead."
         )
-
-        # Only log a warning if at least one token was actually created or updated
-        if log_warning and (response.created_tokens or response.updated_tokens):
-            affected_tokens = response.created_tokens + response.updated_tokens
-            token_names = "', '".join(affected_tokens)
-            logger.warning(
-                f"Tokens '{token_names}' were stored in the backend, "
-                f"but the local configuration file ({mlrun.mlconf.auth_with_oauth_token.token_file}) was not "
-                "updated. Update it manually or run `mlrun.sync_secret_tokens()` to sync your local environment."
-            )
-
-        return response
 
     @mlrun.utils.iguazio_v4_only
     def list_secret_tokens(
         self,
+        username: str | None = None,
     ) -> mlrun.common.schemas.ListSecretTokensResponse:
         """
-        List all secret tokens for the current user.
+        List secret tokens. Only system-administrators can list tokens for other users.
+
+        :param username: Optional; the username for which to list secret tokens.
+                         Use ``"*"`` to list tokens for all users.
+        :return: A ``ListSecretTokensResponse`` object containing a list of
+                 ``SecretTokenInfo`` objects.
+
+        Example::
+
+            # As a regular user, list your own tokens
+            tokens_response = db.list_secret_tokens()
+            for token in tokens_response.secret_tokens:
+                print(
+                    f"User ID: {token.user_id}, Token name: {token.name}, "
+                    f"Expiration: {token.expiration}"
+                )
+
+            # As a system admin, list tokens for a specific user
+            user_tokens = db.list_secret_tokens(username="john_doe")
+
+            # As a system admin, list tokens for all users
+            all_tokens = db.list_secret_tokens(username="*")
         """
         endpoint_path = "user-secrets/tokens"
+        params = None
+        if username is not None:
+            params = {"username": username}
         response = self.api_call(
             mlrun.common.types.HTTPMethod.GET,
             endpoint_path,
             "list user secret tokens",
+            params=params,
         )
 
         return mlrun.common.schemas.ListSecretTokensResponse(**response.json())
 
     @mlrun.utils.iguazio_v4_only
-    def revoke_secret_token(self, token_name: str) -> None:
+    def delete_secret_token(
+        self, token_name: str, username: str | None = None
+    ) -> mlrun.common.schemas.DeleteSecretTokenResponse:
+        """
+        Delete a secret token. Only system-administrators can delete tokens for other users.
+
+        :param token_name: The name of the token to delete.
+        :param username: Optional; the username of the token owner.
+        """
         endpoint_path = f"user-secrets/tokens/{token_name}"
-        self.api_call(
+        params = {"username": username} if username else None
+        response = self.api_call(
             mlrun.common.types.HTTPMethod.DELETE,
             endpoint_path,
             "delete user secret token",
+            params=params,
+        )
+        result = mlrun.common.schemas.DeleteSecretTokenResponse(**response.json())
+        if result.deleted:
+            logger.info(
+                "Token was successfully deleted",
+                token_name=token_name,
+                username=result.username,
+            )
+        else:
+            logger.info(
+                "Token could not be deleted",
+                token_name=token_name,
+                username=result.username,
+            )
+        return result
+
+    @mlrun.utils.iguazio_v4_only
+    def delete_secret_tokens(
+        self, username: str | None = None
+    ) -> mlrun.common.schemas.DeleteSecretTokensResponse:
+        """
+        Delete the user's stored secret token, if one exists. Only system-administrators
+        can delete tokens for other users.
+
+        A single token is stored per user, so this deletes that token when present.
+
+        :param username: Optional; the username of the token owner. If None, deletes the
+            caller's own token.
+        :return: A ``DeleteSecretTokensResponse`` with deleted_count and any failed_tokens.
+        """
+        endpoint_path = "user-secrets/tokens"
+        params = {"username": username} if username else None
+        response = self.api_call(
+            mlrun.common.types.HTTPMethod.DELETE,
+            endpoint_path,
+            "delete user secret tokens",
+            params=params,
+        )
+        result = mlrun.common.schemas.DeleteSecretTokensResponse(**response.json())
+        if result.failed_tokens:
+            logger.warning(
+                "Tokens deletion completed with failures",
+                username=result.username,
+                deleted_count=result.deleted_count,
+                failed_count=len(result.failed_tokens),
+            )
+        else:
+            logger.debug(
+                "Tokens deletion completed",
+                username=result.username,
+                deleted_count=result.deleted_count,
+            )
+        return result
+
+    @mlrun.utils.iguazio_v4_only
+    def get_secret_token(
+        self,
+        token_name: str,
+        username: str | None = None,
+    ) -> mlrun.common.schemas.SecretToken:
+        raise NotImplementedError(
+            "Getting secret token is not supported for security reasons."
         )
 
     @mlrun.utils.iguazio_v4_only
@@ -5377,7 +5603,7 @@ class HTTPRunDB(RunDBInterface):
 
     @staticmethod
     def _parse_labels(
-        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]],
+        labels: Union[str, dict[str, str | None], list[str]] | None,
     ):
         """
         Parse labels to support providing a dictionary from the SDK,
@@ -5399,49 +5625,38 @@ class HTTPRunDB(RunDBInterface):
 
     def _list_artifacts(
         self,
-        name: Optional[str] = None,
-        project: Optional[str] = None,
-        tag: Optional[str] = None,
-        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
-        since: Optional[datetime] = None,
-        until: Optional[datetime] = None,
-        iter: Optional[int] = None,
+        name: str | None = None,
+        project: str | None = None,
+        tag: str | None = None,
+        labels: Union[str, dict[str, str | None], list[str]] | None = None,
+        since: datetime | None = None,
+        until: datetime | None = None,
+        iter: int | None = None,
         best_iteration: bool = False,
-        kind: Optional[str] = None,
+        kind: str | None = None,
         category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
-        tree: Optional[str] = None,
-        producer_uri: Optional[str] = None,
-        parent: Optional[str] = None,
-        format_: Optional[
-            mlrun.common.formatters.ArtifactFormat
-        ] = mlrun.common.formatters.ArtifactFormat.full,
-        limit: Optional[int] = None,
-        partition_by: Optional[
-            Union[mlrun.common.schemas.ArtifactPartitionByField, str]
-        ] = None,
+        tree: str | None = None,
+        producer_uri: str | None = None,
+        parent: str | None = None,
+        format_: mlrun.common.formatters.ArtifactFormat
+        | None = mlrun.common.formatters.ArtifactFormat.full,
+        partition_by: Union[mlrun.common.schemas.ArtifactPartitionByField, str]
+        | None = None,
         rows_per_partition: int = 1,
-        partition_sort_by: Optional[
-            Union[mlrun.common.schemas.SortField, str]
-        ] = mlrun.common.schemas.SortField.updated,
+        partition_sort_by: Union[mlrun.common.schemas.SortField, str]
+        | None = mlrun.common.schemas.SortField.updated,
         partition_order: Union[
             mlrun.common.schemas.OrderType, str
         ] = mlrun.common.schemas.OrderType.desc,
-        page: Optional[int] = None,
-        page_size: Optional[int] = None,
-        page_token: Optional[str] = None,
+        page: int | None = None,
+        page_size: int | None = None,
+        page_token: str | None = None,
         return_all: bool = False,
-    ) -> tuple[ArtifactList, Optional[str]]:
+    ) -> tuple[ArtifactList, str | None]:
         """Handles list artifacts, both paginated and not."""
 
         project = project or config.active_project
         labels = self._parse_labels(labels)
-
-        if limit:
-            # TODO: Remove this in 1.11.0
-            warnings.warn(
-                "'limit' is deprecated and will be removed in 1.11.0. Use 'page' and 'page_size' instead.",
-                FutureWarning,
-            )
 
         params = {
             "name": name,
@@ -5456,7 +5671,6 @@ class HTTPRunDB(RunDBInterface):
             "producer_uri": producer_uri,
             "since": datetime_to_iso(since),
             "until": datetime_to_iso(until),
-            "limit": limit,
             "page": page,
             "page-size": page_size,
             "page-token": page_token,
@@ -5494,20 +5708,20 @@ class HTTPRunDB(RunDBInterface):
 
     def _list_functions(
         self,
-        name: Optional[str] = None,
-        project: Optional[str] = None,
-        tag: Optional[str] = None,
-        kind: Optional[str] = None,
-        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
-        format_: Optional[str] = None,
-        since: Optional[datetime] = None,
-        until: Optional[datetime] = None,
-        states: typing.Optional[list[mlrun.common.schemas.FunctionState]] = None,
-        page: Optional[int] = None,
-        page_size: Optional[int] = None,
-        page_token: Optional[str] = None,
+        name: str | None = None,
+        project: str | None = None,
+        tag: str | None = None,
+        kind: str | None = None,
+        labels: Union[str, dict[str, str | None], list[str]] | None = None,
+        format_: str | None = None,
+        since: datetime | None = None,
+        until: datetime | None = None,
+        states: list[mlrun.common.schemas.FunctionState] | None = None,
+        page: int | None = None,
+        page_size: int | None = None,
+        page_token: str | None = None,
         return_all: bool = False,
-    ) -> tuple[list, Optional[str]]:
+    ) -> tuple[list, str | None]:
         """Handles list functions, both paginated and not."""
 
         project = project or config.active_project
@@ -5539,34 +5753,33 @@ class HTTPRunDB(RunDBInterface):
 
     def _list_runs(
         self,
-        name: Optional[str] = None,
-        uid: Optional[Union[str, list[str]]] = None,
-        project: Optional[str] = None,
-        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
-        states: typing.Optional[list[mlrun.common.runtimes.constants.RunStates]] = None,
+        name: str | None = None,
+        uid: Union[str, list[str]] | None = None,
+        project: str | None = None,
+        labels: Union[str, dict[str, str | None], list[str]] | None = None,
+        states: list[mlrun.common.runtimes.constants.RunStates] | None = None,
         sort: bool = True,
         iter: bool = False,
-        start_time_from: Optional[datetime] = None,
-        start_time_to: Optional[datetime] = None,
-        last_update_time_from: Optional[datetime] = None,
-        last_update_time_to: Optional[datetime] = None,
-        end_time_from: Optional[datetime] = None,
-        end_time_to: Optional[datetime] = None,
-        partition_by: Optional[
-            Union[mlrun.common.schemas.RunPartitionByField, str]
-        ] = None,
+        start_time_from: datetime | None = None,
+        start_time_to: datetime | None = None,
+        last_update_time_from: datetime | None = None,
+        last_update_time_to: datetime | None = None,
+        end_time_from: datetime | None = None,
+        end_time_to: datetime | None = None,
+        partition_by: Union[mlrun.common.schemas.RunPartitionByField, str]
+        | None = None,
         rows_per_partition: int = 1,
-        partition_sort_by: Optional[Union[mlrun.common.schemas.SortField, str]] = None,
+        partition_sort_by: Union[mlrun.common.schemas.SortField, str] | None = None,
         partition_order: Union[
             mlrun.common.schemas.OrderType, str
         ] = mlrun.common.schemas.OrderType.desc,
         max_partitions: int = 0,
         with_notifications: bool = False,
-        page: Optional[int] = None,
-        page_size: Optional[int] = None,
-        page_token: Optional[str] = None,
+        page: int | None = None,
+        page_size: int | None = None,
+        page_token: str | None = None,
         return_all: bool = False,
-    ) -> tuple[RunList, Optional[str]]:
+    ) -> tuple[RunList, str | None]:
         """Handles list runs, both paginated and not."""
 
         project = project or config.active_project
@@ -5639,27 +5852,25 @@ class HTTPRunDB(RunDBInterface):
 
     def _list_alert_activations(
         self,
-        project: Optional[str] = None,
-        name: Optional[str] = None,
-        since: Optional[datetime] = None,
-        until: Optional[datetime] = None,
-        entity: Optional[str] = None,
-        severity: Optional[
-            Union[
-                mlrun.common.schemas.alert.AlertSeverity,
-                str,
-                list[Union[mlrun.common.schemas.alert.AlertSeverity, str]],
-            ]
-        ] = None,
-        entity_kind: Optional[
-            Union[mlrun.common.schemas.alert.EventEntityKind, str]
-        ] = None,
-        event_kind: Optional[Union[mlrun.common.schemas.alert.EventKind, str]] = None,
-        page: Optional[int] = None,
-        page_size: Optional[int] = None,
-        page_token: Optional[str] = None,
+        project: str | None = None,
+        name: str | None = None,
+        since: datetime | None = None,
+        until: datetime | None = None,
+        entity: str | None = None,
+        severity: Union[
+            mlrun.common.schemas.alert.AlertSeverity,
+            str,
+            list[Union[mlrun.common.schemas.alert.AlertSeverity, str]],
+        ]
+        | None = None,
+        entity_kind: Union[mlrun.common.schemas.alert.EventEntityKind, str]
+        | None = None,
+        event_kind: Union[mlrun.common.schemas.alert.EventKind, str] | None = None,
+        page: int | None = None,
+        page_size: int | None = None,
+        page_token: str | None = None,
         return_all: bool = False,
-    ) -> tuple[mlrun.common.schemas.AlertActivations, Optional[str]]:
+    ) -> tuple[mlrun.common.schemas.AlertActivations, str | None]:
         project = project or config.active_project
         params = {
             "name": name,
@@ -5700,7 +5911,7 @@ class HTTPRunDB(RunDBInterface):
             )
         return None
 
-    def _resolve_page_params(self, params: typing.Optional[dict]) -> dict:
+    def _resolve_page_params(self, params: dict | None) -> dict:
         """
         Resolve the page parameters, setting defaults where necessary.
         """
@@ -5708,24 +5919,27 @@ class HTTPRunDB(RunDBInterface):
         if page_params.get("page-token") is None and page_params.get("page") is None:
             page_params["page"] = 1
         if page_params.get("page-size") is None:
-            page_size = config.httpdb.pagination.default_page_size
+            page_params["page-size"] = config.httpdb.pagination.default_page_size
 
-            if page_params.get("limit") is not None:
-                page_size = page_params["limit"]
-
-                # limit and page/page size are conflicting
-                page_params.pop("limit")
-            page_params["page-size"] = page_size
-
-        # this may happen only when page-size was explicitly set along with limit
-        # this is to ensure we will not get stopped by API on similar below validation
-        # but rather simply fallback to use page-size.
-        if page_params.get("page-size") and page_params.get("limit"):
-            logger.warning(
-                "Both 'limit' and 'page-size' are provided, using 'page-size'."
-            )
-            page_params.pop("limit")
         return page_params
+
+    def _resolve_api_urls(self, url: str) -> tuple[str, str]:
+        """
+        Resolves the base url and parsed url from the given url.
+        """
+        parsed_url = urlparse(url)
+        scheme = parsed_url.scheme.lower()
+        if scheme not in ("http", "https"):
+            raise ValueError(
+                f"Invalid URL scheme {scheme} for HTTPRunDB, only http(s) is supported"
+            )
+
+        endpoint = parsed_url.hostname
+        if parsed_url.port:
+            endpoint += f":{parsed_url.port}"
+        base_url = f"{parsed_url.scheme}://{endpoint}{parsed_url.path}"
+
+        return base_url, parsed_url
 
 
 def _as_json(obj):

@@ -14,6 +14,7 @@
 import pathlib
 import re
 import unittest.mock
+import uuid
 from contextlib import nullcontext as does_not_raise
 
 import pytest
@@ -23,18 +24,24 @@ from fastapi.testclient import TestClient
 import mlrun.common.constants
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
+import mlrun.errors
 import mlrun.launcher.base
 import mlrun.launcher.factory
 from mlrun.common.types import AuthenticationMode
 from mlrun.config import Config
 
-import framework.utils.clients.iguazio.v3
 import services.api.launcher
 import services.api.tests.unit.api.utils
+import services.api.utils.helpers
 
 assets_path = pathlib.Path(__file__).parent / "assets"
 func_path = assets_path / "sample_function.py"
 handler = "hello_word"
+
+
+@pytest.fixture
+def random_project_name():
+    return f"some-project-{uuid.uuid4().hex[:8]}"
 
 
 @pytest.mark.parametrize(
@@ -58,20 +65,17 @@ def test_create_server_side_launcher(is_remote, local, expectation):
 
 
 def test_enrich_runtime_with_auth_info(
-    monkeypatch, k8s_secrets_mock, client: TestClient
+    monkeypatch, k8s_secrets_mock, client: TestClient, random_project_name: str
 ):
-    project = "some-project"
+    project = random_project_name
     mlrun.mlconf.httpdb.authentication.mode = AuthenticationMode.IGUAZIO
-    monkeypatch.setattr(
-        framework.utils.clients.iguazio.v3,
-        "AsyncClient",
-        lambda *args, **kwargs: unittest.mock.AsyncMock(),
-    )
+
+    services.api.tests.unit.api.utils.setup_iguazio_v3_async_client_mock(monkeypatch)
     auth_info = mlrun.common.schemas.auth.AuthInfo(
         access_key="access_key",
         username="username",
     )
-    services.api.tests.unit.api.utils.create_project(client, project)
+    services.api.tests.unit.api.utils.create_project(client, project_name=project)
 
     launcher_kwargs = {"auth_info": auth_info}
     launcher = mlrun.launcher.factory.LauncherFactory().create_launcher(
@@ -149,10 +153,10 @@ def test_validate_state_thresholds_failure(state_thresholds, expected_error):
 
 
 def test_new_function_args_with_default_image_pull_secret(
-    db: sqlalchemy.orm.Session, client: TestClient
+    db: sqlalchemy.orm.Session, client: TestClient, random_project_name: str
 ):
-    project = "some-project"
-    services.api.tests.unit.api.utils.create_project(client, project)
+    project = random_project_name
+    services.api.tests.unit.api.utils.create_project(client, project_name=project)
 
     mlrun.mlconf.function.spec.image_pull_secret = Config(
         {"default": "adam-docker-registry-auth"}
@@ -468,3 +472,349 @@ def test_launcher_skips_aborted_or_deleted_run(monkeypatch):
     # Validate result
     assert run.status.state == mlrun.common.runtimes.constants.RunStates.aborted
     assert not runtime_handler_mock.called
+
+
+def test_enrich_and_validate_auth_token_name_noop_without_v4_mode():
+    """Test that auth is not modified when not in iguazio v4 mode."""
+    launcher = services.api.launcher.ServerSideLauncher(
+        auth_info=mlrun.common.schemas.AuthInfo()
+    )
+    initial_auth = {"token_name": "custom-token"}
+    run = mlrun.run.RunObject(
+        spec=mlrun.model.RunSpec(auth=initial_auth),
+    )
+
+    launcher.enrich_and_validate_auth_token_name(run)
+
+    # auth should not be modified when not in v4 mode
+    assert run.spec.auth == initial_auth
+
+
+@pytest.fixture
+def iguazio_v4_mode():
+    """Fixture that sets up iguazio v4 authentication mode."""
+    mlrun.mlconf.httpdb.authentication.mode = AuthenticationMode.IGUAZIO_V4
+
+
+@pytest.mark.parametrize(
+    "initial_auth,expected_token_name",
+    [
+        # No token provided → resolved token
+        (None, "resolved-token"),
+        # Explicit token → preserved as-is
+        ({"token_name": "custom-token"}, "custom-token"),
+    ],
+)
+def test_enrich_and_validate_auth_token_name_iguazio_v4_resolution(
+    monkeypatch, iguazio_v4_mode, initial_auth, expected_token_name
+):
+    """Test token resolution in iguazio v4 mode."""
+    mock_resolve = unittest.mock.Mock(
+        side_effect=lambda user_id, provided_token_name: (
+            provided_token_name if provided_token_name else "resolved-token"
+        )
+    )
+    monkeypatch.setattr(
+        services.api.utils.helpers,
+        "resolve_auth_token_name",
+        mock_resolve,
+    )
+
+    launcher = services.api.launcher.ServerSideLauncher(
+        auth_info=mlrun.common.schemas.AuthInfo(user_id="1234")
+    )
+    run = mlrun.run.RunObject(
+        spec=mlrun.model.RunSpec(auth=initial_auth),
+    )
+
+    launcher.enrich_and_validate_auth_token_name(run)
+
+    assert run.spec.auth["token_name"] == expected_token_name
+    assert run.spec.auth["user_id"] == "1234"
+    mock_resolve.assert_called_once_with(
+        user_id="1234",
+        provided_token_name=initial_auth.get("token_name") if initial_auth else None,
+    )
+
+
+def test_enrich_and_validate_auth_token_name_iguazio_v4_user_id_fallback_from_spec(
+    monkeypatch, iguazio_v4_mode
+):
+    """Test that user_id is read from spec.auth when auth_info.user_id is None.
+
+    This covers post-restart scheduled jobs and retries where auth_info is empty
+    but user_id was previously persisted on the run/scheduled_object spec.
+    """
+    mock_resolve = unittest.mock.Mock(return_value="resolved-token")
+    monkeypatch.setattr(
+        services.api.utils.helpers,
+        "resolve_auth_token_name",
+        mock_resolve,
+    )
+
+    launcher = services.api.launcher.ServerSideLauncher(
+        auth_info=mlrun.common.schemas.AuthInfo(user_id=None)
+    )
+    run = mlrun.run.RunObject(
+        spec=mlrun.model.RunSpec(auth={"user_id": "spec-user-id"}),
+    )
+
+    launcher.enrich_and_validate_auth_token_name(run)
+
+    mock_resolve.assert_called_once_with(
+        user_id="spec-user-id",
+        provided_token_name=None,
+    )
+    assert run.spec.auth["user_id"] == "spec-user-id"
+    assert run.spec.auth["token_name"] == "resolved-token"
+    # user_id must be propagated back to auth_info so downstream code (e.g.
+    # _mount_secret_token_to_runtime) uses the correct identity, not the empty
+    # auth_info from a post-restart schedule reload.
+    assert launcher._auth_info.user_id == "spec-user-id"
+
+
+def test_enrich_and_validate_auth_token_name_iguazio_v4_token_not_found(
+    monkeypatch, iguazio_v4_mode
+):
+    """Test that MLRunNotFoundError is raised when token resolution fails."""
+    monkeypatch.setattr(
+        services.api.utils.helpers,
+        "resolve_auth_token_name",
+        unittest.mock.Mock(
+            side_effect=mlrun.errors.MLRunNotFoundError("No valid tokens found")
+        ),
+    )
+
+    launcher = services.api.launcher.ServerSideLauncher(
+        auth_info=mlrun.common.schemas.AuthInfo(user_id="1234")
+    )
+    run = mlrun.run.RunObject(
+        spec=mlrun.model.RunSpec(auth=None),
+    )
+
+    with pytest.raises(mlrun.errors.MLRunNotFoundError, match="No valid tokens found"):
+        launcher.enrich_and_validate_auth_token_name(run)
+
+
+@pytest.mark.parametrize(
+    "exc",
+    [
+        mlrun.errors.MLRunBadRequestError("No valid tokens found for user id '1234'."),
+        mlrun.errors.MLRunNotFoundError("No valid tokens found for user id '1234'"),
+    ],
+    ids=["bad_request", "not_found"],
+)
+def test_enrich_and_validate_auth_token_name_scheduled_run_tolerates_missing_token(
+    monkeypatch, iguazio_v4_mode, exc
+):
+    """Scheduled runs should not raise when the auth token is missing or revoked.
+
+    When a scheduled KubeJob fires and the user's auth token secret has been
+    deleted (MLRunBadRequestError) or revoked/invalid (MLRunNotFoundError from
+    the iguazio SDK), the method should log a warning, skip the token mount,
+    but still persist user_id on the spec and back-fill auth_info so that
+    retries and downstream code keep working.
+    """
+    monkeypatch.setattr(
+        services.api.utils.helpers,
+        "resolve_auth_token_name",
+        unittest.mock.Mock(side_effect=exc),
+    )
+
+    launcher = services.api.launcher.ServerSideLauncher(
+        auth_info=mlrun.common.schemas.AuthInfo(user_id="1234")
+    )
+    schedule_label = mlrun.common.schemas.constants.LabelNames.schedule_name
+    run = mlrun.run.RunObject(
+        metadata=mlrun.model.RunMetadata(
+            labels={schedule_label: "my-schedule"},
+        ),
+        spec=mlrun.model.RunSpec(auth=None),
+    )
+
+    with unittest.mock.patch("mlrun.utils.logger") as mock_logger:
+        launcher.enrich_and_validate_auth_token_name(run)
+
+        mock_logger.warning.assert_called_once()
+        call_kwargs = mock_logger.warning.call_args[1]
+        assert call_kwargs["user_id"] == "1234"
+        assert call_kwargs["schedule_name"] == "my-schedule"
+
+    # token_name must NOT be set — token resolution failed
+    assert not run.spec.auth or run.spec.auth.get("token_name") is None
+    # user_id must still be persisted for retries / downstream code
+    assert run.spec.auth["user_id"] == "1234"
+
+
+@pytest.mark.parametrize(
+    "exc,exc_type",
+    [
+        (
+            mlrun.errors.MLRunBadRequestError(
+                "No valid tokens found for user id '1234'."
+            ),
+            mlrun.errors.MLRunBadRequestError,
+        ),
+        (
+            mlrun.errors.MLRunNotFoundError("No valid tokens found for user id '1234'"),
+            mlrun.errors.MLRunNotFoundError,
+        ),
+    ],
+    ids=["bad_request", "not_found"],
+)
+def test_enrich_and_validate_auth_token_name_direct_run_raises_on_missing_token(
+    monkeypatch, iguazio_v4_mode, exc, exc_type
+):
+    """Direct (non-scheduled) runs must still fail fast when the token is missing or revoked."""
+    monkeypatch.setattr(
+        services.api.utils.helpers,
+        "resolve_auth_token_name",
+        unittest.mock.Mock(side_effect=exc),
+    )
+
+    launcher = services.api.launcher.ServerSideLauncher(
+        auth_info=mlrun.common.schemas.AuthInfo(user_id="1234")
+    )
+    run = mlrun.run.RunObject(
+        spec=mlrun.model.RunSpec(auth=None),
+    )
+
+    with pytest.raises(exc_type, match="No valid tokens found"):
+        launcher.enrich_and_validate_auth_token_name(run)
+
+
+def test_enrich_and_validate_auth_token_name_scheduled_run_happy_path(
+    monkeypatch, iguazio_v4_mode
+):
+    """Scheduled runs with a valid token should still enrich normally."""
+    monkeypatch.setattr(
+        services.api.utils.helpers,
+        "resolve_auth_token_name",
+        unittest.mock.Mock(return_value="valid-token"),
+    )
+
+    launcher = services.api.launcher.ServerSideLauncher(
+        auth_info=mlrun.common.schemas.AuthInfo(user_id="1234")
+    )
+    schedule_label = mlrun.common.schemas.constants.LabelNames.schedule_name
+    run = mlrun.run.RunObject(
+        metadata=mlrun.model.RunMetadata(
+            labels={schedule_label: "my-schedule"},
+        ),
+        spec=mlrun.model.RunSpec(auth=None),
+    )
+
+    launcher.enrich_and_validate_auth_token_name(run)
+
+    assert run.spec.auth["token_name"] == "valid-token"
+    assert run.spec.auth["user_id"] == "1234"
+
+
+def test_store_function_enriches_owner_from_auth_info():
+    """Test that server-side owner enrichment overrides client-provided owner."""
+    auth_info = mlrun.common.schemas.AuthInfo(username="authenticated_user")
+    launcher = services.api.launcher.ServerSideLauncher(auth_info=auth_info)
+
+    # Simulate client-provided owner (e.g., 'jovyan' from Jupyter)
+    run = mlrun.run.RunObject(
+        metadata=mlrun.model.RunMetadata(
+            labels={mlrun.common.constants.MLRunInternalLabels.owner: "jovyan"}
+        ),
+        spec=mlrun.model.RunSpec(output_path="/data/{{run.user}}/artifacts"),
+    )
+
+    runtime = unittest.mock.MagicMock()
+    runtime.kind = "job"
+    runtime._get_db.return_value = None
+
+    launcher._store_function(runtime, run)
+
+    # Owner should be overridden with authenticated username
+    assert (
+        run.metadata.labels[mlrun.common.constants.MLRunInternalLabels.owner]
+        == "authenticated_user"
+    )
+    # Template should be replaced with authenticated user
+    assert run.spec.output_path == "/data/authenticated_user/artifacts"
+
+
+def test_store_function_preserves_owner_when_no_auth():
+    """Test that client-provided owner is preserved when auth_info has no username (CE mode)."""
+    # No username in auth_info (CE/unauthenticated mode)
+    auth_info = mlrun.common.schemas.AuthInfo(username=None)
+    launcher = services.api.launcher.ServerSideLauncher(auth_info=auth_info)
+
+    run = mlrun.run.RunObject(
+        metadata=mlrun.model.RunMetadata(
+            labels={mlrun.common.constants.MLRunInternalLabels.owner: "local_user"}
+        ),
+        spec=mlrun.model.RunSpec(output_path="/data/{{run.user}}/artifacts"),
+    )
+
+    runtime = unittest.mock.MagicMock()
+    runtime.kind = "job"
+    runtime._get_db.return_value = None
+
+    launcher._store_function(runtime, run)
+
+    # Owner should remain as client-provided value
+    assert (
+        run.metadata.labels[mlrun.common.constants.MLRunInternalLabels.owner]
+        == "local_user"
+    )
+    # Template should be replaced with client-provided owner
+    assert run.spec.output_path == "/data/local_user/artifacts"
+
+
+def test_store_function_preserves_owner_when_no_auth_info():
+    """Test that client-provided owner is preserved when auth_info is None."""
+    launcher = services.api.launcher.ServerSideLauncher(auth_info=None)
+
+    run = mlrun.run.RunObject(
+        metadata=mlrun.model.RunMetadata(
+            labels={mlrun.common.constants.MLRunInternalLabels.owner: "local_user"}
+        ),
+        spec=mlrun.model.RunSpec(output_path="/data/{{run.user}}/artifacts"),
+    )
+
+    runtime = unittest.mock.MagicMock()
+    runtime.kind = "job"
+    runtime._get_db.return_value = None
+
+    launcher._store_function(runtime, run)
+
+    # Owner should remain as client-provided value
+    assert (
+        run.metadata.labels[mlrun.common.constants.MLRunInternalLabels.owner]
+        == "local_user"
+    )
+    # Template should be replaced with client-provided owner
+    assert run.spec.output_path == "/data/local_user/artifacts"
+
+
+def test_store_function_handles_no_output_path():
+    """Test that _store_function handles runs without output_path."""
+    auth_info = mlrun.common.schemas.AuthInfo(username="authenticated_user")
+    launcher = services.api.launcher.ServerSideLauncher(auth_info=auth_info)
+
+    run = mlrun.run.RunObject(
+        metadata=mlrun.model.RunMetadata(
+            labels={mlrun.common.constants.MLRunInternalLabels.owner: "jovyan"}
+        ),
+        spec=mlrun.model.RunSpec(output_path=None),
+    )
+
+    runtime = unittest.mock.MagicMock()
+    runtime.kind = "job"
+    runtime._get_db.return_value = None
+
+    # Should not raise
+    launcher._store_function(runtime, run)
+
+    # Owner should still be enriched
+    assert (
+        run.metadata.labels[mlrun.common.constants.MLRunInternalLabels.owner]
+        == "authenticated_user"
+    )
+    # output_path should remain None
+    assert run.spec.output_path is None

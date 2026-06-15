@@ -21,7 +21,6 @@ import os
 import shlex
 import subprocess
 import time
-import typing
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import click
@@ -39,7 +38,11 @@ coloredlogs.install(level=log_level, logger=logger, fmt=fmt)
 
 
 class Constants:
-    mandatory_fields = {"DATA_NODES", "SSH_USER", "SSH_PASSWORD", "DOCKER_REGISTRY"}
+    mode_ssh = "ssh"
+    mode_kubectl = "kubectl"
+    valid_modes = {mode_ssh, mode_kubectl}
+    common_mandatory_fields = {"DOCKER_REGISTRY"}
+    ssh_mandatory_fields = {"DATA_NODES", "SSH_USER", "SSH_PASSWORD"}
     api_container = "mlrun-api"
     log_collector_container = "mlrun-log-collector"
     api = "api"
@@ -54,11 +57,6 @@ class Constants:
         mlrun_kfp: mlrun_kfp,
         log_collector: log_collector,
     }
-    python_39_suffix = "-py39"
-    python_39_targets = [
-        mlrun,
-        mlrun_kfp,
-    ]
 
 
 class MLRunPatcher:
@@ -70,12 +68,14 @@ class MLRunPatcher:
         image_tag: str,
         patch_log_collector_image: bool,
         patch_mlrun_image: bool,
-        build_py39: bool,
         skip_patch_api: bool,
         patch_alerts: bool,
         no_build: bool,
         no_push: bool,
         namespace: str,
+        mode: str = "",
+        kubeconfig: str = "",
+        migrate: bool = False,
     ):
         self._config = yaml.safe_load(conf_file)
         patch_yaml_data = yaml.safe_load(patch_file)
@@ -83,19 +83,29 @@ class MLRunPatcher:
         self._reset_db = reset_db
         self._image_tag = image_tag
         self._patch_log_collector_image = bool(patch_log_collector_image)
+        kubeconfig_value = kubeconfig or self._config.get("KUBECONFIG") or ""
+        self._kubeconfig = (
+            os.path.expanduser(kubeconfig_value) if kubeconfig_value else ""
+        )
+        self._mode = self._resolve_mode(mode)
         self._validate_config()
         self._patch_mlrun_image = patch_mlrun_image
-        self._build_py39 = build_py39
         self._skip_patch_api = skip_patch_api
         self._patch_alerts = patch_alerts
         self._no_build = no_build
         self._no_push = no_push
         self._namespace = self._resolve_namespace(namespace)
-        self._docker_client = docker.from_env()
+        self._docker_client = self._make_docker_client()
+        self._ssh_client: paramiko.SSHClient | None = None
+        self._migrate = migrate
         if self._skip_patch_api and self._patch_alerts:
             raise ValueError("Cannot skip api and patch alerts at the same time")
+        if self._migrate and self._skip_patch_api:
+            raise ValueError(
+                "--migrate requires the api to be patched (drop --skip-api)"
+            )
 
-        cluster_data_nodes = self._config["DATA_NODES"]
+        cluster_data_nodes = self._config.get("DATA_NODES") or []
         if not isinstance(cluster_data_nodes, list):
             cluster_data_nodes = [cluster_data_nodes]
         self._cluster_data_nodes = cluster_data_nodes
@@ -130,8 +140,7 @@ class MLRunPatcher:
             )
             self._push_docker_images(built_images)
 
-        # Connect to the first node and start deployment patching process
-        node = self._cluster_data_nodes[0]
+        node = self._cluster_data_nodes[0] if self._cluster_data_nodes else None
         self._connect_to_node(node)
 
         if self._patch_log_collector_image:
@@ -155,6 +164,9 @@ class MLRunPatcher:
 
                 self._wait_deployment_ready()
 
+                if self._migrate:
+                    self._run_db_migrations()
+
             finally:
                 # Check status of pods after deployment
                 out = self._exec_remote(
@@ -172,6 +184,18 @@ class MLRunPatcher:
         logger.info(
             "Deployed branch successfully! (Note: This may not survive system restarts)"
         )
+
+    @staticmethod
+    def _make_docker_client() -> docker.DockerClient:
+        # Consult docker context if DOCKER_HOST is unset (as docker CLI does)
+        if not os.environ.get("DOCKER_HOST"):
+            try:
+                ctx = docker.ContextAPI.get_current_context()
+                if ctx and ctx.Host and ctx.Name != "default":
+                    return docker.DockerClient(base_url=ctx.Host)
+            except Exception as exc:
+                logger.debug("Falling back to docker.from_env(): %s", exc)
+        return docker.from_env()
 
     def _docker_login_if_configured(self):
         registry_username = self._config.get("REGISTRY_USERNAME")
@@ -254,7 +278,12 @@ class MLRunPatcher:
                 fut.result()
 
     def _validate_config(self):
-        missing_fields = Constants.mandatory_fields - set(self._config.keys())
+        mandatory_fields = set(Constants.common_mandatory_fields)
+        if self._mode == Constants.mode_ssh:
+            mandatory_fields |= Constants.ssh_mandatory_fields
+        missing_fields = {
+            field for field in mandatory_fields if not self._config.get(field)
+        }
         if len(missing_fields) > 0:
             raise RuntimeError(f"Mandatory options not defined: {missing_fields}")
 
@@ -268,6 +297,21 @@ class MLRunPatcher:
         if self._reset_db and "DB_USER" not in self._config:
             raise RuntimeError("Must define DB_USER if requesting DB reset")
 
+        if self._kubeconfig and not os.path.isfile(self._kubeconfig):
+            raise RuntimeError(f"KUBECONFIG file not found: {self._kubeconfig}")
+
+    def _resolve_mode(self, mode: str) -> str:
+        explicit = mode or self._config.get("MODE")
+        if explicit:
+            resolved = explicit.lower()
+            if resolved not in Constants.valid_modes:
+                raise ValueError(
+                    f"Invalid mode '{resolved}'. Valid modes: {sorted(Constants.valid_modes)}"
+                )
+            return resolved
+        # Infer: kubeconfig present => kubectl; else legacy ssh.
+        return Constants.mode_kubectl if self._kubeconfig else Constants.mode_ssh
+
     def _get_current_version(self) -> str:
         if "unstable" in self._image_tag:
             return "unstable"
@@ -278,80 +322,64 @@ class MLRunPatcher:
         targets: list[str],
         image_tag: str,
     ) -> dict[str, str]:
-        for target in targets:
-            logger.info(f"Building mlrun docker images: {target}:{image_tag}")
+        mlrun_version = image_tag
+        image_tag = image_tag.replace("+", "-")
 
-        mlrun_docker_registry = self._config["DOCKER_REGISTRY"].rstrip("/")
-        mlrun_docker_repo = self._config.get("DOCKER_REPO")
-
-        if mlrun_docker_repo:
-            mlrun_docker_registry = (
-                f"{mlrun_docker_registry}/{mlrun_docker_repo.rstrip('/')}"
-            )
+        mlrun_docker_registry = self._resolve_docker_registry()
         target_to_image = {
             target: f"{mlrun_docker_registry}/{Constants.targets_to_image_name[target]}:{image_tag}"
             for target in targets
         }
-        if not self._no_build:
-            env = {
-                "MLRUN_VERSION": image_tag,
-                "MLRUN_DOCKER_REPO": mlrun_docker_registry,
-            }
 
-            if Constants.mlrun_kfp in targets:
-                # Set the MLRUN_KFP_IMAGE environment variable in the mlrun-api deployment patch,
-                # so that workflow pods will use the correct KFP image from the internal registry.
-                _, overwrite_registry = self._resolve_overwrite_registry()
-                kfp_image_uri = (
-                    f"{overwrite_registry}/mlrun/{Constants.mlrun_kfp}:{image_tag}"
-                )
+        if self._no_build:
+            return target_to_image
 
-                mlrun_api_container = self._deploy_patch["mlrun_api"]["spec"][
-                    "template"
-                ]["spec"]["containers"][0]
-                env_vars = mlrun_api_container.setdefault("env", [])
-                existing_var = next(
-                    (var for var in env_vars if var.get("name") == "MLRUN_KFP_IMAGE"),
-                    None,
-                )
+        env = {
+            "MLRUN_VERSION": mlrun_version,
+            "MLRUN_DOCKER_REPO": mlrun_docker_registry,
+        }
 
-                if existing_var:
-                    existing_var["value"] = kfp_image_uri
-                else:
-                    env_vars.append(
-                        {
-                            "name": "MLRUN_KFP_IMAGE",
-                            "value": kfp_image_uri,
-                        }
-                    )
+        mlrun_api_container = self._deploy_patch["mlrun_api"]["spec"]["template"][
+            "spec"
+        ]["containers"][0]
+        env_vars = mlrun_api_container.setdefault("env", [])
+        _, overwrite_registry = self._resolve_overwrite_registry()
+        image_registry = overwrite_registry or mlrun_docker_registry
+        # make sure the mlrun images are pulled from the input registry
+        # and not the system registry as the system registry wont include the newly built image
+        if Constants.mlrun in targets and image_registry:
+            # ensure no "mlrun/" suffix. the reason is that usually client would use "mlrun/mlrun" image
+            # which then translates to registry.com/mlrun/mlrun/mlrun. so when we trim the "mlrun/" from registry
+            # it will translate to registry.com/mlrun/mlrun as expected.
+            # note: the images would still be pushed to the input registry (e.g registry.com/mlrun).
+            mlrun_images_registry = image_registry.rstrip("/").rstrip("/mlrun")
+            env_vars.append(
+                {"name": "MLRUN_IMAGES_REGISTRY", "value": mlrun_images_registry}
+            )
 
-            cmd = ["make"]
-            cmd.extend(targets)
-            self._exec_local(cmd, live=True, env=env)
-            if self._build_py39:
-                python_39_targets_to_build = []
-                for python_39_target in Constants.python_39_targets:
-                    if python_39_target in targets:
-                        target_to_image[
-                            f"{python_39_target}`{Constants.python_39_suffix}"
-                        ] = (
-                            f"{mlrun_docker_registry}/{Constants.targets_to_image_name[python_39_target]}:"
-                            f"{image_tag}{Constants.python_39_suffix}"
-                        )
-                        python_39_targets_to_build.append(python_39_target)
-                self._exec_local(
-                    ["make", *python_39_targets_to_build],
-                    live=True,
-                    env={
-                        **env,
-                        "MLRUN_PYTHON_VERSION": "3.9",
-                        "INCLUDE_PYTHON_VERSION_SUFFIX": "true",
-                    },
-                )
+        if Constants.mlrun_kfp in targets and image_registry:
+            # Set the MLRUN_KFP_IMAGE environment variable in the mlrun-api deployment patch,
+            # so that workflow pods will use the correct KFP image from the internal registry.
+            kfp_image_uri = f"{image_registry}/{Constants.mlrun_kfp}:{image_tag}"
+            for var in env_vars:
+                if var.get("name") == "MLRUN_KFP_IMAGE":
+                    var["value"] = kfp_image_uri
+                    break
+            else:
+                env_vars.append({"name": "MLRUN_KFP_IMAGE", "value": kfp_image_uri})
+
+        images_to_log = [f"{target}:{image_tag}" for target in targets]
+        logger.info(f"Building mlrun docker images: {images_to_log}")
+
+        cmd = ["make"]
+        cmd.extend(targets)
+        self._exec_local(cmd, live=True, env=env)
 
         return target_to_image
 
     def _connect_to_node(self, node):
+        if self._mode == Constants.mode_kubectl:
+            return
         logger.debug(f"Connecting to {node}")
 
         self._ssh_client = paramiko.SSHClient()
@@ -365,7 +393,9 @@ class MLRunPatcher:
         )
 
     def _disconnect_from_node(self):
-        self._ssh_client.close()
+        if self._ssh_client is not None:
+            self._ssh_client.close()
+            self._ssh_client = None
 
     def _patch_deployment_from_file(self):
         for deployment in self._deployments:
@@ -474,6 +504,109 @@ class MLRunPatcher:
             except RuntimeError:
                 # Retry until timeout is reached
                 time.sleep(5)
+
+    def _run_db_migrations(self):
+        chief = "mlrun-api-chief"
+        self._ensure_backup_disabled_on_chief(chief)
+        self._trigger_migration_via_endpoint(chief)
+
+    def _ensure_backup_disabled_on_chief(self, deployment: str):
+        # Workaround: services/api/utils/db/backup.py runs mysqldump without a
+        # password flag and the api container has no MYSQL_PWD / .my.cnf, so
+        # the backup step in /operations/migrations fails when a migration is
+        # actually pending. Disable backup before triggering.
+        env_var = "MLRUN_HTTPDB__DB__BACKUP__MODE"
+        desired = "disabled"
+        current = self._exec_remote(
+            [
+                "kubectl",
+                "-n",
+                self._namespace,
+                "get",
+                "deployment",
+                deployment,
+                "-o",
+                (
+                    f"jsonpath={{.spec.template.spec.containers[?(@.name=='{Constants.api_container}')]"
+                    f".env[?(@.name=='{env_var}')].value}}"
+                ),
+            ]
+        ).strip()
+        if current == desired:
+            logger.info("DB backup already disabled on %s", deployment)
+            return
+
+        logger.info("Disabling DB backup on %s", deployment)
+        self._exec_remote(
+            [
+                "kubectl",
+                "-n",
+                self._namespace,
+                "set",
+                "env",
+                f"deployment/{deployment}",
+                "-c",
+                Constants.api_container,
+                f"{env_var}={desired}",
+            ]
+        )
+        self._exec_remote(
+            [
+                "kubectl",
+                "-n",
+                self._namespace,
+                "rollout",
+                "status",
+                "deployment",
+                deployment,
+                "--timeout=120s",
+            ],
+            live=True,
+        )
+
+    def _trigger_migration_via_endpoint(self, deployment: str):
+        # Bypass mlrun.get_run_db() — its connect() syncs client-spec which
+        # turns on auth_with_oauth_token, and IGTokenProvider's __init__
+        # eagerly fetches a token we don't have. Construct HTTPRunDB directly
+        # and inject the pod's k8s service-account token on the session so
+        # every api_call (POST + polling GETs) carries the SA bearer.
+        snippet = "\n".join(
+            [
+                "import sys, mlrun.db.httpdb as httpdb",
+                "db = httpdb.HTTPRunDB('http://localhost:8080')",
+                "db.token_provider = None",
+                "db.session = db._init_session(False, False)",
+                "with open('/var/run/secrets/kubernetes.io/serviceaccount/token') as f:",
+                "    token = f.read().strip()",
+                "db.session.headers.update({",
+                "    'Authorization': f'Bearer {token}',",
+                "    'x-igz-authenticator-kind': 'sa',",
+                "})",
+                "result = db.trigger_migrations()",
+                "if result is None:",
+                "    sys.exit(0)",
+                "state = result.status.state",
+                "print('migration finished:', state)",
+                "sys.exit(0 if state == 'succeeded' else 1)",
+            ]
+        )
+        logger.info("Triggering DB migration on %s", deployment)
+        self._exec_remote(
+            [
+                "kubectl",
+                "-n",
+                self._namespace,
+                "exec",
+                f"deployment/{deployment}",
+                "--container",
+                Constants.api_container,
+                "--",
+                "python",
+                "-c",
+                snippet,
+            ],
+            live=True,
+        )
 
     def _reset_mlrun_db(self):
         mlrun_api_services_deployment_selector = (
@@ -588,18 +721,24 @@ class MLRunPatcher:
             raise subprocess.CalledProcessError(ret_code, cmd)
 
     def _exec_local(
-        self, cmd: list[str], live: bool = False, env: typing.Optional[dict] = None
+        self, cmd: list[str], live: bool = False, env: dict | None = None
     ) -> str:
         logger.debug("Exec local: %s", " ".join(cmd))
         buf = io.StringIO()
-        for line in self._execute_local_proc_interactive(cmd, env):
-            buf.write(line)
-            if live:
-                print(line, end="")
-        output = buf.getvalue()
-        return output
+        try:
+            for line in self._execute_local_proc_interactive(cmd, env):
+                buf.write(line)
+                if live:
+                    print(line, end="")
+        except subprocess.CalledProcessError as exc:
+            exc.output = buf.getvalue()
+            raise
+        return buf.getvalue()
 
     def _exec_remote(self, cmd: list[str], live=False) -> str:
+        if self._mode == Constants.mode_kubectl:
+            return self._exec_kubectl_local(cmd, live=live)
+
         cmd_str = shlex.join(cmd)
         logger.debug("Exec remote: %s", cmd_str)
         stdin_stream, stdout_stream, stderr_stream = self._ssh_client.exec_command(
@@ -628,13 +767,25 @@ class MLRunPatcher:
 
         return stdout
 
+    def _exec_kubectl_local(self, cmd: list[str], live: bool = False) -> str:
+        cmd_str = shlex.join(cmd)
+        logger.debug("Exec kubectl: %s", cmd_str)
+        env = {"KUBECONFIG": self._kubeconfig} if self._kubeconfig else None
+        try:
+            return self._exec_local(cmd, live=live, env=env)
+        except subprocess.CalledProcessError as exc:
+            output = (exc.output or "").strip()
+            raise RuntimeError(
+                f"Command '{cmd_str}' finished with failure ({exc.returncode})\n{output}"
+            ) from exc
+
     def _resolve_overwrite_registry(self):
-        docker_registry = self._config["DOCKER_REGISTRY"]
-        overwrite_registry = self._config["OVERWRITE_IMAGE_REGISTRY"]
-        if docker_registry.endswith("/"):
-            docker_registry = docker_registry[:-1]
-        if overwrite_registry.endswith("/"):
-            overwrite_registry = overwrite_registry[:-1]
+        docker_registry = self._config.get("DOCKER_REGISTRY")
+        overwrite_registry = self._config.get("OVERWRITE_IMAGE_REGISTRY")
+        if docker_registry:
+            docker_registry = docker_registry.rstrip("/")
+        if overwrite_registry:
+            overwrite_registry = overwrite_registry.rstrip("/")
 
         return docker_registry, overwrite_registry
 
@@ -642,6 +793,16 @@ class MLRunPatcher:
         if namespace:
             return namespace
         return self._config.get("NAMESPACE", Constants.default_namespace)
+
+    def _resolve_docker_registry(self):
+        mlrun_docker_registry = self._config.get("DOCKER_REGISTRY").rstrip("/")
+        mlrun_docker_repo = self._config.get("DOCKER_REPO")
+
+        if mlrun_docker_repo:
+            mlrun_docker_registry = (
+                f"{mlrun_docker_registry}/{mlrun_docker_repo.rstrip('/')}"
+            )
+        return mlrun_docker_registry
 
 
 @click.command(help="mlrun-api deployer to remote system")
@@ -684,12 +845,6 @@ class MLRunPatcher:
     help="Deploy the mlrun image",
 )
 @click.option(
-    "-39",
-    "--py39",
-    is_flag=True,
-    help="Build Python 3.9 MLRun image",
-)
-@click.option(
     "-sa",
     "--skip-api",
     is_flag=True,
@@ -718,6 +873,25 @@ class MLRunPatcher:
     default="",
     help="Kubernetes namespace to deploy to. If not set, defaults to 'default-tenant'.",
 )
+@click.option(
+    "-m",
+    "--mode",
+    type=click.Choice([Constants.mode_ssh, Constants.mode_kubectl]),
+    default=None,
+    help="Force execution mode. Defaults to ssh, or kubectl when --kubeconfig/KUBECONFIG is set.",
+)
+@click.option(
+    "--kubeconfig",
+    default="",
+    type=str,
+    help="Path to a kubeconfig file. Setting this implies kubectl mode unless --mode is given.",
+)
+@click.option(
+    "-mig",
+    "--migrate",
+    is_flag=True,
+    help="After the api rollout, trigger DB migrations on mlrun-api-chief via /operations/migrations.",
+)
 def main(
     verbose: bool,
     config: str,
@@ -726,12 +900,14 @@ def main(
     tag: str,
     log_collector: bool,
     mlrun: bool,
-    py39: bool,
     skip_api: bool,
     alerts: bool,
     no_build: bool,
     no_push: bool,
     namespace: str,
+    mode: str | None,
+    kubeconfig: str,
+    migrate: bool,
 ):
     if verbose:
         coloredlogs.set_level(logging.DEBUG)
@@ -743,12 +919,14 @@ def main(
         image_tag=tag,
         patch_log_collector_image=log_collector,
         patch_mlrun_image=mlrun,
-        build_py39=py39,
         skip_patch_api=skip_api,
         patch_alerts=alerts,
         no_build=no_build,
         no_push=no_push,
         namespace=namespace,
+        mode=mode or "",
+        kubeconfig=kubeconfig,
+        migrate=migrate,
     ).patch()
 
 

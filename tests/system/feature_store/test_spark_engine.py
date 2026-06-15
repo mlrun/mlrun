@@ -213,7 +213,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         read_back_df_spark = None
         file_system = fsspec.filesystem("file" if cls.run_local else "v3io")
         for file_entry in file_system.ls(out_path_spark):
-            filepath = file_entry if cls.run_local else f'v3io://{file_entry["name"]}'
+            filepath = file_entry if cls.run_local else f"v3io://{file_entry['name']}"
             if not cls.is_path_spark_metadata(filepath):
                 read_back_df_spark = pd.read_parquet(filepath)
                 break
@@ -221,7 +221,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
         read_back_df_storey = None
         for file_entry in file_system.ls(out_path_storey):
-            filepath = file_entry if cls.run_local else f'v3io://{file_entry["name"]}'
+            filepath = file_entry if cls.run_local else f"v3io://{file_entry['name']}"
             read_back_df_storey = pd.read_parquet(filepath)
             break
         assert read_back_df_storey is not None
@@ -246,7 +246,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         if file_system.isdir(csv_path):
             for file_entry in file_system.ls(csv_path):
                 filepath = (
-                    file_entry if cls.run_local else f'v3io://{file_entry["name"]}'
+                    file_entry if cls.run_local else f"v3io://{file_entry['name']}"
                 )
                 if not cls.is_path_spark_metadata(filepath):
                     return pd.read_csv(filepath)
@@ -600,7 +600,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         read_back_df_spark = None
         file_system = fsspec.filesystem("file" if self.run_local else "v3io")
         for file_entry in file_system.ls(csv_path_spark):
-            filepath = file_entry if self.run_local else f'v3io://{file_entry["name"]}'
+            filepath = file_entry if self.run_local else f"v3io://{file_entry['name']}"
             if not self.is_path_spark_metadata(filepath):
                 read_back_df_spark = pd.read_csv(filepath)
                 break

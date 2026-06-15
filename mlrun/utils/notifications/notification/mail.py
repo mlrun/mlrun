@@ -34,17 +34,18 @@ class MailNotification(base.NotificationBase):
 
     boolean_params = ["use_tls", "start_tls", "validate_certs"]
 
+    optional_auth_params = ["username", "password"]
+
     required_params = [
         "server_host",
         "server_port",
         "sender_address",
-        "username",
-        "password",
         "email_addresses",
     ] + boolean_params
 
     @classmethod
     def validate_params(cls, params):
+        cls._enrich_params(params)
         for required_param in cls.required_params:
             if required_param not in params:
                 raise ValueError(
@@ -57,26 +58,34 @@ class MailNotification(base.NotificationBase):
                     f"Parameter '{boolean_param}' must be a boolean for MailNotification"
                 )
 
+        # Allow no auth, username only, or username + password
+        # Some SMTP servers allow username without password
+        if params["password"] and not params["username"]:
+            raise ValueError(
+                "Parameter 'username' is required when 'password' is provided for MailNotification"
+            )
+
         cls._validate_emails(params)
 
     async def push(
         self,
         message: str,
-        severity: typing.Optional[
-            typing.Union[mlrun.common.schemas.NotificationSeverity, str]
-        ] = mlrun.common.schemas.NotificationSeverity.INFO,
-        runs: typing.Optional[typing.Union[mlrun.lists.RunList, list]] = None,
-        custom_html: typing.Optional[typing.Optional[str]] = None,
-        alert: typing.Optional[mlrun.common.schemas.AlertConfig] = None,
-        event_data: typing.Optional[mlrun.common.schemas.Event] = None,
+        severity: typing.Union[mlrun.common.schemas.NotificationSeverity, str]
+        | None = mlrun.common.schemas.NotificationSeverity.INFO,
+        runs: typing.Union[mlrun.lists.RunList, list] | None = None,
+        custom_html: str | None = None,
+        alert: mlrun.common.schemas.AlertConfig | None = None,
+        event_data: mlrun.common.schemas.Event | None = None,
     ):
-        self.params["subject"] = f"[{severity}] {message}"
+        self.params["subject"] = self._sanitize_subject(f"[{severity}] {message}")
         message_body_override = self.params.get("message_body_override", None)
 
         runs_html = self._get_html(
             message, severity, runs, custom_html, alert, event_data
         )
         self.params["body"] = runs_html
+
+        self._enrich_params(self.params)
 
         if message_body_override:
             self.params["body"] = message_body_override.replace(
@@ -87,7 +96,7 @@ class MailNotification(base.NotificationBase):
 
     @classmethod
     def enrich_default_params(
-        cls, params: dict, default_params: typing.Optional[dict] = None
+        cls, params: dict, default_params: dict | None = None
     ) -> dict:
         params = super().enrich_default_params(params, default_params)
         params.setdefault("use_tls", True)
@@ -122,7 +131,7 @@ class MailNotification(base.NotificationBase):
     def _validate_emails(cls, params):
         cls._validate_email_address(params["sender_address"])
 
-        if not isinstance(params["email_addresses"], (str, list)):
+        if not isinstance(params["email_addresses"], str | list):
             raise ValueError(
                 "Parameter 'email_addresses' must be a string or a list of strings"
             )
@@ -147,8 +156,8 @@ class MailNotification(base.NotificationBase):
         sender_address: str,
         server_host: str,
         server_port: int,
-        username: str,
-        password: str,
+        username: str | None,
+        password: str | None,
         use_tls: bool,
         start_tls: bool,
         validate_certs: bool,
@@ -163,14 +172,32 @@ class MailNotification(base.NotificationBase):
         message["Subject"] = subject
         message.attach(MIMEText(body, "html"))
 
-        # Send the email
-        await aiosmtplib.send(
-            message,
-            hostname=server_host,
-            port=server_port,
-            username=username,
-            password=password,
-            use_tls=use_tls,
-            validate_certs=validate_certs,
-            start_tls=start_tls,
-        )
+        send_kwargs = {
+            "hostname": server_host,
+            "port": server_port,
+            "use_tls": use_tls,
+            "validate_certs": validate_certs,
+            "start_tls": start_tls,
+        }
+
+        # Only include auth parameters when provided to avoid forcing SMTP AUTH
+        if username is not None:
+            send_kwargs["username"] = username
+        if password is not None:
+            send_kwargs["password"] = password
+
+        await aiosmtplib.send(message, **send_kwargs)
+
+    @staticmethod
+    def _sanitize_subject(subject: str) -> str:
+        # Keep only the first line for the email subject.
+        return subject.splitlines()[0].strip()
+
+    @staticmethod
+    def _enrich_params(params):
+        # if username/password are not provided or empty strings, set them to None.
+        # this ensures consistent behavior in _send_email and avoids
+        # forcing SMTP auth when the server does not require authentication.
+        for param in ["username", "password"]:
+            if param not in params or not params[param]:
+                params[param] = None

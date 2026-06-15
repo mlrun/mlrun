@@ -17,20 +17,10 @@ name: System Tests Open Source
 permissions:
   contents: read
   packages: write
-
+  pull-requests: write
+  
 on:
-  push:
-    branches:
-      - '.+-os-system-tests'
-
-# disabled until we have a proper schedule definition
-#  schedule:
-#
-#    # * is a special character in YAML so you have to quote this string
-#    # Run the system tests every 3 hours
-#    - cron:  '0 */3 * * *'
-
-  workflow_dispatch:
+   workflow_dispatch:
     inputs:
       pr_number:
         description: 'PR number to run the system tests against (default: run on the latest commit in the development branch)'
@@ -56,46 +46,64 @@ on:
         options:
           - 'true'
           - 'false'
-
+   workflow_call:
+      inputs:
+        pr_number:
+          type: string
+          required: false
+          default: ''
+        pytest_markers:
+          type: string
+          required: false
+          default: 'not enterprise and smoke'
+        clean_resources_in_teardown:
+          type: string
+          required: false
+          default: 'true'
+        debug_enabled:
+          type: string
+          required: false
+          default: 'false'
+        pr_base_sha:
+          description: 'Pinned HEAD SHA of the PR base branch. If empty, computed internally.'
+          type: string
+          required: false
+          default: ''
+        pr_base_ref:
+          description: 'Base branch name of the PR. If empty, computed internally.'
+          type: string
+          required: false
+          default: ''
+        base_commits_since_sync:
+          description: 'Number of base-branch commits since the PR last synced with it. If empty, computed internally.'
+          type: string
+          required: false
+          default: ''
+      outputs:
+        pr_base_sha:
+          description: 'Pinned SHA of the base branch captured at workflow start'
+          value: ${{ jobs.prepare-inputs.outputs.pr_base_sha }}
+        pr_base_ref:
+          description: 'Base branch name of the PR'
+          value: ${{ jobs.prepare-inputs.outputs.pr_base_ref }}
+        base_commits_since_sync:
+          description: 'Number of base-branch commits since the PR last synced with it'
+          value: ${{ jobs.prepare-inputs.outputs.base_commits_since_sync }}
 env:
   NAMESPACE: mlrun
   MLRUN_API_NODE_PORT: 30070
   MLRUN_PYTHON_PACKAGE_INSTALLER: uv
+  MLRUN_PYTHON_VERSION: 3.11
+  # Default values for inputs (used when running on PR)
+  DEFAULT_PYTEST_MARKERS: 'not enterprise and smoke'
+  DEFAULT_CLEAN_RESOURCES_IN_TEARDOWN: 'true'
+  DEFAULT_DEBUG_ENABLED: 'false'
+  DEFAULT_ON_FAILURE_DUMP_K8_LOGS: 'false'
 
 jobs:
 
-# Uncomment this job and make all other jobs depending on it
-# to restrict usage of self-hosted runners for org members only
-# This requires adding a secret with permissions to read org members
-
-#  verify-caller:
-#    runs-on: [ self-hosted ]
-#    steps:
-#      - name: Check if actor is member of org
-#        continue-on-error: false
-#        env:
-#          GH_ACTOR: ${{ github.actor }}
-#          GH_ORG: ${{ github.repository_owner }}
-#          ML_ORG_READ_TOKEN: ${{ secrets.ML_ORG_READ_TOKEN }}  # or a personal token if needed
-#        run: |
-#          echo "Caller = $GH_ACTOR"
-#          echo "ORG = $GH_ORG"
-#          response=$(curl -s -L -o /dev/null -w "%{http_code}" \
-#            -H "Authorization: token $ML_ORG_READ_TOKEN" \
-#            https://api.github.com/orgs/$GH_ORG/members/$GH_ACTOR)
-#          echo "Response = $response"
-#
-#          if [ "$response" != "204" ]; then
-#            echo "User $GH_ACTOR is not a member of $GH_ORG"
-#            exit 1
-#          else
-#            echo "User $GH_ACTOR is a verified member"
-#          fi
-
   prepare-inputs:
     name: Prepare inputs
-# Uncomment if veify-caller job is used
-#    needs: verify-caller
     runs-on:
       group: mlrun-ce
     outputs:
@@ -106,15 +114,37 @@ jobs:
       mlrun_system_tests_clean_resources: ${{ steps.computed_params.outputs.mlrun_system_tests_clean_resources }}
       mlrun_version: ${{ steps.computed_params.outputs.mlrun_version }}
       mlrun_version_specifier: ${{ steps.computed_params.outputs.mlrun_version_specifier }}
+      pr_base_sha: ${{ steps.pr_base.outputs.pr_base_sha }}
+      pr_base_ref: ${{ steps.pr_base.outputs.pr_base_ref }}
+      base_commits_since_sync: ${{ steps.pr_base.outputs.base_commits_since_sync }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Extract git hashes from upstream and latest version
         id: git_upstream_info
         run: |
+          # Determine PR number - use input if available, otherwise extract from PR context
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            PR_NUM="${{ github.event.pull_request.number }}"
+          else
+            PR_NUM="$PR_NUMBER"
+          fi
+          
           # if the action is running on a PR, we need to get the latest commit hash from the PR branch
-          if [ -n "$PR_NUMBER" ]; then
-            echo "mlrun_hash=pr$PR_NUMBER" >> $GITHUB_OUTPUT
+          if [ -n "$PR_NUM" ]; then
+            PR_HEAD_SHA=$(curl -sS \
+              -H "Authorization: token ${GH_TOKEN}" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/${{ github.repository }}/pulls/${PR_NUM}" \
+              | jq -r '.head.sha')
+            if [ -z "$PR_HEAD_SHA" ] || [ "$PR_HEAD_SHA" = "null" ]; then
+              echo "::error::Failed to resolve PR #${PR_NUM} HEAD SHA"
+              exit 1
+            fi
+            # Include the PR HEAD SHA in the mlrun hash so each commit produces a unique
+            # docker tag and wrong use of cached image is prevented
+            PR_HEAD_SHORT=$(echo "$PR_HEAD_SHA" | cut -c1-8)
+            echo "mlrun_hash=pr${PR_NUM}-${PR_HEAD_SHORT}" >> $GITHUB_OUTPUT
           else
             echo "mlrun_hash=$( \
               cd /tmp && \
@@ -124,6 +154,7 @@ jobs:
               cd .. && \
               rm -rf mlrun-upstream)" >> $GITHUB_OUTPUT
           fi
+
           
           # NOTE: for now, always take the latest commit hash from the development branch
           # TODO: take from relevant branch [pr head branch]
@@ -136,7 +167,8 @@ jobs:
               rm -rf mlrun-ui)" >> $GITHUB_OUTPUT
           echo "unstable_version_prefix=$(cat automation/version/unstable_version_prefix)" >> $GITHUB_OUTPUT
         env:
-          PR_NUMBER: ${{ github.event.inputs.pr_number }}
+          PR_NUMBER: ${{ inputs.pr_number }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set computed versions params
         id: computed_params
@@ -150,9 +182,16 @@ jobs:
           echo "mlrun_ui_version=${{ steps.git_upstream_info.outputs.unstable_version_prefix }}-$ui_hash" >> $GITHUB_OUTPUT
           echo "mlrun_docker_tag=$(echo ${{ steps.git_upstream_info.outputs.unstable_version_prefix }}-$mlrun_hash)" >> $GITHUB_OUTPUT
           
+          # Determine PR number for version specifier
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            PR_NUM="${{ github.event.pull_request.number }}"
+          else
+            PR_NUM="$PR_NUMBER"
+          fi
+          
           export mlrun_version_specifier=$mlrun_hash
-          if [ -n "$PR_NUMBER" ]; then
-            mlrun_version_specifier="refs/pull/${PR_NUMBER}/merge"
+          if [ -n "$PR_NUM" ]; then
+            mlrun_version_specifier="refs/pull/${PR_NUM}/merge"
           fi
           echo "mlrun_version_specifier=$mlrun_version_specifier" >> $GITHUB_OUTPUT
           
@@ -163,11 +202,59 @@ jobs:
             input_system_tests_clean_resources=$INPUT_CLEAN_RESOURCES_IN_TEARDOWN && \
             echo ${input_system_tests_clean_resources:-true})" >> $GITHUB_OUTPUT
         env:
-          INPUT_CLEAN_RESOURCES_IN_TEARDOWN: ${{ github.event.inputs.clean_resources_in_teardown }}
-          PR_NUMBER: ${{ github.event.inputs.pr_number }}
+          INPUT_CLEAN_RESOURCES_IN_TEARDOWN: ${{ inputs.clean_resources_in_teardown || env.DEFAULT_CLEAN_RESOURCES_IN_TEARDOWN }}
+          PR_NUMBER: ${{ inputs.pr_number }}
+
+      - name: Print mlrun_hash value
+        run: |
+          echo "mlrun_hash value: ${{ steps.computed_params.outputs.mlrun_hash }}"
+
+      - name: Capture PR base ref and SHA
+        id: pr_base
+        if: inputs.pr_number != ''
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # If the caller passed all three base-info inputs, use them verbatim so
+          # everything downstream (merge step, comment) sees the same values.
+          # Otherwise compute internally.
+          if [ -n "${{ inputs.pr_base_sha }}" ] && [ -n "${{ inputs.pr_base_ref }}" ] && [ -n "${{ inputs.base_commits_since_sync }}" ]; then
+            BASE_REF="${{ inputs.pr_base_ref }}"
+            BASE_SHA="${{ inputs.pr_base_sha }}"
+            BASE_COMMITS_SINCE_SYNC="${{ inputs.base_commits_since_sync }}"
+            echo "Using base info from caller"
+          else
+            PR_JSON=$(curl -sS \
+              -H "Authorization: token ${GITHUB_TOKEN}" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/${{ github.repository }}/pulls/${{ inputs.pr_number }}")
+            BASE_REF=$(echo "$PR_JSON" | jq -r '.base.ref')
+            BASE_SHA=$(git ls-remote origin "refs/heads/${BASE_REF}" | cut -f1)
+
+            # Count how many base-branch commits have landed since the PR's last sync
+            # (where "sync" = the merge-base with the base branch). Use the compare API
+            # to find the real merge-base, since .base.sha from the PR API is just
+            # GitHub's cached base branch HEAD (often stale).
+            PR_HEAD_SHA=$(echo "$PR_JSON" | jq -r '.head.sha')
+            MERGE_BASE_SHA=$(curl -sS \
+              -H "Authorization: token ${GITHUB_TOKEN}" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/${{ github.repository }}/compare/${BASE_REF}...${PR_HEAD_SHA}" \
+              | jq -r '.merge_base_commit.sha')
+            BASE_COMMITS_SINCE_SYNC=$(curl -sS \
+              -H "Authorization: token ${GITHUB_TOKEN}" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/${{ github.repository }}/compare/${MERGE_BASE_SHA}...${BASE_SHA}" \
+              | jq -r '.ahead_by // 0')
+          fi
+
+          echo "pr_base_ref=${BASE_REF}" >> $GITHUB_OUTPUT
+          echo "pr_base_sha=${BASE_SHA}" >> $GITHUB_OUTPUT
+          echo "base_commits_since_sync=${BASE_COMMITS_SINCE_SYNC}" >> $GITHUB_OUTPUT
+          echo "PR #${{ inputs.pr_number }} base: ${BASE_REF} @ ${BASE_SHA} (${BASE_COMMITS_SINCE_SYNC} commits since sync)"
 
   build-mlrun:
-    if : github.event.inputs.pr_number != ''
+    if: inputs.pr_number != ''
     name: Build MLRun
     uses: ./.github/workflows/build-internal.yaml
     needs: prepare-inputs
@@ -182,6 +269,8 @@ jobs:
       # TODO: support patching jupyter as well (maybe on demand?)
       # and use --override-mlrun-jupyter-image when patching mlrun ce
       skip_images: test,mlrun-gpu,jupyter
+      pr_number: ${{ inputs.pr_number }}
+      pr_base_sha: ${{ needs.prepare-inputs.outputs.pr_base_sha }}
     secrets: inherit
 
   run-system-tests-opensource-ci:
@@ -189,42 +278,116 @@ jobs:
     runs-on:
       group: mlrun-ce
     needs: [prepare-inputs, build-mlrun]
+    if: >-
+      always() &&
+      needs.prepare-inputs.result == 'success' &&
+      (needs.build-mlrun.result == 'success' || needs.build-mlrun.result == 'skipped')
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
+      if: inputs.pr_number == ''
 
-    # since github-actions gives us 14G only, and fills it up with some garbage
-    - name: Freeing up disk space
+    - uses: actions/checkout@v6
+      if: inputs.pr_number != ''
+      with:
+        ref: refs/pull/${{ inputs.pr_number }}/head
+        fetch-depth: 0
+
+    - name: Merge base branch into PR
+      if: inputs.pr_number != ''
       run: |
-        "${GITHUB_WORKSPACE}/automation/scripts/github_workflow_free_space.sh"
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        BASE_SHA="${{ needs.prepare-inputs.outputs.pr_base_sha }}"
+        BASE_REF="${{ needs.prepare-inputs.outputs.pr_base_ref }}"
+
+        git fetch origin "${BASE_REF}"
+        if ! git merge "${BASE_SHA}" --no-edit; then
+          echo "::error::Merge of ${BASE_REF} (${BASE_SHA}) into PR #${{ inputs.pr_number }} failed due to conflicts. Please merge or rebase your branch locally and push."
+          git merge --abort
+          exit 1
+        fi
+
+        echo "Merged ${BASE_REF} @ ${BASE_SHA} into PR"
 
     - name: Install uv
-      uses: astral-sh/setup-uv@85856786d1ce8acfbcc2f13a5f3fbd6b938f9f41 # 7.1.2
+      uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39
       with:
         enable-cache: true
         cache-dependency-glob: "**/*requirements*.txt"
 
     - name: Set up Python
-      run: uv python install 3.9
+      run: uv python install ${MLRUN_PYTHON_VERSION}
 
     - name: Install automation scripts dependencies
       run: |
-        sudo apt-get install curl jq make
-        uv venv venv --seed
+        sudo apt-get update
+        sudo apt-get install --yes build-essential libpq-dev libffi-dev libssl-dev python3-dev pkg-config curl jq make
+        # yq is required by jupyterhub/action-k3s-helm (v4.1.0+) for calico setup
+        sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+        sudo chmod +x /usr/local/bin/yq
+        uv venv venv --seed --clear
         source venv/bin/activate
-        make install-requirements install-complete-requirements
-        uv pip install -r automation/requirements.txt
+        make install-requirements install-complete-requirements install-automation-requirements
 
-    - uses: jupyterhub/action-k3s-helm@6389a7f2a11343ea6b469628c6e7b3afa961db24 # 4.0.1
+        # Pin cffi below 2.0.0 to avoid wheels without _cffi_backend on the runner
+        # python -m pip install --upgrade --force-reinstall "cffi<2.0.0" cryptography bcrypt paramiko orjson
+        # python - <<'PY'
+        # import cffi
+        # import _cffi_backend  # noqa: F401
+        # import orjson
+
+        # orjson.dumps({"probe": 1})
+        # print("cffi runtime ok", cffi.__version__)
+        # print("orjson runtime ok", orjson.__version__)
+        # PY
+
+        # helps to resovler missing cffi_backend but test_spark_snowflake.py still fails
+        # uv pip uninstall cryptography bcrypt paramiko
+        # uv pip -vvv install --upgrade --force-reinstall cffi
+        # uv pip install cryptography bcrypt paramiko
+
+    - name: Check and cleanup any previous K3S installation
+      uses: ./.github/actions/cleanup-k3s
+
+    - uses: jupyterhub/action-k3s-helm@502a9ff4d816dad543e359971fe2c3128d0f4c6e # 4.1.0
       name: "Start a local k8s cluster"
       with:
         # - k3s versions at https://github.com/k3s-io/k3s/tags
         k3s-version: v1.32.3+k3s1
         # - helm versions at https://github.com/helm/helm/tags
         helm-version: v3.17.2
+        # Simple disk eviction config: Reserve 5% = 95% allocatable ephemeral storage
+        # Change the 5% value to increase/decrease allocatable storage
+        # Disable egress-selector to avoid connectivity issues
+        extra-setup-args: '--kubelet-arg=eviction-hard=nodefs.available\<5% --egress-selector-mode=disabled'
+
+
+
+    - name: Verify K3S kubelet configuration
+      run: |
+        echo "=== Waiting for node to be ready ==="
+        sleep 10
+        kubectl wait --for=condition=Ready nodes --all --timeout=120s || echo "Node not ready yet"
+        
+        echo "=== Checking node allocatable resources (including ephemeral-storage) ==="
+        kubectl get nodes -o json | jq -r '.items[] | {
+          name: .metadata.name,
+          allocatable_ephemeral_storage: .status.allocatable."ephemeral-storage",
+          capacity_ephemeral_storage: .status.capacity."ephemeral-storage"
+        }' || true
+        
+        echo "=== Checking for disk pressure conditions ==="
+        kubectl describe nodes | grep -A 10 "Conditions:" || echo "Node not ready yet"
+        
+        echo "=== Disk usage ==="
+        df -h /
+        
+        echo "=== Checking for taints (disk-pressure should not be present) ==="
+        kubectl get nodes -o json | jq -r '.items[].spec.taints' || echo "No taints found"
 
     - name: Setup tmate session
-      uses: mxschmitt/action-tmate@c0afd6f790e3a5564914980036ebf83216678101 # 3.23
-      if: ${{ github.event.inputs.debug_enabled == 'true' }}
+      uses: mxschmitt/action-tmate@35b54afac29c97fb54faba5b513f8fbd1882f113 # 3.24
+      if: ${{ (inputs.debug_enabled || env.DEFAULT_DEBUG_ENABLED) == 'true' }}
       with:
 
         # run in detach mode to allow the workflow to continue running while session is active
@@ -232,79 +395,522 @@ jobs:
         # it will wait until the user disconnects before finishing up the job.
         detached: true
 
-    - name: Setup Local Docker Registry
+    - name: Configure K3S Containerd Registries with Docker Hub Authentication
+      env:
+        DOCKER_USERNAME: ${{ secrets.DOCKER_HUB_DOCKER_REGISTRY_USERNAME }}
+        DOCKER_PASSWORD: ${{ secrets.DOCKER_HUB_DOCKER_REGISTRY_PASSWORD }}
+        ARTIFACTORY_REGISTRY_URL: ${{ secrets.ARTIFACTORY_DOCKER_REGISTRY_URL }}
+        ARTIFACTORY_USERNAME: ${{ secrets.ARTIFACTORY_DOCKER_REGISTRY_USERNAME }}
+        ARTIFACTORY_PASSWORD: ${{ secrets.ARTIFACTORY_DOCKER_REGISTRY_PASSWORD }}
       run: |
-        sudo tee "/etc/rancher/k3s/registries.yaml" << EOF
+        echo "=== Creating K3S registries configuration ==="
+
+        # Create the K3S config directory if it doesn't exist
+        sudo mkdir -p /etc/rancher/k3s
+
+        if [ -z "${ARTIFACTORY_REGISTRY_URL}" ]; then
+          echo "::error::Missing ARTIFACTORY_DOCKER_REGISTRY_URL secret"
+          exit 1
+        fi
+
+        # Create registries.yaml with Docker Hub authentication and Artifactory mirrors
+        # for ghcr.io / gcr.io image pulls
+        sudo tee "/etc/rancher/k3s/registries.yaml" > /dev/null << EOF
         mirrors:
           registry.localhost:
             endpoint:
-            - http://registry.localhost:80
+            - http://127.0.0.1:32000
+          docker.io:
+            endpoint:
+            - https://registry-1.docker.io
+          ghcr.io:
+            endpoint:
+            - https://${ARTIFACTORY_REGISTRY_URL#https://}
+          gcr.io:
+            endpoint:
+            - https://${ARTIFACTORY_REGISTRY_URL#https://}
+        configs:
+          "registry-1.docker.io":
+            auth:
+              username: ${DOCKER_USERNAME}
+              password: ${DOCKER_PASSWORD}
+          "${ARTIFACTORY_REGISTRY_URL}":
+            auth:
+              username: ${ARTIFACTORY_USERNAME}
+              password: ${ARTIFACTORY_PASSWORD}
         EOF
 
-        # restart k3s to apply the changes
+        echo "✓ Registries configuration created at /etc/rancher/k3s/registries.yaml"
+
+
+        # Show the config (with credentials masked)
+        echo "=== Configuration preview (credentials masked) ==="
+        sudo sed 's/username:.*/username: ***/' /etc/rancher/k3s/registries.yaml | \
+          sed 's/password:.*/password: ***/'
+
+    - name: Apply Registries Configuration and Setup Local Registry
+      run: |
+        echo "=== Restarting K3S to apply registry configuration ==="
         sudo systemctl restart k3s
 
         # wait ~30s for k3s to stabilize
+        echo "Waiting for K3S to stabilize..."
         sleep 30
 
+        echo "=== Verifying K3S is ready ==="
+        kubectl wait --for=condition=Ready nodes --all --timeout=120s
+
+        echo "=== Deploying local Docker registry ==="
         # create the docker-registry namespace and deploy the registry
         kubectl create namespace docker-registry --dry-run=client -o yaml | kubectl apply -f -
         kubectl apply -f automation/system_test/k3s_docker_registry.yaml
 
-        # restart coredns to apply the changes
+        echo "=== Restarting CoreDNS to apply DNS changes ==="
         kubectl -n kube-system rollout restart deployment coredns
+        
+        echo "✓ Registry configuration applied successfully"
 
-    - name: Install MLRun CE helm chart
+    - name: Pre-stage MLRun base image to local registry
       run: |
-        # TODO: Align the mlrun config env vars with the ones in the prepare.py script to avoid further inconsistencies.
-        source venv/bin/activate
-        python automation/deployment/ce.py deploy \
-            --verbose \
-            --registry-url="registry.localhost" \
-            --skip-registry-validation \
-            --namespace=${NAMESPACE} \
-            --registry-secret-name="" \
-            --devel \
-            --override-mlrun-api-image="${{ needs.prepare-inputs.outputs.mlrun_docker_registry }}${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}/mlrun-api:${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}" \
-            --override-mlrun-log-collector-image="${{ needs.prepare-inputs.outputs.mlrun_docker_registry }}${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}/log-collector:${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}" \
-            --set 'mlrun.api.extraEnvKeyValue.MLRUN_HTTPDB__BUILDER__MLRUN_VERSION_SPECIFIER="mlrun[complete] @ git+https://github.com/mlrun/mlrun@${{ needs.prepare-inputs.outputs.mlrun_version_specifier }}"' \
-            --set mlrun.api.extraEnvKeyValue.MLRUN_IMAGES_REGISTRY="${{ needs.prepare-inputs.outputs.mlrun_docker_registry }}" \
-            --set mlrun.api.extraEnvKeyValue.MLRUN_LOG_LEVEL="DEBUG" \
-            --set 'mlrun.api.extraEnvKeyValue.MLRUN_HTTPDB__SCHEDULING__MIN_ALLOWED_INTERVAL="0 seconds"' \
-            --set mlrun.api.extraEnvKeyValue.MLRUN_MODEL_ENDPOINT_MONITORING__PARQUET_BATCHING_MAX_EVENTS="100"
+        MLRUN_IMAGE="${{ needs.prepare-inputs.outputs.mlrun_docker_registry }}${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}/mlrun:${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}"
+        LOCAL_IMAGE="localhost:32000/${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}/mlrun:${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}"
+
+        echo "Starting background pre-stage: ${MLRUN_IMAGE} → local registry"
+        (
+          set -e
+          echo "[prestage] Pulling ${MLRUN_IMAGE} via crictl (Artifactory mirror)..."
+          sudo crictl pull "${MLRUN_IMAGE}"
+          echo "[prestage] Tagging as ${LOCAL_IMAGE}..."
+          sudo k3s ctr images tag "${MLRUN_IMAGE}" "${LOCAL_IMAGE}"
+          echo "[prestage] Pushing to local registry (plain HTTP)..."
+          sudo k3s ctr images push --plain-http "${LOCAL_IMAGE}"
+          echo "[prestage] Done."
+        ) > /tmp/mlrun-prestage.log 2>&1 &
+        PRESTAGE_PID=$!
+        echo "MLRUN_PRESTAGE_PID=${PRESTAGE_PID}" >> $GITHUB_ENV
+        echo "Pre-stage running in background (PID: ${PRESTAGE_PID})"
+
+    - name: Setup K3S storage and check cluster health
+      run: |
+        echo "=== Checking K3S storage configuration ==="
+        
+        # Check if default storage class exists
+        kubectl get storageclass
+        
+        # If no default storage class, create one using local-path (K3S default)
+        if ! kubectl get storageclass local-path >/dev/null 2>&1; then
+          echo "Creating local-path storage class..."
+          kubectl apply -f https://raw.githubusercontent.com/rancher/local-path-provisioner/v0.0.24/deploy/local-path-storage.yaml
+          sleep 5
+        fi
+        
+        # Set local-path as default storage class if no default exists
+        if ! kubectl get storageclass | grep "(default)" >/dev/null 2>&1; then
+          echo "Setting local-path as default storage class..."
+          kubectl patch storageclass local-path -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
+        fi
+        
+        echo "=== Storage classes after setup ==="
+        kubectl get storageclass
+        
+        echo "=== Checking cluster nodes and resources ==="
+        kubectl get nodes -o wide
+        kubectl get pods -A
+        
+        echo "=== Listing all Helm releases before cleanup ==="
+        helm list --all-namespaces
+
+        echo "Deleting all Helm releases in all namespaces:"
+        for ns in $(kubectl get ns --no-headers -o custom-columns=":metadata.name"); do
+          for release in $(helm list -n "$ns" --short); do
+            echo "Deleting Helm release '$release' in namespace '$ns'..."
+            helm uninstall "$release" -n "$ns" || true
+          done
+        done
+
+        echo "Listing Helm releases after cleanup:"
+        helm list --all-namespaces
+
+    - name: Generate GitHub App Token
+      id: github-app-token
+      uses: actions/create-github-app-token@v3
+      with:
+        app-id: ${{ secrets.GH_APP_ID }}
+        private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+        owner: ${{ github.repository_owner }}
+        repositories: mlrun,private-system-tests
 
     - name: Prepare system tests env
       run: |
+        # Define get_host_ip function
+        get_host_ip() {
+            case "$(uname -s)" in
+                "Darwin") ipconfig getifaddr en0 2>/dev/null ;;
+                "Linux") hostname -I 2>/dev/null | awk '{print $1}' ;;
+                *) echo "localhost" ;;  # fallback
+            esac
+        }
+        
+        # Get the host IP
+        HOST_IP=$(get_host_ip)
+        echo "Detected host IP: $HOST_IP"
+        
+        # Export MLRUN_DBPATH before running prepare.py to avoid warnings
+        export MLRUN_DBPATH="http://${HOST_IP}:${MLRUN_API_NODE_PORT}"
+        echo "MLRUN_DBPATH set to: $MLRUN_DBPATH"
+        
         source venv/bin/activate
         python automation/system_test/prepare.py env \
-          --mlrun-dbpath "http://localhost:${MLRUN_API_NODE_PORT}" \
-          --github-access-token "${{ secrets.SYSTEM_TEST_GITHUB_ACCESS_TOKEN }}" \
+          --mlrun-dbpath "$MLRUN_DBPATH" \
+          --github-access-token "${{ steps.github-app-token.outputs.token }}" \
           --openai-base-url "${{ secrets.OPENAI_BASE_URL }}" \
           --openai-api-key "${{ secrets.OPENAI_API_KEY }}"
 
-    - name: Run system tests
+    - name: Build and serve MLRun wheel for kaniko builds
       run: |
         source venv/bin/activate
-        MLRUN_SYSTEM_TEST_MARKERS="$PYTEST_MARKERS" \
-        MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES="${{ needs.prepare-inputs.outputs.mlrun_system_tests_clean_resources }}" \
-        MLRUN_VERSION="${{ needs.prepare-inputs.outputs.mlrun_version }}" \
-          make test-system-open-source
-      env:
-        PYTEST_MARKERS: ${{ github.event.inputs.pytest_markers }}
+        # Build a wheel from the already-merged source tree so kaniko pods can
+        # pip-install mlrun from a local HTTP server instead of cloning from GitHub.
+        # This avoids GitHub rate-limiting when multiple kaniko builds run concurrently.
+        pip install build --quiet
+        rm -rf /tmp/mlrun-wheels && mkdir -p /tmp/mlrun-wheels
+        python -m build --wheel --outdir /tmp/mlrun-wheels . --quiet
+        # Use a fixed name so the URL is predictable
+        mv /tmp/mlrun-wheels/*.whl /tmp/mlrun-wheels/mlrun-pr-synced-with-base.whl
+        # Serve on the node IP so Kubernetes pods can reach it
+        NODE_IP=$(hostname -I | awk '{print $1}')
+        python3 -m http.server 9000 --directory /tmp/mlrun-wheels &
+        echo "MLRUN_WHEEL_NODE_IP=${NODE_IP}" >> $GITHUB_ENV
+        echo "MLRun wheel available at: http://${NODE_IP}:9000/mlrun-pr-synced-with-base.whl"
 
-    - name: Output some logs in case of failure
-      if: ${{ failure() }}
+    - name: Install MLRun CE helm chart
+      uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60 # v4.0.0
+      with:
+        timeout_minutes: 50
+        max_attempts: 1
+        retry_wait_seconds: 120
+        command: |
+          # TODO: Align the mlrun config env vars with the ones in the prepare.py script to avoid further inconsistencies.
+          source venv/bin/activate
+          
+          # Cleanup any existing helm release before retry
+          helm uninstall mlrun-ce -n ${NAMESPACE} || true
+
+          # Delete PVCs so that stateful services (e.g. Kafka) start with a clean data directory
+          kubectl delete pvc --all -n ${NAMESPACE} --wait=false 2>/dev/null || true
+          kubectl wait --for=delete pvc --all -n ${NAMESPACE} --timeout=120s 2>/dev/null || true
+
+          # Wait a bit for cleanup to complete
+          sleep 30
+          
+          python automation/deployment/ce.py deploy \
+              --verbose \
+              --registry-url="registry.localhost" \
+              --skip-registry-validation \
+              --namespace=${NAMESPACE} \
+              --registry-secret-name="" \
+              --devel \
+              --helm-timeout=15m \
+              --override-mlrun-api-image="${{ needs.prepare-inputs.outputs.mlrun_docker_registry }}${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}/mlrun-api:${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}" \
+              --override-mlrun-log-collector-image="${{ needs.prepare-inputs.outputs.mlrun_docker_registry }}${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}/log-collector:${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}" \
+              --set 'mlrun.api.extraEnvKeyValue.MLRUN_HTTPDB__BUILDER__MLRUN_VERSION_SPECIFIER="mlrun[complete] @ http://${{ env.MLRUN_WHEEL_NODE_IP }}:9000/mlrun-pr-synced-with-base.whl"' \
+              --set mlrun.api.extraEnvKeyValue.MLRUN_IMAGES_REGISTRY="${{ needs.prepare-inputs.outputs.mlrun_docker_registry }}" \
+              --set mlrun.api.extraEnvKeyValue.MLRUN_IMAGES_TAG="${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}" \
+              --set mlrun.api.extraEnvKeyValue.MLRUN_DEFAULT_BASE_IMAGE="registry.localhost/${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}/mlrun:${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}" \
+              --set mlrun.api.extraEnvKeyValue.MLRUN_FUNCTION_DEFAULTS__IMAGE_BY_KIND__JOB="registry.localhost/${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}/mlrun:${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}" \
+              --set mlrun.api.extraEnvKeyValue.MLRUN_FUNCTION_DEFAULTS__IMAGE_BY_KIND__SERVING="registry.localhost/${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}/mlrun:${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}" \
+              --set mlrun.api.extraEnvKeyValue.MLRUN_FUNCTION_DEFAULTS__IMAGE_BY_KIND__NUCLIO="registry.localhost/${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}/mlrun:${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}" \
+              --set mlrun.api.extraEnvKeyValue.MLRUN_FUNCTION_DEFAULTS__IMAGE_BY_KIND__REMOTE="registry.localhost/${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}/mlrun:${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}" \
+              --set mlrun.api.extraEnvKeyValue.MLRUN_FUNCTION_DEFAULTS__IMAGE_BY_KIND__MPIJOB="registry.localhost/${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}/mlrun:${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}" \
+              --set 'mlrun.api.extraEnvKeyValue.MLRUN_HTTPDB__SCHEDULING__MIN_ALLOWED_INTERVAL="0 seconds"' \
+              --set mlrun.api.extraEnvKeyValue.MLRUN_MODEL_ENDPOINT_MONITORING__PARQUET_BATCHING_MAX_EVENTS="100" \
+              --set jupyterNotebook.enabled=false \
+              --set kube-prometheus-stack.enabled=false
+          
+            # Wait for all pods to be ready, on K3S the helm wait does not work because services will never get an IP
+            echo "Waiting for all pods in namespace ${NAMESPACE} to be ready..."
+
+            # Wait up to 40 minutes (2400 seconds) for all pods to be ready.
+            timeout=2400
+            interval=60
+            elapsed=0
+
+            while true; do
+              not_ready=$(kubectl get pods -n ${NAMESPACE} --no-headers | grep -v 'Running\|Completed' | wc -l)
+              if [ "$not_ready" -eq 0 ]; then
+                # All pods appear Running/Completed, but on top of it, make sure pods state is stable by
+                # verifying that the pods restart count is not increasing across a 30 sec period
+                total_restarts=$(kubectl get pods -n ${NAMESPACE} --no-headers | awk '{sum += int($4)} END {print sum+0}')
+                if [ "$total_restarts" -gt 0 ]; then
+                  echo "WARNING: pods have $total_restarts total restart(s), waiting 30s to confirm stability..."
+                  kubectl get pods -n ${NAMESPACE}
+                  sleep 30
+                  elapsed=$((elapsed + 30))
+                  not_ready=$(kubectl get pods -n ${NAMESPACE} --no-headers | grep -v 'Running\|Completed' | wc -l)
+                  total_restarts_after=$(kubectl get pods -n ${NAMESPACE} --no-headers | awk '{sum += int($4)} END {print sum+0}')
+                  if [ "$not_ready" -eq 0 ] && [ "$total_restarts_after" -eq "$total_restarts" ]; then
+                    echo "All pods stable after confirmation check (restarts unchanged at $total_restarts)."
+                    break
+                  fi
+                  if [ "$total_restarts_after" -gt "$total_restarts" ]; then
+                    echo "Restart count increased ($total_restarts -> $total_restarts_after), pod(s) still crashing, continuing to wait..."
+                  else
+                    echo "Pod(s) not ready after confirmation window, continuing to wait..."
+                  fi
+                else
+                  echo "All pods in namespace ${NAMESPACE} are ready."
+                  break
+                fi
+              fi
+              if [ "$elapsed" -ge "$timeout" ]; then
+                echo "Timeout reached waiting for pods to be ready."
+                kubectl get pods -n ${NAMESPACE}
+                exit 1
+              fi
+              echo "Waiting for pods to be ready... (${elapsed}/${timeout}s)"
+              kubectl get pods -n ${NAMESPACE}
+              sleep $interval
+              elapsed=$((elapsed + interval))
+            done
+
+            # Wait for Kafka brokers to be ready (Strimzi creates broker pods
+            # asynchronously after the operator pod is Running).
+            echo "Waiting for Kafka CR to become Ready..."
+            kafka_timeout=300
+            kafka_elapsed=0
+            kafka_interval=15
+            while true; do
+              kafka_cr_ready=$(kubectl get kafka kafka-stream -n ${NAMESPACE} -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || echo "Unknown")
+              if [ "$kafka_cr_ready" = "True" ]; then
+                echo "Kafka CR is Ready."
+                break
+              fi
+              if [ "$kafka_elapsed" -ge "$kafka_timeout" ]; then
+                echo "Timeout waiting for Kafka to become Ready."
+                kubectl get pods -n ${NAMESPACE} -l strimzi.io/cluster=kafka-stream 2>/dev/null || true
+                kubectl get kafka kafka-stream -n ${NAMESPACE} -o yaml 2>/dev/null | tail -30 || true
+                exit 1
+              fi
+              echo "Waiting for Kafka... (${kafka_elapsed}/${kafka_timeout}s, status: ${kafka_cr_ready:-Unknown})"
+              sleep $kafka_interval
+              kafka_elapsed=$((kafka_elapsed + kafka_interval))
+            done
+
+    - name: Start GitHub App token refresh daemon
+      shell: bash
+      env:
+        GH_APP_ID: ${{ secrets.GH_APP_ID }}
+        GH_APP_PRIVATE_KEY: ${{ secrets.GH_APP_PRIVATE_KEY }}
+      run: |
+        source .github/scripts/github-app-token.sh
+        DAEMON_PID=$(start_token_refresh_daemon \
+          "/tmp/.github-app-token" \
+          "$GITHUB_WORKSPACE/tests/system/env.yml" \
+          "MLRUN_SYSTEM_TESTS_GIT_TOKEN" \
+          "3300" \
+          "${{ github.repository_owner }}" \
+          "mlrun,private-system-tests")
+        echo "Token refresh daemon started (PID: ${DAEMON_PID})"
+        echo "TOKEN_REFRESH_PID=${DAEMON_PID}" >> $GITHUB_ENV
+
+    - name: Wait for MLRun base image pre-stage
+      # The pre-stage's only consumer is kaniko (function builds in pytest).
+      # Helm install does not pull mlrun/mlrun so we let pre-stage run in
+      # parallel with helm install.
+      run: |
+        if [ -z "${MLRUN_PRESTAGE_PID}" ]; then
+          echo "No pre-stage PID found, skipping wait."
+          exit 0
+        fi
+        echo "Waiting for MLRun image pre-stage to finish (PID: ${MLRUN_PRESTAGE_PID})..."
+        while kill -0 "${MLRUN_PRESTAGE_PID}" 2>/dev/null; do
+          echo "  still running... ($(cat /tmp/mlrun-prestage.log 2>/dev/null | tail -1))"
+          sleep 15
+        done
+        echo "=== Pre-stage log ==="
+        cat /tmp/mlrun-prestage.log || true
+        if grep -q "\[prestage\] Done\." /tmp/mlrun-prestage.log 2>/dev/null; then
+          echo "✓ MLRun base image pre-staged successfully"
+        else
+          echo "✗ Pre-stage did not complete — kaniko builds in pytest will fail with image-not-found"
+          exit 1
+        fi
+
+    - name: Run system tests
+      id: system-tests
+      run: |
+        # Define get_host_ip function
+        get_host_ip() {
+            case "$(uname -s)" in
+                "Darwin") ipconfig getifaddr en0 2>/dev/null ;;
+                "Linux") hostname -I 2>/dev/null | awk '{print $1}' ;;
+                *) echo "localhost" ;;  # fallback
+            esac
+        }
+        
+        # Get the host IP
+        HOST_IP=$(get_host_ip)
+        echo "Detected host IP: $HOST_IP"
+
+        # The test client (running on the host) connects to in-cluster services using
+        # their k8s DNS names (timescaledb:5432, kafka-stream:9092) which don't resolve
+        # on the host. Port-forward them to localhost so the host can reach them, and
+        # add /etc/hosts entries so the DNS names resolve to 127.0.0.1.
+        echo "127.0.0.1 timescaledb kafka-stream" | sudo tee -a /etc/hosts
+        kubectl port-forward -n ${NAMESPACE} service/timescaledb 5432:5432 &
+        kubectl port-forward -n ${NAMESPACE} service/kafka-stream-kafka-bootstrap 9092:9092 &
+        # Give port-forwards a moment to establish
+        sleep 3
+        echo "✓ Port-forwards started for timescaledb:5432 and kafka-stream:9092"
+
+        # Export environment variables for tests
+        export MLRUN_DBPATH="http://${HOST_IP}:${MLRUN_API_NODE_PORT}"
+        export MLRUN_SYSTEM_TEST_MARKERS="$PYTEST_MARKERS"
+        export MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES="${{ needs.prepare-inputs.outputs.mlrun_system_tests_clean_resources }}"
+        export MLRUN_VERSION="${{ needs.prepare-inputs.outputs.mlrun_version }}"
+        export MLRUN_IMAGES_TAG="${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}"
+
+        # Set default function images on the client side to match the server overrides.
+        # This ensures tests that reference mlrun.mlconf.function_defaults.image_by_kind
+        # get the correct fully-qualified image URL (avoiding registry enrichment issues in forks).
+        MLRUN_IMAGE="${{ needs.prepare-inputs.outputs.mlrun_docker_registry }}${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}/mlrun:${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}"
+        export MLRUN_DEFAULT_BASE_IMAGE="$MLRUN_IMAGE"
+        export MLRUN_FUNCTION_DEFAULTS__IMAGE_BY_KIND__JOB="$MLRUN_IMAGE"
+        export MLRUN_FUNCTION_DEFAULTS__IMAGE_BY_KIND__SERVING="$MLRUN_IMAGE"
+        export MLRUN_FUNCTION_DEFAULTS__IMAGE_BY_KIND__NUCLIO="$MLRUN_IMAGE"
+        export MLRUN_FUNCTION_DEFAULTS__IMAGE_BY_KIND__REMOTE="$MLRUN_IMAGE"
+        export MLRUN_FUNCTION_DEFAULTS__IMAGE_BY_KIND__MPIJOB="$MLRUN_IMAGE"
+
+        # S3 credentials for client-side artifact uploads (SeaweedFS).
+        # Read from the s3-credentials K8s secret created by the CE chart, but
+        # replace the in-cluster DNS endpoint with a routable ClusterIP address.
+        export AWS_ACCESS_KEY_ID=$(kubectl get secret storage-credentials -n ${NAMESPACE} -o jsonpath='{.data.AWS_ACCESS_KEY_ID}' | base64 -d)
+        export AWS_SECRET_ACCESS_KEY=$(kubectl get secret storage-credentials -n ${NAMESPACE} -o jsonpath='{.data.AWS_SECRET_ACCESS_KEY}' | base64 -d)
+        S3_CLUSTER_IP=$(kubectl get svc seaweedfs-s3 -n ${NAMESPACE} -o jsonpath='{.spec.clusterIP}')
+        S3_PORT=$(kubectl get svc seaweedfs-s3 -n ${NAMESPACE} -o jsonpath='{.spec.ports[0].port}')
+        export AWS_ENDPOINT_URL_S3="http://${S3_CLUSTER_IP}:${S3_PORT}"
+        echo "S3 endpoint: $AWS_ENDPOINT_URL_S3"
+
+        echo "Running tests with MLRUN_DBPATH=$MLRUN_DBPATH"
+        
+        source venv/bin/activate
+        make test-system-open-source
+      env:
+        PYTEST_MARKERS: ${{ inputs.pytest_markers || env.DEFAULT_PYTEST_MARKERS }}
+
+    - name: Output  logs
+      if: always()
       # add set -x to print commands before executing to make logs reading easier
       run: |
         set -x
-        kubectl --namespace ${NAMESPACE} logs -l app.kubernetes.io/component=api,app.kubernetes.io/name=mlrun --tail=-1
-        kubectl --namespace ${NAMESPACE} get all
-        kubectl --namespace ${NAMESPACE} get all -o yaml
+        echo "=================================="
+        echo "==== KUBERNETES CLUSTER STATE ===="
+        echo "=================================="
+        
+        echo "=== Nodes ==="
+        kubectl get nodes -o wide
+        kubectl describe nodes
+        
+        echo "=== Events (all namespaces) ==="
+        kubectl get events --all-namespaces --sort-by='.lastTimestamp' | tail -100
+        
+        echo "=== Events in ${NAMESPACE} ==="
+        kubectl get events -n ${NAMESPACE} --sort-by='.lastTimestamp'
+        
+        echo "=================================="
+        echo "=== NAMESPACE: ${NAMESPACE} ==="
+        echo "=================================="
+        
+        echo "=== All Resources ==="
+        kubectl --namespace ${NAMESPACE} get all -o wide
+        
+        echo "=== Pods Status ==="
+        kubectl --namespace ${NAMESPACE} get pods -o wide
+        
+        echo "=== Pods Descriptions ==="
         kubectl --namespace ${NAMESPACE} describe pods
-        kubectl --namespace ${NAMESPACE} get cm
-        kubectl --namespace ${NAMESPACE} get cm -o yaml
-        kubectl --namespace ${NAMESPACE} get secrets
-        kubectl --namespace ${NAMESPACE} get secrets -o yaml
+        
+        echo "=== PVC and PV ==="
         kubectl --namespace ${NAMESPACE} get pvc
-        kubectl --namespace ${NAMESPACE} get pv
+        kubectl get pv
+        kubectl --namespace ${NAMESPACE} describe pvc
+        kubectl describe pv
+        
+        echo "=== ConfigMaps (names only) ==="
+        kubectl --namespace ${NAMESPACE} get cm
+        
+        echo "=== Secrets (names only) ==="
+        kubectl --namespace ${NAMESPACE} get secrets
+        
+        echo "=== Deployments ==="
+        kubectl --namespace ${NAMESPACE} get deployments -o wide
+        kubectl --namespace ${NAMESPACE} describe deployments
+        
+        echo "=== StatefulSets ==="
+        kubectl --namespace ${NAMESPACE} get statefulsets -o wide
+        kubectl --namespace ${NAMESPACE} describe statefulsets
+        
+        echo "=== Services ==="
+        kubectl --namespace ${NAMESPACE} get svc -o wide
+        
+        echo "=================================="
+        echo "=== POD LOGS ==="
+        echo "=================================="
+        
+        # Get logs from ALL pods
+        for pod in $(kubectl get pods -n ${NAMESPACE} -o jsonpath='{.items[*].metadata.name}'); do
+          echo "========================================"
+          echo "=== Logs for pod: $pod ==="
+          echo "========================================"
+          
+          # Get current logs
+          kubectl logs -n ${NAMESPACE} $pod --all-containers=true --tail=500 || echo "Failed to get current logs for $pod"
+          
+          # Get previous logs if pod restarted
+          if kubectl logs -n ${NAMESPACE} $pod --all-containers=true --previous &>/dev/null; then
+            echo "=== Previous logs for $pod (pod restarted) ==="
+            kubectl logs -n ${NAMESPACE} $pod --all-containers=true --previous --tail=500 || echo "Failed to get previous logs"
+          fi
+        done
+        
+        echo "=================================="
+        echo "=== HELM RELEASES ==="
+        echo "=================================="
+        helm list -n ${NAMESPACE} --all
+        helm status mlrun-ce -n ${NAMESPACE} || echo "Helm release status unavailable"
+        
+        echo "=================================="
+        echo "=== DISK USAGE ==="
+        echo "=================================="
+        df -h
+
+        echo "=================================="
+        echo "=== TEST RESULTS ==="
+        echo "=================================="
+        cat test-data.xml 2>/dev/null || echo "No test-data.xml found"
+
+        echo "=================================="
+        echo "=== MLRUN API CONFIG ==="
+        echo "=================================="
+        kubectl exec -n ${NAMESPACE} deployment/mlrun-api -- env 2>/dev/null | grep -E "MLRUN_IMAGES|MLRUN_VERSION" || true
+
+        echo "=================================="
+        echo "=== KAFKA BROKER STATUS ==="
+        echo "=================================="
+        kubectl get pods -n ${NAMESPACE} -l strimzi.io/cluster=kafka-stream -o wide 2>/dev/null || echo "No kafka pods found"
+        for pod in $(kubectl get pods -n ${NAMESPACE} -l strimzi.io/name=kafka-stream-kafka -o jsonpath='{.items[*].metadata.name}' 2>/dev/null); do
+          echo "=== Kafka broker logs: $pod ==="
+          kubectl logs -n ${NAMESPACE} "$pod" --tail=50 2>/dev/null || true
+        done
+
+        echo "=================================="
+        echo "=== SEAWEEDFS S3 STATUS ==="
+        echo "=================================="
+        kubectl get svc seaweedfs-s3 -n ${NAMESPACE} -o wide 2>/dev/null || echo "seaweedfs-s3 service not found"
+        kubectl get secret storage-credentials -n ${NAMESPACE} 2>/dev/null || echo "storage-credentials secret not found"
+
         set +x
+
+    - name: Final clean up
+      if: always()
+      uses: ./.github/actions/cleanup-k3s

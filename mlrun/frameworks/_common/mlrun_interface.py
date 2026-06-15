@@ -17,7 +17,7 @@ import functools
 import inspect
 from abc import ABC
 from types import FunctionType, MethodType
-from typing import Any, Generic, Optional, Union
+from typing import Any, Generic, Union
 
 from .utils import CommonTypes
 
@@ -136,9 +136,9 @@ class MLRunInterface(ABC, Generic[CommonTypes.MLRunInterfaceableType]):
 
         # Remove the interface from the object:
         for attribute_name in [*cls._PROPERTIES, *cls._METHODS, *cls._FUNCTIONS]:
-            assert hasattr(
-                obj, attribute_name
-            ), f"Can't remove the attribute '{attribute_name}' as the object doesn't has it."
+            assert hasattr(obj, attribute_name), (
+                f"Can't remove the attribute '{attribute_name}' as the object doesn't has it."
+            )
             # Mark it first as None so the actual object won't be deleted:
             setattr(obj, attribute_name, None)
             delattr(obj, attribute_name)
@@ -173,7 +173,7 @@ class MLRunInterface(ABC, Generic[CommonTypes.MLRunInterfaceableType]):
     def _insert_properties(
         cls,
         obj: CommonTypes.MLRunInterfaceableType,
-        properties: Optional[dict[str, Any]] = None,
+        properties: dict[str, Any] | None = None,
     ):
         """
         Insert the properties of the interface to the object. The properties default values are being copied (not deep
@@ -240,7 +240,7 @@ class MLRunInterface(ABC, Generic[CommonTypes.MLRunInterfaceableType]):
     def _replace_properties(
         cls,
         obj: CommonTypes.MLRunInterfaceableType,
-        properties: Optional[dict[str, Any]] = None,
+        properties: dict[str, Any] | None = None,
     ):
         """
         Replace the properties of the given object according to the configuration in the MLRun interface.
@@ -271,9 +271,9 @@ class MLRunInterface(ABC, Generic[CommonTypes.MLRunInterfaceableType]):
         # Replace the properties in the object:
         for property_name, property_value in properties.items():
             # Verify there is a property with this name in the object to replace:
-            assert hasattr(
-                obj, property_name
-            ), f"Can't replace the property '{property_name}' as the object doesn't have a property with this name."
+            assert hasattr(obj, property_name), (
+                f"Can't replace the property '{property_name}' as the object doesn't have a property with this name."
+            )
             # Replace the property:
             cls._replace_property(
                 obj=obj,
@@ -286,7 +286,7 @@ class MLRunInterface(ABC, Generic[CommonTypes.MLRunInterfaceableType]):
     def _replace_functions(
         cls,
         obj: CommonTypes.MLRunInterfaceableType,
-        functions: Optional[list[str]] = None,
+        functions: list[str] | None = None,
     ):
         """
         Replace the functions / methods of the given object according to the configuration in the MLRun interface.
@@ -421,8 +421,8 @@ class MLRunInterface(ABC, Generic[CommonTypes.MLRunInterfaceableType]):
     def _get_function_argument(
         func: FunctionType,
         argument_name: str,
-        passed_args: Optional[tuple] = None,
-        passed_kwargs: Optional[dict] = None,
+        passed_args: tuple | None = None,
+        passed_kwargs: dict | None = None,
         default_value: Any = None,
     ) -> tuple[Any, Union[str, int, None]]:
         """

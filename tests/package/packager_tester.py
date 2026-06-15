@@ -14,11 +14,12 @@
 
 import sys
 from abc import ABC
-from typing import Any, Callable, NamedTuple, Union
+from collections.abc import Callable
+from typing import Any, NamedTuple
 
 import cloudpickle
 
-from mlrun import Packager
+from mlrun import LogHint, Packager
 
 # When using artifact type "object", these instructions will be common to most artifacts in the tests:
 COMMON_OBJECT_INSTRUCTIONS = {
@@ -46,7 +47,7 @@ class PackTest(NamedTuple):
     """
 
     pack_handler: str
-    log_hint: Union[str, dict]
+    log_hint: str | LogHint
     validation_function: Callable[..., bool]
     pack_parameters: dict = {}
     validation_parameters: dict = {}
@@ -69,7 +70,7 @@ class UnpackTest(NamedTuple):
                                    exception message. Default is None (the test should succeed).
     """
 
-    prepare_input_function: Callable[..., tuple[str, str]]
+    prepare_input_function: Callable[..., tuple[str | dict[str, str] | list[str], str]]
     unpack_handler: str
     prepare_parameters: dict = {}
     unpack_parameters: dict = {}
@@ -97,7 +98,7 @@ class PackToUnpackTest(NamedTuple):
     """
 
     pack_handler: str
-    log_hint: Union[str, dict]
+    log_hint: str | LogHint
     pack_parameters: dict = {}
     expected_instructions: dict = {}
     unpack_handler: str = None
@@ -116,7 +117,7 @@ class PackagerTester(ABC):
     PACKAGER_IN_TEST: Packager = None
 
     # The list of tests tuples to include from this tester in the tests of "test_packagers.py":
-    TESTS: list[Union[PackTest, UnpackTest, PackToUnpackTest]] = []
+    TESTS: list[PackTest | UnpackTest | PackToUnpackTest] = []
 
 
 class NewClass:

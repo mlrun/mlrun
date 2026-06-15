@@ -17,9 +17,8 @@ import importlib.metadata as importlib_metadata
 import os
 import sys
 import tempfile
-import warnings
 from types import ModuleType
-from typing import Any, Optional, Union
+from typing import Any
 
 from mlrun.errors import MLRunInvalidArgumentError
 from mlrun.utils import logger
@@ -34,8 +33,8 @@ class Pickler:
 
     @staticmethod
     def pickle(
-        obj: Any, pickle_module_name: str, output_path: Optional[str] = None
-    ) -> tuple[str, dict[str, Union[str, None]]]:
+        obj: Any, pickle_module_name: str, output_path: str | None = None
+    ) -> tuple[str, dict[str, str | None]]:
         """
         Pickle an object using the given module. The pickled object will be saved to file to the given output path.
 
@@ -91,10 +90,10 @@ class Pickler:
     def unpickle(
         pickle_path: str,
         pickle_module_name: str,
-        object_module_name: Optional[str] = None,
-        python_version: Optional[str] = None,
-        pickle_module_version: Optional[str] = None,
-        object_module_version: Optional[str] = None,
+        object_module_name: str | None = None,
+        python_version: str | None = None,
+        pickle_module_version: str | None = None,
+        object_module_version: str | None = None,
     ) -> Any:
         """
         Unpickle an object using the given instructions. Warnings may be raised in case any of the versions are
@@ -178,7 +177,7 @@ class Pickler:
                 )
 
     @staticmethod
-    def _get_module_version(module_name: str) -> Union[str, None]:
+    def _get_module_version(module_name: str) -> str | None:
         """
         Get a module's version. Most updated modules have versions but some don't. In case the version could not be
         read, None is returned.
@@ -187,32 +186,28 @@ class Pickler:
 
         :return: The module's version if found and None otherwise.
         """
-        # First we'll try to get the module version from `importlib`:
+        # normalize to top-level package name
+        top_level = module_name.split(".")[0]
+
+        # 1) direct dist lookup (works when module name == dist name)
         try:
-            return importlib_metadata.version(module_name)
-        except importlib.metadata.PackageNotFoundError:
-            # `PackageNotFoundError` is ignored this is raised when `version` could not find the package related to the
-            # module.
+            return importlib_metadata.version(top_level)
+        except importlib_metadata.PackageNotFoundError:
             pass
 
-        # Secondly, if importlib could not get the version, we'll try to use `pkg_resources` to get the version (the
-        # version will be found only if the package name is equal to the module name. For example, if the module name is
-        # 'x' then the way we installed the package must be 'pip install x'):
-        import pkg_resources
-
-        with warnings.catch_warnings():
-            # If a module's package is not found, a `PkgResourcesDeprecationWarning` warning will be raised and then
-            # `DistributionNotFound` exception will be raised, so we ignore them both:
-            warnings.filterwarnings(
-                "ignore", category=pkg_resources.PkgResourcesDeprecationWarning
-            )
+        # 2) module -> distribution(s) lookup
+        for dist_name in importlib_metadata.packages_distributions().get(top_level, []):
             try:
-                return pkg_resources.get_distribution(module_name).version
-            except pkg_resources.DistributionNotFound:
-                pass
+                return importlib_metadata.version(dist_name)
+            except importlib_metadata.PackageNotFoundError:
+                continue
 
-        # The version could not be found.
-        return None
+        # 3) runtime module fallback (__version__ is conventional, not guaranteed)
+        try:
+            module = importlib.import_module(top_level)
+        except Exception:
+            return None
+        return getattr(module, "__version__", None)
 
     @staticmethod
     def _get_python_version() -> str:

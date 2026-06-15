@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import abc
-import typing
+import datetime
 
 import sqlalchemy.orm
 
@@ -22,6 +22,8 @@ import mlrun.common.schemas
 import mlrun.k8s_utils
 import mlrun.utils.singleton
 
+import framework.utils.auth.verifier
+import framework.utils.project_formats
 import services.api.crud
 
 
@@ -46,10 +48,17 @@ class Member(abc.ABC):
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ):
         try:
+            # Using minimal format to access spec.owner for OPA cache population
+            # while avoiding the overhead of fetching large fields (functions, workflows, artifacts)
             project = self.get_project(
                 db_session,
-                format_=mlrun.common.formatters.ProjectFormat.name_only,
-                leader_session=auth_info.session,
+                format_=framework.utils.project_formats.ProjectFormatCustomSelection(
+                    [
+                        framework.utils.project_formats.ProjectFormatCustom.name,
+                        framework.utils.project_formats.ProjectFormatCustom.owner,
+                    ]
+                ),
+                auth_info=auth_info,
                 from_leader=False,
                 name=name,
             )
@@ -60,16 +69,23 @@ class Member(abc.ABC):
         if not project:
             raise mlrun.errors.MLRunNotFoundError(f"Project {name} does not exist")
 
+        # Populate the OPA owner cache if the requesting user is the project owner.
+        # This mitigates the OPA manifest propagation race condition on multi-pod deployments:
+        # when a request is routed to a pod that hasn't received the OPA manifest yet,
+        # the cache allows the owner to proceed without waiting for OPA propagation.
+        verifier = framework.utils.auth.verifier.AuthVerifier()
+        if verifier.is_project_owner(auth_info, project):
+            verifier.add_allowed_project_for_owner(name, auth_info)
+
     @abc.abstractmethod
     def create_project(
         self,
         db_session: sqlalchemy.orm.Session,
         project: mlrun.common.schemas.Project,
-        projects_role: typing.Optional[mlrun.common.schemas.ProjectsRole] = None,
-        leader_session: typing.Optional[str] = None,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         wait_for_completion: bool = True,
         commit_before_get: bool = False,
-    ) -> tuple[typing.Optional[mlrun.common.schemas.Project], bool]:
+    ) -> tuple[mlrun.common.schemas.Project | None, bool]:
         pass
 
     @abc.abstractmethod
@@ -78,10 +94,9 @@ class Member(abc.ABC):
         db_session: sqlalchemy.orm.Session,
         name: str,
         project: mlrun.common.schemas.Project,
-        projects_role: typing.Optional[mlrun.common.schemas.ProjectsRole] = None,
-        leader_session: typing.Optional[str] = None,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         wait_for_completion: bool = True,
-    ) -> tuple[typing.Optional[mlrun.common.schemas.Project], bool]:
+    ) -> tuple[mlrun.common.schemas.Project | None, bool]:
         pass
 
     @abc.abstractmethod
@@ -91,8 +106,7 @@ class Member(abc.ABC):
         name: str,
         project: dict,
         patch_mode: mlrun.common.schemas.PatchMode = mlrun.common.schemas.PatchMode.replace,
-        projects_role: typing.Optional[mlrun.common.schemas.ProjectsRole] = None,
-        leader_session: typing.Optional[str] = None,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         wait_for_completion: bool = True,
     ) -> tuple[mlrun.common.schemas.Project, bool]:
         pass
@@ -103,11 +117,10 @@ class Member(abc.ABC):
         db_session: sqlalchemy.orm.Session,
         name: str,
         deletion_strategy: mlrun.common.schemas.DeletionStrategy = mlrun.common.schemas.DeletionStrategy.default(),
-        projects_role: typing.Optional[mlrun.common.schemas.ProjectsRole] = None,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         wait_for_completion: bool = True,
-        background_task_name: typing.Optional[str] = None,
-        model_monitoring_access_key: typing.Optional[str] = None,
+        background_task_name: str | None = None,
+        model_monitoring_access_key: str | None = None,
     ) -> bool:
         pass
 
@@ -116,9 +129,9 @@ class Member(abc.ABC):
         self,
         db_session: sqlalchemy.orm.Session,
         name: str,
-        leader_session: typing.Optional[str] = None,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         from_leader: bool = False,
-        format_: mlrun.common.formatters.ProjectFormat = mlrun.common.formatters.ProjectFormat.full,
+        format_: framework.utils.project_formats.ProjectFormatType = mlrun.common.formatters.ProjectFormat.full,
     ) -> mlrun.common.schemas.ProjectOutput:
         pass
 
@@ -126,13 +139,13 @@ class Member(abc.ABC):
     def list_projects(
         self,
         db_session: sqlalchemy.orm.Session,
-        owner: typing.Optional[str] = None,
-        format_: mlrun.common.formatters.ProjectFormat = mlrun.common.formatters.ProjectFormat.full,
-        labels: typing.Optional[list[str]] = None,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
+        owner: str | None = None,
+        format_: framework.utils.project_formats.ProjectFormatType = mlrun.common.formatters.ProjectFormat.full,
+        labels: list[str] | None = None,
         state: mlrun.common.schemas.ProjectState = None,
-        projects_role: typing.Optional[mlrun.common.schemas.ProjectsRole] = None,
-        leader_session: typing.Optional[str] = None,
-        names: typing.Optional[list[str]] = None,
+        names: list[str] | None = None,
+        updated_after: datetime.datetime | None = None,
     ) -> mlrun.common.schemas.ProjectsOutput:
         pass
 
@@ -141,7 +154,7 @@ class Member(abc.ABC):
         self,
         db_session: sqlalchemy.orm.Session,
         name: str,
-        leader_session: typing.Optional[str] = None,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ) -> mlrun.common.schemas.ProjectSummary:
         pass
 
@@ -149,12 +162,11 @@ class Member(abc.ABC):
     async def list_project_summaries(
         self,
         db_session: sqlalchemy.orm.Session,
-        owner: typing.Optional[str] = None,
-        labels: typing.Optional[list[str]] = None,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
+        owner: str | None = None,
+        labels: list[str] | None = None,
         state: mlrun.common.schemas.ProjectState = None,
-        projects_role: typing.Optional[mlrun.common.schemas.ProjectsRole] = None,
-        leader_session: typing.Optional[str] = None,
-        names: typing.Optional[list[str]] = None,
+        names: list[str] | None = None,
     ) -> mlrun.common.schemas.ProjectSummariesOutput:
         pass
 
@@ -163,6 +175,7 @@ class Member(abc.ABC):
         self,
         db_session: sqlalchemy.orm.Session,
         name: str,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ) -> mlrun.common.schemas.ProjectOwner:
         pass
 

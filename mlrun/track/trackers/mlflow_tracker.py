@@ -15,7 +15,6 @@ import os
 import pathlib
 import tempfile
 import zipfile
-from typing import Optional
 
 import mlflow
 import mlflow.entities
@@ -191,7 +190,7 @@ class MLFlowTracker(Tracker):
         project: MlrunProject,
         reference_id: str,
         function_name: str,
-        handler: Optional[str] = None,
+        handler: str | None = None,
         **kwargs,
     ) -> RunObject:
         """
@@ -217,7 +216,7 @@ class MLFlowTracker(Tracker):
             handler=handler,
             run_name=run.info.run_name,
             project_name=project.name,
-            uid=run.info.run_uuid,
+            uid=run.info.run_id,
         )
 
         # Create a context from the run object:
@@ -252,9 +251,9 @@ class MLFlowTracker(Tracker):
         self,
         project: MlrunProject,
         reference_id: str,
-        key: Optional[str] = None,
-        metrics: Optional[dict] = None,
-        extra_data: Optional[dict] = None,
+        key: str | None = None,
+        metrics: dict | None = None,
+        extra_data: dict | None = None,
     ) -> ModelArtifact:
         """
         Import a model from MLFlow to MLRun.
@@ -291,7 +290,7 @@ class MLFlowTracker(Tracker):
             return model
 
     def import_artifact(
-        self, project: MlrunProject, reference_id: str, key: Optional[str] = None
+        self, project: MlrunProject, reference_id: str, key: str | None = None
     ) -> Artifact:
         """
         Import an artifact from MLFlow to MLRun.
@@ -373,7 +372,7 @@ class MLFlowTracker(Tracker):
             # Import the MLFlow run's artifacts to MLRun (model are logged after the rest of artifacts
             # so the artifacts can be registered as extra data in the models):
             artifacts = {}
-            model_paths = []
+            model_uris = []
             for artifact in client.list_artifacts(run_id=run.info.run_id):
                 # Get the artifact's local path (MLFlow suggests that if the artifact is already in the local filesystem
                 # its local path will be returned:
@@ -381,29 +380,29 @@ class MLFlowTracker(Tracker):
                     run_id=run.info.run_id,
                     artifact_path=artifact.path,
                 )
-                # Check if the artifact is a model (will be logged after the artifacts):
-                if artifact.is_dir and os.path.exists(
-                    os.path.join(
-                        artifact_local_path, "MLmodel"
-                    )  # Add tag to show model dir
-                ):
-                    model_paths.append(artifact_local_path)
-                else:
-                    # Log the artifact:
-                    artifact = MLFlowTracker._log_artifact(
-                        context=context,
-                        key=pathlib.Path(artifact.path).name.replace(".", "_"),
-                        # Mlflow has the same name for files but with different extensions, so we add extension to name
-                        local_path=artifact_local_path,
-                        tmp_path=tmp_dir,
-                    )
-                    artifacts[artifact.key] = artifact
+                # Log the artifact:
+                artifact = MLFlowTracker._log_artifact(
+                    context=context,
+                    key=pathlib.Path(artifact.path).name.replace(".", "_"),
+                    # Mlflow has the same name for files but with different extensions, so we add extension to name
+                    local_path=artifact_local_path,
+                    tmp_path=tmp_dir,
+                )
+                artifacts[artifact.key] = artifact
 
-            for model_path in model_paths:
+            # get all run model's uri's (artifact_location in mlflow 3.0.0).
+            logged_models = mlflow.search_logged_models(
+                filter_string=f"source_run_id = '{run.info.run_id}'",
+                output_format="list",
+            )
+            for logged_model in logged_models:
+                model_uris.append(logged_model.artifact_location)
+
+            for model_uri in model_uris:
                 MLFlowTracker._log_model(
                     context=context,
-                    model_uri=model_path,
-                    key=pathlib.Path(model_path).stem,
+                    model_uri=model_uri,
+                    key=pathlib.Path(model_uri).stem,
                     metrics=results,
                     extra_data=artifacts,
                     tmp_path=tmp_dir,
@@ -439,20 +438,18 @@ class MLFlowTracker(Tracker):
 
         # Get the model info from MLFlow:
         model_info = mlflow.models.get_model_info(model_uri=model_uri)
+        # Download the model and set the path to local path:
+        local_model_path = mlflow.artifacts.download_artifacts(
+            artifact_uri=str(model_uri)
+        )
+        model_path = pathlib.Path(local_model_path)
 
         # Prepare the archive path:
-        model_uri = pathlib.Path(model_uri)
-        archive_path = pathlib.Path(tmp_path) / f"{model_uri.stem}.zip"
-        if not os.path.exists(model_uri):
-            local_path = mlflow.artifacts.download_artifacts(
-                artifact_uri=str(model_uri)
-            )
-            model_uri = pathlib.Path(local_path)
-
+        archive_path = pathlib.Path(tmp_path) / f"{model_path.name}.zip"
         # TODO add progress bar for the case of large files
         # Zip the artifact:
         with zipfile.ZipFile(archive_path, "w") as zip_file:
-            for path in model_uri.rglob("*"):
+            for path in model_path.rglob("*"):
                 zip_file.write(filename=path, arcname=path.relative_to(model_uri))
 
         # Get inputs and outputs info:

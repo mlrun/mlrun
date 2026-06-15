@@ -13,7 +13,6 @@
 # limitations under the License.
 
 from http import HTTPStatus
-from typing import Optional
 
 import fastapi.concurrency
 from fastapi import APIRouter, Depends, Header, Request
@@ -41,15 +40,15 @@ router = APIRouter()
 async def submit_job(
     request: Request,
     background_tasks: fastapi.BackgroundTasks,
-    username: Optional[str] = Header(
+    username: str | None = Header(
         None, alias=mlrun.common.schemas.HeaderNames.remote_user
     ),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
-    client_version: Optional[str] = Header(
+    client_version: str | None = Header(
         None, alias=mlrun.common.schemas.HeaderNames.client_version
     ),
-    client_python_version: Optional[str] = Header(
+    client_python_version: str | None = Header(
         None, alias=mlrun.common.schemas.HeaderNames.python_version
     ),
 ):

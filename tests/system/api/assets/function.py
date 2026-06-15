@@ -13,12 +13,9 @@
 # limitations under the License.
 
 import os
-from typing import Optional
 
 
-def secret_test_function(
-    context, secrets: Optional[list] = None, use_prefix: bool = True
-):
+def secret_test_function(context, secrets: list | None = None, use_prefix: bool = True):
     """Validate that given secrets exist
 
     :param context: the MLRun context
@@ -62,3 +59,12 @@ def log_artifact_with_tag(context, tag):
 
 def access_key_verifier(context, v3io_access_key: str):
     assert os.environ.get("V3IO_ACCESS_KEY") == v3io_access_key
+
+
+def env_vars_from_secret_handler(context, event=None):
+    result = {
+        "ENV_AUTO_A": os.getenv("ENV_AUTO_A"),
+        "ENV_AUTO_B": os.getenv("ENV_AUTO_B"),
+    }
+
+    return result

@@ -151,6 +151,63 @@ def test_client_spec(
     assert response_body["system_id"] == "12345"
 
 
+def test_client_spec_telemetry_fields_default(
+    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+) -> None:
+    """When the operator hasn't overridden any telemetry config, every
+    telemetry field in the response is None so the SDK keeps its local value.
+    """
+    # Restore each field to its default before invoking the endpoint, in case
+    # an earlier test in this module mutated them via the global mlrun.mlconf.
+    mlrun.mlconf.telemetry.enabled = False
+    mlrun.mlconf.telemetry.otlp_endpoint = ""
+    mlrun.mlconf.telemetry.insecure = True
+    mlrun.mlconf.telemetry.model_monitoring.interval = 60
+    services.api.api.endpoints.client_spec.get_cached_client_spec.cache_clear()
+
+    response = client.get("client-spec")
+    assert response.status_code == http.HTTPStatus.OK.value
+    body = response.json()
+    assert body["telemetry_enabled"] is None
+    assert body["telemetry_otlp_endpoint"] is None
+    assert body["telemetry_insecure"] is None
+    assert body["telemetry_model_monitoring_interval"] is None
+
+
+def test_client_spec_telemetry_fields_overridden(
+    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+) -> None:
+    """Operator-set telemetry values (e.g. via the `mlrun-override-env`
+    ConfigMap) propagate through /client-spec to the SDK.
+    """
+    mlrun.mlconf.telemetry.enabled = True
+    mlrun.mlconf.telemetry.otlp_endpoint = (
+        "otel-collector.iguazio.svc.cluster.local:4317"
+    )
+    mlrun.mlconf.telemetry.insecure = False
+    mlrun.mlconf.telemetry.model_monitoring.interval = 30
+    services.api.api.endpoints.client_spec.get_cached_client_spec.cache_clear()
+
+    try:
+        response = client.get("client-spec")
+        assert response.status_code == http.HTTPStatus.OK.value
+        body = response.json()
+        assert body["telemetry_enabled"] is True
+        assert (
+            body["telemetry_otlp_endpoint"]
+            == "otel-collector.iguazio.svc.cluster.local:4317"
+        )
+        assert body["telemetry_insecure"] is False
+        assert body["telemetry_model_monitoring_interval"] == 30
+    finally:
+        # Restore defaults so we don't leak into other tests in this module.
+        mlrun.mlconf.telemetry.enabled = False
+        mlrun.mlconf.telemetry.otlp_endpoint = ""
+        mlrun.mlconf.telemetry.insecure = True
+        mlrun.mlconf.telemetry.model_monitoring.interval = 60
+        services.api.api.endpoints.client_spec.get_cached_client_spec.cache_clear()
+
+
 @pytest.mark.parametrize(
     "server_version, client_version, python_version, expected_dask_kfp",
     [
@@ -269,3 +326,103 @@ def test_get_client_spec_cached(
             cached_response = client.get("client-spec")
             assert cached_response.status_code == http.HTTPStatus.OK.value
             assert mocked_get_client.call_count == 3
+
+
+def test_client_spec_includes_oauth_config_in_iguazio_v4_mode(
+    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+) -> None:
+    mlrun.mlconf.httpdb.authentication.mode = (
+        mlrun.common.types.AuthenticationMode.IGUAZIO_V4
+    )
+    mlrun.mlconf.iguazio_api_url = "http://x.local"
+    mlrun.mlconf.iguazio_api_url_ingress = "https://x.com"
+    services.api.api.endpoints.client_spec.get_cached_client_spec.cache_clear()
+
+    response = client.get("client-spec")
+    assert response.status_code == http.HTTPStatus.OK.value
+    response_body = response.json()
+
+    assert (
+        response_body["oauth_external_token_endpoint"]
+        == "https://x.com/api/v1/authentication/refresh-access-token"
+    )
+    assert (
+        response_body["oauth_internal_token_endpoint"]
+        == "http://x.local/api/v1/authentication/refresh-access-token"
+    )
+
+
+def test_client_spec_kfp_default_workflow_timeout(
+    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+) -> None:
+    services.api.api.endpoints.client_spec.get_cached_client_spec.cache_clear()
+
+    response = client.get("client-spec")
+    assert response.status_code == http.HTTPStatus.OK.value
+    assert response.json()["kfp_default_workflow_timeout"] is None
+
+    mlrun.mlconf.kfp_default_workflow_timeout = "3600"
+    services.api.api.endpoints.client_spec.get_cached_client_spec.cache_clear()
+
+    response = client.get("client-spec")
+    assert response.status_code == http.HTTPStatus.OK.value
+    assert response.json()["kfp_default_workflow_timeout"] == "3600"
+
+
+def test_client_spec_does_not_include_oauth_config_when_not_iguazio_v4_mode(
+    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+) -> None:
+    mlrun.mlconf.httpdb.authentication.mode = mlrun.common.types.AuthenticationMode.NONE
+    services.api.api.endpoints.client_spec.get_cached_client_spec.cache_clear()
+
+    response = client.get("client-spec")
+    assert response.status_code == http.HTTPStatus.OK.value
+    response_body = response.json()
+
+    assert response_body.get("oauth_external_token_endpoint") is None
+    assert response_body.get("oauth_internal_token_endpoint") is None
+
+
+def test_client_spec_includes_default_runtime_image_by_kind_when_configured(
+    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+) -> None:
+    # Set custom image_by_kind values (different from defaults)
+    custom_job_image = "custom/job-image"
+    custom_serving_image = "custom/serving-image"
+    mlrun.mlconf.function_defaults.image_by_kind = {
+        "job": custom_job_image,
+        "serving": custom_serving_image,
+        # keep default
+        "nuclio": "mlrun/mlrun",
+    }
+    services.api.api.endpoints.client_spec.get_cached_client_spec.cache_clear()
+
+    response = client.get("client-spec")
+    assert response.status_code == http.HTTPStatus.OK.value
+    response_body = response.json()
+
+    # Should include the custom values but not the default
+    assert response_body["default_runtime_image_by_kind"] == {
+        "job": custom_job_image,
+        "serving": custom_serving_image,
+    }
+
+
+def test_client_spec_excludes_default_runtime_image_by_kind_when_default(
+    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+) -> None:
+    # Set only defaults
+    mlrun.mlconf.function_defaults.image_by_kind = {
+        "job": "mlrun/mlrun",
+        "serving": "mlrun/mlrun",
+        "nuclio": "mlrun/mlrun",
+    }
+
+    services.api.api.endpoints.client_spec.get_cached_client_spec.cache_clear()
+
+    response = client.get("client-spec")
+    assert response.status_code == http.HTTPStatus.OK.value
+    response_body = response.json()
+
+    # Should be None when values match defaults
+    assert response_body["default_runtime_image_by_kind"] is None

@@ -20,6 +20,7 @@ from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
+import mlrun.errors
 
 import framework.api.deps
 import framework.utils.auth.verifier
@@ -44,39 +45,209 @@ async def store_secret_tokens(
     return await run_in_threadpool(
         services.api.crud.Secrets().store_secret_tokens,
         secret_tokens,
-        auth_info.username,
+        auth_info,
         force,
     )
 
 
 @router.get("/tokens", response_model=mlrun.common.schemas.ListSecretTokensResponse)
 async def list_secret_tokens(
+    username: str | None = fastapi.Query(
+        default=None,
+        description="Username to filter tokens. Use '*' to list all users' tokens (system-admin only).",
+    ),
     auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
         framework.api.deps.authenticate_request
     ),
-    db_session: Session = fastapi.Depends(framework.api.deps.get_db_session),
 ):
-    # TODO: Support listing user tokens with System Admin (ML-10775)
+    """
+    List secret tokens.
 
+    Authorization logic:
+    - Regular users:
+      - None, "", or own username -> lists their own tokens
+      - Any other username -> raises MLRunAccessDeniedError
+    - Admin users:
+      - None or "" -> lists their own tokens
+      - "*" -> lists tokens for ALL users
+      - Specific username -> lists that user's tokens
+    """
+    target_username = await _resolve_target_username_for_list_secret_tokens(
+        auth_info, username
+    )
     return await run_in_threadpool(
         services.api.crud.Secrets().list_secret_tokens,
-        auth_info.username,
+        auth_info,
+        target_username,
     )
 
 
-@router.delete("/tokens/{name}", status_code=HTTPStatus.OK.value)
-async def revoke_secret_token(
-    name: str,
+@router.delete(
+    "/tokens",
+    status_code=HTTPStatus.OK.value,
+    response_model=mlrun.common.schemas.DeleteSecretTokensResponse,
+)
+async def delete_secret_tokens(
+    username: str | None = fastapi.Query(
+        default=None,
+        description="Username of the token owner. If None, deletes the caller's own tokens. "
+        "System admins can delete tokens for other users.",
+    ),
     auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
         framework.api.deps.authenticate_request
     ),
-    db_session: Session = fastapi.Depends(framework.api.deps.get_db_session),
 ):
-    # TODO: Support revoking user token with System Admin
+    """
+    Delete all secret tokens for a user.
 
-    return await run_in_threadpool(
-        services.api.crud.Secrets().revoke_secret_token,
-        name,
-        auth_info.username,
-        auth_info.request_headers,
+    Authorization logic:
+    - Regular users:
+      - None, "", or own username -> deletes their own tokens
+      - Any other username -> raises MLRunAccessDeniedError
+    - Admin users:
+      - None or "" -> deletes their own tokens
+      - Specific username -> deletes that user's tokens
+
+    Returns:
+        DeleteSecretTokensResponse with deleted_count and any failed_tokens.
+    """
+    target_username = await _resolve_target_username_for_delete_secret_tokens(
+        auth_info, username
     )
+    return await services.api.crud.Secrets().delete_secret_tokens(
+        target_username,
+        auth_info,
+    )
+
+
+@router.delete(
+    "/tokens/{name}",
+    status_code=HTTPStatus.OK.value,
+    response_model=mlrun.common.schemas.DeleteSecretTokenResponse,
+)
+async def delete_secret_token(
+    name: str,
+    username: str | None = fastapi.Query(
+        default=None,
+        description="Username of the token owner. If None, deletes the caller's own token. "
+        "System admins can delete tokens for other users.",
+    ),
+    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
+        framework.api.deps.authenticate_request
+    ),
+):
+    """
+    Delete a secret token.
+
+    Authorization logic:
+    - Regular users:
+      - None, "", or own username -> deletes their own token
+      - Any other username -> raises MLRunAccessDeniedError
+    - Admin users:
+      - None or "" -> deletes their own token
+      - Specific username -> deletes that user's token
+
+    Returns:
+        DeleteSecretTokenResponse with deleted=True if token was deleted,
+        or deleted=False if token was not found.
+    """
+    target_username = await _resolve_target_username_for_delete_secret_tokens(
+        auth_info, username
+    )
+    return await run_in_threadpool(
+        services.api.crud.Secrets().delete_secret_token,
+        name,
+        target_username,
+        auth_info,
+    )
+
+
+async def _resolve_target_username_for_list_secret_tokens(
+    auth_info: mlrun.common.schemas.AuthInfo,
+    username: str | None,
+) -> str:
+    """
+    Resolve the target username for LIST token operations.
+
+    Regular users:
+      - None, "", or self -> return auth_info.user id (own tokens)
+      - any other username -> raise MLRunAccessDeniedError
+
+    Users with System-Admin permissions:
+      - None or "" -> return auth_info.username (own tokens)
+      - "*" -> return None (all users)
+      - specific username -> return that username
+    """
+    # No username provided (or username="") -> return own tokens for both regular user and admin
+    if not username:
+        return auth_info.username
+
+    has_system_admin_permissions = await framework.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
+        resource_type=mlrun.common.schemas.AuthorizationResourceTypes.tokens,
+        action=mlrun.common.schemas.AuthorizationAction.read,
+        auth_info=auth_info,
+        raise_on_forbidden=False,
+        resource_namespace=mlrun.common.schemas.AuthorizationResourceNamespace.mgmt,
+    )
+
+    # "*" wildcard -> system-admin only, returns all users
+    if username == "*":
+        if not has_system_admin_permissions:
+            raise mlrun.errors.MLRunAccessDeniedError(
+                "Only system admins can list tokens for all users"
+            )
+        return username
+
+    # Specific username provided
+    # Regular users can only query themselves — compare case-insensitively because
+    # Keycloak/Iguazio treat usernames case-insensitively.
+    # auth_info.username may be None; in that case the comparison must fail.
+    if not has_system_admin_permissions and (
+        auth_info.username is None or username.lower() != auth_info.username.lower()
+    ):
+        raise mlrun.errors.MLRunAccessDeniedError(
+            "Only system admins can list tokens for other users"
+        )
+
+    return username
+
+
+async def _resolve_target_username_for_delete_secret_tokens(
+    auth_info: mlrun.common.schemas.AuthInfo,
+    username: str | None,
+) -> str:
+    """
+    Resolve the target username for DELETE token operations.
+
+    Regular users:
+      - None, "", or self -> return auth_info.username (own token)
+      - any other username -> raise MLRunAccessDeniedError
+
+    Users with System-Admin permissions:
+      - None or "" -> return auth_info.username (own token)
+      - specific username -> return that username
+    """
+    # No username provided (or username="") -> delete own token for both regular user and admin
+    if not username:
+        return auth_info.username
+
+    has_system_admin_permissions = await framework.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
+        resource_type=mlrun.common.schemas.AuthorizationResourceTypes.tokens,
+        action=mlrun.common.schemas.AuthorizationAction.delete,
+        auth_info=auth_info,
+        raise_on_forbidden=False,
+        resource_namespace=mlrun.common.schemas.AuthorizationResourceNamespace.mgmt,
+    )
+
+    # Specific username provided
+    # Regular users can only delete their own tokens — compare case-insensitively because
+    # Keycloak/Iguazio treat usernames case-insensitively.
+    # auth_info.username may be None; in that case the comparison must fail.
+    if not has_system_admin_permissions and (
+        auth_info.username is None or username.lower() != auth_info.username.lower()
+    ):
+        raise mlrun.errors.MLRunAccessDeniedError(
+            "Only system admins can delete tokens for other users"
+        )
+
+    return username

@@ -17,14 +17,16 @@ import json
 import re
 import unittest.mock
 from contextlib import nullcontext as does_not_raise
-from datetime import datetime, timedelta, timezone
-from typing import Optional
+from datetime import UTC, datetime, timedelta, timezone
 
 import pytest
 from pandas import Timedelta, Timestamp
 
 import mlrun.errors
+import mlrun.model
+import mlrun.runtimes.nuclio.function
 import mlrun.utils.regex
+import mlrun.utils.retryer
 import mlrun.utils.version
 import mlrun_pipelines.client
 import mlrun_pipelines.models
@@ -41,10 +43,14 @@ from mlrun.utils.helpers import (
     get_parsed_docker_registry,
     get_pretty_types_names,
     get_regex_list_as_string,
+    lock_hub_uri_version,
     merge_requirements,
     parse_artifact_uri,
+    remove_image_protocol_prefix,
     remove_tag_from_artifact_uri,
     resolve_image_tag_suffix,
+    set_auth_token_name,
+    set_auth_user_id,
     set_data_by_path,
     split_path,
     str_to_timestamp,
@@ -81,11 +87,11 @@ def test_retry_until_successful_fatal_failure():
     [
         (
             "2024-11-11 07:44:56.255000+0000",
-            datetime(2024, 11, 11, 7, 44, 56, 255000, tzinfo=timezone.utc),
+            datetime(2024, 11, 11, 7, 44, 56, 255000, tzinfo=UTC),
         ),
         (
             "2024-11-11 07:44:56+0000",
-            datetime(2024, 11, 11, 7, 44, 56, tzinfo=timezone.utc),
+            datetime(2024, 11, 11, 7, 44, 56, tzinfo=UTC),
         ),
     ],
 )
@@ -248,6 +254,23 @@ def test_extend_hub_uri(rundb_mock, case):
     if is_hub_url:
         expected_output = hub_url + expected_output
     assert expected_output == output
+
+
+@pytest.mark.parametrize(
+    "uri, locked_version, expected",
+    [
+        ("hub://function-name", "1.2.3", "hub://function-name:1.2.3"),
+        ("hub://function-name:latest", "1.2.3", "hub://function-name:1.2.3"),
+        (
+            "hub://source/function-name:latest",
+            "2.0.0",
+            "hub://source/function-name:2.0.0",
+        ),
+        ("hub://function-name:0.0.1", "2.0.0", "hub://function-name:0.0.1"),
+    ],
+)
+def test_lock_hub_uri_version(uri, locked_version, expected):
+    assert lock_hub_uri_version(uri, locked_version) == expected
 
 
 @pytest.mark.parametrize(
@@ -808,6 +831,14 @@ def test_validate_v3io_consumer_group(value, expected):
             "images_registry": "",
             "expected_output": "mlrun/mlrun:1.11.0",
         },
+        {
+            "image": "mlrun/ml-base",
+            "client_version": "1.10.0",
+            "client_python_version": "3.9.13",
+            "images_tag": None,
+            "expected_output": "mlrun/mlrun:1.10.0-py39",
+            "images_to_enrich_registry": "",
+        },
         # version < 1.10.0 — ml-base image is still valid, image should remain unchanged
         {
             "image": "mlrun/ml-base",
@@ -1324,6 +1355,125 @@ def test_retry_until_successful(fatal_exception):
     test_run(mlrun.utils.create_linear_backoff(0.02, 0.02))
 
 
+@pytest.mark.asyncio
+async def test_async_retry_until_successful_respects_fatal_exceptions():
+    """Regression test: AsyncRetryer must stop retrying when a fatal exception is raised.
+
+    Before the fix, AsyncRetryer was missing the ``type(exc) not in self.fatal_exceptions``
+    check that the synchronous Retryer has, causing it to keep retrying even on exceptions
+    marked as fatal. This test verifies that the async retryer stops after the first fatal
+    exception and does not call the function again.
+    """
+    call_count = 0
+
+    async def failing_func():
+        nonlocal call_count
+        call_count += 1
+        raise ValueError("fatal error")
+
+    with pytest.raises(mlrun.errors.MLRunRetryExhaustedError):
+        await mlrun.utils.retry_until_successful_async(
+            0.01,
+            10,
+            logger,
+            False,
+            failing_func,
+            fatal_exceptions=(ValueError,),
+        )
+
+    # With fatal_exceptions=(ValueError,), the retryer should stop after the first call.
+    # Without the fix, it would retry many times within the 10-second timeout.
+    assert call_count == 1, (
+        f"Expected exactly 1 call (fatal exception should stop retries), got {call_count}"
+    )
+
+
+def test_retryer_backoff_progresses():
+    """Regression test: Retryer must advance through the backoff generator on each retry.
+
+    Before the fix, the `first_interval` field was never reset to None after the first
+    iteration, so `self.first_interval or next(self.backoff)` always short-circuited to
+    `self.first_interval` on every loop iteration. This caused all retry intervals to be
+    identical (equal to the initial backoff value) instead of following the configured
+    backoff progression.
+    """
+    sleep_intervals = []
+
+    def mock_sleep(seconds):
+        sleep_intervals.append(seconds)
+
+    call_count = 0
+
+    def failing_then_succeeding():
+        nonlocal call_count
+        call_count += 1
+        if call_count < 5:
+            raise Exception("not yet")
+        return "done"
+
+    with unittest.mock.patch.object(mlrun.utils.retryer.time, "sleep", mock_sleep):
+        result = mlrun.utils.helpers.retry_until_successful(
+            mlrun.utils.create_linear_backoff(base=1, coefficient=1, stop_value=100),
+            60,
+            logger,
+            False,
+            failing_then_succeeding,
+        )
+
+    assert result == "done"
+    assert call_count == 5
+    # Verify that backoff intervals are strictly increasing (not all the same)
+    # Linear backoff with base=1, coefficient=1 should produce 1, 2, 3, 4, ...
+    # The first call uses interval from _prepare (first next()), remaining come from the loop
+    assert len(sleep_intervals) == 4, (
+        f"Expected 4 sleep intervals (4 retries before success), got {len(sleep_intervals)}"
+    )
+    # With the fix, intervals should increase. Without the fix, they'd all be the same.
+    assert sleep_intervals == sorted(sleep_intervals), (
+        f"Expected non-decreasing backoff intervals, got {sleep_intervals}"
+    )
+    assert len(set(sleep_intervals)) > 1, (
+        f"Expected backoff intervals to progress (not all identical), got {sleep_intervals}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_async_retryer_backoff_progresses():
+    """Regression test: AsyncRetryer must advance through the backoff generator on each retry."""
+    sleep_intervals = []
+
+    async def mock_async_sleep(seconds):
+        sleep_intervals.append(seconds)
+
+    call_count = 0
+
+    async def failing_then_succeeding():
+        nonlocal call_count
+        call_count += 1
+        if call_count < 5:
+            raise Exception("not yet")
+        return "done"
+
+    with unittest.mock.patch.object(
+        mlrun.utils.retryer.asyncio, "sleep", mock_async_sleep
+    ):
+        result = await mlrun.utils.helpers.retry_until_successful_async(
+            mlrun.utils.create_linear_backoff(base=1, coefficient=1, stop_value=100),
+            60,
+            logger,
+            False,
+            failing_then_succeeding,
+        )
+
+    assert result == "done"
+    assert call_count == 5
+    assert len(sleep_intervals) == 4
+    assert sleep_intervals == sorted(sleep_intervals)
+    assert len(set(sleep_intervals)) > 1, (
+        f"Expected backoff intervals to progress (not all identical), got {sleep_intervals}"
+    )
+
+
 @pytest.mark.parametrize(
     "iterable_list, chunk_size, expected_chunked_list",
     [
@@ -1604,16 +1754,16 @@ def test_join_urls(base_url, path, expected_result):
     [
         (None, None),
         # no timezone
-        ("2025-01-15T11:00:00", datetime(2025, 1, 15, 11, 0, 0, tzinfo=timezone.utc)),
+        ("2025-01-15T11:00:00", datetime(2025, 1, 15, 11, 0, 0, tzinfo=UTC)),
         # timezone-aware datetime (UTC+2), should convert to UTC
         (
             "2025-01-15T11:00:00+02:00",
-            datetime(2025, 1, 15, 9, 0, 0, tzinfo=timezone.utc),
+            datetime(2025, 1, 15, 9, 0, 0, tzinfo=UTC),
         ),
         # already in UTC
         (
             "2025-01-15T11:00:00+00:00",
-            datetime(2025, 1, 15, 11, 0, 0, tzinfo=timezone.utc),
+            datetime(2025, 1, 15, 11, 0, 0, tzinfo=UTC),
         ),
     ],
 )
@@ -1628,7 +1778,7 @@ def test_datetime_from_iso(input_time, expected_output):
         (datetime(2025, 3, 13, 12, 30, 45, 123456), "2025-03-13 12:30:45.123456+00:00"),
         # Test for datetime with UTC timezone info
         (
-            datetime(2025, 3, 13, 12, 30, 45, 123456, tzinfo=timezone.utc),
+            datetime(2025, 3, 13, 12, 30, 45, 123456, tzinfo=UTC),
             "2025-03-13 12:30:45.123456+00:00",
         ),
         # Test for datetime with a non-UTC timezone offset (+05:00), should keep the original timezone
@@ -1769,10 +1919,10 @@ def test_format_datetime(dt, expected):
     ],
 )
 def test_get_kfp_list_runs_filter(
-    input_start_date: Optional[str],
-    input_end_date: Optional[str],
-    input_existing_filter_json: Optional[str],
-    input_experiment_id: Optional[str],
+    input_start_date: str | None,
+    input_end_date: str | None,
+    input_existing_filter_json: str | None,
+    input_experiment_id: str | None,
     expected_filter_object: dict,
 ):
     experiment_ids = []
@@ -1852,11 +2002,47 @@ def test_remove_tag_from_artifact_uri(input_uri, expected_output):
         ),  # nested dict
         ("a.missing", {"a": {"b": 1}}, {}),  # partially missing nested path
         (None, {"x": 1, "y": 2}, {"x": 1, "y": 2}),  # path is None
+        ("x", [{"x": 1}, {"x": 2}], [1, 2]),  # list of dicts with simple key
+        (None, [1, 2, 3], [1, 2, 3]),  # list with None path
+        (None, [[1, 2], [3, 4]], [[1, 2], [3, 4]]),  # list of lists with None path
+        (
+            "a.b",
+            [{"a": {"b": 10}}, {"a": {"b": 20}}],
+            [10, 20],
+        ),  # list of dicts with nested path
+        (None, [{"x": 1}, {"y": 2}], [{"x": 1}, {"y": 2}]),  # list with None path
+        (None, ["x"], ["x"]),  # list of strings with None path
     ],
 )
 def test_get_data_from_path_parametrized(path, data, expected):
     path_as_list = split_path(path)
     assert get_data_from_path(path_as_list, data) == expected
+
+
+def test_get_data_from_path_invalid_path_type():
+    # Test that invalid path type raises MLRunInvalidArgumentError
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match="Expected path be of type str or list of str or None",
+    ):
+        get_data_from_path(123, {"x": 1})  # path is int, should raise error
+
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match="Expected path be of type str or list of str or None",
+    ):
+        get_data_from_path(
+            {"invalid": "path"}, {"x": 1}
+        )  # path is dict, should raise error
+
+    # Test that using a path with a list of non-dict values raises error
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match="If data is a list of non-dict values, path must be None",
+    ):
+        get_data_from_path(
+            ["x"], [1, 2, 3]
+        )  # path with list of ints, should raise error
 
 
 @pytest.mark.parametrize(
@@ -1873,6 +2059,20 @@ def test_get_data_from_path_parametrized(path, data, expected):
             {"new_key": 123},
             {"existing": "data", "new_key": 123},
         ),
+        # List of dicts - simple path
+        (
+            "b",
+            [{"a": 1}, {"a": 2}, {"a": 3}],
+            [10, 20, 30],
+            [{"a": 1, "b": 10}, {"a": 2, "b": 20}, {"a": 3, "b": 30}],
+        ),
+        # List of dicts - nested path
+        (
+            "outer.b",
+            [{"outer": {"a": 1}}, {"outer": {"a": 2}}],
+            [10, 20],
+            [{"outer": {"a": 1, "b": 10}}, {"outer": {"a": 2, "b": 20}}],
+        ),
     ],
 )
 def test_set_data_by_path_success(path, initial_data, value, expected_data):
@@ -1882,26 +2082,46 @@ def test_set_data_by_path_success(path, initial_data, value, expected_data):
 
 
 @pytest.mark.parametrize(
-    "path, value, exc_type, exc_msg",
+    "path, initial_data, value, exc_type, exc_msg",
     [
         # For path=None, test that non-dict value raises ValueError
-        (None, "not a dict", ValueError, "value must be a dictionary"),
-        # For path=None with dict value, no exception expected, so not included here
+        (None, {}, "not a dict", ValueError, "value must be a dictionary"),
         # For invalid path types, test MLRunInvalidArgumentError is raised
-        (123, "some_value", mlrun.errors.MLRunInvalidArgumentError, "Expected path"),
-        (3.14, "some_value", mlrun.errors.MLRunInvalidArgumentError, "Expected path"),
         (
-            {"not": "a path"},
+            123,
+            {},
             "some_value",
             mlrun.errors.MLRunInvalidArgumentError,
             "Expected path",
         ),
+        (
+            3.14,
+            {},
+            "some_value",
+            mlrun.errors.MLRunInvalidArgumentError,
+            "Expected path",
+        ),
+        (
+            {"not": "a path"},
+            {},
+            "some_value",
+            mlrun.errors.MLRunInvalidArgumentError,
+            "Expected path",
+        ),
+        # List length mismatch
+        (
+            "b",
+            [{"a": 1}, {"a": 2}, {"a": 3}],
+            [10, 20],
+            mlrun.errors.MLRunInvalidArgumentError,
+            "must match data list length",
+        ),
     ],
 )
-def test_set_data_by_path_invalid_path(path, value, exc_type, exc_msg):
-    data = {}
+def test_set_data_by_path_invalid_path(path, initial_data, value, exc_type, exc_msg):
     with pytest.raises(exc_type, match=exc_msg):
-        set_data_by_path(path, data, value)
+        path_as_list = split_path(path) if isinstance(path, str) else path
+        set_data_by_path(path_as_list, initial_data, value)
 
 
 @pytest.mark.parametrize(
@@ -1991,3 +2211,120 @@ def test_validate_function_name(function_name, expected):
     """Test that validate_function_name enforces DNS-1123 label requirements."""
     with expected:
         validate_function_name(function_name)
+
+
+class _MockSpec:
+    """Minimal stand-in for any spec object that carries an ``auth`` attribute."""
+
+    def __init__(self, auth=None):
+        self.auth = auth
+
+
+@pytest.mark.parametrize("token_name", [None, ""])
+def test_set_auth_token_name_noop_for_empty_token(token_name):
+    """Test that None or empty token_name does not modify spec."""
+    spec = _MockSpec()
+    set_auth_token_name(spec, token_name)
+    assert spec.auth is None
+
+
+@pytest.mark.parametrize(
+    "initial_auth,expected_auth",
+    [
+        (None, {"token_name": "my-token"}),
+        ({}, {"token_name": "my-token"}),
+        ({"other_key": "value"}, {"other_key": "value", "token_name": "my-token"}),
+        ({"token_name": "old-token"}, {"token_name": "my-token"}),
+    ],
+)
+def test_set_auth_token_name_sets_token(initial_auth, expected_auth):
+    """Test that set_auth_token_name correctly sets token on various auth states."""
+    spec = _MockSpec(auth=initial_auth)
+    set_auth_token_name(spec, "my-token")
+    assert spec.auth == expected_auth
+
+
+def test_set_auth_token_name_works_with_run_spec():
+    """Test that set_auth_token_name works with actual RunSpec."""
+    spec = mlrun.model.RunSpec()
+    set_auth_token_name(spec, "my-token")
+    assert spec.auth["token_name"] == "my-token"
+
+
+def test_set_auth_token_name_works_with_nuclio_spec():
+    """Test that set_auth_token_name works with actual NuclioSpec.
+
+    Note: auth on function spec is only supported for Nuclio runtimes, not job runtimes.
+    """
+    spec = mlrun.runtimes.nuclio.function.NuclioSpec()
+    set_auth_token_name(spec, "my-token")
+    assert spec.auth["token_name"] == "my-token"
+
+
+@pytest.mark.parametrize("user_id", [None, ""])
+def test_set_auth_user_id_noop_for_empty_user_id(user_id):
+    """Test that None or empty user_id does not modify spec."""
+    spec = _MockSpec()
+    set_auth_user_id(spec, user_id)
+    assert spec.auth is None
+
+
+@pytest.mark.parametrize(
+    "initial_auth,expected_auth",
+    [
+        (None, {"user_id": "user-123"}),
+        ({}, {"user_id": "user-123"}),
+        ({"other_key": "value"}, {"other_key": "value", "user_id": "user-123"}),
+        ({"user_id": "old-user"}, {"user_id": "user-123"}),
+    ],
+)
+def test_set_auth_user_id_sets_user_id(initial_auth, expected_auth):
+    """Test that set_auth_user_id correctly sets user_id on various auth states."""
+    spec = _MockSpec(auth=initial_auth)
+    set_auth_user_id(spec, "user-123")
+    assert spec.auth == expected_auth
+
+
+def test_set_auth_user_id_works_with_run_spec():
+    """Test that set_auth_user_id works with actual RunSpec."""
+    spec = mlrun.model.RunSpec()
+    set_auth_user_id(spec, "user-123")
+    assert spec.auth["user_id"] == "user-123"
+
+
+@pytest.mark.parametrize(
+    "image, expected",
+    [
+        # http:// prefix should be stripped
+        ("http://my-registry.com/my-image:latest", "my-registry.com/my-image:latest"),
+        # https:// prefix should be stripped
+        ("https://my-registry.com/my-image:latest", "my-registry.com/my-image:latest"),
+        # no prefix should remain unchanged
+        ("my-registry.com/my-image:latest", "my-registry.com/my-image:latest"),
+        # empty string should remain empty
+        ("", ""),
+    ],
+)
+def test_remove_image_protocol_prefix(image, expected):
+    result = remove_image_protocol_prefix(image)
+    assert result == expected, (
+        f"Expected '{expected}' for image '{image}', got '{result}'"
+    )
+
+
+@pytest.mark.parametrize(
+    "handler,expected",
+    [
+        ("trainer:train_model", ("trainer", "train_model")),
+        ("my_func", ("", "my_func")),
+        ("", ("", "")),
+        (None, ("", "")),
+        # only the FIRST colon splits — partition() returns
+        # ("a", ":", "b:c"), not split's ["a", "b", "c"]
+        ("a:b:c", ("a", "b:c")),
+    ],
+)
+def test_split_handler_module_and_function(handler, expected):
+    from mlrun.utils.helpers import split_handler_module_and_function
+
+    assert split_handler_module_and_function(handler) == expected

@@ -16,6 +16,7 @@ import base64
 import inspect
 import json
 import warnings
+from contextlib import nullcontext as does_not_raise
 
 import kubernetes.client
 import kubernetes.client as k8s_client
@@ -23,6 +24,7 @@ import pytest
 from deepdiff import DeepDiff
 
 import mlrun
+import mlrun.common.secrets
 import mlrun.runtimes.databricks_job.databricks_runtime
 import mlrun.runtimes.mpijob.abstract
 import mlrun.runtimes.mpijob.v1
@@ -424,12 +426,198 @@ def test_with_node_selection_warnings(
 
     # Assert that each expected warning substring is found in the warnings.
     for expected in expected_warning_substrings:
-        assert any(
-            expected in message for message in warning_messages
-        ), f"Expected warning substring '{expected}' not found in warnings: {warning_messages}"
+        assert any(expected in message for message in warning_messages), (
+            f"Expected warning substring '{expected}' not found in warnings: {warning_messages}"
+        )
     # If no warnings are expected, assert that none were raised.
     if not expected_warning_substrings:
         assert len(warning_messages) == 0, (
             f"Expected no warnings, but found: {warning_messages}"
             "Expected no warnings, but found: {warning_messages}"
         )
+
+
+def _auth_prefix() -> str:
+    return mlrun.mlconf.secret_stores.kubernetes.auth_secret_name.format(
+        hashed_access_key=""
+    )
+
+
+def _new_job_runtime(project: str = "p") -> mlrun.runtimes.KubejobRuntime:
+    # Avoid nuclio path; this creates a plain KubejobRuntime without touching files or API
+    fn = mlrun.new_function(
+        name="f",
+        project=project,
+        kind="job",
+        image="mlrun/mlrun",
+    )
+    assert hasattr(fn, "set_env"), "Expected runtime to expose set_env"
+    return fn
+
+
+def test_set_env_from_secret_blocks_auth_secret():
+    fn = _new_job_runtime()
+    forbidden = _auth_prefix() + "xyz"
+
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as exc:
+        fn.set_env_from_secret(name="MY_ENV", secret=forbidden)
+
+    assert "Forbidden secret" in str(exc.value)
+    assert forbidden in str(exc.value)
+
+
+def test_set_env_from_secret_allows_regular_secret():
+    fn = _new_job_runtime()
+    # Should not raise
+    fn.set_env_from_secret(name="MY_ENV", secret="regular-secret", secret_key="k")
+
+
+def test_set_env_blocks_when_value_from_contains_auth_secret_object():
+    fn = _new_job_runtime()
+    forbidden = _auth_prefix() + "abc"
+
+    value_from = k8s_client.V1EnvVarSource(
+        secret_key_ref=k8s_client.V1SecretKeySelector(name=forbidden, key="token")
+    )
+
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as exc:
+        fn.set_env(name="MY_ENV", value_from=value_from)
+
+    assert "Forbidden secret" in str(exc.value)
+    assert forbidden in str(exc.value)
+
+
+def test_set_env_blocks_when_value_from_contains_auth_secret_dict_variants():
+    fn = _new_job_runtime()
+    forbidden = _auth_prefix() + "def"
+
+    # CamelCase variant
+    value_from_camel = {
+        "valueFrom": {
+            "secretKeyRef": {
+                "name": forbidden,
+                "key": "token",
+            }
+        }
+    }
+
+    # snake_case variant
+    value_from_snake = {
+        "value_from": {
+            "secret_key_ref": {
+                "name": forbidden,
+                "key": "token",
+            }
+        }
+    }
+
+    for payload in (value_from_camel, value_from_snake):
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as exc:
+            fn.set_env(name="MY_ENV", value_from=payload)
+        assert "Forbidden secret" in str(exc.value)
+        assert forbidden in str(exc.value)
+
+
+def test_set_env_allows_value_literal_and_non_secret_value_from():
+    fn = _new_job_runtime()
+
+    # Plain value should pass
+    fn.set_env(name="PLAIN_ENV", value="ok")
+
+    # Non-secret valueFrom (ConfigMap) should also pass
+    value_from_config_map = k8s_client.V1EnvVarSource(
+        config_map_key_ref=k8s_client.V1ConfigMapKeySelector(
+            name="my-configmap", key="cfg"
+        )
+    )
+    fn.set_env(name="FROM_CM", value_from=value_from_config_map)
+
+
+def test_set_env_blocks_top_level_secret_key_ref_dict():
+    fn = _new_job_runtime()
+    forbidden = _auth_prefix() + "top"
+    payload = {
+        "secretKeyRef": {"name": forbidden, "key": "k"},
+    }
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+        fn.set_env(name="MY_ENV", value_from=payload)
+
+
+@pytest.mark.parametrize(
+    "is_api_server,should_raise",
+    [
+        ("false", True),
+        ("true", False),
+    ],
+)
+def test_validate_not_forbidden_secret(monkeypatch, is_api_server, should_raise):
+    def _forbidden_name():
+        base = mlrun.mlconf.secret_stores.kubernetes.auth_secret_name.format(
+            hashed_access_key=""
+        )
+        return f"{base}x"
+
+    monkeypatch.setenv("MLRUN_IS_API_SERVER", is_api_server)
+
+    if should_raise:
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+            mlrun.common.secrets.validate_not_forbidden_secret(_forbidden_name())
+    else:
+        mlrun.common.secrets.validate_not_forbidden_secret(_forbidden_name())
+
+
+@pytest.mark.parametrize(
+    "service_account, allowed_service_accounts, forbidden_service_accounts, expectation",
+    [
+        (
+            "allowed-sa",
+            ["allowed-sa", "another-sa"],
+            ["forbidden-sa"],
+            does_not_raise(),
+        ),
+        (
+            "forbidden-sa",
+            ["allowed-sa", "another-sa"],
+            ["forbidden-sa"],
+            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+        ),
+        (
+            "not-allowed-sa",
+            ["allowed-sa", "another-sa"],
+            ["forbidden-sa"],
+            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+        ),
+        ("any-sa", None, None, does_not_raise()),
+    ],
+)
+def test_validate_service(
+    service_account, allowed_service_accounts, forbidden_service_accounts, expectation
+):
+    spec = mlrun.runtimes.pod.KubeResourceSpec(service_account=service_account)
+
+    with expectation:
+        spec.validate_service_account(
+            allowed_service_accounts, forbidden_service_accounts
+        )
+
+
+def test_auto_mount_type_env_style_modifiers():
+    # locks the policy: only env-style modifiers may appear here; mount-style
+    # modifiers would have their volume side-effects silently dropped by callers
+    # that harvest via spec.env (e.g. builder `_resolve_storage_auto_mount_env`).
+    import mlrun.runtimes.mounts
+
+    expected = {
+        mlrun.runtimes.mounts.set_env_variables,
+        mlrun.runtimes.mounts.set_env_vars_from_secret,
+        mlrun.runtimes.mounts.v3io_cred,
+        mlrun.runtimes.mounts.mount_s3,
+    }
+    assert mlrun.runtimes.pod.AutoMountType.env_style_modifiers() == expected
+
+    forbidden = {
+        mlrun.runtimes.mounts.mount_v3io,
+        mlrun.runtimes.mounts.mount_pvc,
+        mlrun.runtimes.mounts.auto_mount,
+    }
+    assert forbidden.isdisjoint(mlrun.runtimes.pod.AutoMountType.env_style_modifiers())

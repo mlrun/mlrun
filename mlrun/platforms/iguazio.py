@@ -15,7 +15,6 @@
 import json
 import os
 import urllib
-from typing import Optional
 from urllib.parse import urlparse
 
 import requests
@@ -140,7 +139,7 @@ class OutputStream:
         self._lazy_init()
 
         def dump_record(rec):
-            if not isinstance(rec, (str, bytes)):
+            if not isinstance(rec, str | bytes):
                 return dict_to_json(rec)
             return str(rec)
 
@@ -256,14 +255,14 @@ class KafkaOutputStream:
 
 class V3ioStreamClient:
     def __init__(
-        self, url: str, shard_id: int = 0, seek_to: Optional[str] = None, **kwargs
+        self, url: str, shard_id: int = 0, seek_to: str | None = None, **kwargs
     ):
         endpoint, stream_path = parse_path(url)
         seek_options = ["EARLIEST", "LATEST", "TIME", "SEQUENCE"]
         seek_to = seek_to or "LATEST"
         seek_to = seek_to.upper()
         if seek_to not in seek_options:
-            raise ValueError(f'seek_to must be one of {", ".join(seek_options)}')
+            raise ValueError(f"seek_to must be one of {', '.join(seek_options)}")
 
         self._url = url
         self._container, self._stream_path = split_path(stream_path)
@@ -317,6 +316,9 @@ def is_iguazio_endpoint(endpoint_url: str) -> bool:
 
 
 def is_iguazio_session(value: str) -> bool:
+    # JWS-style JWTs are bearer tokens, not Iguazio sessions.
+    if value.count(".") == 2 and value.startswith("eyJ"):
+        return False
     # TODO: find a better heuristic
     return len(value) > 20 and "-" in value
 

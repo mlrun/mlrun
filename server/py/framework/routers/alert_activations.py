@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional, Union
+from typing import Union
 
 from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Depends, Query, Request
@@ -32,17 +32,17 @@ router = APIRouter()
 async def list_alert_activations(
     request: Request,
     project: str,
-    name: Optional[str] = None,
-    since: Optional[str] = None,
-    until: Optional[str] = None,
-    entity: Optional[str] = None,
-    severity: Optional[
-        list[Union[mlrun.common.schemas.alert.AlertSeverity, str]]
-    ] = Query([], alias="severity"),
-    entity_kind: Optional[
-        Union[mlrun.common.schemas.alert.EventEntityKind, str]
-    ] = Query(None, alias="entity-kind"),
-    event_kind: Optional[Union[mlrun.common.schemas.alert.EventKind, str]] = Query(
+    name: str | None = None,
+    since: str | None = None,
+    until: str | None = None,
+    entity: str | None = None,
+    severity: list[Union[mlrun.common.schemas.alert.AlertSeverity, str]] | None = Query(
+        [], alias="severity"
+    ),
+    entity_kind: Union[mlrun.common.schemas.alert.EventEntityKind, str] | None = Query(
+        None, alias="entity-kind"
+    ),
+    event_kind: Union[mlrun.common.schemas.alert.EventKind, str] | None = Query(
         None, alias="event-kind"
     ),
     page: int = Query(None, gt=0),
@@ -86,7 +86,7 @@ async def get_alert_activation(
     request: Request,
     project: str,
     activation_id: int,
-    name: Optional[str] = None,
+    name: str | None = None,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
     service: framework.service.Service = Depends(

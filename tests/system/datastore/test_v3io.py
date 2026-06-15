@@ -145,9 +145,9 @@ class TestV3ioDataStore(TestMLRunSystem):
         start_time = time.monotonic()
         cmp_process = subprocess.Popen(cmp_command, stdout=subprocess.PIPE)
         stdout, stderr = cmp_process.communicate()
-        assert (
-            cmp_process.returncode == 0
-        ), f"stdout = {stdout}, stderr={stderr}, returncode={cmp_process.returncode}"
+        assert cmp_process.returncode == 0, (
+            f"stdout = {stdout}, stderr={stderr}, returncode={cmp_process.returncode}"
+        )
         self._logger.debug(
             f"test_v3io_large_object_upload - finished cmp 1 in {time.monotonic() - start_time} seconds"
         )
@@ -171,9 +171,9 @@ class TestV3ioDataStore(TestMLRunSystem):
         start_time = time.monotonic()
         cmp_process = subprocess.Popen(cmp_command, stdout=subprocess.PIPE)
         stdout, stderr = cmp_process.communicate()
-        assert (
-            cmp_process.returncode == 0
-        ), f"stdout = {stdout}, stderr={stderr}, returncode={cmp_process.returncode}"
+        assert cmp_process.returncode == 0, (
+            f"stdout = {stdout}, stderr={stderr}, returncode={cmp_process.returncode}"
+        )
         self._logger.debug(
             f"test_v3io_large_object_upload - finished cmp 2 in {time.monotonic() - start_time} seconds"
         )

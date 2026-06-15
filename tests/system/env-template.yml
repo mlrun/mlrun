@@ -42,6 +42,9 @@ MLRUN_SYSTEM_TESTS_GOOGLE_BIG_QUERY_CREDENTIALS_JSON:
 # kafka brokers string for kafka tests
 MLRUN_SYSTEM_TESTS_KAFKA_BROKERS:
 
+# RabbitMQ AMQP URL for RabbitMQ trigger tests - e.g. amqp://guest:guest@localhost:5672
+MLRUN_SYSTEM_TESTS_RABBITMQ_URL:
+
 # slack webhook for sending system test reports
 MLRUN_SYSTEM_TESTS_SLACK_WEBHOOK_URL:
 
@@ -75,7 +78,6 @@ SNOWFLAKE_USER:
 SNOWFLAKE_PASSWORD:
 SNOWFLAKE_DATABASE:
 SNOWFLAKE_SCHEMA:
-SNOWFLAKE_TABLE_NAME:
 SNOWFLAKE_WAREHOUSE:
 
 # model monitoring datastore profiles credentials
@@ -85,11 +87,12 @@ mlrun_model_monitoring_tsdb_profile:
   # type: v3io
   # v3io_access_key: # can leave empty
   # # or:
-  # type: taosws
+  # type: postgresql
   # host:
-  # port: 6041
+  # port: 5432
   # user:
   # password:
+  # database:
 
 mlrun_model_monitoring_stream_profile:
   # name: # choose, e.g.: my-mm-stream
@@ -124,3 +127,5 @@ OPENAI_BASE_URL:
 OPENAI_API_KEY:
 #  Optional because hf system tests model is free to use without authentication.
 HF_TOKEN:
+#  Optional: custom HuggingFace Hub endpoint (e.g. for mirrored or self-hosted Hub instances)
+HF_ENDPOINT:

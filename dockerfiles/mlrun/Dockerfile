@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-ARG MLRUN_PIP_VERSION=25.0
+ARG MLRUN_PIP_VERSION=26.0
 ARG MLRUN_PYTHON_VERSION=3.11
 ARG MLRUN_UV_IMAGE=ghcr.io/astral-sh/uv:latest
 ARG OMPI_VERSION=4.1.5
@@ -65,7 +65,7 @@ ENV UV_SYSTEM_PYTHON=true UV_LINK_MODE=copy UV_COMPILE_BYTECODE=1
 # Install MLRun:
 # no-deps to ignore existing dependencies, just add the locked requirements
 # mainly because of how the image is built with conda.
-# see https://iguazio.atlassian.net/browse/ML-8712 for example
+# see ML-8712 for example
 # where 'tqdm' is given by conda env but will get remove if we omit the `--no-deps`.
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,id=pip-${MLRUN_PYTHON_VERSION},target=/root/.cache/uv \

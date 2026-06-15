@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import patch
 
 import pytest
@@ -239,8 +239,8 @@ class TestPreAggregateManager:
     @patch("mlrun.utils.datetime_now")
     def test_get_start_end_with_none_values(self, mock_now, mock_min):
         """Test get_start_end with None values."""
-        mock_min_time = datetime(2025, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
-        mock_now_time = datetime(2025, 1, 15, 12, 0, 0, tzinfo=timezone.utc)
+        mock_min_time = datetime(2025, 1, 1, 0, 0, 0, tzinfo=UTC)
+        mock_now_time = datetime(2025, 1, 15, 12, 0, 0, tzinfo=UTC)
 
         mock_min.return_value = mock_min_time
         mock_now.return_value = mock_now_time

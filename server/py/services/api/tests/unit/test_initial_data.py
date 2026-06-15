@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import string
-import typing
 import unittest.mock
 
 import pytest
@@ -31,6 +30,9 @@ import framework.db.sqldb.models
 import framework.db.sqldb.sql_session
 import framework.utils.singletons.db
 import services.api.initial_data
+
+_UUID_V4 = "550e8400-e29b-41d4-a716-446655440000"
+_UUID_V7 = "018f6c4e-7b8a-7c2e-bf3a-5e4d1c2a8b90"
 
 
 def test_add_data_version_empty_db():
@@ -462,20 +464,27 @@ def test_add_producer_uri_to_artifact():
 
 
 @pytest.mark.parametrize(
-    "system_id_source, expected_system_id",
+    "system_id_source, configured_system_id, expected_system_id",
     [
         # when no system id is configured, a new random one should be generated
-        ("random", None),
-        # when a system id is set in mlconf, it should be used
-        ("mlconf", "123"),
+        ("random", None, None),
+        # when a non-UUID system id is set in mlconf, it should be used as-is
+        ("mlconf", "123", "123"),
+        # UUIDv4 should be stripped of hyphens and truncated to system_id_len
+        ("mlconf", _UUID_V4, "550e8400e29b"),
+        # UUIDv7 should be stripped of hyphens and truncated to system_id_len
+        ("mlconf", _UUID_V7, "018f6c4e7b8a"),
     ],
 )
 def test_init_system_id(
-    system_id_source, expected_system_id, monkeypatch: pytest.MonkeyPatch
+    system_id_source,
+    configured_system_id,
+    expected_system_id,
+    monkeypatch: pytest.MonkeyPatch,
 ):
     if system_id_source == "mlconf":
         monkeypatch.setattr(
-            mlrun.mlconf, framework.constants.SYSTEM_ID_KEY, expected_system_id
+            mlrun.mlconf, framework.constants.SYSTEM_ID_KEY, configured_system_id
         )
 
     db, db_session = _initialize_db_without_migrations()
@@ -491,7 +500,7 @@ def test_init_system_id(
 
     if system_id_source == "random":
         # ensure the generated id has the correct length
-        assert len(system_id) == 6
+        assert len(system_id) == mlrun.mlconf.system_id_len
         # ensure the generated id contains only alphanumeric characters
         assert all(char in string.ascii_lowercase + string.digits for char in system_id)
     else:
@@ -503,6 +512,30 @@ def test_init_system_id(
     services.api.initial_data._init_system_id(db_session)
     system_id_after_second_init = db.get_system_id(db_session)
     assert system_id_after_second_init == system_id
+
+
+@pytest.mark.parametrize(
+    "configured_value, expected_value",
+    [
+        # nothing configured
+        (None, None),
+        ("", None),
+        # non-UUID strings are returned as-is
+        ("123", "123"),
+        ("my-system", "my-system"),
+        # UUIDv4: hyphens stripped and truncated to system_id_len (12)
+        (_UUID_V4, "550e8400e29b"),
+        # UUIDv7: hyphens stripped and truncated to system_id_len (12)
+        (_UUID_V7, "018f6c4e7b8a"),
+    ],
+)
+def test_get_configured_system_id(
+    configured_value, expected_value, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.setattr(
+        mlrun.mlconf, framework.constants.SYSTEM_ID_KEY, configured_value or ""
+    )
+    assert services.api.initial_data._get_configured_system_id() == expected_value
 
 
 def test_system_id_initialized_from_scratch(monkeypatch: pytest.MonkeyPatch):
@@ -686,9 +719,9 @@ def test_ensure_latest_tag_for_artifacts():
     artifacts = db.list_artifacts(
         db_session, project=project1, name=key1, tag="latest", as_records=True
     )
-    assert (
-        len(artifacts) == 3
-    ), f"Expected 3 artifacts with latest tag, found {len(artifacts)}"
+    assert len(artifacts) == 3, (
+        f"Expected 3 artifacts with latest tag, found {len(artifacts)}"
+    )
 
     # Verify that artifact from the previous run (run1) wasn't tagged as latest
     with pytest.raises(mlrun.errors.MLRunNotFoundError):
@@ -740,9 +773,66 @@ def test_migrate_monitoring_functions_labels():
             assert key not in func_labels, f"{func_name} has an unexpected label"
 
 
-def _initialize_db_without_schema() -> (
-    tuple[framework.db.sqldb.db.SQLDB, sqlalchemy.orm.Session]
+def test_publish_db_migration_event_emits(monkeypatch: pytest.MonkeyPatch):
+    fake_event = object()
+    fake_client = unittest.mock.MagicMock()
+    fake_client.generate_db_migration_event.return_value = fake_event
+    monkeypatch.setattr(
+        "services.api.utils.events.events_factory.EventsFactory.get_events_client",
+        lambda *a, **kw: fake_client,
+    )
+    services.api.initial_data._publish_db_migration_event(
+        mlrun.common.schemas.MigrationEventActions.completed,
+        duration_seconds=2.5,
+        scope=["schema", "data"],
+        versions={"current_schema_revision": "abc", "target_schema_revision": "def"},
+    )
+    fake_client.generate_db_migration_event.assert_called_once_with(
+        mlrun.common.schemas.MigrationEventActions.completed,
+        error=None,
+        duration_seconds=2.5,
+        scope=["schema", "data"],
+        versions={"current_schema_revision": "abc", "target_schema_revision": "def"},
+    )
+    fake_client.emit.assert_called_once_with(fake_event)
+
+
+def test_publish_db_migration_event_skips_when_event_is_none(
+    monkeypatch: pytest.MonkeyPatch,
 ):
+    # default base client returns None -> emit must not be called
+    fake_client = unittest.mock.MagicMock()
+    fake_client.generate_db_migration_event.return_value = None
+    monkeypatch.setattr(
+        "services.api.utils.events.events_factory.EventsFactory.get_events_client",
+        lambda *a, **kw: fake_client,
+    )
+    services.api.initial_data._publish_db_migration_event(
+        mlrun.common.schemas.MigrationEventActions.required
+    )
+    fake_client.emit.assert_not_called()
+
+
+def test_publish_db_migration_event_swallows_factory_errors(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    def _boom(*_a, **_kw):
+        raise RuntimeError("factory broken")
+
+    monkeypatch.setattr(
+        "services.api.utils.events.events_factory.EventsFactory.get_events_client",
+        _boom,
+    )
+    # must not raise
+    services.api.initial_data._publish_db_migration_event(
+        mlrun.common.schemas.MigrationEventActions.failed,
+        error=RuntimeError("boom"),
+    )
+
+
+def _initialize_db_without_schema() -> tuple[
+    framework.db.sqldb.db.SQLDB, sqlalchemy.orm.Session
+]:
     dsn = "sqlite:///:memory:?check_same_thread=false"
     mlrun.mlconf.httpdb.dsn = dsn
     framework.db.sqldb.sql_session._init_engine(dsn=dsn)
@@ -753,9 +843,9 @@ def _initialize_db_without_schema() -> (
     return db, db_session
 
 
-def _initialize_db_without_migrations() -> (
-    tuple[framework.db.sqldb.db.SQLDB, sqlalchemy.orm.Session]
-):
+def _initialize_db_without_migrations() -> tuple[
+    framework.db.sqldb.db.SQLDB, sqlalchemy.orm.Session
+]:
     dsn = "sqlite:///:memory:?check_same_thread=false"
     mlrun.mlconf.httpdb.dsn = dsn
     framework.db.sqldb.sql_session._init_engine(dsn=dsn)
@@ -772,9 +862,9 @@ def _insert_function(
     db_session,
     fn_name,
     project: str,
-    function_kind: typing.Optional[str] = "remote",
-    function_state: typing.Optional[str] = "ready",
-    labels: typing.Optional[dict] = None,
+    function_kind: str | None = "remote",
+    function_state: str | None = "ready",
+    labels: dict | None = None,
 ):
     function_body = {
         "metadata": {"name": fn_name},

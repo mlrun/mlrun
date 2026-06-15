@@ -24,7 +24,7 @@ class FeatureSetFormat(ObjectFormat, mlrun.common.types.StrEnum):
     minimal = "minimal"
 
     @staticmethod
-    def format_method(_format: str) -> typing.Optional[typing.Callable]:
+    def format_method(_format: str) -> typing.Callable | None:
         return {
             FeatureSetFormat.full: None,
             FeatureSetFormat.minimal: FeatureSetFormat.filter_obj_method(

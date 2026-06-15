@@ -44,9 +44,9 @@ secrets = {"AWS_KEY": "111222333"}
 project.set_secrets(secrets=secrets, provider="kubernetes")
 
 # Create and run the MLRun job
-function = mlrun.code_to_function(
+function = project.set_function(
+    func="<path to function>",
     name="secret_func",
-    filename="my_code.py",
     handler="test_function",
     kind="job",
     image="mlrun/mlrun",
@@ -79,14 +79,16 @@ To pass secret parameters, use the Task's {py:func}`~mlrun.model.RunTemplate.wit
 the following command passes specific project-secrets to the execution context:
 
 ```{code-block} python
-:emphasize-lines: 8-8
+:emphasize-lines: 10-10
 
-function = mlrun.code_to_function(
+project = mlrun.get_or_create_project("myproj", "./")
+
+function = project.set_function(
+    func="<path to function>",
     name="secret_func",
-    filename="my_code.py",
     handler="test_function",
     kind="job",
-    image="mlrun/mlrun"
+    image="mlrun/mlrun",
 )
 task = mlrun.new_task().with_secrets("kubernetes", ["AWS_KEY", "DB_PASSWORD"])
 run = function.run(task, ...)
@@ -329,9 +331,10 @@ keys in it - `secret1` and `secret2`.
 to an MLRun job:
 
 ```{code-block} python
-:emphasize-lines: 7-12
+:emphasize-lines: 9-14
+project = mlrun.get_or_create_project("myproj", "./")
 
-function = mlrun.code_to_function(
+function = project.set_function(
     name="secret_func",
     handler="test_function",
     ...

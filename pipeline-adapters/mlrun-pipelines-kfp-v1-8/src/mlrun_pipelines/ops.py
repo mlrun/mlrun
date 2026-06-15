@@ -21,6 +21,7 @@ from kubernetes import client as k8s_client
 import mlrun
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.runtimes.constants
+import mlrun.runtime_configuration_context
 import mlrun.utils.helpers
 import mlrun_pipelines.common.constants
 import mlrun_pipelines.common.ops
@@ -185,6 +186,17 @@ def add_default_env(k8s_client, cop):
             ),
         )
     )
+    # Inject the full pod name (metadata.name) for runner_pod annotation.
+    # socket.gethostname() is truncated to 63 chars by the kubelet,
+    # but the full pod name is needed for unambiguous step correlation.
+    cop.container.add_env_variable(
+        k8s_client.V1EnvVar(
+            "MLRUN_POD_NAME",
+            value_from=k8s_client.V1EnvVarSource(
+                field_ref=k8s_client.V1ObjectFieldSelector(field_path="metadata.name")
+            ),
+        )
+    )
 
     if config.httpdb.api_url:
         cop.container.add_env_variable(
@@ -206,6 +218,16 @@ def add_default_env(k8s_client, cop):
             k8s_client.V1EnvVar(
                 name=auth_env_var,
                 value=os.environ.get(auth_env_var) or os.environ.get("V3IO_ACCESS_KEY"),
+            )
+        )
+
+    # This propagates the token from RuntimeConfigurationContext to argo pods.
+    auth_token_name = mlrun.runtime_configuration_context.RuntimeConfigurationContext.get_auth_token_name()
+    if auth_token_name:
+        cop.container.add_env_variable(
+            k8s_client.V1EnvVar(
+                name="MLRUN_AUTH_WITH_OAUTH_TOKEN__TOKEN_NAME",
+                value=auth_token_name,
             )
         )
 

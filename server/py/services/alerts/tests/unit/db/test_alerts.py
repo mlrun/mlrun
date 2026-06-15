@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import mlrun.common.schemas.alert as alert_objects
 
@@ -44,9 +44,7 @@ class TestAlerts(TestDatabaseBase):
         alerts = self._db.list_alerts(self._db_session, project)
         assert len(alerts) == 1
 
-        assert alerts[0].created.replace(tzinfo=timezone.utc) < datetime.now(
-            tz=timezone.utc
-        )
+        assert alerts[0].created.replace(tzinfo=UTC) < datetime.now(tz=UTC)
 
         alert2_name = "test-alert2"
         alert2 = services.alerts.tests.unit.crud.utils.generate_alert_data(

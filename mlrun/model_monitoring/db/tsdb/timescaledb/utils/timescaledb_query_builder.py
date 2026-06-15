@@ -14,7 +14,7 @@
 
 import re
 from datetime import datetime, timedelta
-from typing import TYPE_CHECKING, Optional, Union
+from typing import TYPE_CHECKING, Union
 
 import mlrun.common.schemas.model_monitoring as mm_schemas
 import mlrun.errors
@@ -30,13 +30,15 @@ class TimescaleDBQueryBuilder:
     """Utility class for building common SQL query components."""
 
     @staticmethod
-    def build_endpoint_filter(endpoint_ids: Union[str, list[str]]) -> str:
+    def build_endpoint_filter(endpoint_ids: Union[str, list[str]] | None) -> str:
         """
         Generate SQL filter for endpoint IDs.
 
-        :param endpoint_ids: Single endpoint ID or list of endpoint IDs
-        :return: SQL WHERE clause fragment for endpoint filtering
+        :param endpoint_ids: Single endpoint ID, list of endpoint IDs, or None for no filtering
+        :return: SQL WHERE clause fragment for endpoint filtering, or empty string if None
         """
+        if endpoint_ids is None:
+            return ""
         if isinstance(endpoint_ids, str):
             return f"{mm_schemas.WriterEvent.ENDPOINT_ID}='{endpoint_ids}'"
         elif isinstance(endpoint_ids, list):
@@ -81,39 +83,62 @@ class TimescaleDBQueryBuilder:
 
     @staticmethod
     def build_metrics_filter(
-        metrics: list[mm_schemas.ModelEndpointMonitoringMetric],
+        metrics: list[mm_schemas.ModelEndpointMonitoringMetric] | None,
     ) -> str:
         """
-        Generate SQL filter for metrics.
+        Generate SQL filter for metrics using both application_name and metric_name columns.
 
-        :param metrics: List of ModelEndpointMonitoringMetric objects
-        :return: SQL WHERE clause fragment for metrics filtering
+        :param metrics: List of ModelEndpointMonitoringMetric objects, or None for no filtering
+        :return: SQL WHERE clause fragment for metrics filtering, or empty string if None
         """
+        if metrics is None:
+            return ""
         if not metrics:
             raise mlrun.errors.MLRunInvalidArgumentError("Metrics list cannot be empty")
 
-        metric_names = [metric.name for metric in metrics]
-        if len(metric_names) == 1:
-            return f"{mm_schemas.MetricData.METRIC_NAME} = '{metric_names[0]}'"
-        metric_list = "', '".join(metric_names)
-        return f"{mm_schemas.MetricData.METRIC_NAME} IN ('{metric_list}')"
+        # Build filter that includes both application_name and metric_name
+        # Format: (application_name = 'app1' AND metric_name = 'name1') OR
+        # (application_name = 'app2' AND metric_name = 'name2')
+        conditions = []
+        for metric in metrics:
+            condition = (
+                f"({mm_schemas.WriterEvent.APPLICATION_NAME} = '{metric.app}' "
+                f"AND {mm_schemas.MetricData.METRIC_NAME} = '{metric.name}')"
+            )
+            conditions.append(condition)
+
+        if len(conditions) == 1:
+            return conditions[0]
+        return " OR ".join(conditions)
 
     @staticmethod
     def build_results_filter(
-        metrics: list[mm_schemas.ModelEndpointMonitoringMetric],
+        metrics: list[mm_schemas.ModelEndpointMonitoringMetric] | None,
     ) -> str:
         """
-        Generate SQL filter for results using result_name column.
-        :param metrics: List of ModelEndpointMonitoringMetric objects
-        :return: SQL WHERE clause fragment for results filtering
+        Generate SQL filter for results using both application_name and result_name columns.
+        :param metrics: List of ModelEndpointMonitoringMetric objects, or None for no filtering
+        :return: SQL WHERE clause fragment for results filtering, or empty string if None
         """
+        if metrics is None:
+            return ""
         if not metrics:
             raise mlrun.errors.MLRunInvalidArgumentError("Metrics list cannot be empty")
-        metric_names = [metric.name for metric in metrics]
-        if len(metric_names) == 1:
-            return f"{mm_schemas.ResultData.RESULT_NAME} = '{metric_names[0]}'"
-        metric_list = "', '".join(metric_names)
-        return f"{mm_schemas.ResultData.RESULT_NAME} IN ('{metric_list}')"
+
+        # Build filter that includes both application_name and result_name
+        # Format: (application_name = 'app1' AND result_name = 'name1') OR
+        # (application_name = 'app2' AND result_name = 'name2')
+        conditions = []
+        for metric in metrics:
+            condition = (
+                f"({mm_schemas.WriterEvent.APPLICATION_NAME} = '{metric.app}' "
+                f"AND {mm_schemas.ResultData.RESULT_NAME} = '{metric.name}')"
+            )
+            conditions.append(condition)
+
+        if len(conditions) == 1:
+            return conditions[0]
+        return " OR ".join(conditions)
 
     @staticmethod
     def build_metrics_filter_from_names(metric_names: list[str]) -> str:
@@ -134,9 +159,12 @@ class TimescaleDBQueryBuilder:
         return f"{mm_schemas.MetricData.METRIC_NAME} IN ('{metric_list}')"
 
     @staticmethod
-    def combine_filters(filters: list[str]) -> Optional[str]:
+    def combine_filters(filters: list[str]) -> str | None:
         """
         Combine multiple filter conditions with AND operator.
+
+        Each filter is wrapped in parentheses to ensure correct SQL operator
+        precedence when individual filters contain OR expressions.
 
         :param filters: List of filter condition strings
         :return: Combined filter string or None if no filters
@@ -145,13 +173,13 @@ class TimescaleDBQueryBuilder:
             return (
                 valid_filters[0]
                 if len(valid_filters) == 1
-                else " AND ".join(valid_filters)
+                else " AND ".join(f"({f})" for f in valid_filters)
             )
         else:
             return None
 
     @staticmethod
-    def interval_to_minutes(interval: str) -> Optional[int]:
+    def interval_to_minutes(interval: str) -> int | None:
         """
         Convert TimescaleDB interval string to minutes.
 
@@ -229,7 +257,7 @@ class TimescaleDBQueryBuilder:
     @staticmethod
     def determine_optimal_from_available(
         start: datetime, end: datetime, available_intervals: list[str]
-    ) -> Optional[str]:
+    ) -> str | None:
         """
         Determine optimal interval from available pre-aggregate intervals.
 
@@ -293,10 +321,11 @@ class TimescaleDBQueryBuilder:
         start: "datetime",  # Use string to avoid import cycle
         end: "datetime",
         columns: list[str],
-        filter_query: Optional[str],
+        filter_query: str | None,
         name_column: str,
         value_column: str,
         debug_name: str = "read_data",
+        timestamp_column: str | None = None,
     ) -> "pd.DataFrame":  # Use string to avoid import cycle
         """
         Build and execute read data query with pre-aggregate fallback pattern.
@@ -314,6 +343,7 @@ class TimescaleDBQueryBuilder:
         :param name_column: Name of the metric/result name column
         :param value_column: Name of the metric/result value column
         :param debug_name: Name for debugging purposes
+        :param timestamp_column: Optional timestamp column to use for time filtering
         :return: DataFrame with query results
         """
 
@@ -324,6 +354,7 @@ class TimescaleDBQueryBuilder:
                 columns_to_filter=columns,
                 filter_query=filter_query,
                 use_pre_aggregates=True,
+                timestamp_column=timestamp_column,
             )
 
         def build_raw_query():
@@ -332,6 +363,7 @@ class TimescaleDBQueryBuilder:
                 end=end,
                 columns_to_filter=columns,
                 filter_query=filter_query,
+                timestamp_column=timestamp_column,
             )
 
         # Column mapping rules for pre-aggregate results
@@ -359,9 +391,9 @@ class TimescaleDBQueryBuilder:
     @staticmethod
     def prepare_time_range_and_interval(
         pre_aggregate_manager,
-        start: Optional[datetime] = None,
-        end: Optional[datetime] = None,
-        interval: Optional[str] = None,
+        start: datetime | None = None,
+        end: datetime | None = None,
+        interval: str | None = None,
         auto_determine_interval: bool = True,
     ) -> tuple[datetime, datetime, str]:
         """
@@ -415,9 +447,9 @@ class TimescaleDBQueryBuilder:
         pre_aggregate_manager,
         start_iso: str,
         end_iso: str,
-        interval: Optional[str] = None,
-        agg_function: Optional[str] = None,
-    ) -> tuple[datetime, datetime, Optional[str]]:
+        interval: str | None = None,
+        agg_function: str | None = None,
+    ) -> tuple[datetime, datetime, str | None]:
         """
         Specialized helper for time preparation with validation and ISO string conversion.
 
@@ -476,7 +508,7 @@ class TimescaleDBQueryBuilder:
 
         return f"""
         SELECT
-            {', '.join(select_columns)}
+            {", ".join(select_columns)}
         FROM ({subquery}) AS time_buckets
         GROUP BY {group_by_column}
         ORDER BY {order_by_column}

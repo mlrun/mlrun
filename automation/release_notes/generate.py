@@ -16,7 +16,6 @@ import logging
 import re
 import subprocess
 import tempfile
-from typing import Optional
 
 import click
 import requests
@@ -49,7 +48,7 @@ class ReleaseNotesGenerator:
         previous_release: str,
         release_branch: str,
         raise_on_failed_parsing: bool = True,
-        tmp_file_path: Optional[str] = None,
+        tmp_file_path: str | None = None,
         skip_clone: bool = False,
     ):
         self._logger = logger

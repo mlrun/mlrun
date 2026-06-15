@@ -11,230 +11,115 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 import unittest.mock
 from datetime import datetime
 
 import pytest
-import sqlalchemy.orm
 
-import mlrun.common.schemas.alert
-import mlrun.common.schemas.partition
+import mlrun.common.schemas.partition_interval
 
+import framework.db.sqldb.partition_bootstrapper
 import framework.utils.singletons.db
-import services.api.utils.db.partitioner
+import services.api.utils.db.partitioner as part_mod
 
 
 @pytest.mark.parametrize(
-    "partition_interval, partition_datetime, expected_name, expected_partition_value",
+    "interval, dt, exp_name, exp_next_val",
     [
-        (
-            "DAY",
-            datetime(2024, 10, 30),
-            "p20241030",
-            "20241031",
-        ),
-        (
-            "MONTH",
-            datetime(2024, 10, 30),
-            "p202410",
-            "202411",
-        ),
-        (
-            "YEARWEEK",
-            datetime(2024, 10, 30),
-            "p202444",
-            "202445",
-        ),
-        (
-            "YEARWEEK",
-            datetime(2023, 1, 1),
-            "p202252",
-            "202301",
-        ),
-        (
-            "YEARWEEK",
-            datetime(2024, 12, 31),
-            "p202501",
-            "202502",
-        ),
-        (
-            "YEARWEEK",
-            datetime(2024, 1, 1),
-            "p202401",
-            "202402",
-        ),
-        (
-            "YEARWEEK",
-            datetime(2024, 6, 15),
-            "p202424",
-            "202425",
-        ),
+        ("DAY", datetime(2024, 10, 30), "p20241030", 20241031),
+        ("MONTH", datetime(2024, 10, 30), "p202410", 202411),
+        ("YEARWEEK", datetime(2024, 10, 30), "p202444", 202445),
+        ("YEARWEEK", datetime(2023, 1, 1), "p202252", 202301),
+        ("YEARWEEK", datetime(2024, 12, 31), "p202501", 202502),
+        ("YEARWEEK", datetime(2024, 1, 1), "p202401", 202402),
+        ("YEARWEEK", datetime(2024, 6, 15), "p202424", 202425),
     ],
 )
-def test_get_partition_info_for_datetime(
-    partition_interval,
-    partition_datetime,
-    expected_name,
-    expected_partition_value,
-):
-    """
-    To test from MySQL, use following code:
-    `SELECT YEARWEEK('2024-12-31', 1) AS `yearweek_value`;`
-    """
-    # Get actual values from the function
-    partition_info = (
-        mlrun.common.schemas.partition.PartitionInterval(
-            partition_interval
-        ).get_partition_info(
-            partition_datetime,
-        )
-    )[0]
-
-    # Assertions
-    assert partition_info[0] == expected_name
-    assert partition_info[1] == expected_partition_value
+def test_get_partition_info_for_datetime(interval, dt, exp_name, exp_next_val):
+    info = mlrun.common.schemas.partition_interval.PartitionInterval(
+        interval
+    ).get_partition_names_and_boundaries(dt)[0]
+    assert info == (exp_name, exp_next_val)
 
 
 @pytest.mark.parametrize(
-    "partition_interval, retention_days, test_date, expected_cutoff_name",
+    "interval, retention_days, now_dt, exp_cutoff",
     [
         ("DAY", 4 * 7, datetime(2024, 1, 1), "p20231204"),
         ("DAY", 1, datetime(2024, 1, 1), "p20231231"),
         ("MONTH", 6 * 7, datetime(2024, 7, 15), "p202406"),
         ("YEARWEEK", 12 * 7, datetime(2024, 6, 1), "p202410"),
         ("YEARWEEK", 14 * 7, datetime(2024, 6, 1), "p202408"),
-        ("YEARWEEK", 14 * 7, datetime(2024, 6, 1), "p202408"),
     ],
 )
-def test_drop_old_partitions(
-    db: sqlalchemy.orm.Session,
-    partition_interval,
-    retention_days,
-    test_date,
-    expected_cutoff_name,
-):
+def test_drop_partitions(db, interval, retention_days, now_dt, exp_cutoff):
     with (
-        unittest.mock.patch(
-            "services.api.utils.db.partitioner.datetime"
-        ) as mock_datetime,
+        unittest.mock.patch(f"{part_mod.__name__}.datetime") as mock_dt,
         unittest.mock.patch.object(
             framework.utils.singletons.db.get_db(), "drop_partitions"
-        ) as mocked_db_drop_partitions,
+        ) as mock_drop,
     ):
-        mock_datetime.now.return_value = test_date
-        mocked_db_drop_partitions.return_value = None
-
-        services.api.utils.db.partitioner.DBPartitioner().drop_partitions(
-            db,
-            "alert_activations",
-            retention_days,
-            mlrun.common.schemas.partition.PartitionInterval(partition_interval),
-        )
-
-        mocked_db_drop_partitions.assert_called_once_with(
+        mock_dt.now.return_value = now_dt
+        part_mod.DBPartitioner().drop_partitions(
             session=db,
             table_name="alert_activations",
-            cutoff_partition_name=expected_cutoff_name,
+            partition_interval=mlrun.common.schemas.partition_interval.PartitionInterval(
+                interval
+            ),
+            retention_days=retention_days,
+        )
+        mock_drop.assert_called_once_with(
+            session=db,
+            table_name="alert_activations",
+            cutoff_partition_name=exp_cutoff,
         )
 
 
 @pytest.mark.parametrize(
-    "partition_interval, partition_number, test_date, expected_partition_info, expected_partition_expression",
+    "interval, partitions_to_create, now_dt",
     [
-        # Test cases with different partition intervals and partition numbers
         (
-            "DAY",
+            mlrun.common.schemas.partition_interval.PartitionInterval.DAY,
             3,
             datetime(2024, 1, 1),
-            [
-                ("p20240101", "20240102"),
-                ("p20240102", "20240103"),
-                ("p20240103", "20240104"),
-            ],
-            "DAY(activation_time)",
         ),
         (
-            "MONTH",
+            mlrun.common.schemas.partition_interval.PartitionInterval.MONTH,
             2,
             datetime(2024, 1, 1),
-            [
-                ("p202401", "202402"),
-                ("p202402", "202403"),
-            ],
-            "MONTH(activation_time)",
         ),
         (
-            "YEARWEEK",
+            mlrun.common.schemas.partition_interval.PartitionInterval.YEARWEEK,
             2,
             datetime(2024, 12, 31),
-            [
-                ("p202501", "202502"),
-                ("p202502", "202503"),
-            ],
-            "YEARWEEK(activation_time, 1)",
         ),
     ],
 )
-def test_create_partitions(
-    db: sqlalchemy.orm.Session,
-    partition_interval,
-    partition_number,
-    test_date,
-    expected_partition_info,
-    expected_partition_expression,
-):
+def test_create_partitions(db, interval, partitions_to_create, now_dt):
     with (
-        unittest.mock.patch(
-            "services.api.utils.db.partitioner.datetime"
-        ) as mock_datetime,
+        unittest.mock.patch(f"{part_mod.__name__}.datetime") as mock_dt,
         unittest.mock.patch.object(
-            framework.utils.singletons.db.get_db(),
-            "create_partitions",
-        ) as mocked_db_create_partitions,
+            framework.db.sqldb.partition_bootstrapper.PartitionBootstrapperSqlite,
+            "bootstrap",
+        ) as mock_bootstrap,
     ):
-        mock_datetime.now.return_value = test_date
-        services.api.utils.db.partitioner.DBPartitioner().create_partitions(
-            db,
-            "alert_activations",
-            partition_number,
-            mlrun.common.schemas.partition.PartitionInterval(partition_interval),
-        )
+        mock_dt.now.return_value = now_dt
+        # Ensure no calls leaked from metadata bootstrap
+        mock_bootstrap.reset_mock()
 
-        # Verify that create_partitions was called with the expected partition information
-        mocked_db_create_partitions.assert_called_once_with(
+        buffer_multiplier_override = 0  # override so partition_count == retain
+        part_mod.DBPartitioner(
+            buffer_multiplier_override=buffer_multiplier_override,
+        ).create_partitions(
             session=db,
             table_name="alert_activations",
-            partitioning_information_list=expected_partition_info,
+            partitions_to_create=partitions_to_create,
+            partition_interval=interval,
         )
 
-
-@pytest.mark.parametrize(
-    "mocked_partition_expression, expected_partition_interval",
-    [
-        ("month(`activation_time`)", "MONTH"),
-        ("dayofmonth(`activation_time`)", "DAY"),
-        ("yearweek(`activation_time`, 1)", "YEARWEEK"),
-    ],
-)
-def test_get_interval(
-    db: sqlalchemy.orm.Session,
-    mocked_partition_expression,
-    expected_partition_interval,
-):
-    with (
-        unittest.mock.patch.object(
-            framework.utils.singletons.db.get_db(),
-            "get_partition_expression_for_table",
-        ) as mocked_get_partition_expression_for_table,
-    ):
-        mocked_get_partition_expression_for_table.return_value = (
-            mocked_partition_expression
+        mock_bootstrap.assert_called_once_with(
+            session=db,
+            table_name="alert_activations",
+            partition_interval=interval,
+            partitions_count=partitions_to_create,
         )
-        partition_interval = (
-            services.api.utils.db.partitioner.DBPartitioner().get_partition_interval(
-                db,
-                "alert_activations",
-            )
-        )
-        assert partition_interval == expected_partition_interval

@@ -13,15 +13,15 @@
 # limitations under the License.
 
 ARG PYTHON_VERSION=3.11
-ARG GO_VERSION=1.21
+ARG GO_VERSION=1.26
 
 FROM gcr.io/iguazio/golang:${GO_VERSION}-alpine AS golang
 
 FROM gcr.io/iguazio/python:${PYTHON_VERSION}-alpine
 
-ARG PROTOC_GEN_GO_VERSION=v1.28
-ARG PROTOC_GEN_GO_GRPC_VERSION=v1.2
-ARG GRPCIO_TOOLS_VERSION="~=1.59.0"
+ARG PROTOC_GEN_GO_VERSION=v1.36.11
+ARG PROTOC_GEN_GO_GRPC_VERSION=v1.6.1
+ARG GRPCIO_TOOLS_VERSION="~=1.76.0"
 
 WORKDIR /app
 
@@ -39,5 +39,4 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@${PROTOC_GEN_GO_GRPC_VERSION}
 
 RUN --mount=type=cache,target=/root/.cache/pip \
-    python -m pip install --upgrade setuptools grpcio-tools${GRPCIO_TOOLS_VERSION}
-
+    python -m pip install --upgrade grpcio-tools${GRPCIO_TOOLS_VERSION}

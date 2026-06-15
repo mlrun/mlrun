@@ -28,7 +28,7 @@ def compile_pipeline(
     cleanup_ttl,
     ops,
     pipeline,
-    pipe_file: typing.Optional[str] = None,
+    pipe_file: str | None = None,
     type_check: bool = False,
 ):
     if not pipe_file:
@@ -46,8 +46,8 @@ def compile_pipeline(
 
 def get_client(
     logger: "mlrun.utils.logger.Logger",
-    url: typing.Optional[str] = None,
-    namespace: typing.Optional[str] = None,
+    url: str | None = None,
+    namespace: str | None = None,
 ) -> mlrun_pipelines.client.Client:
     if url or namespace:
         return mlrun_pipelines.client.Client(

@@ -70,7 +70,7 @@ Use MLRun version ***1.7.0*** or greater to build the function as follows
 ```python
 function_build = project.build_function(
     func,
-    base_image="python:3.9",
+    base_image="python:3.11",
     with_mlrun=False,
     force_build=True,
     requirements=["mlrun==1.7.0"],

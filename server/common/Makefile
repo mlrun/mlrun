@@ -18,6 +18,8 @@ MLRUN_DOCKER_IMAGE_PREFIX := $(if $(MLRUN_DOCKER_REGISTRY),$(strip $(MLRUN_DOCKE
 
 GO_VERSION=$(shell grep -m1 'go ' ../go/go.mod | awk '{split($$2,a,"."); print a[1] "." a[2]}')
 
+HOST_UID := $(shell id -u)
+HOST_GID := $(shell id -g)
 
 PROTO_DIR := proto
 
@@ -65,11 +67,13 @@ compile-schemas-local: compile-schemas-go compile-schemas-python
 .PHONY: compile-schemas-dockerized
 compile-schemas-dockerized: schemas-compiler
 	@echo Compiling schemas in docker container
+	# Container runs as root; chown generated files back to the host user so
+	# self-hosted runners can clean the workspace on the next checkout.
 	docker run \
 		--volume $(dir $(CURDIR)):/app \
 		--workdir /app/common \
 		$(MLRUN_DOCKER_IMAGE_PREFIX)/schemas-compiler:latest \
-		make compile-schemas-local
+		sh -c 'make compile-schemas-local && chown -R $(HOST_UID):$(HOST_GID) proto/build ../go/proto ../py/schemas/proto'
 
 compile-schemas-go: $(GO_TARGETS)
 	@echo "Syncing → $(GO_OUT_DIR)"

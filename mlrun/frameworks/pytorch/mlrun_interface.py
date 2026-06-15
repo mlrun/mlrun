@@ -14,7 +14,7 @@
 
 import importlib
 import sys
-from typing import Any, Optional, Union
+from typing import Any, Union
 
 import torch
 import torch.multiprocessing as mp
@@ -109,15 +109,15 @@ class PyTorchMLRunInterface:
         loss_function: Module,
         optimizer: Optimizer,
         validation_set: DataLoader = None,
-        metric_functions: Optional[list[PyTorchTypes.MetricFunctionType]] = None,
+        metric_functions: list[PyTorchTypes.MetricFunctionType] | None = None,
         scheduler=None,
         scheduler_step_frequency: Union[int, float, str] = "epoch",
         epochs: int = 1,
-        training_iterations: Optional[int] = None,
-        validation_iterations: Optional[int] = None,
-        callbacks: Optional[list[Callback]] = None,
+        training_iterations: int | None = None,
+        validation_iterations: int | None = None,
+        callbacks: list[Callback] | None = None,
         use_cuda: bool = True,
-        use_horovod: Optional[bool] = None,
+        use_horovod: bool | None = None,
     ):
         """
         Initiate a training process on this interface configuration.
@@ -221,11 +221,11 @@ class PyTorchMLRunInterface:
         self,
         dataset: DataLoader,
         loss_function: Module = None,
-        metric_functions: Optional[list[PyTorchTypes.MetricFunctionType]] = None,
-        iterations: Optional[int] = None,
-        callbacks: Optional[list[Callback]] = None,
+        metric_functions: list[PyTorchTypes.MetricFunctionType] | None = None,
+        iterations: int | None = None,
+        callbacks: list[Callback] | None = None,
         use_cuda: bool = True,
-        use_horovod: Optional[bool] = None,
+        use_horovod: bool | None = None,
     ) -> list[PyTorchTypes.MetricValueType]:
         """
         Initiate an evaluation process on this interface configuration.
@@ -303,9 +303,9 @@ class PyTorchMLRunInterface:
     def add_auto_logging_callbacks(
         self,
         add_mlrun_logger: bool = True,
-        mlrun_callback_kwargs: Optional[dict[str, Any]] = None,
+        mlrun_callback_kwargs: dict[str, Any] | None = None,
         add_tensorboard_logger: bool = True,
-        tensorboard_callback_kwargs: Optional[dict[str, Any]] = None,
+        tensorboard_callback_kwargs: dict[str, Any] | None = None,
     ):
         """
         Get automatic logging callbacks to both MLRun's context and Tensorboard. For further features of logging to both
@@ -402,15 +402,15 @@ class PyTorchMLRunInterface:
         loss_function: Module = None,
         optimizer: Optimizer = None,
         validation_set: DataLoader = None,
-        metric_functions: Optional[list[PyTorchTypes.MetricFunctionType]] = None,
+        metric_functions: list[PyTorchTypes.MetricFunctionType] | None = None,
         scheduler=None,
         scheduler_step_frequency: Union[int, float, str] = "epoch",
         epochs: int = 1,
-        training_iterations: Optional[int] = None,
-        validation_iterations: Optional[int] = None,
-        callbacks: Optional[list[Callback]] = None,
+        training_iterations: int | None = None,
+        validation_iterations: int | None = None,
+        callbacks: list[Callback] | None = None,
         use_cuda: bool = True,
-        use_horovod: Optional[bool] = None,
+        use_horovod: bool | None = None,
     ):
         """
         Parse and store the given input so the interface can starting training / evaluating.

@@ -32,7 +32,7 @@ The first parameter in all three methods is either the function name (in the pro
 specify functions that you imported/created or to modify a function spec. For example:
 
 ```python
-# import a serving function from the Function Hub and deploy a trained model over it
+# import a serving function from the MLRun Hub and deploy a trained model over it
 serving = import_function("hub://v2_model_server", new_name="serving")
 serving.spec.replicas = 2
 deploy = deploy_function(
@@ -50,6 +50,7 @@ run = project.run_function("train", inputs={"data": data_url})
 ```
 
 <a id="run"></a>
+(run_function)=
 ## run_function
 
 Use the {py:meth}`~mlrun.projects.run_function` method to run a local or remote batch/scheduled task.
@@ -59,9 +60,11 @@ parameters and the advanced options.
 
 Functions can host multiple methods (handlers). You can set the default handler per function. You need to specify which handler you intend to call in the run command. 
 You can pass `parameters` (arguments) or data `inputs` (such as datasets, feature-vectors, models, or files) to the functions through the `run_function` method.
- 
+
 The {py:meth}`~mlrun.projects.run_function` command returns an MLRun {py:class}`~mlrun.model.RunObject` object that you can use to track the job and its results. 
 If you pass the parameter `watch=True` (default), the command blocks until the job completes.
+
+You can also specify the retry configuration for the run by using the `retry` parameter. The retry status is shown in the <b>Retries</b> column in the <b>Jobs and Workflows > Monitor Jobs</b> table. To configure the retry behavior, see {py:meth}`~mlrun.projects.MlrunProject.run_function`.
 
 MLRun also supports iterative jobs that can run and track multiple child jobs (for hyperparameter tasks, AutoML, etc.). 
 See {ref}`hyper-params` for details and examples.
@@ -76,7 +79,7 @@ parameter in the {py:meth}`~mlrun.runtimes.BaseRuntime.run` method (for batch fu
 Usage examples:
 
 ```python
-# create a project with two functions (local and from Function Hub)
+# create a project with two functions (local and from the MLRun Hub)
 project = mlrun.new_project(project_name, "./proj")
 project.set_function("mycode.py", "prep", image="mlrun/mlrun")
 project.set_function("hub://auto_trainer", "train")
@@ -94,7 +97,6 @@ import mlrun
 
 project = mlrun.get_or_create_project("example-project")
 
-from mlrun import RunTemplate, new_task, mlconf
 from os import path
 
 artifact_path = path.join(mlconf.artifact_path, "{{run.uid}}")

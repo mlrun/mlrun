@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import typing
 
 import pydantic.v1
 
@@ -20,8 +19,8 @@ import mlrun.common.types
 
 
 class ClusterizationSpec(pydantic.v1.BaseModel):
-    chief_api_state: typing.Optional[str]
-    chief_version: typing.Optional[str]
+    chief_api_state: str | None
+    chief_version: str | None
 
 
 class WaitForChiefToReachOnlineStateFeatureFlag(mlrun.common.types.StrEnum):

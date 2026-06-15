@@ -73,7 +73,7 @@ class MLRunLogger(Logger):
         """
         for parameter_name, parameter_value in self._context.parameters.items():
             # Check if the parameter is a trackable value:
-            if isinstance(parameter_value, (str, bool, float, int)):
+            if isinstance(parameter_value, str | bool | float | int):
                 self.log_static_hyperparameter(
                     parameter_name=parameter_name, value=parameter_value
                 )

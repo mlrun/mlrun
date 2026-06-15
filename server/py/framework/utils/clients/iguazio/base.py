@@ -25,6 +25,7 @@ from fastapi.concurrency import run_in_threadpool
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils.singleton
+import mlrun.utils.thread
 from mlrun.utils import logger
 
 
@@ -63,9 +64,7 @@ class BaseClient(ABC, metaclass=mlrun.utils.singleton.AbstractSingleton):
         pass
 
     @abstractmethod
-    def _prepare_request_kwargs(
-        self, session: typing.Optional[str], path: str, *, kwargs: dict
-    ):
+    def _prepare_request_kwargs(self, session: str | None, path: str, *, kwargs: dict):
         pass
 
     def _send_request_to_api(
@@ -83,7 +82,7 @@ class BaseClient(ABC, metaclass=mlrun.utils.singleton.AbstractSingleton):
         if retry_on_post and self._retry_on_post_session:
             http_session = self._retry_on_post_session
         response = http_session.request(
-            method, url, verify=mlrun.mlconf.httpdb.http.verify, **kwargs
+            method, url, verify=mlrun.mlconf.iguazio_api_ssl_verify, **kwargs
         )
         if not response.ok:
             try:
@@ -123,11 +122,11 @@ class BaseClient(ABC, metaclass=mlrun.utils.singleton.AbstractSingleton):
         mlrun.errors.raise_for_status(response, error_message)
 
     @abstractmethod
-    def _extract_ctx(self, response_body: dict) -> typing.Optional[str]:
+    def _extract_ctx(self, response_body: dict) -> str | None:
         pass
 
     @abstractmethod
-    def _extract_error_message(self, response_body: dict) -> typing.Optional[str]:
+    def _extract_error_message(self, response_body: dict) -> str | None:
         pass
 
 
@@ -135,7 +134,10 @@ class BaseAsyncClient(BaseClient):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self._run_in_threadpool_callback = run_in_threadpool
-        self._async_session: typing.Optional[mlrun.utils.AsyncClientWithRetry] = None
+        self._async_sessions = mlrun.utils.thread.ThreadLocalClient(
+            factory=self._get_new_async_session,
+            close_callback=lambda async_session: async_session.close(),
+        )
 
     @property
     def is_sync(self) -> bool:
@@ -188,6 +190,9 @@ class BaseAsyncClient(BaseClient):
             mlrun.common.schemas.HeaderNames.x_request_id: getattr(
                 request.state, "request_id", ""
             ),
+            mlrun.common.schemas.HeaderNames.igz_authenticator_kind: request.headers.get(
+                mlrun.common.schemas.HeaderNames.igz_authenticator_kind, ""
+            ),
         }
         async with (
             self._send_request_to_api_async(
@@ -214,18 +219,16 @@ class BaseAsyncClient(BaseClient):
         method: str,
         path: str,
         error_message: str,
-        session: typing.Optional[str] = None,
-        retry_options_override: typing.Optional[
-            mlrun.utils.async_http.ExponentialRetryOverride
-        ] = None,
+        session: str | None = None,
+        retry_options_override: mlrun.utils.async_http.ExponentialRetryOverride
+        | None = None,
         **kwargs,
     ) -> typing.AsyncGenerator[aiohttp.ClientResponse, None]:
         url = f"{self._api_url}/api/{path}"
         self._prepare_request_kwargs(session, path, kwargs=kwargs)
-        await self._ensure_async_session()
-
+        async_session = self._async_sessions.get()
         # take the session default
-        retry_options = copy.deepcopy(self._async_session.retry_options)
+        retry_options = copy.deepcopy(async_session.retry_options)
 
         # override with cherry-picked options
         if retry_options_override:
@@ -239,8 +242,12 @@ class BaseAsyncClient(BaseClient):
 
         response = None
         try:
-            response = await self._async_session.request(
-                method, url, verify_ssl=False, retry_options=retry_options, **kwargs
+            response = await async_session.request(
+                method,
+                url,
+                verify_ssl=mlrun.mlconf.iguazio_api_ssl_verify,
+                retry_options=retry_options,
+                **kwargs,
             )
             if not response.ok:
                 try:
@@ -270,10 +277,10 @@ class BaseAsyncClient(BaseClient):
             if response:
                 response.release()
 
-    async def _ensure_async_session(self):
-        if not self._async_session:
-            self._async_session = mlrun.utils.AsyncClientWithRetry(
-                retry_on_exception=mlrun.mlconf.httpdb.projects.retry_leader_request_on_exception
-                == mlrun.common.schemas.HTTPSessionRetryMode.enabled.value,
-                logger=logger,
-            )
+    @staticmethod
+    def _get_new_async_session():
+        return mlrun.utils.AsyncClientWithRetry(
+            retry_on_exception=mlrun.mlconf.httpdb.projects.retry_leader_request_on_exception
+            == mlrun.common.schemas.HTTPSessionRetryMode.enabled.value,
+            logger=logger,
+        )

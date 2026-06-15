@@ -15,5 +15,5 @@ guardrails-data
 ```
 
 **See also**
-- {ref}`genai_01_basic_tutorial`
+- {ref}`genai-01-basic-tutorial`
 - {ref}`alerts-notifications`

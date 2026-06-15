@@ -26,7 +26,7 @@ from base64 import b64decode
 from copy import deepcopy
 from os import environ, makedirs, path
 from pathlib import Path
-from typing import Optional, Union
+from typing import Union
 
 import nuclio
 import yaml
@@ -34,6 +34,7 @@ import yaml
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.formatters
 import mlrun.common.schemas
+import mlrun.datastore
 import mlrun.errors
 import mlrun.utils.helpers
 import mlrun_pipelines.utils
@@ -219,7 +220,7 @@ def load_func_code(command="", workdir=None, secrets=None, name="name"):
 def get_or_create_ctx(
     name: str,
     event=None,
-    spec: Optional[dict] = None,
+    spec: dict | None = None,
     with_env: bool = True,
     rundb: Union[str, "mlrun.db.RunDBInterface"] = "",
     project: str = "",
@@ -258,7 +259,7 @@ def get_or_create_ctx(
         # access input metadata, values, files, and secrets (passwords)
         print(f"Run: {context.name} (uid={context.uid})")
         print(f"Params: p1={p1}, p2={p2}")
-        print(f'accesskey = {context.get_secret("ACCESS_KEY")}')
+        print(f"accesskey = {context.get_secret('ACCESS_KEY')}")
         input_str = context.get_input("infile.txt").get()
         print(f"file: {input_str}")
 
@@ -273,7 +274,9 @@ def get_or_create_ctx(
         context.log_artifact(
             "model.txt", body=b"abc is 123", labels={"framework": "xgboost"}
         )
-        context.log_artifact("results.html", body=b"<b> Some HTML <b>", viewer="web-app")
+        context.log_artifact(
+            "results.html", body=b"<b> Some HTML <b>", viewer="web-app"
+        )
 
     """
     if global_context.get() and not spec and not event:
@@ -290,7 +293,7 @@ def get_or_create_ctx(
     elif with_env and config:
         newspec = config
 
-    if isinstance(newspec, (RunObject, RunTemplate)):
+    if isinstance(newspec, RunObject | RunTemplate):
         newspec = newspec.to_dict()
 
     if newspec and not isinstance(newspec, dict):
@@ -345,7 +348,7 @@ def get_or_create_ctx(
 def import_function(url="", secrets=None, db="", project=None, new_name=None):
     """Create function object from DB or local/remote YAML file
 
-    Functions can be imported from function repositories (mlrun Function Hub (formerly Marketplace) or local db),
+    Functions can be imported from function repositories (MLRun Hub) or local db),
     or be read from a remote URL (http(s), s3, git, v3io, ..) containing the function YAML
 
     special URLs::
@@ -361,7 +364,7 @@ def import_function(url="", secrets=None, db="", project=None, new_name=None):
             "https://raw.githubusercontent.com/org/repo/func.yaml"
         )
 
-    :param url: path/url to Function Hub, db or function YAML file
+    :param url: path/url to MLRun Hub, db or function YAML file
     :param secrets: optional, credentials dict for DB or URL (s3, v3io, ...)
     :param db: optional, mlrun api/db path
     :param project: optional, target project for the function
@@ -393,7 +396,7 @@ def import_function(url="", secrets=None, db="", project=None, new_name=None):
 
 def import_function_to_dict(
     url: str,
-    secrets: Optional[dict] = None,
+    secrets: dict | None = None,
 ) -> dict:
     """Load function spec from local/remote YAML file"""
     obj = get_object(url, secrets)
@@ -461,19 +464,19 @@ def import_function_to_dict(
 
 
 def new_function(
-    name: Optional[str] = "",
-    project: Optional[str] = "",
-    tag: Optional[str] = "",
-    kind: Optional[str] = "",
-    command: Optional[str] = "",
-    image: Optional[str] = "",
-    args: Optional[list] = None,
-    runtime: Optional[Union[mlrun.runtimes.BaseRuntime, dict]] = None,
-    mode: Optional[str] = None,
-    handler: Optional[str] = None,
-    source: Optional[str] = None,
-    requirements: Optional[list[str]] = None,
-    kfp: Optional[bool] = None,
+    name: str | None = "",
+    project: str | None = "",
+    tag: str | None = "",
+    kind: str | None = "",
+    command: str | None = "",
+    image: str | None = "",
+    args: list | None = None,
+    runtime: Union[mlrun.runtimes.BaseRuntime, dict] | None = None,
+    mode: str | None = None,
+    handler: str | None = None,
+    source: str | None = None,
+    requirements: list[str] | None = None,
+    kfp: bool | None = None,
     requirements_file: str = "",
 ):
     """Create a new ML function from base properties
@@ -619,22 +622,22 @@ def _process_runtime(command, runtime, kind):
 
 
 def code_to_function(
-    name: Optional[str] = "",
-    project: Optional[str] = "",
-    tag: Optional[str] = "",
-    filename: Optional[str] = "",
-    handler: Optional[str] = "",
-    kind: Optional[str] = "",
-    image: Optional[str] = None,
-    code_output: Optional[str] = "",
+    name: str | None = "",
+    project: str | None = "",
+    tag: str | None = "",
+    filename: str | None = "",
+    handler: str | None = "",
+    kind: str | None = "",
+    image: str | None = None,
+    code_output: str | None = "",
     embed_code: bool = True,
-    description: Optional[str] = "",
-    requirements: Optional[list[str]] = None,
-    categories: Optional[list[str]] = None,
-    labels: Optional[dict[str, str]] = None,
-    with_doc: Optional[bool] = True,
-    ignored_tags: Optional[str] = None,
-    requirements_file: Optional[str] = "",
+    description: str | None = "",
+    requirements: list[str] | None = None,
+    categories: list[str] | None = None,
+    labels: dict[str, str] | None = None,
+    with_doc: bool | None = True,
+    ignored_tags: str | None = None,
+    requirements_file: str | None = "",
 ) -> Union[
     MpiRuntimeV1,
     RemoteRuntime,
@@ -692,7 +695,7 @@ def code_to_function(
     :param description:  short function description, defaults to ''
     :param requirements: a list of python packages
     :param requirements_file: path to a python requirements file
-    :param categories:   list of categories for mlrun Function Hub, defaults to None
+    :param categories:   list of categories for MLRun Hub, defaults to None
     :param labels:       name/value pairs dict to tag the function with useful metadata, defaults to None
     :param with_doc:     indicates whether to document the function parameters, defaults to True
     :param ignored_tags: notebook cells to ignore when converting notebooks to py code (separated by ';')
@@ -728,14 +731,13 @@ def code_to_function(
             "nuclio-mover",
             kind="nuclio",
             filename="mover.py",
-            image="python:3.9",
+            image="python:3.11",
             description="this function moves files from one system to another",
             requirements=["pandas"],
             labels={"author": "me"},
         )
 
     """
-    filebase, _ = path.splitext(path.basename(filename))
     ignored_tags = ignored_tags or mlconf.ignored_notebook_tags
 
     def add_name(origin, name=""):
@@ -777,8 +779,7 @@ def code_to_function(
         and (not filename or filename.endswith(".ipynb"))
     ):
         raise ValueError(
-            "A valid code file must be specified "
-            "when not using the embed_code option"
+            "A valid code file must be specified when not using the embed_code option"
         )
 
     if kind == RuntimeKinds.databricks and not embed_code:
@@ -800,8 +801,6 @@ def code_to_function(
         kind=sub_kind,
         ignored_tags=ignored_tags,
     )
-
-    mlrun.utils.helpers.validate_function_name(name)
 
     spec["spec"]["env"].append(
         {
@@ -870,8 +869,9 @@ def code_to_function(
     if not name:
         raise ValueError("name must be specified")
 
-    h = get_in(spec, "spec.handler", "").split(":")
-    runtime.handler = h[0] if len(h) <= 1 else h[1]
+    _, runtime.handler = mlrun.utils.helpers.split_handler_module_and_function(
+        get_in(spec, "spec.handler", "")
+    )
     runtime.metadata = get_in(spec, "spec.metadata")
     runtime.metadata.name = name
     build = runtime.spec.build
@@ -1043,10 +1043,10 @@ def terminate_pipeline(
 def wait_for_pipeline_completion(
     run_id,
     timeout=60 * 60,
-    expected_statuses: Optional[list[str]] = None,
+    expected_statuses: list[str] | None = None,
     namespace=None,
     remote=True,
-    project: Optional[str] = None,
+    project: str | None = None,
 ):
     """Wait for Pipeline status, timeout in sec
 
@@ -1094,8 +1094,7 @@ def wait_for_pipeline_completion(
 
         if mldb.kind != "http":
             raise ValueError(
-                "get pipeline requires access to remote api-service"
-                ", set the dbpath url"
+                "get pipeline requires access to remote api-service, set the dbpath url"
             )
 
         resp = retry_until_successful(
@@ -1141,7 +1140,7 @@ def get_pipeline(
     format_: Union[
         str, mlrun.common.formatters.PipelineFormat
     ] = mlrun.common.formatters.PipelineFormat.summary,
-    project: Optional[str] = None,
+    project: str | None = None,
     remote: bool = True,
 ):
     """Get Pipeline status
@@ -1196,7 +1195,7 @@ def list_pipelines(
     namespace=None,
     project="*",
     format_: mlrun.common.formatters.PipelineFormat = mlrun.common.formatters.PipelineFormat.metadata_only,
-) -> tuple[int, Optional[int], list[dict]]:
+) -> tuple[int, int | None, list[dict]]:
     """List pipelines
 
     :param full:       Deprecated, use `format_` instead. if True will set `format_` to full, otherwise `format_` will
@@ -1239,7 +1238,7 @@ def get_model_provider(
     url,
     secrets=None,
     db=None,
-    default_invoke_kwargs: Optional[dict] = None,
+    default_invoke_kwargs: dict | None = None,
     raise_missing_schema_exception=True,
 ) -> ModelProvider:
     """get mlrun dataitem object (from path/url)"""

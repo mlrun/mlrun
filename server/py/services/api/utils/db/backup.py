@@ -12,15 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import contextlib
 import datetime
 import os
 import pathlib
 import shutil
 import subprocess
-import typing
+import tempfile
 
-from mlrun import mlconf
-from mlrun.utils import logger
+import mlrun
+import mlrun.common.db.dialects
+import mlrun.utils
 
 from framework.utils.db.utils import DBUtil
 
@@ -28,32 +30,40 @@ from framework.utils.db.utils import DBUtil
 class DBBackupUtil:
     def __init__(
         self,
-        backup_file_format: str = mlconf.httpdb.db.backup.file_format,
-        backup_rotation: bool = mlconf.httpdb.db.backup.use_rotation,
-        backup_rotation_limit: int = mlconf.httpdb.db.backup.rotation_limit,
+        backup_file_format: str = mlrun.mlconf.httpdb.db.backup.file_format,
+        backup_rotation: bool = mlrun.mlconf.httpdb.db.backup.use_rotation,
+        backup_rotation_limit: int = mlrun.mlconf.httpdb.db.backup.rotation_limit,
     ) -> None:
         self._backup_file_format = backup_file_format
         self._backup_rotation = backup_rotation
         self._backup_rotation_limit = backup_rotation_limit
 
-    def backup_database(self, backup_file_name: typing.Optional[str] = None) -> None:
+    def backup_database(self, backup_file_name: str | None = None) -> None:
         backup_file_name = backup_file_name or self._generate_backup_file_name()
 
         # ensure the backup directory exists
         self._get_db_dir_path().mkdir(parents=True, exist_ok=True)
 
-        if ":memory:" in mlconf.httpdb.dsn:
+        if ":memory:" in mlrun.mlconf.httpdb.dsn:
             return
-        elif "mysql" in mlconf.httpdb.dsn:
+        elif mlrun.mlconf.httpdb.dsn.startswith(
+            mlrun.common.db.dialects.Dialects.MYSQL
+        ):
             self._backup_database_mysql(backup_file_name)
-        else:
+        elif mlrun.mlconf.httpdb.dsn.startswith(
+            mlrun.common.db.dialects.Dialects.SQLITE
+        ):
             self._backup_database_sqlite(backup_file_name)
+        else:
+            mlrun.utils.logger.info(
+                "Unsupported database type for backup", db_type=mlrun.mlconf.httpdb.db
+            )
 
         if self._backup_rotation:
             self._rotate_backup()
 
     def load_database_from_backup(
-        self, backup_file_name: str, new_backup_file_name: typing.Optional[str] = None
+        self, backup_file_name: str, new_backup_file_name: str | None = None
     ) -> None:
         new_backup_file_name = new_backup_file_name or self._generate_backup_file_name()
 
@@ -66,9 +76,9 @@ class DBBackupUtil:
         # backup the current DB
         self.backup_database(new_backup_file_name)
 
-        if ":memory:" in mlconf.httpdb.dsn:
+        if ":memory:" in mlrun.mlconf.httpdb.dsn:
             return
-        elif "mysql" in mlconf.httpdb.dsn:
+        elif "mysql" in mlrun.mlconf.httpdb.dsn:
             self._load_database_backup_mysql(backup_file_name)
         else:
             self._load_database_backup_sqlite(backup_file_name)
@@ -77,7 +87,7 @@ class DBBackupUtil:
         db_file_path = self._get_sqlite_db_file_path()
         backup_path = self._get_backup_file_path(backup_file_name)
 
-        logger.debug(
+        mlrun.utils.logger.debug(
             "Backing up sqlite DB file",
             db_file_path=db_file_path,
             backup_path=backup_path,
@@ -88,7 +98,7 @@ class DBBackupUtil:
         db_file_path = self._get_sqlite_db_file_path()
         backup_path = self._get_backup_file_path(backup_file_name)
 
-        logger.debug(
+        mlrun.utils.logger.debug(
             "Loading sqlite DB backup file",
             db_file_path=db_file_path,
             backup_path=backup_path,
@@ -98,16 +108,17 @@ class DBBackupUtil:
     def _backup_database_mysql(self, backup_file_name: str) -> None:
         backup_path = self._get_backup_file_path(backup_file_name)
 
-        logger.debug("Backing up mysql DB data", backup_path=backup_path)
+        mlrun.utils.logger.debug("Backing up mysql DB data", backup_path=backup_path)
         dsn_data = DBUtil.get_parsed_dsn().as_dict()
-        self._run_shell_command(
-            "mysqldump --single-transaction --routines --triggers "
-            f"--max_allowed_packet={mlconf.httpdb.db.backup.max_allowed_packet} "
-            f"-h {dsn_data['host']} "
-            f"-P {dsn_data['port']} "
-            f"-u {dsn_data['username']} "
-            f"{dsn_data['database']} > {backup_path}"
-        )
+        with self._mysql_defaults_file(dsn_data) as defaults_arg:
+            self._run_shell_command(
+                f"mysqldump {defaults_arg}--single-transaction --routines --triggers "
+                f"--max_allowed_packet={mlrun.mlconf.httpdb.db.backup.max_allowed_packet} "
+                f"-h {dsn_data['host']} "
+                f"-P {dsn_data['port']} "
+                f"-u {dsn_data['username']} "
+                f"{dsn_data['database']} > {backup_path}"
+            )
 
     def _load_database_backup_mysql(self, backup_file_name: str) -> None:
         """
@@ -117,18 +128,50 @@ class DBBackupUtil:
         """
         backup_path = self._get_backup_file_path(backup_file_name)
 
-        logger.debug(
+        mlrun.utils.logger.debug(
             "Loading mysql DB backup data",
             backup_path=backup_path,
         )
         dsn_data = DBUtil.get_parsed_dsn().as_dict()
-        self._run_shell_command(
-            "mysql "
-            f"-h {dsn_data['host']} "
-            f"-P {dsn_data['port']} "
-            f"-u {dsn_data['username']} "
-            f"{dsn_data['database']} < {backup_path}"
+        with self._mysql_defaults_file(dsn_data) as defaults_arg:
+            self._run_shell_command(
+                f"mysql {defaults_arg}"
+                f"-h {dsn_data['host']} "
+                f"-P {dsn_data['port']} "
+                f"-u {dsn_data['username']} "
+                f"{dsn_data['database']} < {backup_path}"
+            )
+
+    @staticmethod
+    @contextlib.contextmanager
+    def _mysql_defaults_file(dsn_data: dict):
+        # When the DSN carries a password, write a 0600 [client] options file
+        # and yield a `--defaults-extra-file=<path> ` argument fragment so the
+        # password never appears in the (debug-logged) shell command, in `ps`,
+        # or in `/proc/<pid>/environ`. Unlike MYSQL_PWD, this is not deprecated
+        # in MySQL 8.4+. The file is unlinked on context exit.
+        password = dsn_data.get("password")
+        if not password:
+            yield ""
+            return
+
+        # Escape backslash and double-quote so values with these characters
+        # round-trip through the option file format.
+        escaped = password.replace("\\", "\\\\").replace('"', '\\"')
+        # NamedTemporaryFile uses mkstemp under the hood, which creates the
+        # file with mode 0600.
+        fp = tempfile.NamedTemporaryFile(
+            mode="w", suffix=".cnf", delete=False, encoding="utf-8"
         )
+        try:
+            fp.write(f'[client]\npassword="{escaped}"\n')
+            fp.close()
+            yield f"--defaults-extra-file={fp.name} "
+        finally:
+            try:
+                os.unlink(fp.name)
+            except FileNotFoundError:
+                pass
 
     def _rotate_backup(self) -> None:
         db_dir_path = self._get_db_dir_path()
@@ -151,33 +194,31 @@ class DBBackupUtil:
         files_to_delete = [
             file_data[0] for file_data in backup_files[: -self._backup_rotation_limit]
         ]
-        logger.debug("Rotating old backup files", files_to_delete=files_to_delete)
+        mlrun.utils.logger.debug(
+            "Rotating old backup files", files_to_delete=files_to_delete
+        )
         for file_name in files_to_delete:
             try:
                 os.remove(db_dir_path / file_name)
             except FileNotFoundError:
-                logger.debug(
+                mlrun.utils.logger.debug(
                     "Backup file doesn't exist, skipping...", file_name=file_name
                 )
 
     def _generate_backup_file_name(self) -> str:
-        return datetime.datetime.now(tz=datetime.timezone.utc).strftime(
-            self._backup_file_format
-        )
+        return datetime.datetime.now(tz=datetime.UTC).strftime(self._backup_file_format)
 
-    def _get_backup_file_path(
-        self, backup_file_name: str
-    ) -> typing.Optional[pathlib.Path]:
-        if ":memory:" in mlconf.httpdb.dsn:
+    def _get_backup_file_path(self, backup_file_name: str) -> pathlib.Path | None:
+        if ":memory:" in mlrun.mlconf.httpdb.dsn:
             return
 
         return self._get_db_dir_path() / backup_file_name
 
-    def _get_db_dir_path(self) -> typing.Optional[pathlib.Path]:
-        if ":memory:" in mlconf.httpdb.dsn:
+    def _get_db_dir_path(self) -> pathlib.Path | None:
+        if ":memory:" in mlrun.mlconf.httpdb.dsn:
             return
-        elif "mysql" in mlconf.httpdb.dsn:
-            db_dir_path = pathlib.Path(mlconf.httpdb.dirpath) / "mysql"
+        elif "mysql" in mlrun.mlconf.httpdb.dsn:
+            db_dir_path = pathlib.Path(mlrun.mlconf.httpdb.dirpath) / "mysql"
         else:
             db_file_path = self._get_sqlite_db_file_path()
             db_dir_path = pathlib.Path(os.path.dirname(db_file_path))
@@ -191,11 +232,11 @@ class DBBackupUtil:
         sqlite:////mlrun/db/mlrun.db?check_same_thread=false -> /mlrun/db/mlrun.db
         if mysql is used returns empty string
         """
-        return mlconf.httpdb.dsn.split("?")[0].split("sqlite:///")[-1]
+        return mlrun.mlconf.httpdb.dsn.split("?")[0].split("sqlite:///")[-1]
 
     @staticmethod
     def _run_shell_command(command: str) -> int:
-        logger.debug(
+        mlrun.utils.logger.debug(
             "Running shell command",
             command=command,
         )
@@ -211,7 +252,7 @@ class DBBackupUtil:
         return_code = process.wait()
 
         if return_code != 0:
-            logger.error(
+            mlrun.utils.logger.error(
                 "Failed running shell command",
                 command=command,
                 stdout=stdout,
@@ -222,7 +263,7 @@ class DBBackupUtil:
                 f"Got non-zero return code ({return_code}) on running shell command: {command}"
             )
 
-        logger.debug(
+        mlrun.utils.logger.debug(
             "Ran command successfully",
             command=command,
             stdout=stdout,

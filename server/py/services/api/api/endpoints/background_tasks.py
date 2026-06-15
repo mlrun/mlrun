@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import datetime
-import typing
 
 import fastapi
 import sqlalchemy.orm
@@ -70,11 +69,11 @@ async def get_project_background_task(
 )
 async def list_project_background_tasks(
     project: str,
-    state: typing.Optional[str] = None,
-    created_from: typing.Optional[str] = None,
-    created_to: typing.Optional[str] = None,
-    last_update_time_from: typing.Optional[str] = None,
-    last_update_time_to: typing.Optional[str] = None,
+    state: str | None = None,
+    created_from: str | None = None,
+    created_to: str | None = None,
+    last_update_time_from: str | None = None,
+    last_update_time_to: str | None = None,
     auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
         framework.api.deps.authenticate_request
     ),
@@ -163,8 +162,8 @@ async def get_internal_background_task(
 )
 async def list_internal_background_tasks(
     request: fastapi.Request,
-    name: typing.Optional[str] = None,
-    kind: typing.Optional[str] = None,
+    name: str | None = None,
+    kind: str | None = None,
     auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
         framework.api.deps.authenticate_request
     ),

@@ -42,7 +42,7 @@ class PlotArtifact(Artifact):
         import matplotlib
 
         if not self.spec.get_body() or not isinstance(
-            self.spec.get_body(), (bytes, matplotlib.figure.Figure)
+            self.spec.get_body(), bytes | matplotlib.figure.Figure
         ):
             raise ValueError(
                 "matplotlib fig or png bytes must be provided as artifact body"
@@ -77,8 +77,8 @@ class PlotlyArtifact(Artifact):
     def __init__(
         self,
         figure: typing.Optional["Figure"] = None,
-        key: typing.Optional[str] = None,
-        target_path: typing.Optional[str] = None,
+        key: str | None = None,
+        target_path: str | None = None,
     ) -> None:
         """
         Initialize a Plotly artifact with the given figure.

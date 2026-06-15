@@ -1113,7 +1113,8 @@ def my_func(context):
             (True, [], True),
             (False, ["some command"], False),
             (False, ["python -m pip install pip"], False),
-            (True, ["python -m pip install --upgrade pip~=22.0"], False),
+            # when user asks for a specific pip version, we don't upgrade it
+            (True, ["python -m pip install --upgrade pip~=25.0"], False),
             (True, ["python -m pip install --upgrade pandas"], True),
         ],
     )
@@ -1444,12 +1445,7 @@ def my_func(context):
         )
         assert run["spec"]["state_thresholds"] == expected_state_thresholds
 
-    def test_generate_runtime_env_injects_deprecated_default_project(
-        self, db: Session, k8s_secrets_mock
-    ):
-        # TODO: Remove this test in 1.12.0
-        # This test ensures that even though MLRUN_DEFAULT_PROJECT is deprecated, it is still injected into the
-        # runtime environment for backward compatibility
+    def test_generate_default_runtime_env(self):
         runtime = self._generate_runtime()
 
         runobj = mlrun.model.RunObject.from_dict(
@@ -1458,11 +1454,19 @@ def my_func(context):
             }
         )
 
-        env = runtime._generate_runtime_env(runobj)
+        env, external_source_env = runtime._generate_runtime_env(runobj)
 
         assert env["MLRUN_ACTIVE_PROJECT"] == self.project
+        assert not deepdiff.DeepDiff(
+            json.loads(env["MLRUN_EXEC_CONFIG"]), runobj.to_dict()
+        )
+        assert env["MLRUN_NAMESPACE"] == mlrun.mlconf.namespace
 
-        # validate that the default project env var is also set for backward compatibility
+        assert external_source_env["MLRUN_RUNTIME_KIND"] is not None
+
+        # TODO: Remove this assertion in 1.12.0
+        # Ensure that the MLRUN_DEFAULT_PROJECT env var is also injected into the runtime environment for
+        # backward compatibility
         assert env["MLRUN_DEFAULT_PROJECT"] == self.project
 
     @staticmethod

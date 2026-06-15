@@ -33,28 +33,27 @@ def apply_mlrun(
     model: SKLearnTypes.ModelType = None,
     model_name: str = "model",
     tag: str = "",
-    model_path: Optional[str] = None,
-    modules_map: Optional[Union[dict[str, Union[None, str, list[str]]], str]] = None,
-    custom_objects_map: Optional[Union[dict[str, Union[str, list[str]]], str]] = None,
-    custom_objects_directory: Optional[str] = None,
+    model_path: str | None = None,
+    modules_map: Union[dict[str, Union[None, str, list[str]]], str] | None = None,
+    custom_objects_map: Union[dict[str, Union[str, list[str]]], str] | None = None,
+    custom_objects_directory: str | None = None,
     context: mlrun.MLClientCtx = None,
-    artifacts: Optional[Union[list[MLPlan], list[str], dict[str, dict]]] = None,
-    metrics: Optional[
-        Union[
-            list[Metric],
-            list[SKLearnTypes.MetricEntryType],
-            dict[str, SKLearnTypes.MetricEntryType],
-        ]
-    ] = None,
+    artifacts: Union[list[MLPlan], list[str], dict[str, dict]] | None = None,
+    metrics: Union[
+        list[Metric],
+        list[SKLearnTypes.MetricEntryType],
+        dict[str, SKLearnTypes.MetricEntryType],
+    ]
+    | None = None,
     x_test: SKLearnTypes.DatasetType = None,
     y_test: SKLearnTypes.DatasetType = None,
     sample_set: Union[SKLearnTypes.DatasetType, mlrun.DataItem, str] = None,
-    y_columns: Optional[Union[list[str], list[int]]] = None,
-    feature_vector: Optional[str] = None,
-    feature_weights: Optional[list[float]] = None,
-    labels: Optional[dict[str, Union[str, int, float]]] = None,
-    parameters: Optional[dict[str, Union[str, int, float]]] = None,
-    extra_data: Optional[dict[str, SKLearnTypes.ExtraDataType]] = None,
+    y_columns: Union[list[str], list[int]] | None = None,
+    feature_vector: str | None = None,
+    feature_weights: list[float] | None = None,
+    labels: dict[str, Union[str, int, float]] | None = None,
+    parameters: dict[str, Union[str, int, float]] | None = None,
+    extra_data: dict[str, SKLearnTypes.ExtraDataType] | None = None,
     auto_log: bool = True,
     **kwargs,
 ) -> SKLearnModelHandler:
@@ -76,7 +75,10 @@ def apply_mlrun(
 
                                          {
                                              "module1": None,  # import module1
-                                             "module2": ["func1", "func2"],  # from module2 import func1, func2
+                                             "module2": [
+                                                 "func1",
+                                                 "func2",
+                                             ],  # from module2 import func1, func2
                                              "module3.sub_module": "func3",  # from module3.sub_module import func3
                                          }
 
@@ -91,7 +93,10 @@ def apply_mlrun(
 
                                          {
                                              "/.../custom_model.py": "MyModel",
-                                             "/.../custom_objects.py": ["object1", "object2"],
+                                             "/.../custom_objects.py": [
+                                                 "object1",
+                                                 "object2",
+                                             ],
                                          }
 
                                      All the paths will be accessed from the given 'custom_objects_directory', meaning

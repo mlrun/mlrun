@@ -16,7 +16,6 @@ import hashlib
 import re
 from dataclasses import dataclass, field
 from enum import Enum, IntEnum
-from typing import Optional
 
 import mlrun.common.constants
 import mlrun.common.helpers
@@ -256,6 +255,49 @@ class StatsKind(MonitoringStrEnum):
     DRIFT_MEASURES = "drift_measures"
 
 
+class OTelMonitoringAttribute(MonitoringStrEnum):
+    """Attribute keys exported on OTel metric events for model-monitoring
+    application results / metrics.
+
+    Dot-separated naming follows the OpenTelemetry semantic-conventions
+    convention. ``project``, ``app.name``, ``function.name``,
+    ``endpoint.uid``, ``endpoint.name`` are shared by every entry in a
+    batch. ``result.name``, ``result.kind`` and ``result.status`` apply only
+    to entries coming from a :class:`ModelMonitoringApplicationResult`;
+    ``metric.name`` applies only to entries coming from a
+    :class:`ModelMonitoringApplicationMetric`.
+    """
+
+    PROJECT = "project"
+    APP_NAME = "app.name"
+    FUNCTION_NAME = "function.name"
+    ENDPOINT_UID = "endpoint.uid"
+    ENDPOINT_NAME = "endpoint.name"
+    RESULT_NAME = "result.name"
+    RESULT_KIND = "result.kind"
+    RESULT_STATUS = "result.status"
+    METRIC_NAME = "metric.name"
+
+
+class OTelMonitoringMetricName(MonitoringStrEnum):
+    """OTel instrument names for model-monitoring application outputs.
+
+    One fixed instrument name covers all results and another covers all
+    metrics; the specific result/metric name is carried as the
+    ``result.name`` / ``metric.name`` attribute (see
+    :class:`OTelMonitoringAttribute`) rather than being encoded in the
+    instrument name. This keeps every result under one metric family
+    (exported as ``mlrun_model_monitoring_result``) so dashboards and queries
+    can filter and aggregate by the ``result_name`` label instead of matching
+    a distinct per-result metric name, and bounds the number of OTel
+    instruments to two regardless of how many result/metric names a project
+    produces.
+    """
+
+    RESULT = "mlrun.model_monitoring.result"
+    METRIC = "mlrun.model_monitoring.metric"
+
+
 class EventLiveStats:
     LATENCY_AVG_5M = "latency_avg_5m"
     LATENCY_AVG_1H = "latency_avg_1h"
@@ -274,8 +316,12 @@ class EventKeyMetrics:
 
 class TSDBTarget(MonitoringStrEnum):
     V3IO_TSDB = "v3io-tsdb"
-    TDEngine = "tdengine"
     TimescaleDB = "postgresql"
+
+
+class StreamTarget(MonitoringStrEnum):
+    V3IO = "v3io"
+    KAFKA = "kafka"
 
 
 class ProjectSecretKeys:
@@ -328,10 +374,11 @@ class EndpointType(IntEnum):
     ROUTER = 2  # endpoint that is router
     LEAF_EP = 3  # end point that is a child of a router
     BATCH_EP = 4  # endpoint that is representing an offline batch endpoint
+    USER_EP = 5  # user-defined endpoint, not backed by a deployed function
 
     @classmethod
     def top_level_list(cls):
-        return [cls.NODE_EP, cls.ROUTER, cls.BATCH_EP]
+        return [cls.NODE_EP, cls.ROUTER, cls.BATCH_EP, cls.USER_EP]
 
 
 class EndpointMode(IntEnum):
@@ -340,10 +387,34 @@ class EndpointMode(IntEnum):
     BATCH_LEGACY = 2  # legacy batch mode, used for endpoints created through the batch inference job
 
 
+class NuclioMonitoringEnvVars(MonitoringStrEnum):
+    """Environment variable names injected into nuclio/application functions when track_models=True."""
+
+    MODEL_MONITORING_URL = "MODEL_MONITORING_URL"
+    MODEL_ENDPOINT_UID = "MODEL_ENDPOINT_UID"
+    MODEL_ENDPOINT_NAME = "MODEL_ENDPOINT_NAME"
+    MODEL_ENDPOINTS_MAP = "MODEL_ENDPOINTS_MAP"
+
+
+class MonitoringHTTPPayload(MonitoringStrEnum):
+    """Field names for the HTTP ingest payload POSTed to the stream pod."""
+
+    MODEL_ENDPOINT_UID = "model_endpoint_uid"
+    MODEL_ENDPOINT_NAME = "model_endpoint_name"
+    TIMESTAMP = "timestamp"  # optional
+    INPUTS = "inputs"
+    OUTPUTS = "outputs"
+    LATENCY = "latency"  # optional: inference latency in microseconds
+
+
 class MonitoringFunctionNames(MonitoringStrEnum):
     STREAM = "model-monitoring-stream"
     APPLICATION_CONTROLLER = "model-monitoring-controller"
     WRITER = "model-monitoring-writer"
+
+
+class MonitoringAlertNames(MonitoringStrEnum):
+    LAG_DETECTED = "monitoring-lag-detected"
 
 
 class V3IOTSDBTables(MonitoringStrEnum):
@@ -352,13 +423,6 @@ class V3IOTSDBTables(MonitoringStrEnum):
     EVENTS = "events"
     ERRORS = "errors"
     PREDICTIONS = "predictions"
-
-
-class TDEngineSuperTables(MonitoringStrEnum):
-    APP_RESULTS = "app_results"
-    METRICS = "metrics"
-    PREDICTIONS = "predictions"
-    ERRORS = "errors"
 
 
 class TimescaleDBTables(MonitoringStrEnum):
@@ -372,8 +436,8 @@ class TimescaleDBTables(MonitoringStrEnum):
 class FunctionURI:
     project: str
     function: str
-    tag: Optional[str] = None
-    hash_key: Optional[str] = None
+    tag: str | None = None
+    hash_key: str | None = None
 
     @classmethod
     def from_string(cls, function_uri):
@@ -391,7 +455,7 @@ class FunctionURI:
 @dataclass
 class VersionedModel:
     model: str
-    version: Optional[str]
+    version: str | None
 
     @classmethod
     def from_string(cls, model):

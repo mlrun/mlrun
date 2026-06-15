@@ -15,7 +15,6 @@
 import datetime
 import typing
 from http import HTTPStatus
-from typing import Optional
 
 import fastapi
 from fastapi import APIRouter, Depends, Response
@@ -105,16 +104,16 @@ async def update_schedule(
 @router.get("", response_model=mlrun.common.schemas.SchedulesOutput)
 async def list_schedules(
     project: str,
-    name: Optional[str] = None,
+    name: str | None = None,
     labels: list[str] = fastapi.Query([], alias="label"),
     kind: mlrun.common.schemas.ScheduleKinds = None,
     include_last_run: bool = False,
     include_credentials: bool = fastapi.Query(False, alias="include-credentials"),
     next_run_time_since: typing.Annotated[
-        typing.Optional[datetime.datetime], "Schedules to run from specific datetime"
+        datetime.datetime | None, "Schedules to run from specific datetime"
     ] = None,
     next_run_time_until: typing.Annotated[
-        typing.Optional[datetime.datetime], "Schedules to run until specific datetime"
+        datetime.datetime | None, "Schedules to run until specific datetime"
     ] = None,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),

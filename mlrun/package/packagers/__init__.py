@@ -12,5 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .default_packager import DefaultPackager
-from .numpy_packagers import NumPySupportedFormat
+from mlrun.package.packagers.default_packager import DefaultPackager

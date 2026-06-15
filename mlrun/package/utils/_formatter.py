@@ -15,11 +15,11 @@
 import ast
 import json
 from abc import ABC, abstractmethod
-from typing import Any, Union
+from typing import Any
 
 import yaml
 
-from ._supported_format import SupportedFormat
+from mlrun.package.utils._supported_format import SupportedFormat
 
 
 class _Formatter(ABC):
@@ -61,7 +61,7 @@ class _JSONFormatter(_Formatter):
     DEFAULT_DUMP_KWARGS = {"indent": 4}
 
     @classmethod
-    def write(cls, obj: Union[list, dict], file_path: str, **dump_kwargs: dict):
+    def write(cls, obj: list | dict, file_path: str, **dump_kwargs: dict):
         """
         Write the object to a json file. The object must be serializable according to the json format.
 
@@ -74,7 +74,7 @@ class _JSONFormatter(_Formatter):
             json.dump(obj, file, **dump_kwargs)
 
     @classmethod
-    def read(cls, file_path: str) -> Union[list, dict]:
+    def read(cls, file_path: str) -> list | dict:
         """
         Read an object from the json file given.
 
@@ -93,7 +93,7 @@ class _JSONLFormatter(_Formatter):
     """
 
     @classmethod
-    def write(cls, obj: Union[list, dict], file_path: str, **dump_kwargs: dict):
+    def write(cls, obj: list | dict, file_path: str, **dump_kwargs: dict):
         """
         Write the object to a jsonl file. The object must be serializable according to the json format.
 
@@ -109,7 +109,7 @@ class _JSONLFormatter(_Formatter):
                 file.write(json.dumps(obj=line, **dump_kwargs) + "\n")
 
     @classmethod
-    def read(cls, file_path: str) -> Union[list, dict]:
+    def read(cls, file_path: str) -> list | dict:
         """
         Read an object from the jsonl file given.
 
@@ -136,7 +136,7 @@ class _YAMLFormatter(_Formatter):
     DEFAULT_DUMP_KWARGS = {"default_flow_style": False, "indent": 4}
 
     @classmethod
-    def write(cls, obj: Union[list, dict], file_path: str, **dump_kwargs: dict):
+    def write(cls, obj: list | dict, file_path: str, **dump_kwargs: dict):
         """
         Write the object to a yaml file. The object must be serializable according to the yaml format.
 
@@ -149,7 +149,7 @@ class _YAMLFormatter(_Formatter):
             yaml.safe_dump(obj, file, **dump_kwargs)
 
     @classmethod
-    def read(cls, file_path: str) -> Union[list, dict]:
+    def read(cls, file_path: str) -> list | dict:
         """
         Read an object from the yaml file given.
 

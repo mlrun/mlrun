@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from abc import ABC, abstractmethod
-from typing import Any, Optional, Union
+from typing import Any, Union
 
 from mlrun.artifacts import Artifact, ModelArtifact
 from mlrun.execution import MLClientCtx
@@ -63,7 +63,7 @@ class Tracker(ABC):
         project: MlrunProject,
         reference_id: Any,
         function_name: str,
-        handler: Optional[str] = None,
+        handler: str | None = None,
         **kwargs,
     ) -> RunObject:
         """

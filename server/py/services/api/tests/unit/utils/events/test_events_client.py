@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import unittest.mock
-from typing import Optional
 
 import fastapi.testclient
 import pytest
@@ -107,7 +106,7 @@ class TestEventClient:
             lambda *args, **kwargs: self.client,
         )
 
-    def _initialize_client(self, version: Optional[str] = None):
+    def _initialize_client(self, version: str | None = None):
         mlrun.mlconf.igz_version = version
         self.client = (
             services.api.utils.events.events_factory.EventsFactory.get_events_client()

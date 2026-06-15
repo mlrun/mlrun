@@ -13,12 +13,11 @@
 # limitations under the License.
 
 import asyncio
-import typing
 from collections.abc import Coroutine
 from dataclasses import dataclass
 from datetime import datetime
 from http import HTTPStatus
-from typing import Annotated, Literal, Optional, Union
+from typing import Annotated, Literal, Union
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Query
 from fastapi.concurrency import run_in_threadpool
@@ -54,7 +53,7 @@ async def create_model_endpoint(
     model_endpoint: schemas.ModelEndpoint,
     project: ProjectAnnotation,
     delete_background_task: BackgroundTasks,
-    creation_strategy: Optional[mm_constants.ModelEndpointCreationStrategy] = Query(
+    creation_strategy: mm_constants.ModelEndpointCreationStrategy | None = Query(
         None, alias="creation-strategy"
     ),
     auth_info: schemas.AuthInfo = Depends(framework.api.deps.authenticate_request),
@@ -103,7 +102,8 @@ async def create_model_endpoint(
         _,
         _,
         _,
-    ) = await services.api.crud.ModelEndpoints().create_model_endpoint(
+    ) = await run_in_threadpool(
+        services.api.crud.ModelEndpoints().create_model_endpoint,
         db_session=db_session,
         model_endpoint=model_endpoint,
         creation_strategy=creation_strategy,
@@ -157,7 +157,8 @@ async def patch_model_endpoint(
     )
     attributes = {key: model_endpoint.get(key) for key in attributes_keys}
 
-    return await services.api.crud.ModelEndpoints().patch_model_endpoint(
+    return await run_in_threadpool(
+        services.api.crud.ModelEndpoints().patch_model_endpoint,
         name=model_endpoint.metadata.name,
         project=project,
         function_name=model_endpoint.spec.function_name,
@@ -176,19 +177,9 @@ async def delete_model_endpoint(
     project: ProjectAnnotation,
     name: str,
     delete_background_task: BackgroundTasks,
-    function_name: Optional[str] = Query(None, alias="function-name"),
-    function_tag: Optional[str] = Query(None, alias="function-tag"),
-    # TODO: remove in 1.11
-    endpoint_id_old: typing.Optional[EndpointIDAnnotation] = Query(
-        None,
-        alias="endpoint_id",
-        deprecated=True,
-        description="'endpoint_id' query parameter is deprecated in 1.8.0 and will be removed in 1.11.0."
-        "Use endpoint-id instead.",
-    ),
-    endpoint_id: typing.Optional[EndpointIDAnnotation] = Query(
-        None, alias="endpoint-id"
-    ),
+    function_name: str | None = Query(None, alias="function-name"),
+    function_tag: str | None = Query(None, alias="function-tag"),
+    endpoint_id: EndpointIDAnnotation | None = Query(None, alias="endpoint-id"),
     auth_info: schemas.AuthInfo = Depends(framework.api.deps.authenticate_request),
     db_session: Session = Depends(framework.api.deps.get_db_session),
 ) -> None:
@@ -203,7 +194,7 @@ async def delete_model_endpoint(
     :param auth_info:              The auth info of the request.
     :param db_session:             A session that manages the current dialog with the database.
     """
-    endpoint_id = endpoint_id or endpoint_id_old or "*"
+    endpoint_id = endpoint_id or "*"
 
     await (
         framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
@@ -215,7 +206,8 @@ async def delete_model_endpoint(
         )
     )
 
-    await services.api.crud.ModelEndpoints().delete_model_endpoint(
+    await run_in_threadpool(
+        services.api.crud.ModelEndpoints().delete_model_endpoint,
         project=project,
         name=name,
         function_name=function_name,
@@ -233,18 +225,18 @@ async def delete_model_endpoint(
 )
 async def list_model_endpoints(
     project: ProjectAnnotation,
-    names: Optional[list[str]] = Query(None, alias="name"),
-    model_name: Optional[str] = Query(None, alias="model-name"),
-    model_tag: Optional[str] = Query(None, alias="model-tag"),
-    function_name: Optional[str] = Query(None, alias="function-name"),
-    function_tag: Optional[str] = Query(None, alias="function-tag"),
+    names: list[str] | None = Query(None, alias="name"),
+    model_name: str | None = Query(None, alias="model-name"),
+    model_tag: str | None = Query(None, alias="model-tag"),
+    function_name: str | None = Query(None, alias="function-name"),
+    function_tag: str | None = Query(None, alias="function-tag"),
     labels: list[str] = Query([], alias="label"),
-    start: Optional[datetime] = None,
-    end: Optional[datetime] = None,
+    start: datetime | None = None,
+    end: datetime | None = None,
     top_level: bool = Query(False, alias="top-level"),
-    modes: Optional[list[mm_constants.EndpointMode]] = Query(None, alias="mode"),
+    modes: list[mm_constants.EndpointMode] | None = Query(None, alias="mode"),
     tsdb_metrics: bool = Query(True, alias="tsdb-metrics"),
-    metric_list: Optional[list[str]] = Query(None, alias="metric"),
+    metric_list: list[str] | None = Query(None, alias="metric"),
     uids: list[str] = Query(None, alias="uid"),
     latest_only: bool = Query(False, alias="latest-only"),
     auth_info: schemas.AuthInfo = Depends(framework.api.deps.authenticate_request),
@@ -281,7 +273,8 @@ async def list_model_endpoints(
         auth_info=auth_info,
     )
 
-    endpoints = await services.api.crud.ModelEndpoints().list_model_endpoints(
+    endpoints = await run_in_threadpool(
+        services.api.crud.ModelEndpoints().list_model_endpoints,
         project=project,
         names=names,
         model_name=model_name,
@@ -396,16 +389,6 @@ async def get_model_endpoint_monitoring_metrics(
     return metrics
 
 
-# TODO: remove in 1.12.0
-@router.get(
-    "/metrics",
-    response_model=dict[str, list[mm_endpoints.ModelEndpointMonitoringMetric]],
-    deprecated=True,
-    description=(
-        "This endpoint is deprecated from 1.10.0 and will be removed in MLRun 1.12.0. "
-        "Use the GET '/projects/{project}/model-monitoring/metrics' API endpoint instead."
-    ),
-)
 async def get_metrics_by_multiple_endpoints(
     project: ProjectAnnotation,
     auth_info: schemas.AuthInfo = Depends(framework.api.deps.authenticate_request),
@@ -445,7 +428,8 @@ async def get_metrics_by_multiple_endpoints(
     await asyncio.gather(*permissions_tasks)
 
     # verify all endpoints exist in the project
-    endpoints_data = await services.api.crud.ModelEndpoints().list_model_endpoints(
+    endpoints_data = await run_in_threadpool(
+        services.api.crud.ModelEndpoints().list_model_endpoints,
         project=project,
         uids=endpoint_ids,
         db_session=db_session,
@@ -499,27 +483,11 @@ async def get_metrics_by_multiple_endpoints(
 async def get_model_endpoint(
     name: str,
     project: ProjectAnnotation,
-    function_name: Optional[str] = Query(None, alias="function-name"),
-    function_tag: Optional[str] = Query(None, alias="function-tag"),
-    # TODO: remove in 1.11
-    endpoint_id_old: Optional[EndpointIDAnnotation] = Query(
-        None,
-        alias="endpoint_id",
-        deprecated=True,
-        description="'endpoint_id' query parameter is deprecated in 1.8.0 and will be removed in 1.11.0. "
-        "Use endpoint-id instead.",
-    ),
-    endpoint_id: Optional[EndpointIDAnnotation] = Query(None, alias="endpoint-id"),
+    function_name: str | None = Query(None, alias="function-name"),
+    function_tag: str | None = Query(None, alias="function-tag"),
+    endpoint_id: EndpointIDAnnotation | None = Query(None, alias="endpoint-id"),
     tsdb_metrics: bool = Query(True, alias="tsdb-metrics"),
-    metric_list: Optional[list[str]] = Query(None, alias="metric"),
-    # TODO: remove in 1.11
-    feature_analysis_old: bool = Query(
-        False,
-        alias="feature_analysis",
-        deprecated=True,
-        description="'feature_analysis' query parameter is deprecated in 1.8.0 and will be removed in 1.11.0. "
-        "Use feature-analysis instead.",
-    ),
+    metric_list: list[str] | None = Query(None, alias="metric"),
     feature_analysis: bool = Query(False, alias="feature-analysis"),
     auth_info: schemas.AuthInfo = Depends(framework.api.deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
@@ -541,14 +509,12 @@ async def get_model_endpoint(
     :param db_session:          A session that manages the current dialog with the database.
     :return:                    The model endpoint object.
     """
-    endpoint_id = endpoint_id or endpoint_id_old
-    feature_analysis = feature_analysis or feature_analysis_old
-
     await _verify_model_endpoint_read_permission(
         project=project, name_or_uid=name, auth_info=auth_info
     )
 
-    return await services.api.crud.ModelEndpoints().get_model_endpoint(
+    return await run_in_threadpool(
+        services.api.crud.ModelEndpoints().get_model_endpoint,
         name=name,
         project=project,
         function_name=function_name,
@@ -578,8 +544,8 @@ async def _get_metrics_values_params(
         list[str],
         Query(pattern=mm_constants.FQN_PATTERN),
     ],
-    start: Optional[datetime] = None,
-    end: Optional[datetime] = None,
+    start: datetime | None = None,
+    end: datetime | None = None,
     auth_info: schemas.AuthInfo = Depends(framework.api.deps.authenticate_request),
 ) -> _MetricsValuesParams:
     """

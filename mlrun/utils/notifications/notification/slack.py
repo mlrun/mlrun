@@ -45,13 +45,12 @@ class SlackNotification(NotificationBase):
     async def push(
         self,
         message: str,
-        severity: typing.Optional[
-            typing.Union[mlrun.common.schemas.NotificationSeverity, str]
-        ] = mlrun.common.schemas.NotificationSeverity.INFO,
-        runs: typing.Optional[typing.Union[mlrun.lists.RunList, list]] = None,
-        custom_html: typing.Optional[typing.Optional[str]] = None,
-        alert: typing.Optional[mlrun.common.schemas.AlertConfig] = None,
-        event_data: typing.Optional[mlrun.common.schemas.Event] = None,
+        severity: typing.Union[mlrun.common.schemas.NotificationSeverity, str]
+        | None = mlrun.common.schemas.NotificationSeverity.INFO,
+        runs: typing.Union[mlrun.lists.RunList, list] | None = None,
+        custom_html: str | None = None,
+        alert: mlrun.common.schemas.AlertConfig | None = None,
+        event_data: mlrun.common.schemas.Event | None = None,
     ):
         webhook = self.params.get("webhook", None) or mlrun.get_secret_or_env(
             "SLACK_WEBHOOK"
@@ -180,12 +179,12 @@ class SlackNotification(NotificationBase):
         if state != runtimes_constants.RunStates.skipped and (
             url and not kind or kind == "run"
         ):
-            line = f'<{url}|*{meta.get("name")}*>'
+            line = f"<{url}|*{meta.get('name')}*>"
         else:
             line = meta.get("name")
         if kind:
-            line = f'{line} *({run.get("step_kind", run.get("kind", ""))})*'
-        line = f'{self.emojis.get(state, ":question:")}  {line}'
+            line = f"{line} *({run.get('step_kind', run.get('kind', ''))})*"
+        line = f"{self.emojis.get(state, ':question:')}  {line}"
         return self._get_slack_row(line)
 
     def _get_run_result(self, run: dict) -> dict:

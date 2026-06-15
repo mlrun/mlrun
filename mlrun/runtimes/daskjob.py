@@ -15,8 +15,9 @@ import datetime
 import inspect
 import socket
 import time
+from collections.abc import Callable
 from os import environ
-from typing import Callable, Optional, Union
+from typing import Union
 
 import mlrun.common.schemas
 import mlrun.errors
@@ -96,6 +97,8 @@ class DaskSpec(KubeResourceSpec):
         graph=None,
         parameters=None,
         track_models=None,
+        env_from=None,
+        mount_otlp_secret: bool = False,
     ):
         super().__init__(
             command=command,
@@ -105,6 +108,7 @@ class DaskSpec(KubeResourceSpec):
             volumes=volumes,
             volume_mounts=volume_mounts,
             env=env,
+            env_from=env_from,
             resources=resources,
             replicas=replicas,
             image_pull_policy=image_pull_policy,
@@ -129,6 +133,7 @@ class DaskSpec(KubeResourceSpec):
             graph=graph,
             parameters=parameters,
             track_models=track_models,
+            mount_otlp_secret=mount_otlp_secret,
         )
         self.args = args
 
@@ -217,6 +222,16 @@ class DaskCluster(KubejobRuntime):
     @status.setter
     def status(self, status):
         self._status = self._verify_dict(status, "status", DaskStatus)
+
+    def validate(self):
+        super().validate()
+        # The Dask runtime is not supported on Iguazio v4 (IG4) systems, where the dask cluster can
+        # no longer be brought up. Bringing one up would otherwise fail with an opaque
+        # "Failed bringing up dask cluster" error.
+        if config.is_iguazio_v4_mode():
+            raise mlrun.errors.MLRunBadRequestError(
+                "The Dask runtime is not supported on this system."
+            )
 
     def is_deployed(self):
         if not self.spec.remote:
@@ -378,7 +393,7 @@ class DaskCluster(KubejobRuntime):
         skip_deployed=False,
         is_kfp=False,
         mlrun_version_specifier=None,
-        builder_env: Optional[dict] = None,
+        builder_env: dict | None = None,
         show_on_failure: bool = False,
         force_build: bool = False,
     ):
@@ -421,9 +436,9 @@ class DaskCluster(KubejobRuntime):
 
     def with_scheduler_limits(
         self,
-        mem: Optional[str] = None,
-        cpu: Optional[str] = None,
-        gpus: Optional[int] = None,
+        mem: str | None = None,
+        cpu: str | None = None,
+        gpus: int | None = None,
         gpu_type: str = "nvidia.com/gpu",
         patch: bool = False,
     ):
@@ -437,9 +452,9 @@ class DaskCluster(KubejobRuntime):
 
     def with_worker_limits(
         self,
-        mem: Optional[str] = None,
-        cpu: Optional[str] = None,
-        gpus: Optional[int] = None,
+        mem: str | None = None,
+        cpu: str | None = None,
+        gpus: int | None = None,
         gpu_type: str = "nvidia.com/gpu",
         patch: bool = False,
     ):
@@ -457,7 +472,7 @@ class DaskCluster(KubejobRuntime):
         )
 
     def with_scheduler_requests(
-        self, mem: Optional[str] = None, cpu: Optional[str] = None, patch: bool = False
+        self, mem: str | None = None, cpu: str | None = None, patch: bool = False
     ):
         """
         set scheduler pod resources requests
@@ -466,7 +481,7 @@ class DaskCluster(KubejobRuntime):
         self.spec._verify_and_set_requests("scheduler_resources", mem, cpu, patch=patch)
 
     def with_worker_requests(
-        self, mem: Optional[str] = None, cpu: Optional[str] = None, patch: bool = False
+        self, mem: str | None = None, cpu: str | None = None, patch: bool = False
     ):
         """
         set worker pod resources requests
@@ -485,33 +500,30 @@ class DaskCluster(KubejobRuntime):
 
     def run(
         self,
-        runspec: Optional[
-            Union["mlrun.run.RunTemplate", "mlrun.run.RunObject", dict]
-        ] = None,
-        handler: Optional[Union[str, Callable]] = None,
-        name: Optional[str] = "",
-        project: Optional[str] = "",
-        params: Optional[dict] = None,
-        inputs: Optional[dict[str, str]] = None,
-        out_path: Optional[str] = "",
-        workdir: Optional[str] = "",
-        artifact_path: Optional[str] = "",
-        watch: Optional[bool] = True,
-        schedule: Optional[Union[str, mlrun.common.schemas.ScheduleCronTrigger]] = None,
-        hyperparams: Optional[dict[str, list]] = None,
-        hyper_param_options: Optional[mlrun.model.HyperParamOptions] = None,
-        verbose: Optional[bool] = None,
-        scrape_metrics: Optional[bool] = None,
-        local: Optional[bool] = False,
-        local_code_path: Optional[str] = None,
-        auto_build: Optional[bool] = None,
-        param_file_secrets: Optional[dict[str, str]] = None,
-        notifications: Optional[list[mlrun.model.Notification]] = None,
-        returns: Optional[list[Union[str, dict[str, str]]]] = None,
-        state_thresholds: Optional[dict[str, int]] = None,
-        reset_on_run: Optional[bool] = None,
-        output_path: Optional[str] = "",
-        retry: Optional[Union[mlrun.model.Retry, dict]] = None,
+        runspec: Union["mlrun.run.RunTemplate", "mlrun.run.RunObject", dict]
+        | None = None,
+        handler: Union[str, Callable] | None = None,
+        name: str | None = "",
+        project: str | None = "",
+        params: dict | None = None,
+        inputs: dict[str, str] | None = None,
+        workdir: str | None = "",
+        watch: bool | None = True,
+        schedule: Union[str, mlrun.common.schemas.ScheduleCronTrigger] | None = None,
+        hyperparams: dict[str, list] | None = None,
+        hyper_param_options: mlrun.model.HyperParamOptions | None = None,
+        verbose: bool | None = None,
+        scrape_metrics: bool | None = None,
+        local: bool | None = False,
+        local_code_path: str | None = None,
+        auto_build: bool | None = None,
+        param_file_secrets: dict[str, str] | None = None,
+        notifications: list[mlrun.model.Notification] | None = None,
+        returns: list[Union[str, dict[str, str]]] | None = None,
+        state_thresholds: dict[str, int] | None = None,
+        reset_on_run: bool | None = None,
+        output_path: str | None = "",
+        retry: Union[mlrun.model.Retry, dict] | None = None,
         **launcher_kwargs,
     ) -> RunObject:
         if state_thresholds:
@@ -525,7 +537,6 @@ class DaskCluster(KubejobRuntime):
             project=project,
             params=params,
             inputs=inputs,
-            out_path=out_path,
             workdir=workdir,
             output_path=output_path,
             watch=watch,
@@ -551,7 +562,8 @@ class DaskCluster(KubejobRuntime):
 
         # TODO: investigate if the following instructions could overwrite the environment on any MLRun API Pod
         # Such action could result on race conditions against other runtimes and MLRun itself
-        extra_env = self._generate_runtime_env(runobj)
+        extra_env, _ = self._generate_runtime_env(runobj)
+        # Since it runs locally, we don't need the external sources env vars
         environ.update(extra_env)
 
         context = MLClientCtx.from_dict(

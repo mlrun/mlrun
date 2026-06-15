@@ -13,7 +13,6 @@
 # limitations under the License.
 import collections
 import logging
-import typing
 from copy import copy
 from datetime import datetime
 from enum import Enum
@@ -250,7 +249,7 @@ class FeatureVector(ModelObj):
         description=None,
         with_indexes=None,
         join_graph: JoinGraph = None,
-        relations: typing.Optional[dict[str, dict[str, Union[Entity, str]]]] = None,
+        relations: dict[str, dict[str, Union[Entity, str]]] | None = None,
     ):
         """Feature vector, specify selected features, their metadata and material views
 
@@ -500,21 +499,21 @@ class FeatureVector(ModelObj):
     def get_offline_features(
         self,
         entity_rows=None,
-        entity_timestamp_column: typing.Optional[str] = None,
+        entity_timestamp_column: str | None = None,
         target: DataTargetBase = None,
         run_config: RunConfig = None,
-        drop_columns: typing.Optional[list[str]] = None,
-        start_time: typing.Optional[Union[str, datetime]] = None,
-        end_time: typing.Optional[Union[str, datetime]] = None,
+        drop_columns: list[str] | None = None,
+        start_time: Union[str, datetime] | None = None,
+        end_time: Union[str, datetime] | None = None,
         with_indexes: bool = False,
         update_stats: bool = True,
-        engine: typing.Optional[str] = None,
-        engine_args: typing.Optional[dict] = None,
-        query: typing.Optional[str] = None,
-        order_by: typing.Optional[Union[str, list[str]]] = None,
-        spark_service: typing.Optional[str] = None,
-        timestamp_for_filtering: typing.Optional[Union[str, dict[str, str]]] = None,
-        additional_filters: typing.Optional[list] = None,
+        engine: str | None = None,
+        engine_args: dict | None = None,
+        query: str | None = None,
+        order_by: Union[str, list[str]] | None = None,
+        spark_service: str | None = None,
+        timestamp_for_filtering: Union[str, dict[str, str]] | None = None,
+        additional_filters: list | None = None,
     ):
         """retrieve offline feature vector results
 
@@ -649,9 +648,9 @@ class FeatureVector(ModelObj):
         self,
         run_config: RunConfig = None,
         fixed_window_type: FixedWindowType = FixedWindowType.LastClosedWindow,
-        impute_policy: typing.Optional[dict] = None,
+        impute_policy: dict | None = None,
         update_stats: bool = False,
-        entity_keys: typing.Optional[list[str]] = None,
+        entity_keys: list[str] | None = None,
     ) -> OnlineVectorService:
         """initialize and return online feature vector service api,
         returns :py:class:`~mlrun.feature_store.OnlineVectorService`

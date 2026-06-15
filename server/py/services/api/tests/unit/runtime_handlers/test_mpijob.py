@@ -12,14 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import unittest.mock
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
 from kubernetes import client as k8s_client
 from sqlalchemy.orm import Session
 
+import mlrun
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 from mlrun.common.runtimes.constants import PodPhases, RunStates
@@ -212,7 +214,7 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
         recently_completed_crd_dict = self._generate_mpijob_crd(
             self.project,
             self.run_uid,
-            self._get_succeeded_crd_status(datetime.now(timezone.utc).isoformat()),
+            self._get_succeeded_crd_status(datetime.now(UTC).isoformat()),
         )
         list_namespaced_crds_calls = [
             [recently_completed_crd_dict],
@@ -390,7 +392,7 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
         for uid, start_time in [
             (
                 image_pull_backoff_job_uid,
-                datetime.now(timezone.utc)
+                datetime.now(UTC)
                 - timedelta(
                     seconds=framework.utils.helpers.time_string_to_seconds(
                         mlrun.mlconf.function.spec.state_thresholds.default.image_pull_backoff
@@ -399,15 +401,15 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
             ),
             (
                 running_long_uid,
-                datetime.now(timezone.utc)
+                datetime.now(UTC)
                 - timedelta(
                     seconds=framework.utils.helpers.time_string_to_seconds(
                         mlrun.mlconf.function.spec.state_thresholds.default.executing
                     )
                 ),
             ),
-            (running_short_uid, datetime.now(timezone.utc)),
-            (success_uid, datetime.now(timezone.utc)),
+            (running_short_uid, datetime.now(UTC)),
+            (success_uid, datetime.now(UTC)),
         ]:
             self._store_run(
                 db,
@@ -564,11 +566,11 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
 
         # create the runs
         for name, uid, start_time in [
-            ("pending", pending_uid, datetime.now(timezone.utc)),
+            ("pending", pending_uid, datetime.now(UTC)),
             (
                 "pending-scheduled-stale",
                 pending_scheduled_stale_uid,
-                datetime.now(timezone.utc)
+                datetime.now(UTC)
                 - timedelta(
                     seconds=framework.utils.helpers.time_string_to_seconds(
                         mlrun.mlconf.function.spec.state_thresholds.default.pending_scheduled
@@ -578,7 +580,7 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
             (
                 "pending-scheduled",
                 pending_scheduled_uid,
-                datetime.now(timezone.utc),
+                datetime.now(UTC),
             ),
         ]:
             self._store_run(
@@ -724,3 +726,86 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
             "replicaStatuses": {"Launcher": {"failed": 1}, "Worker": {}},
             "conditions": [{"reason": "Some reason", "message": "Some message"}],
         }
+
+
+# desired_state is what monitoring wants to apply; current_state is the run's current DB state.
+@pytest.mark.parametrize(
+    "desired_state,current_state,results,crd_present,completion_offset_seconds,expected",
+    [
+        # Not a completed transition - never deferred.
+        (RunStates.running, RunStates.running, {}, True, 5, False),
+        (RunStates.error, RunStates.running, {}, True, 5, False),
+        # Run already terminal (the logging worker already committed it) - nothing to wait for.
+        (RunStates.completed, RunStates.completed, {}, True, 5, False),
+        # Results already present - proceed.
+        (RunStates.completed, RunStates.running, {"time": 1.0}, True, 5, False),
+        # No CRD (e.g. pre-deletion path) - proceed.
+        (RunStates.completed, RunStates.running, {}, False, None, False),
+        # CRD lacks a completion time - proceed.
+        (RunStates.completed, RunStates.running, {}, True, None, False),
+        # Monitoring wants completed, run still running with no results, within grace - defer (the race).
+        (RunStates.completed, RunStates.running, {}, True, 5, True),
+        # Grace period elapsed - proceed (do not hang).
+        (RunStates.completed, RunStates.running, {}, True, 10_000, False),
+    ],
+)
+def test_mpijob_should_wait_for_results(
+    monkeypatch,
+    desired_state,
+    current_state,
+    results,
+    crd_present,
+    completion_offset_seconds,
+    expected,
+):
+    monkeypatch.setattr(mlrun.mlconf.monitoring.runs, "result_settle_grace_seconds", 30)
+    handler = get_runtime_handler(RuntimeKinds.mpijob)
+    run = {"status": {"state": current_state, "results": results}}
+    runtime_resource = _mpijob_crd(crd_present, completion_offset_seconds)
+
+    assert (
+        handler._should_wait_for_results(run, desired_state, runtime_resource)
+        is expected
+    )
+
+
+def test_mpijob_ensure_run_state_defers_completed_until_results(monkeypatch):
+    # While deferring, _ensure_run_state must not advance the state nor write to the DB.
+    monkeypatch.setattr(mlrun.mlconf.monitoring.runs, "result_settle_grace_seconds", 30)
+    handler = get_runtime_handler(RuntimeKinds.mpijob)
+    run = {
+        "metadata": {"project": "proj", "uid": "uid-1", "labels": {}},
+        "status": {"state": RunStates.running, "results": {}},
+    }
+    db = unittest.mock.MagicMock()
+
+    updated, state, returned_run = handler._ensure_run_state(
+        db,
+        None,
+        project="proj",
+        uid="uid-1",
+        name="trainer",
+        run_state=RunStates.completed,
+        run=run,
+        search_run=False,
+        runtime_resource=_mpijob_crd(crd_present=True, completion_offset_seconds=5),
+    )
+
+    assert updated is False
+    assert state == RunStates.running  # state not advanced to completed
+    assert returned_run is run
+    db.update_run.assert_not_called()  # no DB write while deferring
+
+
+def _mpijob_crd(
+    crd_present: bool, completion_offset_seconds: float | None
+) -> dict | None:
+    if not crd_present:
+        return None
+    status = {}
+    if completion_offset_seconds is not None:
+        completion_time = datetime.now(UTC) - timedelta(
+            seconds=completion_offset_seconds
+        )
+        status["completionTime"] = completion_time.isoformat().replace("+00:00", "Z")
+    return {"status": status}

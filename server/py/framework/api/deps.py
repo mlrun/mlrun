@@ -27,7 +27,7 @@ import framework.utils.auth.verifier
 
 def get_db_session(
     request: Request,
-) -> typing.Generator[typing.Optional[Session], None, None]:
+) -> typing.Generator[Session | None, None, None]:
     # FastAPI dependencies automatically create DB sessions when entering an endpoint.
     # These sessions are redundant when the request is going to be forwarded to services.
     if not request.app.extra.get("mlrun_service").is_forwarded_request(request):
@@ -69,12 +69,18 @@ def verify_api_state(request: Request):
         mlrun.common.schemas.APIStates.waiting_for_chief,
     ]:
         enabled_endpoints = [
+            # allow healthz requests
             "healthz",
+            # for migration purposes
             "background-tasks",
-            "client-spec",
             "migrations",
+            # clusterization purposes
+            "client-spec",
             "clusterization-spec",
+            # debug purposes
             "memory-reports",
+            # allow authentication
+            "user-secrets/tokens",
         ]
         if not any(enabled_endpoint in path for enabled_endpoint in enabled_endpoints):
             message = mlrun.common.schemas.APIStates.description(

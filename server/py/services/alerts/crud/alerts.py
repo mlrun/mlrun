@@ -48,7 +48,9 @@ class Alerts(
         force_reset: bool = False,
     ) -> mlrun.common.schemas.AlertConfig:
         existing_alert, existing_alert_state = (
-            framework.utils.singletons.db.get_db().get_alert(session, project, name, with_state=True)
+            framework.utils.singletons.db.get_db().get_alert(
+                session, project, name, with_state=True
+            )
         )
 
         self._validate_alert(alert_data, name, project)
@@ -98,10 +100,10 @@ class Alerts(
     def list_alerts(
         self,
         session: sqlalchemy.orm.Session,
-        project: typing.Optional[typing.Union[str, list[str]]] = None,
+        project: typing.Union[str, list[str]] | None = None,
         exclude_updated: bool = False,
-        limit: typing.Optional[int] = None,
-        offset: typing.Optional[int] = None,
+        limit: int | None = None,
+        offset: int | None = None,
     ) -> list[mlrun.common.schemas.AlertConfig]:
         return framework.utils.singletons.db.get_db().list_alerts(
             session=session,
@@ -285,7 +287,22 @@ class Alerts(
             "session": session.hash_key,
         }
 
-        if alert.reset_policy == "auto":
+        # Resolve effective cooldown timedelta; timedelta(0) is treated as no cooldown (immediate reset).
+        cooldown_td = None
+        if alert.cooldown_period:
+            parsed_cooldown_td = framework.utils.helpers.string_to_timedelta(
+                alert.cooldown_period, raise_on_error=False
+            )
+            # timedelta(0) is falsy — treat as no cooldown
+            if parsed_cooldown_td:
+                cooldown_td = parsed_cooldown_td
+
+        # AUTO without cooldown: reset before notification delivery so the alert can fire again on the next event.
+        # With cooldown, reset is deferred until the cooldown period elapses
+        if (
+            alert.reset_policy == mlrun.common.schemas.alert.ResetPolicy.AUTO
+            and cooldown_td is None
+        ):
             logger.debug("Resetting alert before sending notification", **log_kwargs)
             self.reset_alert(session, alert.project, alert.name, alert_id=alert.id)
             keep_cache = False
@@ -294,10 +311,24 @@ class Alerts(
             session, alert, event_data
         )
 
-        if alert.reset_policy == "manual":
+        # MANUAL alerts stay active until explicitly reset; cooldown alerts stay active until the cooldown elapses.
+        # last_activation_id is stored so it can be updated when the alert is eventually reset.
+        if (
+            alert.reset_policy == mlrun.common.schemas.alert.ResetPolicy.MANUAL
+            or cooldown_td is not None
+        ):
             active = True
             state["active"] = True
             state_obj["last_activation_id"] = activation_id
+
+        cooldown_end_time = None
+        if cooldown_td is not None:
+            cooldown_end_time = datetime.datetime.now(datetime.UTC) + cooldown_td
+            logger.debug(
+                "Alert cooldown period set, will auto-reset after cooldown",
+                cooldown_end_time=cooldown_end_time.isoformat(),
+                **log_kwargs,
+            )
 
         logger.debug("Sending notifications for alert", **log_kwargs)
         notification_pusher.AlertNotificationPusher().push(
@@ -317,6 +348,7 @@ class Alerts(
             obj=state_obj,
             active=active,
             alert_id=alert.id,
+            cooldown_end_time=cooldown_end_time,
         )
         return keep_cache
 
@@ -362,6 +394,7 @@ class Alerts(
 
     @staticmethod
     def _event_entity_matches(alert_entity, event_entity):
+        # A wildcard id ("*") matches any incoming entity id
         if "*" in alert_entity.ids:
             return True
 
@@ -384,6 +417,7 @@ class Alerts(
 
         self._validate_alert_criteria(project, name, alert.criteria)
         self._validate_alert_notifications(project, name, alert.notifications)
+        self._validate_alert_cooldown_period(project, name, alert)
 
         if alert.entities.project != project:
             raise mlrun.errors.MLRunBadRequestError(
@@ -452,6 +486,51 @@ class Alerts(
                     f"Invalid cooldown_period ({alert_notification.cooldown_period}) "
                     f"specified for alert {name} for project {project}"
                 )
+
+    @staticmethod
+    def _validate_alert_cooldown_period(
+        project: str,
+        name: str,
+        alert: mlrun.common.schemas.AlertConfig,
+    ):
+        """
+        Validate the cooldown_period field on AlertConfig:
+        - If set to "0", it is treated as no cooldown and allowed for any reset policy.
+        - cooldown_period > 0 is only allowed when reset_policy=auto.
+        - If set, it must be a valid time duration string.
+        - If > 0, it must be >= cooldown_reset_interval to ensure accurate reset timing.
+        """
+        if not alert.cooldown_period:
+            return
+
+        cooldown_td = framework.utils.helpers.string_to_timedelta(
+            alert.cooldown_period, raise_on_error=False
+        )
+        if cooldown_td is None:
+            raise mlrun.errors.MLRunBadRequestError(
+                f"Invalid cooldown_period ({alert.cooldown_period}) "
+                f"specified for alert {name} for project {project}"
+            )
+
+        if not cooldown_td:
+            # zero duration is equivalent to no cooldown — valid for any reset policy
+            return
+
+        # cooldown_td is > 0 beyond this point
+        if alert.reset_policy == mlrun.common.schemas.alert.ResetPolicy.MANUAL:
+            raise mlrun.errors.MLRunBadRequestError(
+                f"cooldown_period is not allowed when reset_policy=manual "
+                f"for alert {name} for project {project}"
+            )
+
+        min_cooldown = datetime.timedelta(
+            seconds=mlconfig.alerts.cooldown_reset_interval
+        )
+        if cooldown_td < min_cooldown:
+            raise mlrun.errors.MLRunBadRequestError(
+                f"cooldown_period ({alert.cooldown_period}) must be at least "
+                f"{mlconfig.alerts.cooldown_reset_interval} seconds for alert {name} for project {project}"
+            )
 
     def _handle_existing_alert(
         self,
@@ -566,7 +645,7 @@ class Alerts(
         """
         Filter out events that are older than the period from the object
         """
-        now = datetime.datetime.now(tz=datetime.timezone.utc)
+        now = datetime.datetime.now(tz=datetime.UTC)
 
         def _is_valid_event(event):
             if isinstance(event, str):
@@ -582,7 +661,7 @@ class Alerts(
         session: sqlalchemy.orm.Session,
         project: str,
         name: str,
-        alert_id: typing.Optional[int] = None,
+        alert_id: int | None = None,
     ):
         # Prefer getting alert from cache if alert_id is provided
         if alert_id is not None:
@@ -597,17 +676,61 @@ class Alerts(
                 f"Alert {name} for project {project} does not exist"
             )
 
-        if alert.reset_policy == mlrun.common.schemas.alert.ResetPolicy.MANUAL:
+        # MANUAL and real-cooldown (> 0) alerts track the last activation so it can be marked as resolved on reset
+        has_cooldown = bool(
+            alert.cooldown_period
+            and framework.utils.helpers.string_to_timedelta(
+                alert.cooldown_period, raise_on_error=False
+            )
+        )
+        if (
+            alert.reset_policy == mlrun.common.schemas.alert.ResetPolicy.MANUAL
+            or has_cooldown
+        ):
             self._update_alert_activation_on_reset(
                 session=session,
                 project=project,
                 alert=alert,
             )
         framework.utils.singletons.db.get_db().store_alert_state(
-            session, project, name, last_updated=None, alert_id=alert.id
+            session,
+            project,
+            name,
+            last_updated=None,
+            alert_id=alert.id,
+            obj={},
+            clear_cooldown=True,
         )
         self._get_alert_state_cached().cache_remove(session, alert.id)
         self._clear_alert_states(alert.id)
+
+    def reset_cooled_down_alerts(self, session: sqlalchemy.orm.Session) -> None:
+        """Reset alerts whose cooldown period has elapsed."""
+        alerts_to_reset = (
+            framework.utils.singletons.db.get_db().list_alerts_pending_cooldown_reset(
+                session
+            )
+        )
+        for alert in alerts_to_reset:
+            try:
+                logger.debug(
+                    "Resetting cooled-down alert",
+                    project=alert.project,
+                    name=alert.name,
+                )
+                self.reset_alert(
+                    session=session,
+                    project=alert.project,
+                    name=alert.name,
+                    alert_id=alert.id,
+                )
+            except Exception as exc:
+                logger.warning(
+                    "Failed to reset cooled-down alert",
+                    project=alert.project,
+                    name=alert.name,
+                    exc=mlrun.errors.err_to_str(exc),
+                )
 
     def _update_alert_activation_on_reset(
         self,
@@ -674,9 +797,9 @@ class Alerts(
         ):
             return True, "reset-policy changed from manual to auto"
 
-        # reset the alert if a functional parameter (entities, trigger, or criteria) has changed, as these affect the
-        # conditions for alert activation.
-        functional_parameters = ["entities", "trigger", "criteria"]
+        # reset the alert if a functional parameter (entities, trigger, criteria, or cooldown_period) has changed,
+        # as these affect the conditions or timing of alert activation.
+        functional_parameters = ["entities", "trigger", "criteria", "cooldown_period"]
         for attr in functional_parameters:
             if getattr(old_alert_data, attr) != getattr(alert_data, attr):
                 return True, f"changes in {attr}"

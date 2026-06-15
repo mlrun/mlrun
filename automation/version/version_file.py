@@ -19,7 +19,6 @@ import os
 import pathlib
 import re
 import subprocess
-import typing
 
 import packaging.version
 
@@ -129,6 +128,11 @@ def get_current_version(
 
             semver_tag = packaging.version.parse(tag.removeprefix("v"))
 
+            # Local versions (e.g. 1.10.1-rc2+ui-navbar) are used for feature/testing builds and
+            # should not affect release version calculations on non-feature branches.
+            if semver_tag.local and not feature_name:
+                continue
+
             # compare base versions on both base and current tag
             # if current tag version (e.g.: 1.4.0) is smaller than base version (e.g.: 1.5.0)
             # then, keep that tag version as the most recent version
@@ -172,10 +176,9 @@ def get_current_version(
             # tag is not rc, not feature branch, and not older than current tag. use it
             found_tag = semver_tag
 
-        # stop here because
-        # we either have a tag
-        # or, moving back in time wont find newer tags on same branch timeline
-        break
+        # stop iteration to older commits if we already have a valid tag
+        if found_tag:
+            break
 
     # nothing to bump, just return the version
     if not found_tag:
@@ -191,7 +194,7 @@ def resolve_next_version(
     mode: str,
     current_version: packaging.version.Version,
     base_version: packaging.version.Version,
-    feature_name: typing.Optional[str] = None,
+    feature_name: str | None = None,
 ):
     if (
         base_version.major > current_version.major
@@ -276,7 +279,10 @@ def create_or_update_version_file(mlrun_version: str, version_file_path: str):
     ):
         feature_name = resolve_feature_name(git_branch)
         if not mlrun_version.endswith(feature_name):
-            mlrun_version = f"{mlrun_version}+{feature_name}"
+            # Use "." separator if version already has a "+" (build metadata),
+            # since semver only allows one "+" segment
+            sep = "." if "+" in mlrun_version else "+"
+            mlrun_version = f"{mlrun_version}{sep}{feature_name}"
             logger.debug(f"With feature_name: {mlrun_version = }")
 
     # Check if the provided version is a semver and followed by a "-"
@@ -342,7 +348,7 @@ def is_feature_branch() -> bool:
     return get_feature_branch_feature_name() != ""
 
 
-def get_feature_branch_feature_name() -> typing.Optional[str]:
+def get_feature_branch_feature_name() -> str | None:
     current_branch = _run_command(
         "git", args=["rev-parse", "--abbrev-ref", "HEAD"]
     ).strip()

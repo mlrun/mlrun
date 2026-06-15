@@ -14,7 +14,6 @@
 
 from datetime import datetime
 from os import environ
-from typing import Optional
 
 import numpy as np
 import pytz
@@ -36,7 +35,7 @@ def infer_schema_from_df_spark(
     df,
     features,
     entities,
-    timestamp_key: Optional[str] = None,
+    timestamp_key: str | None = None,
     entity_columns=None,
     options: InferOptions = InferOptions.Null,
 ):

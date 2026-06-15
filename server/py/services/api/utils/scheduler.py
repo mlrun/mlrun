@@ -17,8 +17,9 @@ import copy
 import json
 import traceback
 import typing
+from collections.abc import Callable
 from datetime import datetime, timedelta
-from typing import Any, Callable, Optional, Union
+from typing import Any, Union
 
 import fastapi.concurrency
 import humanfriendly
@@ -115,8 +116,8 @@ class Scheduler:
         kind: mlrun.common.schemas.ScheduleKinds,
         scheduled_object: Union[dict, Callable],
         cron_trigger: Union[str, mlrun.common.schemas.ScheduleCronTrigger],
-        labels: Optional[dict] = None,
-        concurrency_limit: Optional[int] = None,
+        labels: dict | None = None,
+        concurrency_limit: int | None = None,
     ):
         if isinstance(cron_trigger, str):
             cron_trigger = mlrun.common.schemas.ScheduleCronTrigger.from_crontab(
@@ -188,10 +189,10 @@ class Scheduler:
         auth_info: mlrun.common.schemas.AuthInfo,
         project: str,
         name: str,
-        scheduled_object: Optional[Union[dict, Callable]] = None,
+        scheduled_object: Union[dict, Callable] | None = None,
         cron_trigger: Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
-        labels: Optional[dict] = None,
-        concurrency_limit: Optional[int] = None,
+        labels: dict | None = None,
+        concurrency_limit: int | None = None,
     ):
         if isinstance(cron_trigger, str):
             cron_trigger = mlrun.common.schemas.ScheduleCronTrigger.from_crontab(
@@ -252,14 +253,14 @@ class Scheduler:
     def list_schedules(
         self,
         db_session: Session,
-        project: typing.Optional[typing.Union[str, list[str]]] = None,
-        name: Optional[str] = None,
-        kind: Optional[str] = None,
-        labels: Optional[list[str]] = None,
+        project: typing.Union[str, list[str]] | None = None,
+        name: str | None = None,
+        kind: str | None = None,
+        labels: list[str] | None = None,
         include_last_run: bool = False,
         include_credentials: bool = False,
-        next_run_time_since: Optional[datetime] = None,
-        next_run_time_until: Optional[datetime] = None,
+        next_run_time_since: datetime | None = None,
+        next_run_time_until: datetime | None = None,
     ) -> mlrun.common.schemas.SchedulesOutput:
         db_schedules = get_db().list_schedules(
             db_session,
@@ -338,11 +339,11 @@ class Scheduler:
         project: str,
         name: str,
         kind: mlrun.common.schemas.ScheduleKinds = None,
-        scheduled_object: Optional[Union[dict, Callable]] = None,
+        scheduled_object: Union[dict, Callable] | None = None,
         cron_trigger: Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
-        labels: Optional[dict] = None,
-        concurrency_limit: Optional[int] = None,
-        fn_kind: Optional[str] = None,
+        labels: dict | None = None,
+        concurrency_limit: int | None = None,
+        fn_kind: str | None = None,
     ):
         if isinstance(cron_trigger, str):
             cron_trigger = mlrun.common.schemas.ScheduleCronTrigger.from_crontab(
@@ -602,7 +603,7 @@ class Scheduler:
 
     def _get_schedule_secrets(
         self, project: str, name: str, include_username: bool = True
-    ) -> tuple[typing.Optional[str], typing.Optional[str]]:
+    ) -> tuple[str | None, str | None]:
         schedule_access_key_secret_key = (
             services.api.crud.Secrets().generate_client_project_secret_key(
                 services.api.crud.SecretsClientType.schedules,
@@ -648,7 +649,7 @@ class Scheduler:
         self,
         cron_trigger: mlrun.common.schemas.ScheduleCronTrigger,
         # accepting now from outside for testing purposes
-        now: Optional[datetime] = None,
+        now: datetime | None = None,
     ):
         """
         Enforce no more than one job per min_allowed_interval
@@ -759,7 +760,7 @@ class Scheduler:
         job_id: str,
         function: Callable,
         trigger: APSchedulerCronTrigger,
-        next_run_time: Optional[datetime] = None,
+        next_run_time: datetime | None = None,
         *args,
         **kwargs,
     ):
@@ -899,7 +900,7 @@ class Scheduler:
         schedule_name: str,
         schedule_concurrency_limit: int,
         auth_info: mlrun.common.schemas.AuthInfo,
-    ) -> tuple[Callable, Optional[Union[list, tuple]], Optional[dict]]:
+    ) -> tuple[Callable, Union[list, tuple] | None, dict | None]:
         """
         :return: a tuple (function, args, kwargs) to be used with the APScheduler.add_job
         """
@@ -962,12 +963,32 @@ class Scheduler:
         # We use the schedule labels to keep track of the access-key to use. Note that this is the name of the secret,
         # not the secret value itself. Therefore, it can be kept in a non-secure field.
         labels = self._append_access_key_secret_to_labels(labels, secret_name)
+        self._embed_user_id_in_scheduled_object(auth_info, scheduled_object)
         self._enrich_schedule_notifications(project, name, scheduled_object)
         if fn_kind:
             labels = labels or {}
             labels.setdefault(mlrun_constants.MLRunInternalLabels.kind, fn_kind)
         framework.utils.helpers.set_scheduled_object_labels(scheduled_object, labels)
         return labels
+
+    @staticmethod
+    def _embed_user_id_in_scheduled_object(
+        auth_info: mlrun.common.schemas.AuthInfo,
+        scheduled_object: Union[dict, Callable],
+    ):
+        """Persist user_id in the scheduled_object template so it survives API restarts.
+
+        On each fire, enrich_and_validate_auth_token_name reads it from spec.auth
+        as a fallback when auth_info.user_id is not available.
+        """
+        if (
+            mlrun.mlconf.is_iguazio_v4_mode()
+            and auth_info.user_id
+            and isinstance(scheduled_object, dict)
+        ):
+            scheduled_object.setdefault("task", {}).setdefault("spec", {}).setdefault(
+                "auth", {}
+            )["user_id"] = auth_info.user_id
 
     @staticmethod
     def _remove_schedule_notification_secrets(
@@ -1039,8 +1060,9 @@ class Scheduler:
     ):
         # apscheduler timezone fails when `utc` key was given as it expects
         # `UTC` key in order to work properly. this is a workaround for 3.11.0
-        if cron_trigger.timezone and isinstance(cron_trigger.timezone, str):
-            cron_trigger.timezone = cron_trigger.timezone.upper()
+        if cron_trigger.timezone == "utc":
+            cron_trigger.timezone = "UTC"
+
         return APSchedulerCronTrigger(
             cron_trigger.year,
             cron_trigger.month,
@@ -1094,7 +1116,7 @@ class Scheduler:
                 )
 
                 project_owner = framework.utils.singletons.project_member.get_project_member().get_project_owner(
-                    db_session, project_name
+                    db_session, project_name, auth_info=auth_info
                 )
                 # Update the schedule with the new auth info so we won't need to do the above again in the next run
                 scheduler.update_schedule(

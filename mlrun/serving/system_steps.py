@@ -12,9 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import random
+import typing
 from copy import copy
 from datetime import timedelta
-from typing import Any, Optional, Union
+from typing import Any, Union
 
 import numpy as np
 import storey
@@ -29,6 +30,47 @@ from mlrun.common.model_monitoring.helpers import (
 )
 from mlrun.common.schemas import MonitoringData
 from mlrun.utils import get_data_from_path, logger
+
+
+def _to_listed_data(
+    raw: typing.Any,
+    schema: list[str] | None,
+) -> tuple[list, list[str] | None]:
+    """Convert raw inputs/outputs to listed form suitable for StreamProcessingEvent.
+
+    Dispatch rules (mirrors MonitoringPreProcessor.get_listed_data with data_path=None):
+    - dict               → transpose by key (schema column order)
+    - list of same-keyed dicts → batch-merge then transpose
+    - list               → keep as-is
+    - scalar             → wrap in [value]
+
+    :returns: (listed_values, resolved_schema)  — resolved_schema is None when input was
+              already a list or scalar (schema unchanged from caller).
+    """
+    new_schema = None
+    if isinstance(raw, dict):
+        listed, new_schema = MonitoringPreProcessor.transpose_by_key(raw, schema)
+        new_schema = new_schema or schema
+    elif not isinstance(raw, list):
+        listed = [raw]
+    else:
+        all_dicts = raw and all(isinstance(item, dict) for item in raw)
+        if all_dicts:
+            same_keys = len({tuple(sorted(item.keys())) for item in raw}) == 1
+            if same_keys:
+                merged: dict = {}
+                for item in raw:
+                    for k, v in item.items():
+                        merged.setdefault(k, []).append(v)
+                listed, new_schema = MonitoringPreProcessor.transpose_by_key(
+                    merged, schema
+                )
+                new_schema = new_schema or schema
+            else:
+                listed = raw
+        else:
+            listed = raw
+    return listed, new_schema
 
 
 class MatchingEndpointsState(mlrun.common.types.StrEnum):
@@ -57,9 +99,163 @@ class MonitoringPreProcessor(storey.MapClass):
             getattr(self.context, "server", None) if self.context else None
         )
 
+    def _aggregate_collected_chunks(self, chunks: list) -> Any:
+        """
+        Aggregate collected streaming chunks into a single result for model monitoring.
+
+        For string chunks (e.g., LLM tokens): concatenate into a single string.
+        For dict chunks: merge outputs and sum numeric metrics.
+        """
+        if not chunks:
+            return {}
+
+        # For string chunks (LLM tokens), concatenate
+        if all(isinstance(c, str) for c in chunks):
+            return "".join(chunks)
+
+        # For dict chunks, merge appropriately
+        if all(isinstance(c, dict) for c in chunks):
+            return self._merge_dict_chunks(chunks)
+
+        # Mixed types or other - return as-is (list)
+        return chunks
+
+    def _merge_dict_chunks(self, chunks: list[dict]) -> dict:
+        """
+        Merge a list of dict chunks into a single dict.
+
+        - Outputs/results: concatenate if strings, otherwise collect into list
+        - Metrics: sum numeric values
+        - Other fields: take from first chunk
+        """
+        if not chunks:
+            return {}
+
+        result = {}
+        first = chunks[0]
+        all_keys = set()
+        for c in chunks:
+            all_keys.update(c.keys())
+
+        for key in all_keys:
+            values = [c.get(key) for c in chunks if key in c]
+            if not values:
+                continue
+
+            if key == mm_schemas.StreamProcessingEvent.METRICS:
+                # Sum numeric metrics
+                result[key] = self._aggregate_metrics(values)
+            elif key in ("outputs", "result", "output"):
+                # Concatenate outputs if strings, otherwise keep as list
+                result[key] = self._aggregate_outputs(values)
+            elif key == mm_schemas.StreamProcessingEvent.ERROR:
+                # Keep first non-None error
+                result[key] = next((v for v in values if v is not None), None)
+            else:
+                # Take first value for other fields
+                result[key] = first.get(key)
+
+        return result
+
+    def _aggregate_metrics(self, metrics_list: list) -> dict | None:
+        """
+        Aggregate metrics from multiple chunks by summing numeric values.
+        """
+        if not metrics_list or all(m is None for m in metrics_list):
+            return None
+
+        aggregated = {}
+        for metrics in metrics_list:
+            if metrics is None:
+                continue
+            if not isinstance(metrics, dict):
+                continue
+            for key, value in metrics.items():
+                if key not in aggregated:
+                    aggregated[key] = value
+                elif isinstance(value, int | float) and isinstance(
+                    aggregated[key], int | float
+                ):
+                    aggregated[key] += value
+                # For non-numeric, keep the first value
+
+        return aggregated if aggregated else None
+
+    def _aggregate_outputs(self, outputs_list: list) -> Any:
+        """
+        Aggregate outputs from multiple chunks.
+
+        For strings: concatenate.
+        For lists: flatten.
+        Otherwise: return as list.
+        """
+        if not outputs_list:
+            return None
+
+        # Filter out None values
+        outputs_list = [o for o in outputs_list if o is not None]
+        if not outputs_list:
+            return None
+
+        # If all are strings, concatenate
+        if all(isinstance(o, str) for o in outputs_list):
+            return "".join(outputs_list)
+
+        # If all are lists, flatten
+        if all(isinstance(o, list) for o in outputs_list):
+            flattened = []
+            for o in outputs_list:
+                flattened.extend(o)
+            return flattened
+
+        # Otherwise return as list
+        return outputs_list
+
+    def _extract_event_body_for_model(
+        self, event, model: str, multiple_models: bool
+    ) -> tuple[Any, bool]:
+        """
+        Extract event body for a specific model, handling both single and batched events uniformly.
+
+        :param event: Event to extract body from
+        :param model: Model name to extract (when multiple_models=True)
+        :param multiple_models: Whether to extract model-specific body from dict
+        :return: Tuple of (event_body, is_error)
+        """
+        is_error = False
+
+        if storey.flow.is_batched_event(event):
+            # Check for errors first
+            error = self._extract_error_from_batched_event(
+                event, model=model if multiple_models else None
+            )
+            if error:
+                return None, True
+
+            # Extract body from each sub-event
+            event_body = []
+            for sub_event in event.body:
+                if isinstance(sub_event.body, dict):
+                    sub_event_by_model = sub_event.body.get(model, sub_event.body)
+                    event_body.append(sub_event_by_model)
+                else:
+                    event_body.append(sub_event.body)
+        else:
+            # Single event handling
+            if isinstance(event.body, dict):
+                event_body = event.body.get(model, event.body)
+                if isinstance(event_body, dict):
+                    is_error = bool(event_body.get("error"))
+            else:
+                event_body = event.body
+
+        return event_body, is_error
+
     def reconstruct_request_resp_fields(
-        self, event, model: str, model_monitoring_data: dict
+        self, event, model: str, model_monitoring_data: dict, multiple_models=True
     ) -> tuple[dict[str, Any], dict[str, Any]]:
+        outputs = None
+        new_output_schema = None
         result_path = model_monitoring_data.get(MonitoringData.RESULT_PATH)
         input_path = model_monitoring_data.get(MonitoringData.INPUT_PATH)
 
@@ -71,13 +267,30 @@ class MonitoringPreProcessor(storey.MapClass):
             input_schema=input_schema,
         )
 
-        outputs, new_output_schema = self.get_listed_data(
-            event.body.get(model, event.body), result_path, output_schema
+        # Extract event body uniformly for both single and batched events
+        event_body, is_error = self._extract_event_body_for_model(
+            event, model, multiple_models
         )
+
+        # For stream-collected events the aggregated body IS the raw output
+        # (e.g. concatenated text tokens), not wrapped in the result_path dict.
+        if getattr(event, "stream_collected", False) and not isinstance(
+            event_body, dict | list
+        ):
+            result_path = None
+
+        # Only process outputs if no error
+        if not is_error and event_body is not None:
+            outputs, new_output_schema = self.get_listed_data(
+                event_body, result_path, output_schema
+            )
+
+        # Always process inputs
         inputs, new_input_schema = self.get_listed_data(
             event._metadata.get("inputs", {}), input_path, input_schema
         )
 
+        # Validate outputs
         if outputs and isinstance(outputs[0], list):
             if output_schema and len(output_schema) != len(outputs[0]):
                 logger.info(
@@ -101,6 +314,7 @@ class MonitoringPreProcessor(storey.MapClass):
                     "outputs and inputs are not in the same length check 'input_path' and "
                     "'output_path' was specified if needed"
                 )
+
         request = {
             "inputs": inputs,
             "id": getattr(event, "id", None),
@@ -112,31 +326,56 @@ class MonitoringPreProcessor(storey.MapClass):
 
     def get_listed_data(
         self,
-        raw_data: dict,
-        data_path: Optional[Union[list[str], str]] = None,
-        schema: Optional[list[str]] = None,
+        raw_data: typing.Union[dict, list],
+        data_path: Union[list[str], str] | None = None,
+        schema: list[str] | None = None,
     ):
         """Get data from a path and transpose it by keys if dict is provided."""
-        new_schema = None
         data_from_path = get_data_from_path(data_path, raw_data)
-        if isinstance(data_from_path, dict):
-            # transpose by key the inputs:
-            listed_data, new_schema = self.transpose_by_key(data_from_path, schema)
-            new_schema = new_schema or schema
-            if not schema:
-                logger.warn(
-                    f"No schema provided through add_model(); the order of {data_from_path} "
-                    "may not be preserved."
-                )
-        elif not isinstance(data_from_path, list):
-            listed_data = [data_from_path]
-        else:
-            listed_data = data_from_path
-        return listed_data, new_schema
+        if isinstance(data_from_path, dict) and not schema:
+            logger.warn(
+                "No schema provided through add_model(); the order of data may not be preserved.",
+                data=data_from_path,
+            )
+        return _to_listed_data(data_from_path, schema)
+
+    @staticmethod
+    def _extract_error_from_batched_event(
+        event, model: str | None = None
+    ) -> str | None:
+        """
+        Extract error from a batched event.
+
+        :param event: The batched event to extract error from
+        :param model: Optional model name to extract error for (when event body is dict with model keys)
+        :return: The error string if found, None otherwise
+        :raises RuntimeError: If inconsistent errors are found in batched event
+        """
+        errors = []
+        for sub_event in event.body:
+            if not isinstance(sub_event.body, dict):
+                break
+
+            # If model is specified, get error from se.body[model], otherwise from se.body directly
+            if model is not None:
+                if model not in sub_event.body:
+                    continue
+                event_data = sub_event.body[model]
+            else:
+                event_data = sub_event.body
+            if not isinstance(event_data, dict):
+                return None
+            error = event_data.get(mm_schemas.StreamProcessingEvent.ERROR)
+            errors.append(error)
+
+        if len(set(errors)) > 1:
+            raise RuntimeError("Inconsistent errors in batched event")
+
+        return errors[0] if errors else None
 
     @staticmethod
     def transpose_by_key(
-        data: dict, schema: Optional[Union[str, list[str]]] = None
+        data: dict, schema: Union[str, list[str]] | None = None
     ) -> tuple[Union[list[Any], list[list[Any]]], list[str]]:
         """
         Transpose values from a dictionary by keys.
@@ -193,8 +432,8 @@ class MonitoringPreProcessor(storey.MapClass):
             )
 
         # Detect if all are scalars ie: int,float,str
-        all_scalars = all(not isinstance(v, (list, tuple, np.ndarray)) for v in values)
-        all_lists = all(isinstance(v, (list, tuple, np.ndarray)) for v in values)
+        all_scalars = all(not isinstance(v, list | tuple | np.ndarray) for v in values)
+        all_lists = all(isinstance(v, list | tuple | np.ndarray) for v in values)
 
         if not (all_scalars or all_lists):
             raise ValueError(
@@ -224,6 +463,31 @@ class MonitoringPreProcessor(storey.MapClass):
                 f"ModelRunnerStep name {model_runner_name} is not found in the graph or does not have monitoring data"
             )
         monitoring_data = step.monitoring_data
+
+        # Check if this event was collected from a stream by the Collector step
+        is_stream_collected = getattr(event, "stream_collected", False)
+        if is_stream_collected:
+            logger.debug(
+                "Aggregating collected streaming chunks for monitoring",
+                num_chunks=len(event.body) if isinstance(event.body, list) else 1,
+                model_runner_name=model_runner_name,
+            )
+            event.body = self._aggregate_collected_chunks(
+                event.body if isinstance(event.body, list) else [event.body]
+            )
+
+        # When streaming chunks were collected from a multi-model MRS, only
+        # one model actually ran (streaming requires a single selected
+        # runnable). The body is the raw aggregated output, not keyed by
+        # model name, so narrow monitoring_data to the single selected model
+        # so the single-model path below is used.
+        if is_stream_collected and len(monitoring_data) > 1:
+            selected_models = event._metadata.get("selected_models", [])
+            if len(selected_models) == 1 and selected_models[0] in monitoring_data:
+                monitoring_data = {
+                    selected_models[0]: monitoring_data[selected_models[0]]
+                }
+
         logger.debug(
             "monitoring preprocessor started",
             event=event,
@@ -231,7 +495,13 @@ class MonitoringPreProcessor(storey.MapClass):
             metadata=event._metadata,
         )
         if len(monitoring_data) > 1:
-            for model in event.body.keys():
+            if storey.flow.is_batched_event(event):
+                models_by_event = set.intersection(
+                    *(set(sub_event.body.keys()) for sub_event in event.body)
+                )
+            else:
+                models_by_event = event.body.keys()
+            for model in models_by_event:
                 if model in monitoring_data:
                     request, resp = self.reconstruct_request_resp_fields(
                         event, model, monitoring_data[model]
@@ -242,6 +512,27 @@ class MonitoringPreProcessor(storey.MapClass):
                         when = event._metadata.get(model, {}).get(
                             mm_schemas.StreamProcessingEvent.WHEN
                         )
+                    #  if the body is not a dict, use empty labels, error and metrics
+                    if isinstance(event.body, dict) and isinstance(
+                        event.body[model], dict
+                    ):
+                        body_by_model = event.body[model]
+                        labels = body_by_model.get("labels") or {}
+                        error = body_by_model.get(
+                            mm_schemas.StreamProcessingEvent.ERROR
+                        )
+                        metrics = body_by_model.get(
+                            mm_schemas.StreamProcessingEvent.METRICS
+                        )
+                    else:
+                        labels = {}
+                        metrics = None
+                        error = (
+                            self._extract_error_from_batched_event(event, model=model)
+                            if storey.flow.is_batched_event(event)
+                            else None
+                        )
+
                     monitoring_event_list.append(
                         {
                             mm_schemas.StreamProcessingEvent.MODEL: model,
@@ -257,38 +548,39 @@ class MonitoringPreProcessor(storey.MapClass):
                             ].get(
                                 mlrun.common.schemas.MonitoringData.MODEL_ENDPOINT_UID
                             ),
-                            mm_schemas.StreamProcessingEvent.LABELS: event.body[
-                                model
-                            ].get("labels")
-                            or {},
+                            mm_schemas.StreamProcessingEvent.LABELS: labels,
                             mm_schemas.StreamProcessingEvent.FUNCTION_URI: self.server.function_uri
                             if self.server
                             else None,
                             mm_schemas.StreamProcessingEvent.REQUEST: request,
                             mm_schemas.StreamProcessingEvent.RESPONSE: resp,
-                            mm_schemas.StreamProcessingEvent.ERROR: event.body[model][
-                                mm_schemas.StreamProcessingEvent.ERROR
-                            ]
-                            if mm_schemas.StreamProcessingEvent.ERROR
-                            in event.body[model]
-                            else None,
-                            mm_schemas.StreamProcessingEvent.METRICS: event.body[model][
-                                mm_schemas.StreamProcessingEvent.METRICS
-                            ]
-                            if mm_schemas.StreamProcessingEvent.METRICS
-                            in event.body[model]
-                            else None,
+                            mm_schemas.StreamProcessingEvent.ERROR: error,
+                            mm_schemas.StreamProcessingEvent.METRICS: metrics,
                         }
                     )
         elif monitoring_data:
             model = list(monitoring_data.keys())[0]
             request, resp = self.reconstruct_request_resp_fields(
-                event, model, monitoring_data[model]
+                event, model, monitoring_data[model], multiple_models=False
             )
             if hasattr(event, "_original_timestamp"):
                 when = event._original_timestamp
             else:
                 when = event._metadata.get(mm_schemas.StreamProcessingEvent.WHEN)
+            #  if the body is not a dict, use empty labels, error and metrics
+            if isinstance(event.body, dict):
+                labels = event.body.get("labels") or {}
+                error = event.body.get(mm_schemas.StreamProcessingEvent.ERROR)
+                metrics = event.body.get(mm_schemas.StreamProcessingEvent.METRICS)
+            else:
+                #  batch step case
+                labels = {}
+                metrics = None
+                error = (
+                    self._extract_error_from_batched_event(event)
+                    if storey.flow.is_batched_event(event)
+                    else None
+                )
             monitoring_event_list.append(
                 {
                     mm_schemas.StreamProcessingEvent.MODEL: model,
@@ -302,21 +594,14 @@ class MonitoringPreProcessor(storey.MapClass):
                     mm_schemas.StreamProcessingEvent.ENDPOINT_ID: monitoring_data[
                         model
                     ].get(mlrun.common.schemas.MonitoringData.MODEL_ENDPOINT_UID),
-                    mm_schemas.StreamProcessingEvent.LABELS: event.body.get("labels")
-                    or {},
+                    mm_schemas.StreamProcessingEvent.LABELS: labels,
                     mm_schemas.StreamProcessingEvent.FUNCTION_URI: self.server.function_uri
                     if self.server
                     else None,
                     mm_schemas.StreamProcessingEvent.REQUEST: request,
                     mm_schemas.StreamProcessingEvent.RESPONSE: resp,
-                    mm_schemas.StreamProcessingEvent.ERROR: event.body.get(
-                        mm_schemas.StreamProcessingEvent.ERROR
-                    ),
-                    mm_schemas.StreamProcessingEvent.METRICS: event.body[
-                        mm_schemas.StreamProcessingEvent.METRICS
-                    ]
-                    if mm_schemas.StreamProcessingEvent.METRICS in event.body
-                    else None,
+                    mm_schemas.StreamProcessingEvent.ERROR: error,
+                    mm_schemas.StreamProcessingEvent.METRICS: metrics,
                 }
             )
         event.body = monitoring_event_list
@@ -402,7 +687,7 @@ class SamplingStep(storey.MapClass):
 
     def __init__(
         self,
-        sampling_percentage: Optional[float] = 100.0,
+        sampling_percentage: float | None = 100.0,
         **kwargs,
     ):
         super().__init__(**kwargs)

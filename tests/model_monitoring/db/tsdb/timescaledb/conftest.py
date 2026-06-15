@@ -280,11 +280,20 @@ def statement(connection_string):
 
 @pytest.fixture
 def connector(connection_string, project_name):
-    """Create TimescaleDBConnector instance for cross-query testing."""
+    """Create TimescaleDBConnector instance for cross-query testing.
+
+    Uses the database from connection string directly (auto_create_database=False)
+    for faster test execution. Database auto-creation is tested explicitly
+    in test_timescaledb_connector.py.
+    """
+    import mlrun
     from mlrun.datastore.datastore_profile import DatastoreProfilePostgreSQL
     from mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_connector import (
         TimescaleDBConnector,
     )
+
+    # Disable auto_create_database for faster tests - use database from connection string
+    mlrun.mlconf.model_endpoint_monitoring.tsdb.auto_create_database = False
 
     # Create profile from DSN
     profile = DatastoreProfilePostgreSQL.from_dsn(

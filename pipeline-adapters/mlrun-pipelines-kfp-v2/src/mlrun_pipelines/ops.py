@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import os
-from typing import Optional
 
 import mlrun
 import mlrun.common.constants as mlrun_constants
@@ -159,8 +158,8 @@ def add_annotations(
     task: dsl.PipelineTask,
     kind: str,
     function,
-    func_url: Optional[str] = None,
-    project: Optional[str] = None,
+    func_url: str | None = None,
+    project: str | None = None,
 ):
     # TODO: remove this warning as soon as KFP SDK >=2.7.0 is available for MLRun SDK
     if not hasattr(kfp_k8s, "add_pod_annotation"):
@@ -214,6 +213,8 @@ def add_labels(task, function, scrape_metrics=False):
 def add_default_env(task):
     if hasattr(kfp_k8s, "use_field_path_as_env"):
         kfp_k8s.use_field_path_as_env(task, "MLRUN_NAMESPACE", "metadata.namespace")
+        # Inject the full pod name for runner_pod annotation.
+        kfp_k8s.use_field_path_as_env(task, "MLRUN_POD_NAME", "metadata.name")
     else:
         # TODO: remove this warning as soon as "use_field_path_as_env" is available for MLRun SDK
         logger.warning(

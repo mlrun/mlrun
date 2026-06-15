@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import datetime
-from typing import Optional, Union
+from typing import Union
 
 import sqlalchemy.orm
 
@@ -41,10 +41,9 @@ class AlertActivation(
         session,
         activation_id: int,
         activation_time: datetime.datetime,
-        number_of_events: Optional[int] = None,
-        notifications_states: Optional[
-            list[mlrun.common.schemas.NotificationState]
-        ] = None,
+        number_of_events: int | None = None,
+        notifications_states: list[mlrun.common.schemas.NotificationState]
+        | None = None,
         update_reset_time: bool = False,
     ):
         framework.utils.singletons.db.get_db().update_alert_activation(
@@ -60,19 +59,17 @@ class AlertActivation(
         self,
         session: sqlalchemy.orm.Session,
         projects_with_creation_time: list[tuple[str, datetime.datetime]],
-        name: Optional[str] = None,
-        since: Optional[datetime.datetime] = None,
-        until: Optional[datetime.datetime] = None,
-        entity: Optional[str] = None,
-        severity: Optional[
-            list[Union[mlrun.common.schemas.alert.AlertSeverity, str]]
-        ] = None,
-        entity_kind: Optional[
-            Union[mlrun.common.schemas.alert.EventEntityKind, str]
-        ] = None,
-        event_kind: Optional[Union[mlrun.common.schemas.alert.EventKind, str]] = None,
-        offset: Optional[int] = None,
-        limit: Optional[int] = None,
+        name: str | None = None,
+        since: datetime.datetime | None = None,
+        until: datetime.datetime | None = None,
+        entity: str | None = None,
+        severity: list[Union[mlrun.common.schemas.alert.AlertSeverity, str]]
+        | None = None,
+        entity_kind: Union[mlrun.common.schemas.alert.EventEntityKind, str]
+        | None = None,
+        event_kind: Union[mlrun.common.schemas.alert.EventKind, str] | None = None,
+        offset: int | None = None,
+        limit: int | None = None,
     ) -> list[mlrun.common.schemas.AlertActivation]:
         return framework.utils.singletons.db.get_db().list_alert_activations(
             session=session,

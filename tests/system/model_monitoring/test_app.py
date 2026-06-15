@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import concurrent.futures
+import ipaddress
 import json
 import pickle
 import tempfile
@@ -20,7 +21,7 @@ import time
 import typing
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import kafka
@@ -43,11 +44,11 @@ import mlrun.db.httpdb
 import mlrun.feature_store
 import mlrun.feature_store as fstore
 import mlrun.model_monitoring
-import mlrun.model_monitoring.api
 import mlrun.serving
 from mlrun.common.schemas.model_monitoring import ResultKindApp
 from mlrun.common.schemas.model_monitoring.model_endpoints import (
     ModelEndpointDriftValues,
+    ModelEndpointInstruction,
     ModelEndpointMonitoringMetric,
 )
 from mlrun.datastore.datastore_profile import (
@@ -59,17 +60,17 @@ from mlrun.datastore.targets import ParquetTarget
 from mlrun.model_monitoring.applications import (
     ExistingDataHandling,
     ModelMonitoringApplicationBase,
+    histogram_data_drift,
 )
 from mlrun.model_monitoring.applications.evidently import SUPPORTED_EVIDENTLY_VERSION
-from mlrun.model_monitoring.applications.histogram_data_drift import (
-    HistogramDataDriftApplication,
+from mlrun.model_monitoring.db._schedules import (
+    delete_model_monitoring_schedules_user_folder,
 )
 from mlrun.utils.logger import Logger
 from mlrun.utils.v3io_clients import get_v3io_client
 from tests.system.base import TestMLRunSystem
 
 from . import TestMLRunSystemModelMonitoring
-from .assets import histogram_app_with_artifacts
 from .assets.application import (
     EXPECTED_EVENTS_COUNT,
     CountApp,
@@ -101,7 +102,7 @@ class _AppData:
 
 
 _DefaultDataDriftAppData = _AppData(
-    class_=HistogramDataDriftApplication,
+    class_=histogram_data_drift.HistogramDataDriftApplication,
     rel_path="",
     deploy=False,
     results={"general_drift"},
@@ -133,9 +134,9 @@ class _V3IORecordsChecker:
         df: pd.DataFrame = cls._tsdb_storage.get_results_metadata(endpoint_id=ep_id)
 
         assert not df.empty, "No TSDB data"
-        assert (
-            df.endpoint_id == ep_id
-        ).all(), "The endpoint IDs are different than expected"
+        assert (df.endpoint_id == ep_id).all(), (
+            "The endpoint IDs are different than expected"
+        )
 
         assert set(df.application_name) == {
             app_data.class_.NAME for app_data in apps_data if app_data.results
@@ -146,9 +147,9 @@ class _V3IORecordsChecker:
             if app_metrics := app_data.results:
                 app_name = app_data.class_.NAME
                 cls._logger.debug("Checking the TSDB record of app", app_name=app_name)
-                assert (
-                    set(tsdb_metrics[app_name]) == app_metrics
-                ), "The TSDB saved metrics are different than expected"
+                assert set(tsdb_metrics[app_name]) == app_metrics, (
+                    "The TSDB saved metrics are different than expected"
+                )
 
         cls._logger.debug("Checking the MEP status")
         rs_tsdb = cls._tsdb_storage.get_drift_status(endpoint_ids=ep_id)
@@ -176,12 +177,12 @@ class _V3IORecordsChecker:
         cls, df: pd.DataFrame, ep_id: str, result_name: str, result_value: typing.Any
     ):
         assert not df.empty, "No TSDB data"
-        assert (
-            df.endpoint_id == ep_id
-        ).all(), "The endpoint IDs are different than expected"
-        assert (
-            df[df["endpoint_id"] == ep_id][result_name].item() == result_value
-        ), f"The {result_name} is different than expected for {ep_id}"
+        assert (df.endpoint_id == ep_id).all(), (
+            "The endpoint IDs are different than expected"
+        )
+        assert df[df["endpoint_id"] == ep_id][result_name].item() == result_value, (
+            f"The {result_name} is different than expected for {ep_id}"
+        )
 
     @classmethod
     def _check_last_request_dict(
@@ -192,12 +193,12 @@ class _V3IORecordsChecker:
         result_value: datetime,
     ):
         assert data, "No last request data"
-        assert (
-            list(data.keys())[0] == ep_id
-        ), "The endpoint IDs are different than expected"
-        assert (
-            data[ep_id] == result_value.timestamp()
-        ), f"The {result_name} is different than expected for {ep_id}"
+        assert list(data.keys())[0] == ep_id, (
+            "The endpoint IDs are different than expected"
+        )
+        assert data[ep_id] == result_value.timestamp(), (
+            f"The {result_name} is different than expected for {ep_id}"
+        )
 
     @classmethod
     def _test_predictions_table(cls, ep_id: str, should_be_empty: bool = False) -> None:
@@ -218,29 +219,22 @@ class _V3IORecordsChecker:
                 table=mm_constants.V3IOTSDBTables.PREDICTIONS, start="0", end="now"
             )
         else:
-            # TDEngine
-            predictions_df: pd.DataFrame = cls._tsdb_storage._get_records(
-                table=cls._tsdb_storage.tables[
-                    mm_constants.TDEngineSuperTables.PREDICTIONS
-                ].super_table,
-                start=datetime.min,
-                end=datetime.now().astimezone(),
-            )
+            raise ValueError(f"Unsupported TSDB type: {cls._tsdb_storage.type}")
         if should_be_empty:
             assert predictions_df.empty, "Predictions should be empty"
         else:
             assert not predictions_df.empty, "No TSDB predictions data"
-            assert (
-                predictions_df.endpoint_id == ep_id
-            ).all(), "The endpoint IDs are different than expected"
+            assert (predictions_df.endpoint_id == ep_id).all(), (
+                "The endpoint IDs are different than expected"
+            )
 
     @classmethod
     def _test_v3io_records(
         cls,
         ep_id: str,
         apps_data: list[_AppData],
-        last_request: typing.Optional[datetime] = None,
-        error_count: typing.Optional[float] = None,
+        last_request: datetime | None = None,
+        error_count: float | None = None,
     ) -> None:
         cls._test_tsdb_record(
             ep_id,
@@ -307,12 +301,12 @@ class _V3IORecordsChecker:
                 path=f"projects/{cls.project_name}/model-endpoints/{ep_id}/metrics-values{query}",
             )
             for result_values in json.loads(response.content.decode()):
-                assert result_values[
-                    "data"
-                ], f"No data for result {result_values['full_name']}"
-                assert result_values[
-                    "values"
-                ], f"The values list is empty for result {result_values['full_name']}"
+                assert result_values["data"], (
+                    f"No data for result {result_values['full_name']}"
+                )
+                assert result_values["values"], (
+                    f"The values list is empty for result {result_values['full_name']}"
+                )
 
     @classmethod
     def _test_api(cls, ep_id: str, apps_data: list[_AppData]) -> None:
@@ -333,11 +327,10 @@ class _V3IORecordsChecker:
 
 
 @TestMLRunSystemModelMonitoring.skip_test_if_env_not_configured
-@pytest.mark.enterprise
 class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker):
     project_name = "test-app-flow"
     # Set image to "<repo>/mlrun:<tag>" for local testing
-    image: typing.Optional[str] = None
+    image: str | None = None
     error_count = 10
 
     @classmethod
@@ -434,6 +427,7 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
             base_period=self.app_interval,
             **({} if self.image is None else {"image": self.image}),
             deploy_histogram_data_drift_app=deploy_histogram_data_drift_app,
+            wait_for_deployment=True,
         )
 
     def _set_and_deploy_monitoring_apps(self) -> None:
@@ -444,7 +438,9 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
                         func=app_data.abs_path,
                         application_class=app_data.class_.__name__,
                         name=app_data.class_.NAME,
-                        image="mlrun/mlrun" if self.image is None else self.image,
+                        image=mlrun.mlconf.function_defaults.image_by_kind.job
+                        if self.image is None
+                        else self.image,
                         requirements=app_data.requirements,
                         **app_data.kwargs,
                     )
@@ -564,7 +560,36 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
             serving_fn.spec.image = serving_fn.spec.build.image = cls.image
 
         serving_fn.deploy()
+        cls._workaround_ml_12522_force_http_for_nodeport(serving_fn)
         return serving_fn
+
+    @staticmethod
+    def _workaround_ml_12522_force_http_for_nodeport(
+        fn: mlrun.runtimes.nuclio.serving.ServingRuntime,
+    ) -> None:
+        """Workaround for ML-12522.
+
+        Nuclio reports ``status.external_invocation_urls`` as scheme-less.
+        Since mlrun #9578, ``_resolve_invocation_url`` prepends ``https://``
+        to scheme-less external URLs, which breaks plain-HTTP NodePort
+        setups (open-source CE / k3s) with ``SSL: WRONG_VERSION_NUMBER``.
+        Iguazio setups expose functions via TLS-terminated ingress
+        (hostname/path form) and must keep the ``https://`` default.
+
+        Only rewrite the NodePort form (IPv4 ``host:port`` with no path)
+        to ``http://`` here. Remove once ML-12522 routes API-gateway
+        invocations through ``APIGateway.invoke_url`` and
+        ``_resolve_invocation_url`` defaults back to ``http://``.
+        """
+        for i, url in enumerate(fn.status.external_invocation_urls or []):
+            if "://" in url or "/" in url:
+                continue
+            host = url.split(":", 1)[0]
+            try:
+                ipaddress.ip_address(host)
+            except ValueError:
+                continue
+            fn.status.external_invocation_urls[i] = f"http://{url}"
 
     @classmethod
     def _infer(
@@ -583,9 +608,9 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
         )
         assert isinstance(result, dict), "Unexpected result type"
         assert "outputs" in result, "Result should have 'outputs' key"
-        assert (
-            len(result["outputs"]) == num_events
-        ), "Outputs length does not match inputs"
+        assert len(result["outputs"]) == num_events, (
+            "Outputs length does not match inputs"
+        )
         return datetime.fromisoformat(result["timestamp"])
 
     @classmethod
@@ -629,24 +654,24 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
         cls, mep: mlrun.common.schemas.ModelEndpoint
     ) -> None:
         cls._logger.debug("Checking model endpoint", ep_id=mep.metadata.uid)
-        assert mep.spec.feature_stats.keys() == set(
-            mep.spec.feature_names
-        ), "The endpoint's feature stats keys are not the same as the feature names"
+        assert mep.spec.feature_stats.keys() == set(mep.spec.feature_names), (
+            "The endpoint's feature stats keys are not the same as the feature names"
+        )
         ep_current_stats = mep.status.current_stats
 
         ep_drift_measures = mep.status.drift_measures
 
-        assert set(ep_current_stats.keys()) == set(
-            mep.spec.feature_stats.keys()
-        ), "The endpoint's current stats is different than expected"
+        assert set(ep_current_stats.keys()) == set(mep.spec.feature_stats.keys()), (
+            "The endpoint's current stats is different than expected"
+        )
 
         assert ep_drift_measures, "The general drift status is empty"
         assert ep_drift_measures, "The drift measures are empty"
 
         for measure in ["hellinger_mean", "kld_mean", "tvd_mean"]:
-            assert isinstance(
-                ep_drift_measures.pop(measure, None), float
-            ), f"Expected '{measure}' in drift measures"
+            assert isinstance(ep_drift_measures.pop(measure, None), float), (
+                f"Expected '{measure}' in drift measures"
+            )
 
         drift_table = pd.DataFrame.from_dict(ep_drift_measures, orient="index")
         assert set(drift_table.columns) == {
@@ -654,13 +679,13 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
             "kld",
             "tvd",
         }, "The drift metrics are not as expected"
-        assert set(drift_table.index) == set(
-            mep.spec.feature_names
-        ), "The feature names are not as expected"
+        assert set(drift_table.index) == set(mep.spec.feature_names), (
+            "The feature names are not as expected"
+        )
 
-        assert (
-            ep_current_stats["sepal_length_cm"]["count"] == cls.num_events
-        ), "Different number of events than expected"
+        assert ep_current_stats["sepal_length_cm"]["count"] == cls.num_events, (
+            "Different number of events than expected"
+        )
 
     @classmethod
     def _test_error_alert(cls) -> None:
@@ -722,7 +747,7 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
         function_summaries = self.project.get_monitoring_function_summaries()
         assert len(function_summaries) == 3 + len(self.apps_data)
         function_summaries = self.project.get_monitoring_function_summaries(
-            include_infra=False, start=datetime(2020, 1, 1)
+            include_infra=False, start=datetime(2020, 1, 1, tzinfo=UTC)
         )
         assert len(function_summaries) == len(self.apps_data)
 
@@ -775,7 +800,8 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
         if _DefaultDataDriftAppData in self.apps_data:
             # test a specific function summary
             hist_function_summary = self.project.get_monitoring_function_summary(
-                name=HistogramDataDriftApplication.NAME, include_latest_metrics=True
+                name=mm_constants.HistogramDataDriftApplicationConstants.NAME,
+                include_latest_metrics=True,
             )
             assert hist_function_summary.stats
             assert len(hist_function_summary.stats["metrics"]) == 4
@@ -817,9 +843,9 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
                 ]
                 # Verify that the lag is 0
                 assert hist_function_summary.stats["stream_stats"][shard]["lag"] == 0
-            assert (
-                actual_committed == expected_committed
-            ), f"Expected {expected_committed} committed events, but got {actual_committed}"
+            assert actual_committed == expected_committed, (
+                f"Expected {expected_committed} committed events, but got {actual_committed}"
+            )
 
     def _test_drift_over_time(self) -> None:
         self._logger.debug("Checking drift over time")
@@ -831,39 +857,51 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
         )
         assert drift_over_time is not None
         assert len(drift_over_time.values) == 1, "Drift over time should have one value"
-        assert (
-            drift_over_time.values[0].count_detected == 1
-        ), "Drift over time should have one detected drift"
-        assert (
-            drift_over_time.values[0].count_suspected == 0
-        ), "Drift over time should not have potential drift"
+        assert drift_over_time.values[0].count_detected == 1, (
+            "Drift over time should have one detected drift"
+        )
+        assert drift_over_time.values[0].count_suspected == 0, (
+            "Drift over time should not have potential drift"
+        )
         end = datetime.now().astimezone() - timedelta(hours=1)
         drift_over_time: ModelEndpointDriftValues = self.project.get_drift_over_time(
             end=end
         )
         assert drift_over_time is not None
-        assert (
-            len(drift_over_time.values) == 0
-        ), "No drift over time should be detected in the past"
+        assert len(drift_over_time.values) == 0, (
+            "No drift over time should be detected in the past"
+        )
 
-    @pytest.mark.parametrize("with_training_set", [True, False])
-    @pytest.mark.parametrize("with_model_runner", [True, False])
+    @pytest.mark.parametrize(
+        "with_training_set, with_model_runner",
+        [
+            pytest.param(True, True, marks=pytest.mark.smoke),
+            pytest.param(True, False),
+            pytest.param(False, True),
+            pytest.param(False, False),
+        ],
+    )
     def test_app_flow(self, with_training_set: bool, with_model_runner: bool) -> None:
         self.apps_data = self._get_apps_data(with_training_set)
         self.project = typing.cast(mlrun.projects.MlrunProject, self.project)
 
         self._log_model(with_training_set)
 
-        self._submit_controller_and_deploy_writer(
-            deploy_histogram_data_drift_app=_DefaultDataDriftAppData in self.apps_data
-        )
         with concurrent.futures.ThreadPoolExecutor() as executor:
-            executor.submit(self._set_and_deploy_monitoring_apps)
-            future = executor.submit(
+            infra_future = executor.submit(
+                self._submit_controller_and_deploy_writer,
+                _DefaultDataDriftAppData in self.apps_data,
+            )
+            monitoring_apps_future = executor.submit(
+                self._set_and_deploy_monitoring_apps
+            )
+            serving_future = executor.submit(
                 self._deploy_model_serving, with_training_set, with_model_runner
             )
 
-        serving_fn = future.result()
+        infra_future.result()
+        monitoring_apps_future.result()
+        serving_fn = serving_future.result()
         self._add_error_alert()
 
         time.sleep(5)
@@ -876,28 +914,48 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
 
         self._infer_with_error(serving_fn, with_training_set=with_training_set)
         # wait for the NO-OP event to close the window
-        time.sleep(
+        initial_wait = (
             2 * self.app_interval_seconds
             + mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs
             + mlrun.mlconf.model_endpoint_monitoring.writer_graph.flush_after_seconds
             + self._external_stream_delay
         )
 
-        mep = mlrun.db.get_run_db().get_model_endpoint(
-            name=f"{self.model_name}_{with_training_set}",
-            project=self.project.name,
-            function_name="model-serving",
-            function_tag="latest",
-            feature_analysis=True,
-            tsdb_metrics=True,
+        mep_result = {}
+
+        def check_model_endpoint_data() -> None:
+            mep = mlrun.db.get_run_db().get_model_endpoint(
+                name=f"{self.model_name}_{with_training_set}",
+                project=self.project.name,
+                function_name="model-serving",
+                function_tag="latest",
+                feature_analysis=True,
+                tsdb_metrics=True,
+            )
+            # Verify endpoint has required data
+            assert mep is not None, "Model endpoint is None"
+            assert mep.status.last_request is not None, "last_request is None"
+
+            # Verify TSDB actually has data (not just endpoint metadata)
+            df = self._tsdb_storage.get_results_metadata(endpoint_id=mep.metadata.uid)
+            assert not df.empty, "TSDB data not yet available"
+
+            # Store for later use (avoids duplicate fetch)
+            mep_result["mep"] = mep
+
+        self.wait_for_condition(
+            condition_check=check_model_endpoint_data,
+            initial_wait=initial_wait,
+            condition_description="model endpoint to have monitoring data and TSDB to be populated",
         )
-        assert (
-            mep.status.last_request is not None
-        ), "The last request is not set in the MEP status"
+
+        # Use the endpoint captured during the successful check
+        mep = mep_result["mep"]
+
         # Model predict timestamp is slightly differ than storey timestamp
-        assert (
-            (mep.status.last_request - last_request) < timedelta(milliseconds=1)
-        ), "The saved `last_request` in the model endpoint is different than the last result timestamp"
+        assert (mep.status.last_request - last_request) < timedelta(milliseconds=1), (
+            "The saved `last_request` in the model endpoint is different than the last result timestamp"
+        )
 
         self._test_v3io_records(
             ep_id=mep.metadata.uid,
@@ -918,134 +976,6 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
 
 @TestMLRunSystemModelMonitoring.skip_test_if_env_not_configured
 @pytest.mark.enterprise
-class TestRecordResults(TestMLRunSystemModelMonitoring, _V3IORecordsChecker):
-    project_name = "test-mm-record"
-    name_prefix = "infer-monitoring"
-    # Set image to "<repo>/mlrun:<tag>" for local testing
-    image: typing.Optional[str] = None
-
-    @classmethod
-    def custom_setup_class(cls) -> None:
-        # model
-        cls.classif = SVC()
-        cls.model_name = "svc"
-        # data
-        cls.columns = ["a1", "a2", "b"]
-        cls.y_name = "t"
-        cls.num_rows = 15
-        cls.num_cols = len(cls.columns)
-        cls.num_classes = 2
-        cls.x_train, cls.x_test, cls.y_train, cls.y_test = cls._generate_data()
-        cls.training_set = cls.x_train.join(cls.y_train)
-        cls.test_set = cls.x_test.join(cls.y_test)
-        cls.infer_results_df = cls.test_set
-        cls.function_name = f"{cls.name_prefix}-function"
-        # training
-        cls._train()
-
-        # model monitoring app
-        cls.app_data = _AppData(
-            class_=NoCheckDemoMonitoringApp,
-            rel_path="assets/application.py",
-            results={"data_drift_test", "model_perf"},
-        )
-
-        # model monitoring infra
-        cls.app_interval: int = 1  # every 1 minute
-        cls.app_interval_seconds = timedelta(minutes=cls.app_interval).total_seconds()
-        cls.apps_data = [_DefaultDataDriftAppData, cls.app_data]
-
-    def custom_setup(self) -> None:
-        self.set_mm_credentials()
-        super(TestMLRunSystem, self).custom_setup(project_name=self.project_name)
-
-    @classmethod
-    def _generate_data(cls) -> list[typing.Union[pd.DataFrame, pd.Series]]:
-        rng = np.random.default_rng(seed=1)
-        x = pd.DataFrame(rng.random((cls.num_rows, cls.num_cols)), columns=cls.columns)
-        y = pd.Series(np.arange(cls.num_rows) % cls.num_classes, name=cls.y_name)
-        assert cls.num_rows > cls.num_classes
-        return train_test_split(x, y, train_size=0.75, random_state=1)
-
-    @classmethod
-    def _train(cls) -> None:
-        cls.classif.fit(
-            cls.x_train,
-            cls.y_train,  # pyright: ignore[reportGeneralTypeIssues]
-        )
-
-    def _log_model(self) -> None:
-        self.project.log_model(  # pyright: ignore[reportOptionalMemberAccess]
-            self.model_name,
-            body=pickle.dumps(self.classif),
-            model_file="classif.pkl",
-            framework="sklearn",
-            training_set=self.training_set,
-            label_column=self.y_name,
-        )
-
-    def _deploy_monitoring_app(self) -> None:
-        self.project = typing.cast(mlrun.projects.MlrunProject, self.project)
-        fn = self.project.set_model_monitoring_function(
-            func=self.app_data.abs_path,
-            application_class=self.app_data.class_.__name__,
-            name=self.app_data.class_.NAME,
-            requirements=self.app_data.requirements,
-            image="mlrun/mlrun" if self.image is None else self.image,
-            **self.app_data.kwargs,
-        )
-        self.project.deploy_function(fn)
-
-    def _record_results(self) -> str:
-        model_endpoint = mlrun.model_monitoring.api.record_results(
-            project=self.project_name,
-            model_path=self.project.get_artifact_uri(  # pyright: ignore[reportOptionalMemberAccess]
-                key=self.model_name, category="model", tag="latest"
-            ),
-            model_endpoint_name=f"{self.name_prefix}-test",
-            function_name=self.function_name,
-            context=mlrun.get_or_create_ctx(name=f"{self.name_prefix}-context"),  # pyright: ignore[reportGeneralTypeIssues]
-            infer_results_df=self.infer_results_df,
-        )
-
-        return model_endpoint.metadata.uid
-
-    def _deploy_monitoring_infra(self) -> None:
-        self.project.enable_model_monitoring(  # pyright: ignore[reportOptionalMemberAccess]
-            base_period=self.app_interval,
-            **({} if self.image is None else {"image": self.image}),
-        )
-
-    def test_inference_feature_set(self) -> None:
-        self._log_model()
-
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            executor.submit(self._deploy_monitoring_app)
-            executor.submit(self._deploy_monitoring_infra)
-
-        endpoint_id = self._record_results()
-
-        time.sleep(
-            2 * self.app_interval_seconds
-            + mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs
-        )
-
-        mep = mlrun.db.get_run_db().get_model_endpoint(
-            name=f"{self.name_prefix}-test",
-            project=self.project.name,
-            endpoint_id=endpoint_id,
-            feature_analysis=True,
-            tsdb_metrics=True,
-        )
-        self._test_v3io_records(
-            mep.metadata.uid,
-            apps_data=self.apps_data,
-        )
-        self._test_predictions_table(mep.metadata.uid, should_be_empty=True)
-
-
-@TestMLRunSystemModelMonitoring.skip_test_if_env_not_configured
-@pytest.mark.enterprise
 class TestServingJobEndpoint(TestMLRunSystemModelMonitoring, _V3IORecordsChecker):
     """
     Demonstrates running a serving job with model monitoring enabled.  In this test, we deploy a simple serving model
@@ -1056,7 +986,7 @@ class TestServingJobEndpoint(TestMLRunSystemModelMonitoring, _V3IORecordsChecker
     project_name = "test-mm-serving-job"
     name_prefix = "infer-monitoring"
     # Set image to "<repo>/mlrun:<tag>" for local testing
-    image: typing.Optional[str] = None
+    image: str | None = None
 
     @classmethod
     def custom_setup_class(cls) -> None:
@@ -1144,7 +1074,9 @@ class TestServingJobEndpoint(TestMLRunSystemModelMonitoring, _V3IORecordsChecker
                 func=self.app_data["url"],
                 application_class=self.app_data["class_name"],
                 name=self.app_data["app_name"],
-                image="mlrun/mlrun" if self.image is None else self.image,
+                image=mlrun.mlconf.function_defaults.image_by_kind.job
+                if self.image is None
+                else self.image,
                 local_path=temp_path,
             )
             self.project.deploy_function(fn)
@@ -1184,7 +1116,7 @@ class TestServingJobEndpoint(TestMLRunSystemModelMonitoring, _V3IORecordsChecker
         inputs = {"data": input_dataset.uri}
         params = {"timestamp_column": "index"}
         self.project.run_function(job, inputs=inputs, params=params)
-        return function
+        return job
 
     def _test_batch_ep_metrics(
         self, function_name: str, input_df: pd.DataFrame
@@ -1202,10 +1134,10 @@ class TestServingJobEndpoint(TestMLRunSystemModelMonitoring, _V3IORecordsChecker
 
         assert model_endpoint.status.first_request == input_df[
             "index"
-        ].min().to_pydatetime().replace(tzinfo=timezone.utc)
+        ].min().to_pydatetime().replace(tzinfo=UTC)
         assert model_endpoint.status.last_request == input_df[
             "index"
-        ].max().to_pydatetime().replace(tzinfo=timezone.utc)
+        ].max().to_pydatetime().replace(tzinfo=UTC)
 
         run_db = mlrun.get_run_db()
 
@@ -1236,8 +1168,8 @@ class TestServingJobEndpoint(TestMLRunSystemModelMonitoring, _V3IORecordsChecker
         ep_id: str,
         metrics_full_names: list[str],
         run_db: mlrun.db.httpdb.HTTPRunDB,
-        start: typing.Optional[float],
-        end: typing.Optional[float],
+        start: float | None,
+        end: float | None,
     ) -> None:
         base_query = f"?name={'&name='.join(metrics_full_names)}"
         query = f"{base_query}&start={start}&end={end}"
@@ -1248,12 +1180,12 @@ class TestServingJobEndpoint(TestMLRunSystemModelMonitoring, _V3IORecordsChecker
         )
         response_content = json.loads(response.content.decode())
         for metric_values in response_content:
-            assert metric_values[
-                "data"
-            ], f"No data for metric {metric_values['full_name']}"
-            assert metric_values[
-                "values"
-            ], f"The values list is empty for metric {metric_values['full_name']}"
+            assert metric_values["data"], (
+                f"No data for metric {metric_values['full_name']}"
+            )
+            assert metric_values["values"], (
+                f"The values list is empty for metric {metric_values['full_name']}"
+            )
             assert len(metric_values["values"]) == 3
 
         first_metric = response_content[0]
@@ -1271,12 +1203,19 @@ class TestServingJobEndpoint(TestMLRunSystemModelMonitoring, _V3IORecordsChecker
 
         input_df = self._generate_input_df()
         function = self._run_serving_job(input_df=input_df)
-        time.sleep(
+        initial_wait = (
             mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs + 20
         )
 
-        self._test_batch_ep_metrics(
-            function_name=function.metadata.name, input_df=input_df
+        def check_batch_metrics() -> None:
+            self._test_batch_ep_metrics(
+                function_name=function.metadata.name, input_df=input_df
+            )
+
+        self.wait_for_condition(
+            condition_check=check_batch_metrics,
+            initial_wait=initial_wait,
+            condition_description="batch job metrics to be available (invocations + count)",
         )
 
     @staticmethod
@@ -1298,7 +1237,7 @@ class TestModelMonitoringInitialize(TestMLRunSystemModelMonitoring):
 
     project_name = "test-mm-initialize"
     # Set image to "<repo>/mlrun:<tag>" for local testing
-    image: typing.Optional[str] = None
+    image: str | None = None
 
     def test_model_monitoring_crud(self) -> None:
         # Main validations:
@@ -1314,17 +1253,17 @@ class TestModelMonitoringInitialize(TestMLRunSystemModelMonitoring):
         ]
         with pytest.raises(mlrun.errors.MLRunNotFoundError):
             self.project.update_model_monitoring_controller(
-                image=self.image or "mlrun/mlrun"
+                image=self.image or mlrun.mlconf.function_defaults.image_by_kind.job
             )
         self.set_mm_credentials()
         self.project.enable_model_monitoring(
-            image=self.image or "mlrun/mlrun",
+            image=self.image or mlrun.mlconf.function_defaults.image_by_kind.job,
             wait_for_deployment=True,
         )
 
         with pytest.raises(mlrun.errors.MLRunConflictError):
             self.project.enable_model_monitoring(
-                image=self.image or "mlrun/mlrun",
+                image=self.image or mlrun.mlconf.function_defaults.image_by_kind.job,
             )
 
         controller = self.project.get_function(
@@ -1347,7 +1286,9 @@ class TestModelMonitoringInitialize(TestMLRunSystemModelMonitoring):
             assert func.status.state == "ready"
 
         self.project.update_model_monitoring_controller(
-            image=self.image or "mlrun/mlrun", base_period=1, wait_for_deployment=True
+            image=self.image or mlrun.mlconf.function_defaults.image_by_kind.job,
+            base_period=1,
+            wait_for_deployment=True,
         )
         controller = self.project.get_function(
             key=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
@@ -1401,8 +1342,7 @@ class TestModelMonitoringInitialize(TestMLRunSystemModelMonitoring):
                 tag="latest"
             )
             assert len(monitoring_functions) == 1, (
-                "expected a single monitoring function after deletion of histogram "
-                "app"
+                "expected a single monitoring function after deletion of histogram app"
             )
             assert [fn.metadata.name for fn in monitoring_functions] == [
                 DemoMonitoringApp.NAME
@@ -1478,7 +1418,9 @@ class TestModelMonitoringInitialize(TestMLRunSystemModelMonitoring):
             func=demo_app.abs_path,
             application_class=demo_app.class_.__name__,
             name=demo_app.class_.NAME,
-            image="mlrun/mlrun" if self.image is None else self.image,
+            image=mlrun.mlconf.function_defaults.image_by_kind.job
+            if self.image is None
+            else self.image,
             requirements=demo_app.requirements,
             **demo_app.kwargs,
         )
@@ -1509,10 +1451,59 @@ class TestModelMonitoringInitialize(TestMLRunSystemModelMonitoring):
 
 @TestMLRunSystemModelMonitoring.skip_test_if_env_not_configured
 @pytest.mark.enterprise
+class TestUpdateControllerPreservesAuthToken(TestMLRunSystemModelMonitoring):
+    """ML-12021: Verify that update_model_monitoring_controller preserves
+    the auth token that was set during enable_model_monitoring."""
+
+    project_name = "test-mm-auth-token"
+    image: str | None = None
+
+    @pytest.mark.timeout(600)
+    def test_auth_token_preserved_after_controller_update(self) -> None:
+        self.set_mm_credentials()
+
+        # Clean up any leftover monitoring from a previous run
+        try:
+            self.project.disable_model_monitoring()
+        except Exception:
+            pass
+
+        token_name = "test-auth-token"
+        with mlrun.RuntimeConfigurationContext(auth_token_name=token_name):
+            self.project.enable_model_monitoring(
+                image=self.image or mlrun.mlconf.function_defaults.image_by_kind.job,
+                deploy_histogram_data_drift_app=False,
+                wait_for_deployment=True,
+            )
+
+        # Verify the controller has the auth token after initial deploy
+        controller = self.project.get_function(
+            key=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
+            ignore_cache=True,
+        )
+        assert controller.spec.auth.get("token_name") == token_name
+
+        # Update controller (no RuntimeConfigurationContext active)
+        self.project.update_model_monitoring_controller(
+            image=self.image or mlrun.mlconf.function_defaults.image_by_kind.job,
+            base_period=1,
+            wait_for_deployment=True,
+        )
+
+        # Verify the auth token is still preserved after update
+        controller = self.project.get_function(
+            key=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
+            ignore_cache=True,
+        )
+        assert controller.spec.auth.get("token_name") == token_name
+
+
+@TestMLRunSystemModelMonitoring.skip_test_if_env_not_configured
+@pytest.mark.enterprise
 class TestMonitoredServings(TestMLRunSystemModelMonitoring):
     project_name = "test-mm-serving"
     # Set image to "<repo>/mlrun:<tag>" for local testing
-    image: typing.Optional[str] = None
+    image: str | None = None
 
     @classmethod
     def custom_setup_class(cls) -> None:
@@ -1595,7 +1586,7 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
         self,
         model_name: str,
         training_set: pd.DataFrame = None,
-        label_column: typing.Optional[typing.Union[str, list[str]]] = None,
+        label_column: typing.Union[str, list[str]] | None = None,
     ) -> None:
         self.project.log_model(
             model_name,
@@ -1688,10 +1679,24 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
     ) -> dict[str, typing.Any]:
         serving_fn = self.project.get_function(self.function_name)
         self._infer_by_endpoint(endpoint_name, model_dict, serving_fn)
-        time.sleep(
+
+        initial_wait = (
             mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs + 20
         )
-        return self._test_parquet(feature_set_uri, model_dict)
+
+        result = {}
+
+        def check_parquet_data() -> None:
+            nonlocal result
+            result = self._test_parquet(feature_set_uri, model_dict)
+
+        self.wait_for_condition(
+            condition_check=check_parquet_data,
+            initial_wait=initial_wait,
+            condition_description=f"parquet data for endpoint {endpoint_name}",
+        )
+
+        return result
 
     @staticmethod
     def _infer_by_endpoint(endpoint_name, model_dict, serving_fn):
@@ -1730,7 +1735,7 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
     def test_different_kind_of_serving(self) -> None:
         self.function_name = "serving-router"
         self.project.enable_model_monitoring(
-            image=self.image or "mlrun/mlrun",
+            image=self.image or mlrun.mlconf.function_defaults.image_by_kind.job,
             base_period=1,
             deploy_histogram_data_drift_app=False,
         )
@@ -1748,26 +1753,44 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
                 self.model_by_endpoint_name[endpoint.metadata.name],
                 serving_fn,
             )
-        time.sleep(
+
+        initial_wait = (
             mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs + 20
         )
+
+        def check_all_endpoints_parquet() -> None:
+            for endpoint in endpoints:
+                res_dict = self._test_parquet(
+                    endpoint.spec.monitoring_feature_set_uri,
+                    self.model_by_endpoint_name[endpoint.metadata.name],
+                )
+                assert res_dict["is_schema_saved"], (
+                    f"For {endpoint.metadata.name} the schema of parquet is missing columns"
+                )
+
+        self.wait_for_condition(
+            condition_check=check_all_endpoints_parquet,
+            initial_wait=initial_wait,
+            condition_description="parquet data for all 7 endpoints",
+        )
+
         for endpoint in endpoints:
             res_dict = self._test_parquet(
                 endpoint.spec.monitoring_feature_set_uri,
                 self.model_by_endpoint_name[endpoint.metadata.name],
             )
-            assert res_dict[
-                "is_schema_saved"
-            ], f"For {endpoint.metadata.name} the schema of parquet is missing columns"
+            assert res_dict["is_schema_saved"], (
+                f"For {endpoint.metadata.name} the schema of parquet is missing columns"
+            )
 
-            assert res_dict[
-                "has_all_the_events"
-            ], f"For {endpoint.metadata.name} Not all the events were saved"
+            assert res_dict["has_all_the_events"], (
+                f"For {endpoint.metadata.name} Not all the events were saved"
+            )
 
     def test_tracking(self) -> None:
         self.function_name = "serving-1"
         self.project.enable_model_monitoring(
-            image=self.image or "mlrun/mlrun",
+            image=self.image or mlrun.mlconf.function_defaults.image_by_kind.job,
             base_period=1,
             deploy_histogram_data_drift_app=False,
         )
@@ -1810,13 +1833,13 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
             feature_set_uri=endpoint.spec.monitoring_feature_set_uri,
             model_dict=self.test_models_tracking[endpoint.metadata.name],
         )
-        assert res_dict[
-            "is_schema_saved"
-        ], f"For {endpoint.metadata.name} the schema of parquet is missing columns"
+        assert res_dict["is_schema_saved"], (
+            f"For {endpoint.metadata.name} the schema of parquet is missing columns"
+        )
 
-        assert res_dict[
-            "has_all_the_events"
-        ], f"For {endpoint.metadata.name} Not all the events were saved"
+        assert res_dict["has_all_the_events"], (
+            f"For {endpoint.metadata.name} Not all the events were saved"
+        )
 
         for model_name, model_dict in self.test_models_tracking.items():
             self._deploy_model_serving(**model_dict, enable_tracking=False)
@@ -1838,9 +1861,9 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
             model_dict=self.test_models_tracking[endpoint.metadata.name],
         )
 
-        assert res_dict[
-            "has_all_the_events"
-        ], f"For {res_dict['model_name']}, Despite tracking being disabled, there is new data in the parquet."
+        assert res_dict["has_all_the_events"], (
+            f"For {res_dict['model_name']}, Despite tracking being disabled, there is new data in the parquet."
+        )
 
     def test_enable_model_monitoring_after_failure(self) -> None:
         self.function_name = "test-function"
@@ -1856,7 +1879,7 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
             )
 
         self.project.enable_model_monitoring(
-            image=self.image or "mlrun/mlrun",
+            image=self.image or mlrun.mlconf.function_defaults.image_by_kind.job,
             wait_for_deployment=True,
         )
 
@@ -1866,14 +1889,14 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
             match="The following model-montioring infrastructure functions are already deployed, aborting: ",
         ):
             self.project.enable_model_monitoring(
-                image=self.image or "mlrun/mlrun",
+                image=self.image or mlrun.mlconf.function_defaults.image_by_kind.job,
                 wait_for_deployment=True,
             )
 
         # disable + enable should succeed
         self.project.disable_model_monitoring()
         self.project.enable_model_monitoring(
-            image=self.image or "mlrun/mlrun",
+            image=self.image or mlrun.mlconf.function_defaults.image_by_kind.job,
             wait_for_deployment=True,
         )
 
@@ -1892,7 +1915,7 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
     def test_monitored_model_runner_with_labels(self):
         self.function_name = "model-runner-function"
         self.project.enable_model_monitoring(
-            image=self.image or "mlrun/mlrun",
+            image=self.image or mlrun.mlconf.function_defaults.image_by_kind.job,
             base_period=1,
             deploy_histogram_data_drift_app=True,
         )
@@ -1925,23 +1948,32 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
         serving_fn.invoke(
             "/", body=json.dumps({"inputs": [[1, 1, 1, 1]], "labels": {"user": "test"}})
         )
-        time.sleep(
+
+        initial_wait = (
             mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs + 60
         )
-        endpoints_list = (
-            mlrun.db.get_run_db()
-            .list_model_endpoints(project=self.project_name, tsdb_metrics=True)
-            .endpoints
+
+        def check_parquet_with_labels() -> None:
+            endpoints_list = (
+                mlrun.db.get_run_db()
+                .list_model_endpoints(project=self.project_name, tsdb_metrics=True)
+                .endpoints
+            )
+            feature_set_uri = endpoints_list[0].spec.monitoring_feature_set_uri
+            offline_response_df = ParquetTarget(
+                name="temp",
+                path=fstore.get_feature_set(feature_set_uri).spec.targets[0].path,
+            ).as_df()
+            assert len(offline_response_df) == 2, "Not all the events were saved"
+            assert offline_response_df["labels"].iloc[1] == {"user": "test"}, (
+                "Labels were not saved correctly"
+            )
+
+        self.wait_for_condition(
+            condition_check=check_parquet_with_labels,
+            initial_wait=initial_wait,
+            condition_description="parquet data with labels to be saved",
         )
-        feature_set_uri = endpoints_list[0].spec.monitoring_feature_set_uri
-        offline_response_df = ParquetTarget(
-            name="temp",
-            path=fstore.get_feature_set(feature_set_uri).spec.targets[0].path,
-        ).as_df()
-        assert len(offline_response_df) == 2, "Not all the events were saved"
-        assert offline_response_df["labels"].iloc[1] == {
-            "user": "test"
-        }, "Labels were not saved correctly"
 
 
 class TestAppJob(TestMLRunSystem):
@@ -1952,7 +1984,7 @@ class TestAppJob(TestMLRunSystem):
     """
 
     project_name = "mm-app-as-job"
-    image: typing.Optional[str] = None
+    image: str | None = None
 
     @pytest.mark.parametrize("run_local", [False, True])
     def test_histogram_app(self, run_local: bool) -> None:
@@ -1964,18 +1996,23 @@ class TestAppJob(TestMLRunSystem):
         ).uri
 
         # Call `.evaluate(...)`
-        run_result = histogram_app_with_artifacts.HistogramDataDriftApplicationWithArtifacts.evaluate(
-            func_path=histogram_app_with_artifacts.__file__,
+        run_result = histogram_data_drift.HistogramDataDriftApplication.evaluate(
+            func_path=histogram_data_drift.__file__,
             sample_data=sample_data,
             reference_data=reference_data_uri,
             run_local=run_local,
             image=self.image,  # Relevant for remote runs only
+            class_arguments={
+                # Produce artifacts for testing
+                "produce_json_artifact": True,
+                "produce_plotly_artifact": True,
+            },
         )
 
         # Test the state
-        assert (
-            run_result.state() == "completed"
-        ), "The job did not complete successfully"
+        assert run_result.state() == "completed", (
+            "The job did not complete successfully"
+        )
         # Test the inputs
         assert run_result.spec.inputs.keys() == {
             "sample_data",
@@ -1996,14 +2033,14 @@ class TestAppJob(TestMLRunSystem):
                 "result_status": 2,
                 "result_extra_data": "{}",
             },
-        ] == [returned_results[0]] + returned_results[
-            2:4
-        ], "The returned metrics are different than the expected ones"
+        ] == [returned_results[0]] + returned_results[2:4], (
+            "The returned metrics are different than the expected ones"
+        )
         # Test the artifacts
         for artifact_name in {"features_drift_results", "drift_table_plot"}:
-            assert run_result.output(
-                artifact_name
-            ), f"The artifact '{artifact_name}' is not listed in the run's output"
+            assert run_result.output(artifact_name), (
+                f"The artifact '{artifact_name}' is not listed in the run's output"
+            )
             # The artifact is logged with the run's name
             artifact_key = f"{run_result.metadata.name}_{artifact_name}"
             artifact = self.project.get_artifact(artifact_key)
@@ -2017,7 +2054,7 @@ class TestAppJobModelEndpointData(TestMLRunSystemModelMonitoring):
     """
 
     project_name = "mm-job-mep-data"
-    image: typing.Optional[str] = None
+    image: str | None = None
     _serving_function_name = "model-server"
     _model_name = "classifier-0"
 
@@ -2058,9 +2095,7 @@ class TestAppJobModelEndpointData(TestMLRunSystemModelMonitoring):
             executor.submit(self._deploy_model_serving)
 
     def custom_teardown(self) -> None:
-        mlrun.model_monitoring.delete_model_monitoring_schedules_user_folder(
-            self.project_name
-        )
+        delete_model_monitoring_schedules_user_folder(self.project_name)
         return super().custom_teardown()
 
     @pytest.mark.parametrize("run_local", [False, True])
@@ -2091,16 +2126,31 @@ class TestAppJobModelEndpointData(TestMLRunSystemModelMonitoring):
             body=json.dumps({"inputs": [[0, 1, 0, 4.4]]}),
         )
 
-        # Let the stream pod process the data and write the parquets
-        time.sleep(80)
+        initial_wait = 80
+        endpoint_result = {}
 
-        # Get the model endpoint
-        model_endpoint = mlrun.get_run_db().get_model_endpoint(
-            name=self._model_name,
-            project=self.project_name,
-            function_name=self._serving_function_name,
-            function_tag="latest",
+        def check_model_endpoint_ready() -> None:
+            endpoint = mlrun.get_run_db().get_model_endpoint(
+                name=self._model_name,
+                project=self.project_name,
+                function_name=self._serving_function_name,
+                function_tag="latest",
+            )
+            # Verify endpoint has request timestamps from both windows
+            assert endpoint.status.first_request is not None, "first_request is None"
+            assert endpoint.status.last_request is not None, "last_request is None"
+
+            # Store for later use (avoids duplicate fetch)
+            endpoint_result["endpoint"] = endpoint
+
+        self.wait_for_condition(
+            condition_check=check_model_endpoint_ready,
+            initial_wait=initial_wait,
+            condition_description="model endpoint to have request data from both windows",
         )
+
+        # Use the endpoint captured during the successful check
+        model_endpoint = endpoint_result["endpoint"]
 
         # Call `.evaluate(...)` with a base period of 1 minute
 
@@ -2143,21 +2193,21 @@ class TestAppJobModelEndpointData(TestMLRunSystemModelMonitoring):
             )
 
             # Test the state
-            assert (
-                run_result.state() == "completed"
-            ), "The job did not complete successfully"
+            assert run_result.state() == "completed", (
+                "The job did not complete successfully"
+            )
 
             # Test the passed base period
-            assert (
-                run_result.spec.parameters["base_period"] == 1
-            ), "The base period is different than the passed one"
+            assert run_result.spec.parameters["base_period"] == 1, (
+                "The base period is different than the passed one"
+            )
 
             # Test the results
             outputs = run_result.outputs
             assert outputs, "No returned results"
-            assert (
-                len(outputs) == 2
-            ), "The number of outputs is different than the number of windows"
+            assert len(outputs) == 2, (
+                "The number of outputs is different than the number of windows"
+            )
             assert list(outputs.values()) == [
                 {
                     "result_name": "count",
@@ -2178,12 +2228,8 @@ class TestAppJobModelEndpointData(TestMLRunSystemModelMonitoring):
             if write_output:
                 # Test that the outputs were written in the database
                 db = typing.cast(mlrun.db.httpdb.HTTPRunDB, mlrun.get_run_db())
-                # Wait for the writer to get the data and write it
-                time.sleep(5)
-                metrics = db.get_model_endpoint_monitoring_metrics(
-                    project=self.project_name, endpoint_id=model_endpoint.metadata.uid
-                )
-                assert metrics == [
+
+                expected_metrics = [
                     ModelEndpointMonitoringMetric(
                         project=self.project_name,
                         app="count-app-batch",
@@ -2199,7 +2245,23 @@ class TestAppJobModelEndpointData(TestMLRunSystemModelMonitoring):
                         name="invocations",
                         full_name=f"{self.project_name}.mlrun-infra.metric.invocations",
                     ),
-                ], "The metrics from the database are different than expected"
+                ]
+
+                def check_metrics_written() -> None:
+                    metrics = db.get_model_endpoint_monitoring_metrics(
+                        project=self.project_name,
+                        endpoint_id=model_endpoint.metadata.uid,
+                    )
+                    assert metrics == expected_metrics, (
+                        "The metrics from the database are different than expected"
+                    )
+
+                self.wait_for_condition(
+                    condition_check=check_metrics_written,
+                    initial_wait=5,
+                    retry_interval=2.0,  # Faster retry for quick database writes
+                    condition_description="metrics to be written to database by writer",
+                )
 
 
 class TestBatchServingWithSampling(TestMLRunSystemModelMonitoring):
@@ -2211,7 +2273,7 @@ class TestBatchServingWithSampling(TestMLRunSystemModelMonitoring):
     """
 
     project_name = "mm-sampling"
-    image: typing.Optional[str] = None
+    image: str | None = None
     _serving_function_name_with_sample = "model-server-v1"
     _serving_function_name_without_sample = "model-server-v2"
     _model_name = "classifier-0"
@@ -2233,8 +2295,8 @@ class TestBatchServingWithSampling(TestMLRunSystemModelMonitoring):
     def _deploy_model_serving(
         self,
         model_uri: str,
-        sampling_percentage: typing.Optional[float] = None,
-        with_model_runner: typing.Optional[bool] = False,
+        sampling_percentage: float | None = None,
+        with_model_runner: bool | None = False,
     ) -> mlrun.runtimes.nuclio.serving.ServingRuntime:
         if with_model_runner:
             code_path = (
@@ -2283,9 +2345,7 @@ class TestBatchServingWithSampling(TestMLRunSystemModelMonitoring):
         serving_fn.deploy()
         return serving_fn
 
-    def _setup_resources(
-        self, with_model_runner: typing.Optional[bool] = False
-    ) -> None:
+    def _setup_resources(self, with_model_runner: bool | None = False) -> None:
         self.set_mm_credentials()
         model_uri = self._log_model()
         with concurrent.futures.ThreadPoolExecutor() as executor:
@@ -2330,26 +2390,62 @@ class TestBatchServingWithSampling(TestMLRunSystemModelMonitoring):
                 body=json.dumps({"inputs": [[0, 0, 0, 0]] * 100}),
             )
 
-        time.sleep(30)
+        # Wait for model endpoints to have sampling data
+        endpoints = {}
 
-        # Get the model endpoints
-        model_endpoint_with_sample = mlrun.get_run_db().get_model_endpoint(
-            name=self._model_name,
-            project=self.project_name,
-            function_name=self._serving_function_name_with_sample,
-            function_tag="latest",
+        def check_endpoints_with_sampling() -> None:
+            ep_with = mlrun.get_run_db().get_model_endpoint(
+                name=self._model_name,
+                project=self.project_name,
+                function_name=self._serving_function_name_with_sample,
+                function_tag="latest",
+            )
+            ep_without = mlrun.get_run_db().get_model_endpoint(
+                name=self._model_name,
+                project=self.project_name,
+                function_name=self._serving_function_name_without_sample,
+                function_tag="latest",
+            )
+            # Check if both endpoints have the expected sampling percentages
+            assert ep_with.status.sampling_percentage == 15.5
+            assert ep_without.status.sampling_percentage == 100
+
+            # Verify TSDB actually has predictions data (not just endpoint metadata)
+            if self._tsdb_storage.type == mm_constants.TSDBTarget.TimescaleDB:
+                table = self._tsdb_storage._metrics_queries.tables[
+                    mm_constants.TimescaleDBTables.PREDICTIONS
+                ]
+                full_query = table._get_records_query(
+                    start=datetime.min, end=datetime.now().astimezone()
+                )
+                query_result = self._tsdb_storage._connection.run(query=full_query)
+                df_columns = query_result.fields
+                predictions_df = pd.DataFrame(query_result.data, columns=df_columns)
+            elif self._tsdb_storage.type == mm_constants.TSDBTarget.V3IO_TSDB:
+                predictions_df = self._tsdb_storage._get_records(
+                    table=mm_constants.V3IOTSDBTables.PREDICTIONS,
+                    start="0",
+                    end="now",
+                )
+            else:
+                raise ValueError(f"Unsupported TSDB type: {self._tsdb_storage.type}")
+            assert predictions_df.shape[0] == 20, (
+                "TSDB predictions data not yet available"
+            )
+
+            # Store for later use (avoids duplicate fetch)
+            endpoints["with_sample"] = ep_with
+            endpoints["without_sample"] = ep_without
+
+        self.wait_for_condition(
+            condition_check=check_endpoints_with_sampling,
+            initial_wait=30,
+            condition_description="model endpoints to have sampling data and TSDB predictions",
         )
 
-        model_endpoint_without_sample = mlrun.get_run_db().get_model_endpoint(
-            name=self._model_name,
-            project=self.project_name,
-            function_name=self._serving_function_name_without_sample,
-            function_tag="latest",
-        )
-
-        # Validate the sampling percentage
-        assert model_endpoint_with_sample.status.sampling_percentage == 15.5
-        assert model_endpoint_without_sample.status.sampling_percentage == 100
+        # Use the endpoints captured during the successful check
+        model_endpoint_with_sample = endpoints["with_sample"]
+        model_endpoint_without_sample = endpoints["without_sample"]
 
         self._test_predictions_table(
             ep_id_with_sample=model_endpoint_with_sample.metadata.uid,
@@ -2375,16 +2471,8 @@ class TestBatchServingWithSampling(TestMLRunSystemModelMonitoring):
             predictions_df: pd.DataFrame = self._tsdb_storage._get_records(
                 table=mm_constants.V3IOTSDBTables.PREDICTIONS, start="0", end="now"
             )
-
         else:
-            # TDEngine
-            predictions_df: pd.DataFrame = self._tsdb_storage._get_records(
-                table=self._tsdb_storage.tables[
-                    mm_constants.TDEngineSuperTables.PREDICTIONS
-                ].super_table,
-                start=datetime.min,
-                end=datetime.now().astimezone(),
-            )
+            raise ValueError(f"Unsupported TSDB type: {self._tsdb_storage.type}")
 
         assert "effective_sample_count" in predictions_df.columns
         assert "estimated_prediction_count" in predictions_df.columns
@@ -2403,3 +2491,635 @@ class TestBatchServingWithSampling(TestMLRunSystemModelMonitoring):
         # As for the model endpoint with sampling, the effective sample count should be around 155
         # corresponding to the 15.5% sampling. We will validate that it is not equal to 1000.
         assert predictions_df_with_sample["effective_sample_count"].sum() != 1000
+
+
+@TestMLRunSystemModelMonitoring.skip_test_if_env_not_configured
+@pytest.mark.enterprise
+class TestHTTPIngest(TestMLRunSystemModelMonitoring):
+    """Test HTTP-based model monitoring ingestion through the stream pod (ML-12045).
+
+    A Nuclio function with a USER_EP model endpoint is deployed.  When invoked,
+    the function handler itself POSTs prediction events to the stream pod using
+    MODEL_MONITORING_URL / MODEL_ENDPOINT_UID env vars injected at deploy time —
+    demonstrating the full user flow from inside a pod.
+
+    Monitoring infra is deployed once in setup_class so the stream pod persists
+    across all test methods (same pattern as TestNuclioAppModelEndpointCreation).
+    """
+
+    project_name = "test-mm-http-ingest"
+    image: str | None = None
+
+    app_interval: int = 1  # minutes
+    num_events: int = 20
+    feature_names = ["age", "income", "credit_score", "balance"]
+    label_names = ["approved"]
+
+    @classmethod
+    def setup_class(cls) -> None:
+        super().setup_class()
+        cls.app_interval_seconds = timedelta(minutes=cls.app_interval).total_seconds()
+        cls.run_db = mlrun.get_run_db()
+        cls.model_endpoint_name = "http-ingest-ep"
+        cls._external_stream_delay = 0
+        if isinstance(
+            cls.mm_stream_profile, DatastoreProfileKafkaStream
+        ) and cls.mm_stream_profile.attributes()["brokers"][0].endswith(
+            ".confluent.cloud:9092"
+        ):
+            cls._external_stream_delay = 90
+
+        project = mlrun.get_or_create_project(
+            cls.project_name, "./", allow_cross_project=True
+        )
+        project.register_datastore_profile(cls.mm_tsdb_profile)
+        project.register_datastore_profile(cls.mm_stream_profile)
+        project.set_model_monitoring_credentials(
+            tsdb_profile_name=cls.mm_tsdb_profile.name,
+            stream_profile_name=cls.mm_stream_profile.name,
+        )
+        try:
+            project.enable_model_monitoring(
+                base_period=cls.app_interval,
+                deploy_histogram_data_drift_app=False,
+                wait_for_deployment=True,
+                **({} if cls.image is None else {"image": cls.image}),
+            )
+        except mlrun.errors.MLRunConflictError:
+            # Monitoring already deployed from a previous run — reuse it.
+            pass
+
+    def teardown_method(self, method) -> None:
+        # Keep the project alive so the monitoring stream pod persists across
+        # test methods — only clean up at class teardown.
+        self._logger.info(
+            f"Tearing down test {self.__class__.__name__}::{method.__name__}"
+        )
+        self.custom_teardown()
+        self._logger.info(
+            f"Finished tearing down test {self.__class__.__name__}::{method.__name__}"
+        )
+
+    @classmethod
+    def custom_teardown_class(cls) -> None:
+        if not cls._should_clean_resources():
+            return
+        try:
+            cls._run_db.delete_project(
+                cls.project_name,
+                deletion_strategy=mlrun.common.schemas.DeletionStrategy.cascading,
+            )
+        except Exception:
+            pass
+
+    def _deploy_nuclio_function_with_user_ep(
+        self,
+        extra_endpoint_names: list[str] | None = None,
+    ) -> mlrun.runtimes.RemoteRuntime:
+        """Deploy a Nuclio function whose handler pushes events to the stream pod.
+
+        MLRun injects MODEL_MONITORING_URL, MODEL_ENDPOINT_UID and (when multiple
+        endpoints are registered) MODEL_ENDPOINTS_MAP into the pod env at deploy
+        time.  The handler reads these vars directly — no extra SDK calls needed.
+
+        :param extra_endpoint_names: Optional additional USER_EP names to register
+            alongside the primary endpoint (exercises MODEL_ENDPOINTS_MAP injection).
+        """
+        fn = mlrun.new_function(
+            name="http-ingest-fn",
+            project=self.project_name,
+            kind="remote",
+        )
+        fn.with_code(
+            from_file=str(Path(__file__).parent / "assets" / "http_ingest_handler.py")
+        )
+        extra_instructions = [
+            ModelEndpointInstruction(
+                name=ep_name,
+                input_schema=self.feature_names,
+                output_schema=self.label_names,
+            )
+            for ep_name in (extra_endpoint_names or [])
+        ]
+        fn.setup_model_monitoring(
+            general_model_endpoint_instructions=ModelEndpointInstruction(
+                name=self.model_endpoint_name,
+                input_schema=self.feature_names,
+                output_schema=self.label_names,
+            ),
+            extra_model_endpoint_instructions=extra_instructions or None,
+        )
+        if self.image is not None:
+            fn.spec.image = self.image
+        fn.deploy()
+        return fn
+
+    def _deploy_monitoring_app(self) -> None:
+        app_fn = self.project.set_model_monitoring_function(
+            func=str(Path(__file__).parent / "assets" / "application.py"),
+            application_class=NoCheckDemoMonitoringApp.__name__,
+            name=NoCheckDemoMonitoringApp.NAME,
+            image=self.image or mlrun.mlconf.function_defaults.image_by_kind.job,
+        )
+        self.project.deploy_function(app_fn)
+
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
+
+    def _get_endpoint_id(self) -> str:
+        endpoints = self.run_db.list_model_endpoints(
+            project=self.project_name,
+            names=self.model_endpoint_name,
+        ).endpoints
+        assert endpoints, f"No endpoint found with name {self.model_endpoint_name!r}"
+        return endpoints[0].metadata.uid
+
+    def _invoke_ingest_fn(
+        self,
+        fn: mlrun.runtimes.RemoteRuntime,
+        num_endpoints: int = 1,
+    ) -> None:
+        """Invoke the Nuclio function and assert all events were accepted (HTTP 202)."""
+        result = fn.invoke(
+            path="/",
+            body=json.dumps({"num_events": self.num_events}),
+        )
+        self._logger.info(
+            "Nuclio function invoked, events pushed from pod",
+            result=result,
+            num_events=self.num_events,
+        )
+        expected_pushed = self.num_events * num_endpoints
+        assert result.get("pushed") == expected_pushed, (
+            f"Expected {expected_pushed} accepted events (HTTP 202) "
+            f"but stream pod accepted {result.get('pushed')}"
+        )
+
+    def _assert_bad_payload_rejected(self, fn: mlrun.runtimes.RemoteRuntime) -> None:
+        """Verify the stream pod rejects a malformed payload with HTTP 400.
+
+        The stream pod is ClusterIP-only so we can't reach it from the test
+        machine directly.  Instead we invoke the ingest function (which runs
+        inside the cluster) with a special ``test_bad_payload`` flag; the
+        handler sends one event with missing inputs/outputs and returns the
+        stream pod's status code back to us.
+        """
+        result = fn.invoke(path="/", body=json.dumps({"test_bad_payload": True}))
+        assert result.get("bad_payload_status") == 400, (
+            f"Expected stream pod to return 400 for malformed payload, "
+            f"got {result.get('bad_payload_status')}"
+        )
+        self._logger.info(
+            "Bad payload correctly rejected by stream pod",
+            status=result.get("bad_payload_status"),
+        )
+
+    def _check_tsdb_has_data(self, endpoint_id: str) -> None:
+        tsdb = mlrun.model_monitoring.get_tsdb_connector(
+            project=self.project_name, profile=self.mm_tsdb_profile
+        )
+        lr = tsdb.get_last_request(endpoint_ids=endpoint_id)
+        assert lr and endpoint_id in lr, "TSDB last_request not yet written"
+
+        pred = tsdb.read_predictions(
+            endpoint_id=endpoint_id,
+            start=datetime.now(UTC) - timedelta(hours=1),
+            end=datetime.now(UTC),
+        )
+        assert not isinstance(
+            pred,
+            mlrun.common.schemas.model_monitoring.ModelEndpointMonitoringMetricNoData,
+        ), "No predictions in TSDB predictions table yet"
+
+    # ------------------------------------------------------------------
+    # Tests
+    # ------------------------------------------------------------------
+
+    def test_http_ingest_flow(self) -> None:
+        """USER_EP → invoke fn (pushes events from pod) → verify TSDB.
+
+        Also verifies that a malformed payload is rejected with HTTP 400.
+        """
+        fn = self._deploy_nuclio_function_with_user_ep()
+
+        time.sleep(5)
+
+        endpoint_id = self._get_endpoint_id()
+        self._logger.info("USER_EP created", endpoint_id=endpoint_id)
+
+        self._assert_bad_payload_rejected(fn)
+
+        self._invoke_ingest_fn(fn)
+
+        initial_wait = (
+            mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs
+            + mlrun.mlconf.model_endpoint_monitoring.writer_graph.flush_after_seconds
+            + self._external_stream_delay
+        )
+
+        self.wait_for_condition(
+            condition_check=lambda: self._check_tsdb_has_data(endpoint_id),
+            initial_wait=initial_wait,
+            condition_description="TSDB to receive HTTP-ingested events",
+        )
+
+        mep = self.run_db.get_model_endpoint(
+            name=self.model_endpoint_name,
+            project=self.project_name,
+            endpoint_id=endpoint_id,
+            tsdb_metrics=True,
+        )
+        assert mep.status.last_request is not None, (
+            "Model endpoint last_request not updated after HTTP ingest"
+        )
+
+    def test_http_ingest_with_monitoring_app(self) -> None:
+        """Invoke fn (pushes events from pod) → verify monitoring app processes them."""
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            fn_future = executor.submit(self._deploy_nuclio_function_with_user_ep)
+            app_future = executor.submit(self._deploy_monitoring_app)
+        fn = fn_future.result()
+        app_future.result()
+
+        time.sleep(5)
+
+        endpoint_id = self._get_endpoint_id()
+        self._invoke_ingest_fn(fn)
+
+        initial_wait = (
+            2 * self.app_interval_seconds
+            + mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs
+            + mlrun.mlconf.model_endpoint_monitoring.writer_graph.flush_after_seconds
+            + self._external_stream_delay
+        )
+
+        tsdb = mlrun.model_monitoring.get_tsdb_connector(
+            project=self.project_name, profile=self.mm_tsdb_profile
+        )
+
+        def check_app_results() -> None:
+            df = tsdb.get_results_metadata(endpoint_id=endpoint_id)
+            assert not df.empty, "No application results in TSDB yet"
+            assert (df.endpoint_id == endpoint_id).all()
+            assert NoCheckDemoMonitoringApp.NAME in df.application_name.values, (
+                f"Expected app {NoCheckDemoMonitoringApp.NAME!r} not found in TSDB results"
+            )
+
+        self.wait_for_condition(
+            condition_check=check_app_results,
+            initial_wait=initial_wait,
+            condition_description="monitoring app to write results for HTTP-ingested events",
+        )
+
+    def test_http_ingest_multiple_endpoints(self) -> None:
+        """One function with 3 USER_EP endpoints → each gets events via HTTP.
+
+        MLRun injects MODEL_ENDPOINT_UID + MODEL_ENDPOINTS_MAP into the pod.
+        The handler pushes ``num_events`` events per endpoint; the test verifies
+        that every endpoint has data in the TSDB.
+        """
+        extra_ep_names = ["http-ingest-ep-2", "http-ingest-ep-3"]
+
+        fn = self._deploy_nuclio_function_with_user_ep(extra_ep_names)
+
+        time.sleep(5)
+
+        # Collect UIDs for all registered endpoints
+        all_ep_names = [self.model_endpoint_name] + extra_ep_names
+        endpoint_ids = []
+        for ep_name in all_ep_names:
+            eps = self.run_db.list_model_endpoints(
+                project=self.project_name, names=ep_name
+            ).endpoints
+            assert eps, f"No endpoint found with name {ep_name!r}"
+            endpoint_ids.append(eps[0].metadata.uid)
+
+        self._logger.info(
+            "USER_EP endpoints created",
+            names=all_ep_names,
+            ids=endpoint_ids,
+        )
+
+        # Invoke once — handler pushes num_events for every endpoint from the pod
+        self._invoke_ingest_fn(fn, num_endpoints=len(all_ep_names))
+
+        initial_wait = (
+            mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs
+            + mlrun.mlconf.model_endpoint_monitoring.writer_graph.flush_after_seconds
+            + self._external_stream_delay
+        )
+
+        def check_all_endpoints() -> None:
+            for ep_id in endpoint_ids:
+                self._check_tsdb_has_data(ep_id)
+
+        self.wait_for_condition(
+            condition_check=check_all_endpoints,
+            initial_wait=initial_wait,
+            condition_description="TSDB to receive HTTP-ingested events for all endpoints",
+        )
+
+        for ep_name, ep_id in zip(all_ep_names, endpoint_ids):
+            mep = self.run_db.get_model_endpoint(
+                name=ep_name,
+                project=self.project_name,
+                endpoint_id=ep_id,
+                tsdb_metrics=True,
+            )
+            assert mep.status.last_request is not None, (
+                f"last_request not updated for endpoint {ep_id}"
+            )
+
+    def test_http_ingest_stream_pod_is_async(self) -> None:
+        """Stream pod processes N concurrent HTTP requests without serialising them.
+
+        A dedicated Nuclio handler first sends one request to measure the
+        per-request round-trip baseline, then fires ``num_events`` requests
+        simultaneously.  If the stream pod serialised requests the concurrent
+        batch would take ≈ N × single_elapsed; because Nuclio dispatches HTTP
+        requests concurrently the batch should complete in ≈ single_elapsed.
+        The assertion concurrent_elapsed < single_elapsed * 2 is self-calibrating
+        and does not rely on any hardcoded timing constant.
+        """
+        fn = mlrun.new_function(
+            name="http-ingest-concurrent-fn",
+            project=self.project_name,
+            kind="remote",
+        )
+        fn.with_code(
+            from_file=str(
+                Path(__file__).parent / "assets" / "http_ingest_concurrent_handler.py"
+            )
+        )
+        fn.setup_model_monitoring(
+            general_model_endpoint_instructions=ModelEndpointInstruction(
+                name=self.model_endpoint_name,
+                input_schema=self.feature_names,
+                output_schema=self.label_names,
+            ),
+        )
+        if self.image is not None:
+            fn.spec.image = self.image
+        fn.deploy()
+
+        time.sleep(5)
+
+        # --- baseline: one request ---
+        single_result = fn.invoke(path="/", body=json.dumps({"single": True}))
+        assert single_result.get("pushed") == 1, (
+            f"Baseline single request was not accepted: {single_result}"
+        )
+        single_elapsed = single_result["single_elapsed"]
+        self._logger.info("Single request baseline", single_elapsed=single_elapsed)
+
+        # --- concurrent: N requests in parallel ---
+        concurrent_result = fn.invoke(
+            path="/", body=json.dumps({"num_events": self.num_events})
+        )
+        assert concurrent_result.get("pushed") == self.num_events, (
+            f"Expected {self.num_events} accepted events (HTTP 202) "
+            f"but stream pod accepted {concurrent_result.get('pushed')}"
+        )
+        concurrent_elapsed = concurrent_result["concurrent_elapsed"]
+        self._logger.info(
+            "Concurrent batch result",
+            num_events=self.num_events,
+            concurrent_elapsed=concurrent_elapsed,
+            single_elapsed=single_elapsed,
+        )
+
+        assert concurrent_elapsed < single_elapsed * 2, (
+            f"Stream pod took {concurrent_elapsed:.2f}s for {self.num_events} concurrent "
+            f"requests but single request took {single_elapsed:.2f}s — expected batch "
+            f"< {single_elapsed * 2:.2f}s. "
+            "This suggests the pod is serialising requests instead of processing them concurrently."
+        )
+
+
+@TestMLRunSystem.skip_test_if_env_not_configured
+class TestUserEndpointHTTPIngest(TestMLRunSystemModelMonitoring):
+    """End-to-end HTTP ingest via the explicit ``create_user_model_endpoint`` +
+    ``get_model_monitoring_url`` flow (ML-12045).
+
+    Unlike :class:`TestHTTPIngest`, this test does NOT call
+    ``fn.setup_model_monitoring()`` — which auto-creates endpoints and injects
+    env vars on the function.  Instead it exercises the lower-level flow a user
+    would follow when they already have a Nuclio function and just want to
+    register a USER_EP and push events to the stream pod:
+
+    1. ``project.create_user_model_endpoint(...)`` → returns ``(name, uid)``.
+    2. ``project.get_model_monitoring_url()`` → internal stream pod HTTP URL.
+    3. Deploy a Nuclio remote function and wire the URL + endpoint UID into
+       it manually via ``fn.set_env(...)``.
+    4. Invoke; the handler POSTs prediction events to the stream pod.
+    5. Verify TSDB receives the events and the endpoint's ``last_request``
+       is updated.
+    """
+
+    project_name = "test-mm-user-ep-http-ingest"
+    image: str | None = None
+
+    app_interval: int = 1  # minutes
+    num_events: int = 20
+    feature_names = ["age", "income", "credit_score", "balance"]
+    label_names = ["approved"]
+    model_endpoint_name = "user-ep-http-ingest"
+
+    @classmethod
+    def setup_class(cls) -> None:
+        super().setup_class()
+        cls.app_interval_seconds = timedelta(minutes=cls.app_interval).total_seconds()
+        cls.run_db = mlrun.get_run_db()
+        cls._external_stream_delay = 0
+        if isinstance(
+            cls.mm_stream_profile, DatastoreProfileKafkaStream
+        ) and cls.mm_stream_profile.attributes()["brokers"][0].endswith(
+            ".confluent.cloud:9092"
+        ):
+            cls._external_stream_delay = 90
+
+        project = mlrun.get_or_create_project(
+            cls.project_name, "./", allow_cross_project=True
+        )
+        project.register_datastore_profile(cls.mm_tsdb_profile)
+        project.register_datastore_profile(cls.mm_stream_profile)
+        project.set_model_monitoring_credentials(
+            tsdb_profile_name=cls.mm_tsdb_profile.name,
+            stream_profile_name=cls.mm_stream_profile.name,
+        )
+        try:
+            project.enable_model_monitoring(
+                base_period=cls.app_interval,
+                deploy_histogram_data_drift_app=False,
+                wait_for_deployment=True,
+                **({} if cls.image is None else {"image": cls.image}),
+            )
+        except mlrun.errors.MLRunConflictError:
+            # Monitoring already deployed from a previous run — reuse it.
+            pass
+
+    @classmethod
+    def custom_teardown_class(cls) -> None:
+        if not cls._should_clean_resources():
+            return
+        try:
+            cls._run_db.delete_project(
+                cls.project_name,
+                deletion_strategy=mlrun.common.schemas.DeletionStrategy.cascading,
+            )
+        except Exception:
+            pass
+
+    def _check_tsdb_has_data(self, endpoint_id: str) -> None:
+        tsdb = mlrun.model_monitoring.get_tsdb_connector(
+            project=self.project_name, profile=self.mm_tsdb_profile
+        )
+        lr = tsdb.get_last_request(endpoint_ids=endpoint_id)
+        assert lr and endpoint_id in lr, "TSDB last_request not yet written"
+
+        pred = tsdb.read_predictions(
+            endpoint_id=endpoint_id,
+            start=datetime.now(UTC) - timedelta(hours=1),
+            end=datetime.now(UTC),
+        )
+        assert not isinstance(
+            pred,
+            mlrun.common.schemas.model_monitoring.ModelEndpointMonitoringMetricNoData,
+        ), "No predictions in TSDB predictions table yet"
+
+    def _deploy_monitoring_app(self) -> None:
+        """Deploy the no-check demo monitoring application for this project."""
+        app_fn = self.project.set_model_monitoring_function(
+            func=str(Path(__file__).parent / "assets" / "application.py"),
+            application_class=NoCheckDemoMonitoringApp.__name__,
+            name=NoCheckDemoMonitoringApp.NAME,
+            image=self.image or mlrun.mlconf.function_defaults.image_by_kind.job,
+        )
+        self.project.deploy_function(app_fn)
+
+    def _deploy_ingest_fn(
+        self, monitoring_url: str, endpoint_id: str, endpoint_name: str
+    ) -> mlrun.runtimes.RemoteRuntime:
+        """Deploy the Nuclio HTTP-ingest function with env vars wired manually."""
+        fn = mlrun.new_function(
+            name="user-ep-ingest-fn",
+            project=self.project_name,
+            kind="remote",
+        )
+        fn.with_code(
+            from_file=str(Path(__file__).parent / "assets" / "http_ingest_handler.py")
+        )
+        fn.set_env(
+            mm_constants.NuclioMonitoringEnvVars.MODEL_MONITORING_URL,
+            monitoring_url,
+        )
+        fn.set_env(
+            mm_constants.NuclioMonitoringEnvVars.MODEL_ENDPOINT_UID,
+            endpoint_id,
+        )
+        fn.set_env(
+            mm_constants.NuclioMonitoringEnvVars.MODEL_ENDPOINT_NAME,
+            endpoint_name,
+        )
+        if self.image is not None:
+            fn.spec.image = self.image
+        fn.deploy()
+        return fn
+
+    def test_user_endpoint_http_ingest_flow(self) -> None:
+        """End-to-end: create_user_model_endpoint + get_model_monitoring_url →
+        manual env-var wiring on a remote fn → HTTP ingest → TSDB predictions
+        AND monitoring-application results.
+        """
+        # 1. Register a USER_EP via the explicit project-level API.
+        name, endpoint_id = self.project.create_user_model_endpoint(
+            name=self.model_endpoint_name,
+            input_schema=self.feature_names,
+            output_schema=self.label_names,
+            creation_strategy=mm_constants.ModelEndpointCreationStrategy.OVERWRITE,
+        )
+        assert name == self.model_endpoint_name
+        assert endpoint_id, "Expected a non-empty endpoint UID"
+        self._logger.info(
+            "USER_EP created via create_user_model_endpoint",
+            name=name,
+            endpoint_id=endpoint_id,
+        )
+
+        # 2. Fetch the stream pod HTTP URL via the project API.
+        monitoring_url = self.project.get_model_monitoring_url()
+        assert monitoring_url, (
+            "project.get_model_monitoring_url() returned no URL — "
+            "enable_model_monitoring should have provisioned the HTTP trigger"
+        )
+        assert monitoring_url.startswith("http"), (
+            f"Expected an http(s):// URL, got {monitoring_url!r}"
+        )
+        self._logger.info("Fetched monitoring URL", url=monitoring_url)
+
+        # 3. Deploy the ingest fn and the monitoring app in parallel.
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            fn_future = executor.submit(
+                self._deploy_ingest_fn, monitoring_url, endpoint_id, name
+            )
+            app_future = executor.submit(self._deploy_monitoring_app)
+        fn = fn_future.result()
+        app_future.result()
+
+        time.sleep(5)
+
+        # 4. Invoke the function; the handler POSTs num_events to the stream pod.
+        result = fn.invoke(
+            path="/",
+            body=json.dumps({"num_events": self.num_events}),
+        )
+        assert result.get("pushed") == self.num_events, (
+            f"Expected {self.num_events} accepted events (HTTP 202) "
+            f"but stream pod accepted {result.get('pushed')}"
+        )
+
+        # 5. Wait for TSDB to receive the prediction events.
+        predictions_initial_wait = (
+            mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs
+            + mlrun.mlconf.model_endpoint_monitoring.writer_graph.flush_after_seconds
+            + self._external_stream_delay
+        )
+        self.wait_for_condition(
+            condition_check=lambda: self._check_tsdb_has_data(endpoint_id),
+            initial_wait=predictions_initial_wait,
+            condition_description="TSDB to receive HTTP-ingested events",
+        )
+
+        # 6. Verify the endpoint's last_request was updated.
+        mep = self.run_db.get_model_endpoint(
+            name=self.model_endpoint_name,
+            project=self.project_name,
+            endpoint_id=endpoint_id,
+            tsdb_metrics=True,
+        )
+        assert mep.status.last_request is not None, (
+            "Model endpoint last_request not updated after HTTP ingest"
+        )
+
+        # 7. Wait for the monitoring application to write results to the TSDB.
+        tsdb = mlrun.model_monitoring.get_tsdb_connector(
+            project=self.project_name, profile=self.mm_tsdb_profile
+        )
+        app_results_initial_wait = (
+            2 * self.app_interval_seconds + predictions_initial_wait
+        )
+
+        def check_app_results() -> None:
+            df = tsdb.get_results_metadata(endpoint_id=endpoint_id)
+            assert not df.empty, "No application results in TSDB yet"
+            assert (df.endpoint_id == endpoint_id).all()
+            assert NoCheckDemoMonitoringApp.NAME in df.application_name.values, (
+                f"Expected app {NoCheckDemoMonitoringApp.NAME!r} not found in TSDB results"
+            )
+
+        self.wait_for_condition(
+            condition_check=check_app_results,
+            initial_wait=app_results_initial_wait,
+            condition_description="monitoring app to write results for HTTP-ingested events",
+        )

@@ -15,7 +15,6 @@
 import logging
 import os
 import uuid
-import warnings
 from copy import deepcopy
 from typing import Optional, Union, cast
 
@@ -29,6 +28,8 @@ import mlrun.common.formatters
 import mlrun.common.runtimes.constants
 from mlrun.artifacts import (
     Artifact,
+    CodeArtifact,
+    CodeArtifactCodeType,
     DatasetArtifact,
     DocumentArtifact,
     DocumentLoaderSpec,
@@ -101,6 +102,7 @@ class MLClientCtx:
         self._node_selector = {}
         self._tolerations = {}
         self._affinity = {}
+        self._auth = {}
 
         self._function = ""
         self._parameters = {}
@@ -235,6 +237,11 @@ class MLClientCtx:
         return deepcopy(self._node_selector)
 
     @property
+    def auth(self):
+        """Dictionary with auth (read-only)"""
+        return deepcopy(self._auth)
+
+    @property
     def tolerations(self):
         """Dictionary with tolerations (read-only)"""
         return deepcopy(self._tolerations)
@@ -330,7 +337,7 @@ class MLClientCtx:
             )
         self._parent.log_iteration_results(self._iteration, None, self.to_dict())
 
-    def get_store_resource(self, url, secrets: Optional[dict] = None):
+    def get_store_resource(self, url, secrets: dict | None = None):
         """Get mlrun data resource (feature set/vector, artifact, item) from url.
 
         Example::
@@ -351,7 +358,7 @@ class MLClientCtx:
             data_store_secrets=secrets,
         )
 
-    def get_dataitem(self, url, secrets: Optional[dict] = None):
+    def get_dataitem(self, url, secrets: dict | None = None):
         """Get mlrun dataitem from url
 
         Example::
@@ -437,6 +444,7 @@ class MLClientCtx:
             self._affinity = spec.get("affinity", self._affinity)
             self._reset_on_run = spec.get("reset_on_run", self._reset_on_run)
             self._retry_spec = spec.get("retry", self._retry_spec)
+            self._auth = spec.get("auth", self._auth)
 
         self._init_dbs(rundb)
 
@@ -556,7 +564,7 @@ class MLClientCtx:
         """
         return mlrun.get_secret_or_env(key, secret_provider=self._secrets_manager)
 
-    def get_input(self, key: str, url: str = ""):
+    def get_input(self, key: str, url: str | dict | list = ""):
         """
         Get an input :py:class:`~mlrun.DataItem` object,
         data objects have methods such as .get(), .download(), .url, .. to access the actual data.
@@ -568,7 +576,7 @@ class MLClientCtx:
 
         :param key:  The key name for the input url entry.
         :param url:  The url of the input data (file, stream, ..) - optional, saved in the inputs dictionary
-                     if the key is not already present.
+                     if the key is not already present. Can be passed as a list or dictionary of urls as well.
 
         :return:     :py:class:`~mlrun.datastore.base.DataItem` object
         """
@@ -576,12 +584,27 @@ class MLClientCtx:
             self._set_input(key, url)
 
         url = self._inputs[key]
-        return self._data_stores.object(
-            url,
-            key,
-            project=self._project,
-            allow_empty_resources=self._allow_empty_resources,
-        )
+
+        def recursive_get_input(input_key: str, input_url: str | dict | list):
+            if isinstance(input_url, dict):
+                inputs_dict = {}
+                for k, v in input_url.items():
+                    inputs_dict[k] = recursive_get_input(k, v)
+                return inputs_dict
+            if isinstance(input_url, list):
+                return [
+                    recursive_get_input(f"{input_key}_{i}", v)
+                    for i, v in enumerate(input_url)
+                ]
+            # String:
+            return self._data_stores.object(
+                input_url,
+                input_key,
+                project=self._project,
+                allow_empty_resources=self._allow_empty_resources,
+            )
+
+        return recursive_get_input(key, url)
 
     def log_result(self, key: str, value, commit=False):
         """Log a scalar result value
@@ -727,7 +750,7 @@ class MLClientCtx:
         db_key=None,
         target_path="",
         extra_data=None,
-        label_column: Optional[str] = None,
+        label_column: str | None = None,
         **kwargs,
     ) -> DatasetArtifact:
         """Log a dataset artifact and optionally upload it to datastore
@@ -797,6 +820,78 @@ class MLClientCtx:
         self._update_run()
         return item
 
+    def log_code_file(
+        self,
+        key,
+        local_path=None,
+        body=None,
+        tag="",
+        artifact_path=None,
+        upload=True,
+        is_inline: bool = False,
+        labels=None,
+        target_path="",
+        db_key=None,
+        language=None,
+        code_type: str | CodeArtifactCodeType | None = None,
+        requirements: list[str] | None = None,
+        **kwargs,
+    ) -> CodeArtifact:
+        """Log a code artifact and optionally upload it to datastore
+
+        :param key:           Artifact key
+        :param local_path:    Path to the local code file or archive (.zip, .tar.gz)
+        :param body:          Inline code content (string)
+        :param tag:           Version tag
+        :param artifact_path: Target artifact path (when not using the default)
+        :param upload:        Upload to datastore (default is True)
+        :param is_inline:     Embed the body in the artifact record instead of
+                              uploading it (default False).
+        :param labels:        A set of key/value labels to tag the artifact with
+        :param target_path:   Absolute target path (instead of using artifact_path + local_path)
+        :param db_key:        The key to use in the artifact DB table
+        :param language:      Programming language (e.g. "python").
+                              Free-text advisory metadata — no validation or
+                              enforcement is applied. If omitted, derived at
+                              construction time from the target/local path suffix
+                              (.py/.ipynb → "python"; archives/unknown → "").
+        :param code_type:     Type of code: "function" or "workflow" (default: "function")
+        :param requirements:  List of dependency strings (e.g. ["pandas>=2.0", "numpy"])
+
+        :returns: Code artifact object
+        """
+        if not local_path and not target_path:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "A code artifact must provide local_path or target_path."
+            )
+        code = CodeArtifact(
+            key,
+            body=body,
+            src_path=local_path,
+            language=language,
+            code_type=code_type,
+            requirements=requirements,
+            is_inline=is_inline,
+            **kwargs,
+        )
+
+        item = cast(
+            CodeArtifact,
+            self._artifacts_manager.log_artifact(
+                self,
+                code,
+                local_path=local_path,
+                artifact_path=extend_artifact_path(artifact_path, self.artifact_path),
+                target_path=target_path,
+                tag=tag,
+                upload=upload,
+                db_key=db_key,
+                labels=labels,
+            ),
+        )
+        self._update_run()
+        return item
+
     def log_model(
         self,
         key,
@@ -811,15 +906,15 @@ class MLClientCtx:
         artifact_path=None,
         upload=True,
         labels=None,
-        inputs: Optional[list[Feature]] = None,
-        outputs: Optional[list[Feature]] = None,
-        feature_vector: Optional[str] = None,
-        feature_weights: Optional[list] = None,
+        inputs: list[Feature] | None = None,
+        outputs: list[Feature] | None = None,
+        feature_vector: str | None = None,
+        feature_weights: list | None = None,
         training_set=None,
-        label_column: Optional[Union[str, list]] = None,
+        label_column: Union[str, list] | None = None,
         extra_data=None,
         db_key=None,
-        model_url: Optional[str] = None,
+        model_url: str | None = None,
         default_config=None,
         **kwargs,
     ) -> ModelArtifact:
@@ -913,17 +1008,17 @@ class MLClientCtx:
     def log_llm_prompt(
         self,
         key,
-        prompt_template: Optional[list[dict]] = None,
-        prompt_path: Optional[str] = None,
-        prompt_legend: Optional[dict] = None,
+        prompt_template: list[dict] | None = None,
+        prompt_path: str | None = None,
+        prompt_legend: dict | None = None,
         model_artifact: Union[ModelArtifact, str] = None,
-        invocation_config: Optional[dict] = None,
-        description: Optional[str] = None,
-        target_path: Optional[str] = None,
-        artifact_path: Optional[str] = None,
-        tag: Optional[str] = None,
-        labels: Optional[Union[list[str], str]] = None,
-        upload: Optional[bool] = None,
+        invocation_config: dict | None = None,
+        description: str | None = None,
+        target_path: str | None = None,
+        artifact_path: str | None = None,
+        tag: str | None = None,
+        labels: Union[list[str], str] | None = None,
+        upload: bool | None = None,
         **kwargs,
     ) -> LLMPromptArtifact:
         """Log an LLM prompt artifact and optionally upload it to the artifact store.
@@ -1047,12 +1142,12 @@ class MLClientCtx:
         key: str = "",
         tag: str = "",
         local_path: str = "",
-        artifact_path: Optional[str] = None,
+        artifact_path: str | None = None,
         document_loader_spec: DocumentLoaderSpec = DocumentLoaderSpec(),
-        upload: Optional[bool] = False,
-        labels: Optional[dict[str, str]] = None,
-        target_path: Optional[str] = None,
-        db_key: Optional[str] = None,
+        upload: bool | None = False,
+        labels: dict[str, str] | None = None,
+        target_path: str | None = None,
+        db_key: str | None = None,
         **kwargs,
     ) -> DocumentArtifact:
         """
@@ -1141,17 +1236,9 @@ class MLClientCtx:
         self._update_run()
         return item
 
-    def get_cached_artifact(self, key):
-        """Return a logged artifact from cache (for potential updates)"""
-        warnings.warn(
-            "get_cached_artifact is deprecated in 1.8.0 and will be removed in 1.11.0. Use get_artifact instead.",
-            FutureWarning,
-        )
-        return self.get_artifact(key)
-
     def get_artifact(
         self, key, tag=None, iter=None, tree=None, uid=None
-    ) -> Optional[Artifact]:
+    ) -> Artifact | None:
         cached_artifact_uri = self._artifacts_manager.artifact_uris.get(key, None)
         if tag or iter or tree or uid or (not cached_artifact_uri):
             project = self.get_project_object()
@@ -1192,8 +1279,8 @@ class MLClientCtx:
 
     def set_state(
         self,
-        execution_state: Optional[str] = None,
-        error: Optional[str] = None,
+        execution_state: str | None = None,
+        error: str | None = None,
         commit=True,
     ):
         """
@@ -1310,6 +1397,7 @@ class MLClientCtx:
                 "node_selector": self._node_selector,
                 "tolerations": self._tolerations,
                 "affinity": self._affinity,
+                "auth": self._auth,
                 "retry": self._retry_spec,
             },
             "status": {
@@ -1471,14 +1559,26 @@ class MLClientCtx:
             self._project_object = self._rundb.get_project(self._project)
         return self._project_object
 
-    def _set_input(self, key, url=""):
+    def _set_input(self, key: str, url: str | dict | list = ""):
         if url is None:
             return
         if not url:
             url = key
-        if self.in_path and is_relative_path(url):
-            url = os.path.join(self._in_path, url)
-        self._inputs[key] = url
+
+        # In case input is a nested structure, we need to recursively set the paths:
+        def recursive_set_input(input_url: str | dict | list):
+            if isinstance(input_url, dict):
+                for k, v in input_url.items():
+                    input_url[k] = recursive_set_input(input_url=v)
+                return input_url
+            if isinstance(input_url, list):
+                return [recursive_set_input(input_url=v) for v in input_url]
+            # String
+            if self.in_path and is_relative_path(input_url):
+                input_url = os.path.join(self._in_path, input_url)
+            return input_url
+
+        self._inputs[key] = recursive_set_input(input_url=url)
 
     def _merge_tmpfile(self):
         if not self._tmpfile:
@@ -1511,15 +1611,17 @@ class MLClientCtx:
 
 
 def _cast_result(value):
-    if isinstance(value, (int, str, float)):
+    if value is None:
+        return None
+    if isinstance(value, int | str | float):
         return value
     if isinstance(value, list):
         return [_cast_result(v) for v in value]
     if isinstance(value, dict):
         return {k: _cast_result(v) for k, v in value.items()}
-    if isinstance(value, (np.int64, np.integer)):
+    if isinstance(value, np.int64 | np.integer):
         return int(value)
-    if isinstance(value, (np.floating, np.float64)):
+    if isinstance(value, np.floating | np.float64):
         return float(value)
     if isinstance(value, np.ndarray):
         return value.tolist()

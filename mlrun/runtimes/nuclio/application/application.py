@@ -11,32 +11,32 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import copy
+import os
 import pathlib
 import typing
 
 import nuclio
 import nuclio.auth
 
+import mlrun.common.constants
+import mlrun.common.runtimes.validators
 import mlrun.common.schemas as schemas
+import mlrun.datastore
 import mlrun.errors
 import mlrun.run
-from mlrun.common.runtimes.constants import NuclioIngressAddTemplatedIngressModes
-from mlrun.runtimes import RemoteRuntime
-from mlrun.runtimes.nuclio import (
-    min_nuclio_versions,
-    multiple_port_sidecar_is_supported,
+import mlrun.runtimes.nuclio.api_gateway as nuclio_api_gateway
+import mlrun.runtimes.nuclio.function as nuclio_function
+from mlrun.common.runtimes.constants import (
+    NuclioIngressAddTemplatedIngressModes,
+    ProbeTimeConfig,
+    ProbeType,
 )
-from mlrun.runtimes.nuclio.api_gateway import (
-    APIGateway,
-    APIGatewayMetadata,
-    APIGatewaySpec,
-)
-from mlrun.runtimes.nuclio.function import NuclioSpec, NuclioStatus
-from mlrun.utils import is_valid_port, logger, update_in
+from mlrun.utils import is_relative_path, is_valid_port, logger, update_in
 
 
-class ApplicationSpec(NuclioSpec):
-    _dict_fields = NuclioSpec._dict_fields + [
+class ApplicationSpec(nuclio_function.NuclioSpec):
+    _dict_fields = nuclio_function.NuclioSpec._dict_fields + [
         "internal_application_port",
         "application_ports",
     ]
@@ -82,12 +82,17 @@ class ApplicationSpec(NuclioSpec):
         add_templated_ingress_host_mode=None,
         state_thresholds=None,
         disable_default_http_trigger=None,
+        custom_scaling_metric_specs=None,
         serving_spec=None,
         graph=None,
         parameters=None,
         track_models=None,
         internal_application_port=None,
         application_ports=None,
+        model_endpoints_instructions=None,
+        auth=None,
+        env_from=None,
+        mount_otlp_secret: bool = False,
     ):
         super().__init__(
             command=command,
@@ -102,6 +107,7 @@ class ApplicationSpec(NuclioSpec):
             volumes=volumes,
             volume_mounts=volume_mounts,
             env=env,
+            env_from=env_from,
             resources=resources,
             config=config,
             base_spec=base_spec,
@@ -133,6 +139,10 @@ class ApplicationSpec(NuclioSpec):
             track_models=track_models,
             state_thresholds=state_thresholds,
             disable_default_http_trigger=disable_default_http_trigger,
+            custom_scaling_metric_specs=custom_scaling_metric_specs,
+            model_endpoints_instructions=model_endpoints_instructions,
+            auth=auth,
+            mount_otlp_secret=mount_otlp_secret,
         )
 
         # Override default min/max replicas (don't assume application is stateless)
@@ -189,7 +199,7 @@ class ApplicationSpec(NuclioSpec):
 
         # ensure multiple ports are supported in Nuclio
         if len(application_ports) > 1:
-            multiple_port_sidecar_is_supported()
+            nuclio_function.multiple_port_sidecar_is_supported()
 
         self._application_ports = application_ports
 
@@ -215,7 +225,7 @@ class ApplicationSpec(NuclioSpec):
         self.application_ports = self._application_ports
 
 
-class ApplicationStatus(NuclioStatus):
+class ApplicationStatus(nuclio_function.NuclioStatus):
     def __init__(
         self,
         state=None,
@@ -245,15 +255,15 @@ class ApplicationStatus(NuclioStatus):
         self.application_source = application_source or None
         self.sidecar_name = sidecar_name or None
         self.api_gateway_name = api_gateway_name or None
-        self.api_gateway: typing.Optional[APIGateway] = api_gateway or None
+        self.api_gateway: nuclio_api_gateway.APIGateway | None = api_gateway or None
         self.url = url or None
 
 
-class ApplicationRuntime(RemoteRuntime):
+class ApplicationRuntime(nuclio_function.RemoteRuntime):
     kind = "application"
     reverse_proxy_image = None
 
-    @min_nuclio_versions("1.13.1")
+    @nuclio_function.min_nuclio_versions("1.13.1")
     def __init__(self, spec=None, metadata=None):
         super().__init__(spec=spec, metadata=metadata)
 
@@ -278,7 +288,7 @@ class ApplicationRuntime(RemoteRuntime):
         return self.status.api_gateway
 
     @api_gateway.setter
-    def api_gateway(self, api_gateway: APIGateway):
+    def api_gateway(self, api_gateway: nuclio_api_gateway.APIGateway):
         self.status.api_gateway = api_gateway
 
     @property
@@ -294,13 +304,124 @@ class ApplicationRuntime(RemoteRuntime):
     def set_internal_application_port(self, port: int):
         self.spec.internal_application_port = port
 
+    def set_source_target(self, target_dir: str):
+        """
+        Configure the target directory where application source code will be extracted at runtime by the init container.
+
+        :param target_dir: Absolute path inside the runtime container where the source code will be placed
+        """
+        if not target_dir:
+            raise mlrun.errors.MLRunInvalidArgumentError("target_dir is required")
+
+        if not target_dir.startswith("/"):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"target_dir must be an absolute path, got: {target_dir}"
+            )
+
+        self.spec.build.source_code_target_dir = target_dir
+
+    def set_probe(
+        self,
+        type: str,
+        initial_delay_seconds: int | None = None,
+        period_seconds: int | None = None,
+        failure_threshold: int | None = None,
+        timeout_seconds: int | None = None,
+        http_path: str | None = None,
+        http_port: int | None = None,
+        http_scheme: str | None = None,
+        config: dict | None = None,
+    ):
+        """Set a Kubernetes probe configuration for the sidecar container
+
+        The config parameter serves as the base configuration, and individual parameters
+        override values in config. If http_path is provided without http_port and config
+        is not provided, the port will be enriched from the internal application port
+        just before deployment.
+
+        :param type:                 Probe type - one of "readiness", "liveness", "startup"
+        :param initial_delay_seconds: Number of seconds after the container has started before probes are initiated
+        :param period_seconds:         How often (in seconds) to perform the probe
+        :param failure_threshold:     Minimum consecutive failures for the probe to be considered failed
+        :param timeout_seconds:       Number of seconds after which the probe times out
+        :param http_path:            If provided, use an HTTP probe with this path
+        :param http_port:            If HTTP probe is used and no port provided,
+                                     the internal application port will be used
+        :param http_scheme:           "http" or "https" for HTTP probe. Defaults to "http"
+        :param config:                A full dict with the probe configuration
+                                     (used as base, overridden by individual parameters)
+
+        :return: function object (self)
+        """
+        self._validate_set_probes_input(locals())
+        type = ProbeType(type)
+
+        # Start with config as base
+        probe_config = copy.deepcopy(config) if config else {}
+
+        # Build HTTP probe configuration if http_path is provided
+        # Note: If http_path is None, all HTTP-related parameters (http_port, http_scheme) are ignored
+        if http_path:
+            http_probe = probe_config.get("httpGet", {})
+            http_probe["path"] = http_path
+            if http_port is not None:
+                http_probe["port"] = http_port
+            http_probe["scheme"] = http_scheme or http_probe.get("scheme", "HTTP")
+            probe_config["httpGet"] = http_probe
+
+        # Override timing parameters from explicit arguments
+        probe_config.update(
+            {
+                config.value: value
+                for config, value in {
+                    ProbeTimeConfig.INITIAL_DELAY_SECONDS: initial_delay_seconds,
+                    ProbeTimeConfig.PERIOD_SECONDS: period_seconds,
+                    ProbeTimeConfig.FAILURE_THRESHOLD: failure_threshold,
+                    ProbeTimeConfig.TIMEOUT_SECONDS: timeout_seconds,
+                }.items()
+                if value is not None
+            }
+        )
+
+        # Validate the probe configuration before storing
+        mlrun.common.runtimes.validators.validate_sidecar_probes(
+            [{type.key: probe_config}]
+        )
+
+        # Store probe configuration in the sidecar
+        sidecar = self._set_sidecar(self._get_sidecar_name())
+        sidecar[type.key] = probe_config
+
+        return self
+
+    def delete_probe(
+        self,
+        type: str,
+    ):
+        """Delete a Kubernetes probe configuration from the sidecar container
+
+        :param type: Probe type - one of "readiness", "liveness", "startup"
+
+        :return: function object (self)
+        """
+        # Validate probe type
+        ProbeType.is_valid(type, raise_on_error=True)
+        type = ProbeType(type)
+
+        sidecar = self._get_sidecar()
+        if sidecar:
+            if type.key in sidecar:
+                del sidecar[type.key]
+
+        return self
+
     def with_sidecar(
         self,
-        name: typing.Optional[str] = None,
-        image: typing.Optional[str] = None,
-        ports: typing.Optional[typing.Union[int, list[int]]] = None,
-        command: typing.Optional[str] = None,
-        args: typing.Optional[list[str]] = None,
+        name: str | None = None,
+        image: str | None = None,
+        ports: typing.Union[int, list[int]] | None = None,
+        command: str | None = None,
+        args: list[str] | None = None,
     ):
         # wraps with_sidecar just to set the application ports
         super().with_sidecar(
@@ -357,20 +478,34 @@ class ApplicationRuntime(RemoteRuntime):
                 )
 
     def prepare_image_for_deploy(self):
-        if self.spec.build.source and self.spec.build.load_source_on_run:
-            logger.warning(
-                "Application runtime requires loading the source into the application image. "
-                f"Even though {self.spec.build.load_source_on_run=}, loading on build will be forced."
-            )
-            self.spec.build.load_source_on_run = False
         super().prepare_image_for_deploy()
+
+    def requires_build(self) -> bool:
+        """
+        Check if the application image needs to be built.
+
+        For ApplicationRuntime, store:// URIs don't require a build because the init
+        container loads them at runtime. This allows redeploying with source code changes
+        without rebuilding the image.
+        """
+        build = self.spec.build
+        source = build.source
+
+        # store:// URIs are loaded by init container at runtime, not baked into image
+        if source and mlrun.datastore.is_store_uri(source):
+            source_requires_build = False
+        else:
+            # For other sources (git, archives), check load_source_on_run flag
+            source_requires_build = bool(source and not build.load_source_on_run)
+
+        return bool(build.commands or build.requirements or source_requires_build)
 
     def deploy(
         self,
         project="",
         tag="",
         verbose=False,
-        builder_env: typing.Optional[dict] = None,
+        builder_env: dict | None = None,
         force_build: bool = False,
         with_mlrun=None,
         skip_deployed=False,
@@ -378,6 +513,8 @@ class ApplicationRuntime(RemoteRuntime):
         mlrun_version_specifier=None,
         show_on_failure: bool = False,
         create_default_api_gateway: bool = True,
+        track_models: bool | None = None,
+        wait: bool = True,
     ):
         """
         Deploy function, builds the application image if required (self.requires_build()) or force_build is True,
@@ -388,7 +525,11 @@ class ApplicationRuntime(RemoteRuntime):
         :param verbose:                     Set True for verbose logging
         :param builder_env:                 Env vars dict for source archive config/credentials
                                             e.g. builder_env={"GIT_TOKEN": token}
-        :param force_build:                 Set True for force building the application image
+        :param force_build:                 Set True to force rebuilding the application image.
+                                            Use this when changing requirements, commands, or base image
+                                            after the initial deployment.
+                                            Code-only changes don't require force_build as the init container
+                                            loads the new source at runtime.
         :param with_mlrun:                  Add the current mlrun package to the container build
         :param skip_deployed:               Skip the build if we already have an image for the function
         :param is_kfp:                      Deploy as part of a kfp pipeline
@@ -397,41 +538,67 @@ class ApplicationRuntime(RemoteRuntime):
         :param create_default_api_gateway:  When deploy finishes the default API gateway will be created for the
                                             application. Disabling this flag means that the application will not be
                                             accessible until an API gateway is created for it.
+        :param track_models:                override state of self.spec.track_models. If not provided, uses the spec
+                                            value (False by default, True after setup_model_monitoring() is called).
+                                            When True, model endpoints are created at deployment time.
+        :param wait:                        must be True for application functions. Application deploy performs
+                                            readiness-dependent post-deploy steps (API gateway and sidecar), so
+                                            external wait orchestration is unsupported; passing ``False`` raises
+                                            ``MLRunInvalidArgumentError``.
 
         :return: The default API gateway URL if created or True if the function is ready (deployed)
         """
-        mlrun.utils.helpers.validate_function_name(self.metadata.name)
-
-        if (self.requires_build() and not self.spec.image) or force_build:
-            self._fill_credentials()
-            self._build_application_image(
-                builder_env=builder_env,
-                force_build=force_build,
-                watch=True,
-                with_mlrun=with_mlrun,
-                skip_deployed=skip_deployed,
-                is_kfp=is_kfp,
-                mlrun_version_specifier=mlrun_version_specifier,
-                show_on_failure=show_on_failure,
+        if not wait:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "ApplicationRuntime.deploy(wait=False) is not supported. "
+                "Application deploy performs readiness-dependent post-deploy "
+                "steps (API gateway, sidecar). Deploy with wait=True."
             )
+        # Upload local source as artifact. The server needs the store:// URI to configure the init container, but we
+        # restore the local path afterward, so subsequent deploys re-upload the file.
+        original_local_source, artifact_uri = self._upload_source_as_artifact()
 
-        self._ensure_reverse_proxy_configurations()
-        self._configure_application_sidecar()
+        try:
+            # Check status.application_image because spec.image gets cleared after build to use
+            # the reverse proxy image instead
+            if (
+                self.requires_build() and not self.status.application_image
+            ) or force_build:
+                self._fill_credentials()
+                self._build_application_image(
+                    builder_env=builder_env,
+                    force_build=force_build,
+                    watch=True,
+                    with_mlrun=with_mlrun,
+                    skip_deployed=skip_deployed,
+                    is_kfp=is_kfp,
+                    mlrun_version_specifier=mlrun_version_specifier,
+                    show_on_failure=show_on_failure,
+                )
 
-        # We only allow accessing the application via the API Gateway
-        self.spec.add_templated_ingress_host_mode = (
-            NuclioIngressAddTemplatedIngressModes.never
-        )
+            self._ensure_reverse_proxy_configurations()
+            self._configure_application_sidecar()
 
-        super().deploy(
-            project=project,
-            tag=tag,
-            verbose=verbose,
-            builder_env=builder_env,
-        )
-        logger.info(
-            "Successfully deployed function.",
-        )
+            # We only allow accessing the application via the API Gateway
+            self.spec.add_templated_ingress_host_mode = (
+                NuclioIngressAddTemplatedIngressModes.never
+            )
+            self._enrich_sidecar_probe_ports()
+
+            super().deploy(
+                project=project,
+                tag=tag,
+                verbose=verbose,
+                builder_env=builder_env,
+                track_models=track_models,
+            )
+            logger.info(
+                "Successfully deployed function.",
+            )
+        finally:
+            # Restore the original local source path so subsequent deploys re-upload automatically
+            if artifact_uri and original_local_source:
+                self.spec.build.source = original_local_source
 
         # Restore the source in case it was removed to make nuclio not consider it when building
         if not self.spec.build.source and self.status.application_source:
@@ -461,9 +628,9 @@ class ApplicationRuntime(RemoteRuntime):
         source,
         workdir=None,
         pull_at_runtime: bool = False,
-        target_dir: typing.Optional[str] = None,
+        target_dir: str | None = None,
     ):
-        """load the code from git/tar/zip archive at build
+        """load the code from git/tar/zip archive at build or runtime
 
         :param source:          valid absolute path or URL to git, zip, or tar file, e.g.
                                 git://github.com/mlrun/something.git
@@ -471,20 +638,13 @@ class ApplicationRuntime(RemoteRuntime):
                                 note path source must exist on the image or exist locally when run is local
                                 (it is recommended to use 'workdir' when source is a filepath instead)
         :param workdir:         working dir relative to the archive root (e.g. './subdir') or absolute to the image root
-        :param pull_at_runtime: currently not supported, source must be loaded into the image during the build process
-        :param target_dir:      target dir on runtime pod or repo clone / archive extraction
+        :param pull_at_runtime: load the archive into the container at runtime (via init container) vs on build
+        :param target_dir:      target dir on runtime pod for repo clone / archive extraction
         """
-        if pull_at_runtime:
-            logger.warning(
-                f"{pull_at_runtime=} is currently not supported for application runtime "
-                "and will be overridden to False",
-                pull_at_runtime=pull_at_runtime,
-            )
-
         self._configure_mlrun_build_with_source(
             source=source,
             workdir=workdir,
-            pull_at_runtime=False,
+            pull_at_runtime=pull_at_runtime,
             target_dir=target_dir,
         )
 
@@ -522,15 +682,15 @@ class ApplicationRuntime(RemoteRuntime):
 
     def create_api_gateway(
         self,
-        name: typing.Optional[str] = None,
-        path: typing.Optional[str] = None,
+        name: str | None = None,
+        path: str | None = None,
         direct_port_access: bool = False,
         authentication_mode: schemas.APIGatewayAuthenticationMode = None,
-        authentication_creds: typing.Optional[tuple[str, str]] = None,
-        ssl_redirect: typing.Optional[bool] = None,
+        authentication_creds: tuple[str, str] | None = None,
+        ssl_redirect: bool | None = None,
         set_as_default: bool = False,
-        gateway_timeout: typing.Optional[int] = None,
-        port: typing.Optional[int] = None,
+        gateway_timeout: int | None = None,
+        port: int | None = None,
     ):
         """
         Create the application API gateway. Once the application is deployed, the API gateway can be created.
@@ -569,23 +729,23 @@ class ApplicationRuntime(RemoteRuntime):
                 "Authentication credentials not provided"
             )
 
-        if direct_port_access and port:
+        if not direct_port_access and port:
             logger.warning(
-                "Ignoring 'port' because 'direct_port_access' is enabled. "
-                "The 'port' setting is only applicable when 'direct_port_access' is disabled."
+                "Ignoring 'port' because 'direct_port_access' is not enabled. "
+                "The 'port' setting is only applicable when 'direct_port_access' is enabled."
             )
 
         ports = (
             port or self.spec.internal_application_port if direct_port_access else []
         )
 
-        api_gateway = APIGateway(
-            APIGatewayMetadata(
+        api_gateway = nuclio_api_gateway.APIGateway(
+            nuclio_api_gateway.APIGatewayMetadata(
                 name=name,
                 namespace=self.metadata.namespace,
                 labels=self.metadata.labels.copy(),
             ),
-            APIGatewaySpec(
+            nuclio_api_gateway.APIGatewaySpec(
                 functions=[self],
                 project=self.metadata.project,
                 path=path,
@@ -609,6 +769,8 @@ class ApplicationRuntime(RemoteRuntime):
             api_gateway.with_access_key_auth()
         elif authentication_mode == schemas.APIGatewayAuthenticationMode.basic:
             api_gateway.with_basic_auth(*authentication_creds)
+        elif authentication_mode == schemas.APIGatewayAuthenticationMode.iguazio:
+            api_gateway.with_iguazio_auth()
 
         db = self._get_db()
         api_gateway_scheme = db.store_api_gateway(
@@ -617,12 +779,14 @@ class ApplicationRuntime(RemoteRuntime):
 
         if set_as_default:
             self.status.api_gateway_name = api_gateway_scheme.metadata.name
-            self.status.api_gateway = APIGateway.from_scheme(api_gateway_scheme)
+            self.status.api_gateway = nuclio_api_gateway.APIGateway.from_scheme(
+                api_gateway_scheme
+            )
             self.status.api_gateway.wait_for_readiness()
             self.url = self.status.api_gateway.invoke_url
             url = self.url
         else:
-            api_gateway = APIGateway.from_scheme(api_gateway_scheme)
+            api_gateway = nuclio_api_gateway.APIGateway.from_scheme(api_gateway_scheme)
             api_gateway.wait_for_readiness()
             url = api_gateway.invoke_url
             # Update application status (enriches invocation url)
@@ -646,13 +810,13 @@ class ApplicationRuntime(RemoteRuntime):
     def invoke(
         self,
         path: str = "",
-        body: typing.Optional[typing.Union[str, bytes, dict]] = None,
-        method: typing.Optional[str] = None,
-        headers: typing.Optional[dict] = None,
+        body: typing.Union[str, bytes, dict, list] | None = None,
+        method: str | None = None,
+        headers: dict | None = None,
         force_external_address: bool = False,
         auth_info: schemas.AuthInfo = None,
-        mock: typing.Optional[bool] = None,
-        credentials: typing.Optional[tuple[str, str]] = None,
+        mock: bool | None = None,
+        credentials: tuple[str, str] | None = None,
         **http_client_kwargs,
     ):
         self._sync_api_gateway()
@@ -740,7 +904,7 @@ class ApplicationRuntime(RemoteRuntime):
             else self.metadata.name
         )
 
-    @min_nuclio_versions("1.13.1")
+    @nuclio_function.min_nuclio_versions("1.13.1")
     def disable_default_http_trigger(
         self,
     ):
@@ -748,7 +912,7 @@ class ApplicationRuntime(RemoteRuntime):
             "Application runtime does not support disabling the default HTTP trigger"
         )
 
-    @min_nuclio_versions("1.13.1")
+    @nuclio_function.min_nuclio_versions("1.13.1")
     def enable_default_http_trigger(
         self,
     ):
@@ -764,7 +928,7 @@ class ApplicationRuntime(RemoteRuntime):
 
     def _build_application_image(
         self,
-        builder_env: typing.Optional[dict] = None,
+        builder_env: dict | None = None,
         force_build: bool = False,
         watch=True,
         with_mlrun=None,
@@ -788,17 +952,41 @@ class ApplicationRuntime(RemoteRuntime):
                 "Loading on build will be forced regardless of whether 'pull_at_runtime=True' was configured."
             )
 
+        # We temporarily clear self.spec.build.source here because the parent _build_image() method
+        # would otherwise try to include it in the Docker build context. For store:// URIs, the source
+        # cannot be fetched during build (it requires runtime credentials/context), so we must:
+        # 1. Clear it before build to prevent build context inclusion
+        # 2. Restore it after build so the server can configure the init container for runtime loading
+        source_for_init_container = None
+        if self.spec.build.source and mlrun.datastore.is_store_uri(
+            self.spec.build.source
+        ):
+            source_for_init_container = self.spec.build.source
+            self.spec.build.source = None
+            logger.debug(
+                "Source is a store:// artifact URI - excluding from build, "
+                "init container will load it at runtime",
+                source=source_for_init_container,
+            )
+
         with_mlrun = self._resolve_build_with_mlrun(with_mlrun)
-        return self._build_image(
-            builder_env=builder_env,
-            force_build=force_build,
-            mlrun_version_specifier=mlrun_version_specifier,
-            show_on_failure=show_on_failure,
-            skip_deployed=skip_deployed,
-            watch=watch,
-            is_kfp=is_kfp,
-            with_mlrun=with_mlrun,
-        )
+        try:
+            result = self._build_image(
+                builder_env=builder_env,
+                force_build=force_build,
+                mlrun_version_specifier=mlrun_version_specifier,
+                show_on_failure=show_on_failure,
+                skip_deployed=skip_deployed,
+                watch=watch,
+                is_kfp=is_kfp,
+                with_mlrun=with_mlrun,
+            )
+        finally:
+            # Restore source for init container configuration by the server
+            if source_for_init_container:
+                self.spec.build.source = source_for_init_container
+
+        return result
 
     def _ensure_reverse_proxy_configurations(self):
         # If an HTTP trigger already exists in the spec,
@@ -879,6 +1067,148 @@ class ApplicationRuntime(RemoteRuntime):
         api_gateway_scheme = db.get_api_gateway(
             name=self.status.api_gateway_name, project=self.metadata.project
         )
-        self.status.api_gateway = APIGateway.from_scheme(api_gateway_scheme)
+        self.status.api_gateway = nuclio_api_gateway.APIGateway.from_scheme(
+            api_gateway_scheme
+        )
         self.status.api_gateway.wait_for_readiness()
         self.url = self.status.api_gateway.invoke_url
+
+    def _enrich_sidecar_probe_ports(self):
+        """Enrich sidecar probe configurations with internal application port if needed
+
+        This method is called just before deployment to automatically enrich HTTP probes
+        in the sidecar container that were configured without an explicit port.
+
+        Enrichment logic:
+        - Only enriches HTTP probes (httpGet) that don't already have a port specified
+        - If the user explicitly provided http_port in set_probe(), enrichment is skipped
+        - If the user provided a port in the config dict, enrichment is skipped
+        - Enrichment happens just before deployment to ensure the latest internal_application_port
+          value is used, even if it was modified after set_probe() was called
+        """
+        # Check each probe type and enrich missing HTTP ports
+        sidecar = self._get_sidecar()
+        if not sidecar:
+            return
+
+        for probe_type in ProbeType:
+            probe_config = sidecar.get(probe_type.key)
+
+            if probe_config and isinstance(probe_config, dict):
+                http_get = probe_config.get("httpGet")
+                if http_get and isinstance(http_get, dict) and "port" not in http_get:
+                    if self.spec.internal_application_port is None:
+                        raise ValueError(
+                            f"Cannot enrich {probe_type.value} probe: HTTP probe requires a port, "
+                            "but internal_application_port is not set. "
+                            "Please set the internal_application_port or provide http_port in set_probe()."
+                        )
+                    http_get["port"] = self.spec.internal_application_port
+                    logger.debug(
+                        "Enriched sidecar probe port",
+                        probe_type=probe_type.value,
+                        port=http_get["port"],
+                        application_name=self.metadata.name,
+                    )
+                    sidecar[probe_type.key] = probe_config
+
+    def _get_sidecar(self) -> dict | None:
+        """Get the sidecar container for ApplicationRuntime
+
+        Returns the sidecar dict if found, None otherwise.
+        """
+        sidecar_name = self._get_sidecar_name()
+        if not hasattr(self.spec, "config") or "spec.sidecars" not in self.spec.config:
+            return None
+
+        sidecars = self.spec.config["spec.sidecars"]
+        for sidecar in sidecars:
+            if sidecar.get("name") == sidecar_name:
+                return sidecar
+
+        return None
+
+    def _get_sidecar_name(self) -> str:
+        return f"{self.metadata.name}-sidecar"
+
+    @staticmethod
+    def _validate_set_probes_input(params: dict):
+        # Validate probe type
+        ProbeType.is_valid(params.get("type"), raise_on_error=True)
+
+        # At least one optional parameter must be provided
+        optional_params = {
+            k: v for k, v in params.items() if (k != "type" and k != "self")
+        }
+        if all(v is None for v in optional_params.values()):
+            raise ValueError(
+                "Empty probe configuration: at least one parameter must be set"
+            )
+
+    def _upload_source_as_artifact(self) -> tuple[str | None, str | None]:
+        """
+        Upload local single-file source as an MLRun artifact.
+
+        If spec.build.source is a local file path, upload it to the artifact store and update spec.build.source
+        with the artifact URI for the server.
+
+        :returns: (original_local_path, artifact_uri) if uploaded, (None, None) otherwise.
+                  deploy() uses these to restore the local path in a finally block.
+        """
+        source = self.spec.build.source
+        if not source or not self._is_local_path(source) or os.path.isdir(source):
+            return None, None
+
+        if not os.path.isfile(source):
+            # On redeploy the remote artifact from the previous deploy is still available
+            if not getattr(self.status, "application_source", None):
+                raise mlrun.errors.MLRunNotFoundError(
+                    f"Source file not found: '{source}'. "
+                    "The file must exist locally to be uploaded as a source artifact."
+                )
+            return None, None
+
+        project_name = self.metadata.project
+        if not project_name:
+            raise mlrun.errors.MLRunMissingProjectError(
+                "Project is required to upload source as artifact"
+            )
+        project = mlrun.get_or_create_project(project_name)
+
+        # Use function name as part of the artifact key for identification
+        artifact_key = f"{self.metadata.name}-source"
+
+        logger.info(
+            "Uploading local source file as artifact",
+            source=source,
+            artifact_key=artifact_key,
+            project=project_name,
+        )
+
+        # Upload the file as a code artifact to an internal path with system-generated label
+        try:
+            artifact = project.log_code_file(
+                key=artifact_key,
+                local_path=source,
+                code_type="function",
+                artifact_path=mlrun.common.constants.MLRUN_INTERNAL_ARTIFACT_PATH,
+                upload=True,
+                labels={
+                    mlrun.common.constants.MLRunInternalLabels.function_name: self.metadata.name,
+                    mlrun.common.constants.MLRunInternalLabels.system_generated: "true",
+                },
+            )
+        except Exception as exc:
+            raise mlrun.errors.MLRunRuntimeError(
+                f"Failed to upload source file '{source}' as artifact"
+            ) from exc
+
+        self.spec.build.source = artifact.uri
+        return source, artifact.uri
+
+    @staticmethod
+    def _is_local_path(source: str) -> bool:
+        """Check if source looks like a local filesystem path (not a URL or store URI)."""
+        if mlrun.datastore.is_store_uri(source):
+            return False
+        return is_relative_path(source) or os.path.isabs(source)

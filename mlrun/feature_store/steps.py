@@ -16,7 +16,7 @@ import math
 import re
 import uuid
 from collections import OrderedDict
-from typing import Any, Optional, Union
+from typing import Any, Union
 
 import numpy as np
 import pandas as pd
@@ -162,7 +162,9 @@ class MapValues(StepToDict, MLRunStep):
         example::
 
             # replace the value "U" with '0' in the age column
-            graph.to(MapValues(mapping={"age": {"U": "0"}}, with_original_features=True))
+            graph.to(
+                MapValues(mapping={"age": {"U": "0"}}, with_original_features=True)
+            )
 
             # replace integers, example
             graph.to(MapValues(mapping={"not": {0: 1, 1: 0}}))
@@ -171,7 +173,9 @@ class MapValues(StepToDict, MLRunStep):
             graph.to(
                 MapValues(
                     mapping={
-                        "numbers": {"ranges": {"negative": [-inf, 0], "positive": [0, inf]}}
+                        "numbers": {
+                            "ranges": {"negative": [-inf, 0], "positive": [0, inf]}
+                        }
                     }
                 )
             )
@@ -279,11 +283,11 @@ class MapValues(StepToDict, MLRunStep):
                     new_col_type = df.schema[new_column_name].dataType
                     #  in order to avoid exception at isna on non-decimal/float columns -
                     #  we need to check their types before filtering.
-                    if isinstance(col_type, (FloatType, DoubleType, DecimalType)):
+                    if isinstance(col_type, FloatType | DoubleType | DecimalType):
                         column_filter = (~isnull(col(column))) & (~isnan(col(column)))
                     else:
                         column_filter = ~isnull(col(column))
-                    if isinstance(new_col_type, (FloatType, DoubleType, DecimalType)):
+                    if isinstance(new_col_type, FloatType | DoubleType | DecimalType):
                         new_column_filter = isnull(col(new_column_name)) | isnan(
                             col(new_column_name)
                         )
@@ -295,7 +299,7 @@ class MapValues(StepToDict, MLRunStep):
                         for k, v in column_map.items()
                         if v is None
                         or (
-                            isinstance(v, (float, np.float64, np.float32, np.float16))
+                            isinstance(v, float | np.float64 | np.float32 | np.float16)
                             and math.isnan(v)
                         )
                     ]
@@ -338,7 +342,7 @@ class MapValues(StepToDict, MLRunStep):
                     for val in column_map.values()
                     if type(val) is not None
                     and not (
-                        isinstance(val, (float, np.float64, np.float32, np.float16))
+                        isinstance(val, float | np.float64 | np.float32 | np.float16)
                         and math.isnan(val)
                     )
                 )
@@ -358,7 +362,9 @@ class MapValues(StepToDict, MLRunStep):
                         and val != "-inf"
                         and val != "inf"
                         and not (
-                            isinstance(val, (float, np.float64, np.float32, np.float16))
+                            isinstance(
+                                val, float | np.float64 | np.float32 | np.float16
+                            )
                             and math.isnan(val)
                         )
                     )
@@ -379,7 +385,7 @@ class Imputer(StepToDict, MLRunStep):
         self,
         method: str = "avg",
         default_value=None,
-        mapping: Optional[dict[str, Any]] = None,
+        mapping: dict[str, Any] | None = None,
         **kwargs,
     ):
         """Replace None values with default values
@@ -443,7 +449,7 @@ class OneHotEncoder(StepToDict, MLRunStep):
         self.mapping = mapping
         for key, values in mapping.items():
             for val in values:
-                if not (isinstance(val, str) or isinstance(val, (int, np.integer))):
+                if not (isinstance(val, str) or isinstance(val, int | np.integer)):
                     raise mlrun.errors.MLRunInvalidArgumentError(
                         "For OneHotEncoder you must provide int or string mapping list"
                     )
@@ -517,7 +523,7 @@ class DateExtractor(StepToDict, MLRunStep):
     def __init__(
         self,
         parts: Union[dict[str, str], list[str]],
-        timestamp_col: Optional[str] = None,
+        timestamp_col: str | None = None,
         **kwargs,
     ):
         """Date Extractor extracts a date-time component into new columns
@@ -635,9 +641,9 @@ class DateExtractor(StepToDict, MLRunStep):
 class SetEventMetadata(MapClass):
     def __init__(
         self,
-        id_path: Optional[str] = None,
-        key_path: Optional[str] = None,
-        random_id: Optional[bool] = None,
+        id_path: str | None = None,
+        key_path: str | None = None,
+        random_id: bool | None = None,
         **kwargs,
     ) -> None:
         """Set the event metadata (id, key) from the event body

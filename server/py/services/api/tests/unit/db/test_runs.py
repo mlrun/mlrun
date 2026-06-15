@@ -14,12 +14,13 @@
 
 import time
 import unittest.mock
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
+import mlrun.errors
 import mlrun.model
 from tests.conftest import new_run
 
@@ -270,7 +271,7 @@ class TestRuns(TestDatabaseBase):
         )
 
         # Second store - should allow to override the start time
-        run["status"]["start_time"] = datetime.now(timezone.utc).isoformat()
+        run["status"]["start_time"] = datetime.now(UTC).isoformat()
         self._db.store_run(self._db_session, run, uid, project)
 
         # get the start time and verify
@@ -309,7 +310,7 @@ class TestRuns(TestDatabaseBase):
             == run.struct["status"]["last_update"]
         )
 
-        end_time = datetime.now(timezone.utc)
+        end_time = datetime.now(UTC)
         run_dict["status"]["state"] = (
             mlrun.common.runtimes.constants.RunStates.completed
         )
@@ -562,17 +563,17 @@ class TestRuns(TestDatabaseBase):
             self._db_session,
             project=project_name,
         )
-        assert (
-            len(runs) == number_of_runs
-        ), f"Expected {number_of_runs} results, got {len(runs)}"
+        assert len(runs) == number_of_runs, (
+            f"Expected {number_of_runs} results, got {len(runs)}"
+        )
 
         expected_names = [f"run-{i}" for i in range(number_of_runs - 1, -1, -1)]
 
         for run, expected_name in zip(runs, expected_names):
             run_name = run["metadata"]["name"]
-            assert (
-                run_name == expected_name
-            ), f"Expected {expected_name}, got {run_name}"
+            assert run_name == expected_name, (
+                f"Expected {expected_name}, got {run_name}"
+            )
 
     def test_list_runs_with_missing_milliseconds_in_timestamp(self):
         self._create_new_run(project="my-project")
@@ -589,6 +590,26 @@ class TestRuns(TestDatabaseBase):
 
         assert runs[0]["status"]["start_time"].endswith(".000000+00:00")
         assert runs[0]["status"]["end_time"].endswith(".000000+00:00")
+
+    def test_list_runs_empty_project_list_returns_empty(self):
+        # Cross-project listing (project="*") for a user with no accessible projects
+        # resolves to an empty project list. That must yield an empty result, not an error.
+        self._create_new_run(project="some-project")
+
+        runs = self._db.list_runs(self._db_session, project=[])
+        assert len(runs) == 0
+
+        # A populated project list still filters normally (the empty-list relaxation doesn't
+        # weaken the list path).
+        runs = self._db.list_runs(self._db_session, project=["some-project"])
+        assert len(runs) == 1
+
+    @pytest.mark.parametrize("project", [None, ""])
+    def test_list_runs_missing_project_raises(self, project):
+        # A truly missing project (None / "") applies no project filter, so it must keep
+        # raising rather than silently listing across all projects.
+        with pytest.raises(mlrun.errors.MLRunMissingProjectError):
+            self._db.list_runs(self._db_session, project=project)
 
     @staticmethod
     def _change_run_record_to_before_align_runs_migration(run, time_before_creation):

@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import pathlib
-import typing
 import unittest.mock
 from collections.abc import Generator, Iterator
 from datetime import datetime
@@ -143,7 +142,8 @@ def kfp_client_mock(monkeypatch):
             experiments=[
                 ApiExperiment(name="some-project"),
                 ApiExperiment(name="another"),
-            ]
+            ],
+            next_page_token=None,
         )
     )
     mock_experiment_api.api_client = mock.Mock()
@@ -327,6 +327,7 @@ class MockedProjectFollowerIguazioClient(
         self,
         session: str,
         project: mlrun.common.schemas.Project,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         wait_for_completion: bool = True,
     ) -> bool:
         services.api.crud.Projects().create_project(self._db_session, project)
@@ -337,6 +338,7 @@ class MockedProjectFollowerIguazioClient(
         session: str,
         name: str,
         project: mlrun.common.schemas.Project,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ):
         pass
 
@@ -344,6 +346,7 @@ class MockedProjectFollowerIguazioClient(
         self,
         session: str,
         name: str,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         deletion_strategy: mlrun.common.schemas.DeletionStrategy = mlrun.common.schemas.DeletionStrategy.default(),
         wait_for_completion: bool = True,
     ) -> bool:
@@ -366,14 +369,16 @@ class MockedProjectFollowerIguazioClient(
     def list_projects(
         self,
         session: str,
-        updated_after: typing.Optional[datetime] = None,
-    ) -> tuple[list[mlrun.common.schemas.Project], typing.Optional[datetime]]:
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
+        updated_after: datetime | None = None,
+    ) -> tuple[list[mlrun.common.schemas.Project], datetime | None]:
         return [], None
 
     def get_project(
         self,
         session: str,
         name: str,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ) -> mlrun.common.schemas.Project:
         pass
 
@@ -386,6 +391,7 @@ class MockedProjectFollowerIguazioClient(
         self,
         session: str,
         name: str,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ) -> mlrun.common.schemas.ProjectOwner:
         pass
 

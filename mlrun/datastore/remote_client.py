@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional
 
 import mlrun
 
@@ -29,7 +28,7 @@ class BaseRemoteClient:
     your use case, such as interactions with S3 storage or invoking model providers like OpenAI.
     """
 
-    def __init__(self, parent, kind, name, endpoint="", secrets: Optional[dict] = None):
+    def __init__(self, parent, kind, name, endpoint="", secrets: dict | None = None):
         self._parent = parent
         self.kind = kind
         self.name = name

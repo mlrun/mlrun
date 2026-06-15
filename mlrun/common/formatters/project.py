@@ -33,7 +33,7 @@ class ProjectFormat(ObjectFormat, mlrun.common.types.StrEnum):
     name_and_creation_time = "name_and_creation_time"
 
     @staticmethod
-    def format_method(_format: str) -> typing.Optional[typing.Callable]:
+    def format_method(_format: str) -> typing.Callable | None:
         def _name_only(project: mlrun.common.schemas.Project) -> str:
             return project.metadata.name
 

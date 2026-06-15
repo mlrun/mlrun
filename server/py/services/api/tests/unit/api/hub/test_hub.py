@@ -350,9 +350,9 @@ async def test_hub_get_asset_from_default_source(
             results = await asyncio.gather(*(fetch(name) for name in items))
 
         for item_name, status_code, content_type in results:
-            assert (
-                status_code == http.HTTPStatus.OK.value
-            ), f"unexpected status for item={item_name} asset={asset_name}"
+            assert status_code == http.HTTPStatus.OK.value, (
+                f"unexpected status for item={item_name} asset={asset_name}"
+            )
             # Accepts 'application/octet-stream' is a fallback for unknown types
             # (e.g. if media-types apt package is not installed on Debian based distributions.
             assert (
@@ -447,7 +447,7 @@ def test_list_sources_with_filters(
 
     # verifying filtering by item name and good version:
     sources = client.get(
-        "hub/sources", params={"item-name": good_name, "version": "1.1.0"}
+        "hub/sources", params={"item-name": good_name, "version": "1.8.0"}
     ).json()
     assert len(sources) == 1
 
@@ -456,5 +456,5 @@ def test_list_sources_with_filters(
     assert response.status_code == http.HTTPStatus.BAD_REQUEST.value
 
     # verifying bad filtering with version and without item name:
-    response = client.get("hub/sources", params={"version": "1.1.0"})
+    response = client.get("hub/sources", params={"version": "1.8.0"})
     assert response.status_code == http.HTTPStatus.BAD_REQUEST.value

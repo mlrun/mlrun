@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional
 
 import pandas as pd
 
@@ -26,7 +25,7 @@ class TimescaleDBDataFrameProcessor:
     """Utility class for common DataFrame processing operations."""
 
     @staticmethod
-    def from_query_result(result: Optional[QueryResult]) -> pd.DataFrame:
+    def from_query_result(result: QueryResult | None) -> pd.DataFrame:
         """
         Create a DataFrame from a QueryResult object.
 

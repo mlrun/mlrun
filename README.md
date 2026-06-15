@@ -28,7 +28,7 @@ MLRun is an open source AI orchestration platform for quickly building and manag
 MLRun significantly reduces engineering efforts, time to production, and computation resources. 
 With MLRun, you can choose any IDE on your local machine or on the cloud. MLRun breaks the silos between data, ML, software, and DevOps/MLOps teams, enabling collaboration and fast continuous improvements.
 
-Get started with the MLRun [**Tutorials and Examples**](https://docs.mlrun.org/en/stable/tutorials/index.html) and the [**Installation and setup guide**](https://docs.mlrun.org/en/stable/install.html), or read about the [**MLRun Architecture**](https://docs.mlrun.org/en/stable/architecture.html).
+Get started with the MLRun [**Tutorials and Examples**](https://docs.mlrun.org/en/stable/tutorials/index.html) and the [**Set up your client environment**](https://docs.mlrun.org/en/stable/setup-guide.md), or read about the [**MLRun Architecture**](https://docs.mlrun.org/en/stable/architecture.html).
 
 This page explains how MLRun addresses the [**gen AI tasks**](#genai-tasks), [**MLOps tasks**](#mlops-tasks), and presents the [**MLRun core components**](#core-components).
 
@@ -49,8 +49,8 @@ Removing inappropriate data at an early stage saves resources that would otherwi
 
 
 **Docs:**
-[Using LLMs to process unstructured data](https://docs.mlrun.org/en/stable/genai/data-mgmt/unstructured-data.html)
-[Vector databases](https://docs.mlrun.org/en/stable/genai/data-mgmt/vector-databases.html)
+[Using LLMs to process unstructured data](https://docs.mlrun.org/en/stable/genai/data-mgmt/unstructured-data.html),
+[Vector databases](https://docs.mlrun.org/en/stable/genai/data-mgmt/vector-databases.html),
 [Guardrails for data management](https://docs.mlrun.org/en/stable/genai/data-mgmt/guardrails-data.html)
 **Demo:**
 [Call center demo](https://github.com/mlrun/demo-call-center)
@@ -64,7 +64,8 @@ preprocess (prepare) the data, run the training pipeline, and evaluate the model
 **Docs:**
 [Working with RAG](https://docs.mlrun.org/en/stable/genai/development/working-with-rag.html), [Evalating LLMs](https://docs.mlrun.org/en/stable/genai/development/evaluating-llms.html), [Fine tuning LLMS](https://docs.mlrun.org/en/stable/genai/development/fine-tuning-llms.html)
 **Demos:**
-[Call center demo](https://github.com/mlrun/demo-call-center), [Build & deploy custom (fine-tuned) LLM models and applications](https://github.com/mlrun/demo-llm-tuning/blob/main), [Interactive bot demo using LLMs](https://github.com/mlrun/demo-llm-bot/blob/main)
+[Call center demo](https://github.com/mlrun/demo-call-center),
+[Banking agent demo](https://github.com/mlrun/demo-banking-agent)
 **Video:**
 [Call center](https://youtu.be/YycMbxRgLBA)
 
@@ -78,9 +79,10 @@ inferring results using one or more models, and driving actions.
 **Docs:**
 [Serving gen AI models](https://docs.mlrun.org/en/stable/genai/deployment/genai_serving.html), [GPU utilization](https://docs.mlrun.org/en/stable/genai/deployment/gpu_utilization.html), [Gen AI realtime serving graph](https://docs.mlrun.org/en/stable/genai/deployment/genai_serving_graph.html)
 **Tutorial:**
-[Deploy LLM using MLRun](https://docs.mlrun.org/en/stable/tutorials/genai_01_basic_tutorial.html)
+[Deploy LLM using MLRun](https://docs.mlrun.org/en/stable/tutorials/genai-01-basic-tutorial.html)
 **Demos:**
-[Call center demo](https://github.com/mlrun/demo-call-center), [Build & deploy custom(fine-tuned)LLM models and applications](https://github.com/mlrun/demo-llm-tuning/blob/main), [Interactive bot demo using LLMs](https://github.com/mlrun/demo-llm-bot/blob/main)
+[Call center demo](https://github.com/mlrun/demo-call-center),
+[Banking agent demo](https://github.com/mlrun/demo-banking-agent)
 **Video:**
 [Call center](https://youtu.be/YycMbxRgLBA)
 
@@ -93,9 +95,9 @@ Collect production data, metadata, and metrics to tune the model and application
 **Docs:**
 [Model monitoring <monitoring](https://docs.mlrun.org/en/stable/concepts/monitoring.html), [Alerts and notifications](https://docs.mlrun.org/en/stable/concepts/alerts-notifications.html)
 **Tutorials:**
-[Deploy LLM using MLRun](https://docs.mlrun.org/en/stable/tutorials/genai_01_basic_tutorial.html), [Model monitoring using LLM](https://docs.mlrun.org/en/stable/tutorials/genai-02-monitoring-llm.html)
+[Deploy LLM using MLRun](https://docs.mlrun.org/en/stable/tutorials/genai-01-basic-tutorial.html), [Model monitoring using LLM](https://docs.mlrun.org/en/stable/tutorials/genai-02-monitoring-llm.html)
 **Demo:**
-[Build & deploy custom (fine-tuned) LLM models and applications](https://github.com/mlrun/demo-llm-tuning/blob/main)
+[Banking agent demo](https://github.com/mlrun/demo-banking-agent)
 
 
 <a id="mlops-tasks"></a>

@@ -38,6 +38,7 @@ from .base import (
     DirArtifact,
     LinkArtifact,
 )
+from .code import CodeArtifact
 from .dataset import (
     DatasetArtifact,
     TableArtifact,
@@ -62,6 +63,7 @@ artifact_types = {
     "plotly": PlotlyArtifact,
     "document": DocumentArtifact,
     "llm-prompt": LLMPromptArtifact,
+    "code": CodeArtifact,
 }
 
 
@@ -338,7 +340,7 @@ class ArtifactManager:
         self.artifact_uris[item.key] = item.uri
         self._log_to_db(item.db_key, producer.project, producer.inputs, item)
 
-    def _log_to_db(self, key, project, sources, item, tag=None) -> typing.Optional[str]:
+    def _log_to_db(self, key, project, sources, item, tag=None) -> str | None:
         """
         log artifact to db
         :param key: Identifying key of the artifact.
@@ -403,7 +405,7 @@ class ArtifactManager:
         deletion_strategy: mlrun.common.schemas.artifact.ArtifactsDeletionStrategies = (
             mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.metadata_only
         ),
-        secrets: typing.Optional[dict] = None,
+        secrets: dict | None = None,
     ):
         self.artifact_db.del_artifact(
             key=item.db_key,

@@ -13,7 +13,7 @@
 # limitations under the License.
 
 ARG MLRUN_PYTHON_VERSION=3.11
-ARG MLRUN_PIP_VERSION=25.0
+ARG MLRUN_PIP_VERSION=26.0
 ARG MLRUN_UV_IMAGE=ghcr.io/astral-sh/uv:latest
 ARG MLRUN_CACHE_DATE=initial
 
@@ -63,6 +63,7 @@ COPY --chown=$NB_UID:$NB_GID ./docs/_static/images/MLRun-logo.png $HOME/_static/
 COPY --chown=$NB_UID:$NB_GID ./dockerfiles/jupyter/README.ipynb $HOME
 COPY --chown=$NB_UID:$NB_GID ./dockerfiles/jupyter/mlrun.env $HOME
 COPY --chown=$NB_UID:$NB_GID ./dockerfiles/jupyter/mlce-start.sh /usr/local/bin/mlce-start.sh
+COPY --chown=$NB_UID:$NB_GID ./dockerfiles/jupyter/align_mlrun.sh $HOME
 COPY --chown=$NB_UID:$NB_GID ./automation/scripts/get_demos.py $HOME
 COPY --chown=$NB_UID:$NB_GID ./automation/scripts/demos_config.json $HOME
 
@@ -107,7 +108,7 @@ ARG MLRUN_CACHE_DATE
 # Download demos aligned with installed MLRun version using get_demos.py
 RUN python -m pip install --no-cache-dir requests packaging tqdm && \
     MLVER=$(python -c "import mlrun; print(mlrun.__version__)") && \
-    python get_demos.py "$MLVER" --config_path "$HOME/demos_config.json" --dest "$HOME/demos" && \
+    python get_demos.py "$MLVER" --dest "$HOME/demos" && \
     rm -rf "$HOME/demos_config.json" "$HOME/get_demos.py"
 
 ENV JUPYTER_ENABLE_LAB=yes \
@@ -124,4 +125,5 @@ RUN mkdir data && tar -cvf /tmp/basehome.tar $HOME
 # and avoid zombie processes
 ENTRYPOINT ["tini", "--"]
 
+#This CMD only executes when running directly on docker, not k8s
 CMD echo "1" > "${HOME}/.intdata" && /usr/local/bin/mlce-start.sh

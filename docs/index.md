@@ -4,17 +4,33 @@
 MLRun is an open source AI orchestration platform for quickly building and managing continuous (gen) AI applications across their lifecycle. MLRun integrates into your development and CI/CD environment and automates the delivery of production data, ML pipelines, and online applications. MLRun significantly reduces engineering efforts, time to production, and computation resources.
 With MLRun, you can choose any IDE on your local machine or on the cloud. MLRun breaks down the silos between data, ML, software, and DevOps/MLOps teams, enabling collaboration and fast continuous improvements.
 
-Get started with the MLRun **{ref}`Tutorials and examples <tutorials-all>`** and **{ref}`Installation and setup guide <install-setup-guide>`**.
-
+Get started with the MLRun **{ref}`Tutorials and examples <tutorials-all>`**.
 
 This page explains how MLRun addresses the [**gen AI tasks**](#gen-ai-tasks), [**MLOps tasks**](#mlops-tasks), and presents the [**MLRun core components**](#mlrun-core-components).
 
 See the supported data stores, development tools, services, platforms, etc., supported by MLRun's open architecture in **{ref}`ecosystem`**.
 
 **In this section**
-- [Gen AI tasks](#gen-ai-tasks) 
+- [Deployment options](#deployment-options)
+- [Set up your client](#set-up-your-client)
+- [GenAI tasks](#gen-ai-tasks) 
 - [MLOps tasks](#mlops-tasks)
 - [MLRun core components](#mlrun-core-components)
+
+## Deployment options
+
+The deployment options are:
+- {ref}`Kubernetes<install-on-kubernetes>`: Deploys the MLRun CE server over Kubernetes. 
+- {ref}`AWS cluster<aws-install>`: Deploys the MLRun CE server on an AWS cluster.
+- [Iguazio's Managed  Service](https://www.iguazio.com): A commercial offering by Iguazio. This is the fastest way to explore the full set of MLRun functionalities.<br>
+  Note that Iguazio provides a 14 day free trial.
+
+## Set up your client
+
+You can work with your favorite IDE (e.g. PyCharm, VSCode, Jupyter, Colab, etc.). Read how to configure your client against the deployed
+MLRun server in {ref}`install-remote`.
+
+Once you have installed and configured MLRun, follow the {ref}`quick-start-ml` and additional {ref}`Tutorials and Examples<tutorial>` to learn how to use MLRun to develop and deploy GenAI and machine learning applications to production.
 
 ## Gen AI tasks
 
@@ -100,10 +116,10 @@ preprocess (prepare) the data, run the training pipeline, and evaluate the model
 {bdg-link-info}`Fine tuning LLMS <./genai/development/fine-tuning-llms.html>`
 <br> {octicon}`code-square` **Demos:**
 {bdg-link-success}`Call center demo <https://github.com/mlrun/demo-call-center>`
-{bdg-link-success}`Build & deploy custom (fine-tuned) LLM models and applications <https://github.com/mlrun/demo-llm-tuning/blob/main>`
-`````
+{bdg-link-success}`Banking Agent Demo <https://github.com/mlrun/demo-banking-agent>`
 <br> {octicon}`video` **Video:**
 {bdg-link-warning}`Call center <https://youtu.be/YycMbxRgLBA>`
+`````
 
 ### Deployment
 MLRun serving can productize the newly trained LLM as a serverless function using real-time auto-scaling Nuclio serverless functions. 
@@ -117,10 +133,10 @@ inferring results using one or more models, and driving actions.
 {bdg-link-info}`GPU utilization <./genai/deployment/gpu_utilization.html>`
 {bdg-link-info}`Gen AI realtime serving graph <./genai/deployment/genai_serving_graph.html>`
 <br> {octicon}`code-square` **Tutorial:**
-{bdg-link-primary}`Deploy LLM using MLRun <./tutorials/genai_01_basic_tutorial.html>`
+{bdg-link-primary}`Deploy LLM using MLRun <./tutorials/genai-01-basic-tutorial.html>`
 <br> {octicon}`code-square` **Demos:**
 {bdg-link-success}`Call center demo <https://github.com/mlrun/demo-call-center>`
-{bdg-link-success}`Build & deploy custom (fine-tuned) LLM models and applications <https://github.com/mlrun/demo-llm-tuning/blob/main>`
+{bdg-link-success}`Banking Agent Demo <https://github.com/mlrun/demo-banking-agent>`
 <br> {octicon}`video` **Video:**
 {bdg-link-warning}`Call center <https://youtu.be/YycMbxRgLBA>`
 `````
@@ -135,12 +151,12 @@ Collect production data, metadata, and metrics to tune the model and application
 {bdg-link-info}`Model monitoring <./concepts/model-monitoring.html>`
 {bdg-link-info}`Alerts and notifications <./concepts/alerts-notifications.html>`
 <br> {octicon}`code-square` **Tutorials:**
-{bdg-link-primary}`Deploy an LLM using MLRun <./tutorials/genai_01_basic_tutorial.html>`
+{bdg-link-primary}`Deploy an LLM using MLRun <./tutorials/genai-01-basic-tutorial.html>`
 {bdg-link-primary}`Model monitoring using LLM  <./tutorials/-02-model-monitor-llm.html>`
 {bdg-link-primary}`Model monitoring and drift detection <./tutorials/05-model-monitoring.html>`
-<br> {octicon}`code-square` **Demo:**
-{bdg-link-primary}`Build & deploy custom (fine-tuned) LLM models and applications <https://github.com/mlrun/demo-llm-tuning/blob/main>`
-{bdg-link-primary}`Model Monitoring using an LLM <https://github.com/mlrun/demo-monitoring-and-feedback-loop/blob/main/llm-monitoring-main.ipynb>`
+<br> {octicon}`code-square` **Demos:**
+{bdg-link-success}`Model Monitoring using an LLM <https://github.com/mlrun/demo-monitoring-and-feedback-loop/blob/main/llm-monitoring-main.ipynb>`
+{bdg-link-success}`Banking Agent Demo <https://github.com/mlrun/demo-banking-agent>`
 `````
 
 ## MLOps tasks

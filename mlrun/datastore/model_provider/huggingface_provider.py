@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import threading
 from typing import TYPE_CHECKING, Any, Optional, Union
 
 import mlrun
@@ -41,14 +41,19 @@ class HuggingFaceProvider(ModelProvider):
     into memory for inference. Ensure you have the required CPU/GPU and memory to use this operation.
     """
 
+    supports_streaming = True
+
+    #  locks for threading use cases
+    _client_lock = threading.Lock()
+
     def __init__(
         self,
         parent,
         schema,
         name,
         endpoint="",
-        secrets: Optional[dict] = None,
-        default_invoke_kwargs: Optional[dict] = None,
+        secrets: dict | None = None,
+        default_invoke_kwargs: dict | None = None,
     ):
         endpoint = endpoint or mlrun.mlconf.model_providers.huggingface_default_model
         if schema != "huggingface":
@@ -63,6 +68,7 @@ class HuggingFaceProvider(ModelProvider):
             secrets=secrets,
             default_invoke_kwargs=default_invoke_kwargs,
         )
+        self.model_location = None
         self.options = self.get_client_options()
         self._expected_operation_type = None
         self._download_model()
@@ -106,17 +112,27 @@ class HuggingFaceProvider(ModelProvider):
         Uses snapshot_download with local_dir_use_symlinks=False to ensure proper
         file copying for safe concurrent access across multiple processes.
 
+        Note: Downloading HuggingFace models requires stable network connectivity and may fail
+        or get stuck on unreliable connections. Ensure adequate network bandwidth.
+
         :raises:
             ImportError: If huggingface_hub package is not installed.
         """
         try:
             from huggingface_hub import snapshot_download
+            from tqdm import tqdm
 
+            # Pre-initialize tqdm's global lock to prevent AttributeError race condition
+            # when multiple threads call snapshot_download concurrently for the first time.
+            tqdm.get_lock()
             # Download the model and tokenizer files directly to the cache.
-            snapshot_download(
+            max_workers = self._get_secret_or_env("HF_MAX_WORKERS")
+            self.model_location = snapshot_download(
                 repo_id=self.model,
                 local_dir_use_symlinks=False,
                 token=self._get_secret_or_env("HF_TOKEN") or None,
+                endpoint=self._get_secret_or_env("HF_ENDPOINT") or None,
+                max_workers=int(max_workers) if max_workers is not None else None,
             )
         except ImportError as exc:
             raise ImportError("huggingface_hub package is not installed") from exc
@@ -176,6 +192,7 @@ class HuggingFaceProvider(ModelProvider):
                 return str_response
             if invoke_response_format == InvokeResponseFormat.USAGE:
                 tokenizer = self.client.tokenizer
+                # Messages already be a formatted prompt string
                 if not isinstance(messages, str):
                     try:
                         messages = tokenizer.apply_chat_template(
@@ -224,12 +241,20 @@ class HuggingFaceProvider(ModelProvider):
 
             self.options["model_kwargs"] = self.options.get("model_kwargs", {})
             self.options["model_kwargs"]["local_files_only"] = True
-            self._client = pipeline(model=self.model, **self.options)
+            with self._client_lock:
+                if self.model_location is None:
+                    raise mlrun.errors.MLRunRuntimeError(
+                        "Failed to create the pipeline because the Hugging Face model was not downloaded"
+                    )
+                self._client = pipeline(model=self.model_location, **self.options)
             self._expected_operation_type = Pipeline
         except ImportError as exc:
             raise ImportError("transformers package is not installed") from exc
 
     def get_client_options(self):
+        # HF_ENDPOINT is not passed to pipeline() — it is only used in _download_model()
+        # via snapshot_download() to support custom HuggingFace Hub endpoints.
+
         res = dict(
             task=self._get_secret_or_env("HF_TASK") or "text-generation",
             token=self._get_secret_or_env("HF_TOKEN"),
@@ -258,7 +283,9 @@ class HuggingFaceProvider(ModelProvider):
 
             # Using custom pipeline for image classification
             image = Image.open(image_path)
-            pipeline_object = pipeline("image-classification", model="microsoft/resnet-50")
+            pipeline_object = pipeline(
+                "image-classification", model="microsoft/resnet-50"
+            )
             result = hf_provider.custom_invoke(
                 pipeline_object,
                 inputs=image,
@@ -282,15 +309,48 @@ class HuggingFaceProvider(ModelProvider):
         if operation:
             if not isinstance(operation, self._expected_operation_type):
                 raise mlrun.errors.MLRunInvalidArgumentError(
-                    "Huggingface operation must inherit" " from 'Pipeline' object"
+                    "Huggingface operation must inherit from 'Pipeline' object"
                 )
             return operation(**invoke_kwargs)
         else:
             return self.client(**invoke_kwargs)
 
+    def _batch_invoke(
+        self,
+        messages_list: list[list[dict]],
+        invoke_response_format: InvokeResponseFormat = InvokeResponseFormat.FULL,
+        **invoke_kwargs,
+    ) -> list[Union[str, dict, list]]:
+        """
+        Internal batch processing for multiple message lists.
+
+        :param messages_list:           List of message lists to process in batch.
+        :param invoke_response_format:  Response format (STRING, USAGE, or FULL).
+        :param invoke_kwargs:           Additional kwargs for the pipeline.
+
+        :return:                        List of processed responses.
+        """
+        if "batch_size" not in invoke_kwargs:
+            invoke_kwargs["batch_size"] = (
+                mlrun.mlconf.model_providers.huggingface_default_batch_size
+            )
+
+        batch_response = self.custom_invoke(text_inputs=messages_list, **invoke_kwargs)
+
+        results = []
+        for i, single_response in enumerate(batch_response):
+            processed = self._response_handler(
+                messages=messages_list[i],
+                response=single_response,
+                invoke_response_format=invoke_response_format,
+            )
+            results.append(processed)
+
+        return results
+
     def invoke(
         self,
-        messages: Union[str, list[str], "ChatType", list["ChatType"]],
+        messages: Union["ChatType", list["ChatType"]],
         invoke_response_format: InvokeResponseFormat = InvokeResponseFormat.FULL,
         **invoke_kwargs,
     ) -> Union[str, list, dict[str, Any]]:
@@ -298,13 +358,18 @@ class HuggingFaceProvider(ModelProvider):
         HuggingFace-specific implementation of model invocation using the synchronous pipeline client.
         Invokes a HuggingFace model operation for text generation tasks.
 
+        Supports both single and batch invocations:
+        - Single invocation: Pass a single ChatType (string or chat format messages)
+        - Batch invocation: Pass a list of ChatType objects for batch processing
+
         Note: Ensure your environment has sufficient computational resources (CPU/GPU and memory) to run the model.
 
         :param messages:
             Input for the text generation model. Can be provided in multiple formats:
 
+            **Single invocation:**
+
             - A single string: Direct text input for generation
-            - A list of strings: Multiple text inputs for batch processing
             - Chat format: A list of dictionaries with "role" and "content" keys:
 
             .. code-block:: json
@@ -314,11 +379,27 @@ class HuggingFaceProvider(ModelProvider):
                     {"role": "user", "content": "What is the capital of France?"}
                 ]
 
+            **Batch invocation:**
+
+            - List of chat format messages: Multiple chat conversations for batch processing:
+
+            .. code-block:: json
+
+                [
+                    [
+                        {"role": "user", "content": "What is the capital of France?"}
+                    ],
+                    [
+                        {"role": "user", "content": "What is the capital of Germany?"}
+                    ]
+                ]
+
         :param invoke_response_format: InvokeResponseFormat
             Specifies the format of the returned response. Options:
 
-            - "string": Returns only the generated text content, extracted from a single response.
-            - "usage":  Combines the generated text with metadata (e.g., token usage), returning a dictionary:
+            - "string": Returns only the generated text content. For batch invocations, returns a list of strings.
+            - "usage":  Combines the generated text with metadata (e.g., token usage). For batch invocations,
+                        returns a list of dictionaries:
 
             .. code-block:: json
                 {
@@ -338,9 +419,12 @@ class HuggingFaceProvider(ModelProvider):
 
         :param invoke_kwargs:
             Additional keyword arguments passed to the HuggingFace pipeline.
+            For batch invocations, you can specify 'batch_size' to control the batch processing size.
+            If not provided, defaults to mlrun.mlconf.model_providers.huggingface_default_batch_size.
 
         :return:
-            A string, dictionary, or list of model outputs, depending on `invoke_response_format`.
+            - Single invocation: A string, dictionary, or list depending on `invoke_response_format`.
+            - Batch invocation: A list of strings, dictionaries, or lists depending on `invoke_response_format`.
 
         :raises MLRunInvalidArgumentError:
             If the pipeline task is not "text-generation" or if the response contains multiple outputs when extracting
@@ -352,8 +436,19 @@ class HuggingFaceProvider(ModelProvider):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "HuggingFaceProvider.invoke supports text-generation task only"
             )
+
         if InvokeResponseFormat.is_str_response(invoke_response_format.value):
             invoke_kwargs["return_full_text"] = False
+
+        is_batch = self._validate_and_detect_batch_invocation(messages)
+
+        if is_batch:
+            return self._batch_invoke(
+                messages_list=messages,
+                invoke_response_format=invoke_response_format,
+                **invoke_kwargs,
+            )
+
         response = self.custom_invoke(text_inputs=messages, **invoke_kwargs)
         response = self._response_handler(
             messages=messages,
@@ -361,3 +456,50 @@ class HuggingFaceProvider(ModelProvider):
             invoke_response_format=invoke_response_format,
         )
         return response
+
+    def _prepare_stream(self, messages, invoke_kwargs):
+        """Validate inputs and create a TextIteratorStreamer for streaming generation.
+
+        :return: Tuple of (streamer, invoke_kwargs) ready for the pipeline call.
+        """
+        if self.client.task != "text-generation":
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "HuggingFaceProvider streaming supports text-generation task only"
+            )
+        if self._validate_and_detect_batch_invocation(messages):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Batch invocation is not supported in streaming mode"
+            )
+        from transformers import TextIteratorStreamer
+
+        streamer = TextIteratorStreamer(
+            self.client.tokenizer,
+            skip_prompt=True,
+            skip_special_tokens=True,
+        )
+        invoke_kwargs = self.get_invoke_kwargs(invoke_kwargs)
+        invoke_kwargs["streamer"] = streamer
+        return streamer, invoke_kwargs
+
+    def invoke_stream(self, messages, **invoke_kwargs):
+        """
+        Invokes the HuggingFace pipeline in streaming mode, yielding text tokens
+        as they are generated.
+
+        Generation runs in a background thread; this method yields tokens from
+        a ``TextIteratorStreamer`` on the calling thread.
+
+        :param messages:        A list of message dicts (single conversation, not a batch).
+        :param invoke_kwargs:   Additional keyword arguments passed to the pipeline.
+        :return:                A generator yielding text tokens as strings.
+        """
+        streamer, invoke_kwargs = self._prepare_stream(messages, invoke_kwargs)
+        thread = threading.Thread(
+            target=self.custom_invoke,
+            kwargs={"text_inputs": messages, **invoke_kwargs},
+        )
+        thread.start()
+        for token in streamer:
+            if token:
+                yield token
+        thread.join()

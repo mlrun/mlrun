@@ -53,7 +53,7 @@ This section lists the data stores, development tools, services, platforms, etc.
 ## TSDB
 
 - V3IO TSDB
-- TDEngine
+- TimescaleDB (PostgreSQL)
 
 ## Event sources 
 

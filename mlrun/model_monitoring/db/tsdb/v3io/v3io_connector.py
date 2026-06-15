@@ -12,9 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import math
+from collections import defaultdict
 from datetime import datetime, timedelta
 from io import StringIO
-from typing import Callable, Literal, Optional, Union
+from typing import Literal, Union
 
 import pandas as pd
 import v3io_frames
@@ -65,7 +66,7 @@ class V3IOTSDBConnector(TSDBConnector):
         self,
         project: str,
         container: str = _CONTAINER,
-        v3io_framesd: Optional[str] = None,
+        v3io_framesd: str | None = None,
         v3io_access_key: str = "",
         create_table: bool = False,
     ) -> None:
@@ -75,7 +76,7 @@ class V3IOTSDBConnector(TSDBConnector):
 
         self.v3io_framesd = v3io_framesd or mlrun.mlconf.v3io_framesd
         self._v3io_access_key = v3io_access_key
-        self._frames_client: Optional[v3io_frames.client.ClientBase] = None
+        self._frames_client: v3io_frames.client.ClientBase | None = None
         self._init_tables_path()
         self._create_table = create_table
         self._v3io_client = None
@@ -212,7 +213,7 @@ class V3IOTSDBConnector(TSDBConnector):
         tsdb_batching_max_events: int = 1000,
         tsdb_batching_timeout_secs: int = 30,
         sample_window: int = 10,
-        aggregate_windows: Optional[list[str]] = None,
+        aggregate_windows: list[str] | None = None,
         aggregate_period: str = "1m",
         **kwarg,
     ):
@@ -225,6 +226,24 @@ class V3IOTSDBConnector(TSDBConnector):
         - endpoint_features (Prediction and feature names and values)
         - custom_metrics (user-defined metrics)
         """
+
+        def apply_list_to_single_dict():
+            graph.add_step(
+                "storey.Map",
+                "MapListToSingleDict",
+                after="FilterNOP",
+                _fn="(event[0] if isinstance(event, list) else event)",
+            )
+            graph.add_step(
+                "mlrun.model_monitoring.stream_processing.MapFeatureNames",
+                name="MapFeatureNamesTSDB",
+                infer_columns_from_data=True,
+                project=self.project,
+                after="MapListToSingleDict",
+            )
+
+        apply_list_to_single_dict()
+
         aggregate_windows = aggregate_windows or ["5m", "1h"]
 
         # Calculate number of predictions and average latency
@@ -242,7 +261,7 @@ class V3IOTSDBConnector(TSDBConnector):
                     }
                 ],
                 name=EventFieldType.LATENCY,
-                after="FilterNOP",
+                after="MapFeatureNamesTSDB",
                 step_name="Aggregates",
                 table=".",
                 key_field=EventFieldType.ENDPOINT_ID,
@@ -263,7 +282,7 @@ class V3IOTSDBConnector(TSDBConnector):
         graph.add_step(
             "storey.TSDBTarget",
             name="tsdb_predictions",
-            after="FilterNOP",
+            after="MapFeatureNamesTSDB",
             path=f"{self.container}/{self.tables[mm_schemas.V3IOTSDBTables.PREDICTIONS]}",
             time_col=mm_schemas.EventFieldType.TIMESTAMP,
             container=self.container,
@@ -492,7 +511,7 @@ class V3IOTSDBConnector(TSDBConnector):
                 f"Failed to write application result to TSDB: {err}"
             )
 
-    def delete_tsdb_resources(self, table: Optional[str] = None):
+    def delete_tsdb_resources(self, table: str | None = None):
         if table:
             # Delete a specific table
             tables = [table]
@@ -578,7 +597,7 @@ class V3IOTSDBConnector(TSDBConnector):
                 )
 
     def delete_application_records(
-        self, application_name: str, endpoint_ids: Optional[list[str]] = None
+        self, application_name: str, endpoint_ids: list[str] | None = None
     ) -> None:
         """
         Delete application records from the TSDB for the given model endpoints or all if ``endpoint_ids`` is ``None``.
@@ -673,11 +692,11 @@ class V3IOTSDBConnector(TSDBConnector):
         table: str,
         start: Union[datetime, str],
         end: Union[datetime, str],
-        columns: Optional[list[str]] = None,
+        columns: list[str] | None = None,
         filter_query: str = "",
-        interval: Optional[str] = None,
-        agg_funcs: Optional[list[str]] = None,
-        sliding_window_step: Optional[str] = None,
+        interval: str | None = None,
+        agg_funcs: list[str] | None = None,
+        sliding_window_step: str | None = None,
         get_raw: bool = False,
         **kwargs,
     ) -> Union[pd.DataFrame, list[v3io_frames.client.RawFrame]]:
@@ -779,7 +798,7 @@ class V3IOTSDBConnector(TSDBConnector):
     @staticmethod
     def _generate_filter_query(
         filter_key: str, filter_values: Union[str, list[str]]
-    ) -> Optional[str]:
+    ) -> str | None:
         if isinstance(filter_values, str):
             return f"{filter_key}=='{filter_values}'"
         elif isinstance(filter_values, list):
@@ -887,12 +906,12 @@ class V3IOTSDBConnector(TSDBConnector):
     def _get_sql_query(
         *,
         table_path: str,
-        endpoint_id: Optional[str] = None,
-        application_names: Optional[list[str]] = None,
+        endpoint_id: str | None = None,
+        application_names: list[str] | None = None,
         name: str = mm_schemas.ResultData.RESULT_NAME,
-        metric_and_app_names: Optional[list[tuple[str, str]]] = None,
-        columns: Optional[list[str]] = None,
-        group_by_columns: Optional[list[str]] = None,
+        metric_and_app_names: list[tuple[str, str]] | None = None,
+        columns: list[str] | None = None,
+        group_by_columns: list[str] | None = None,
     ) -> str:
         """Get the SQL query for the results/metrics table"""
 
@@ -962,11 +981,10 @@ class V3IOTSDBConnector(TSDBConnector):
         endpoint_id: str,
         start: Union[datetime, str],
         end: Union[datetime, str],
-        aggregation_window: Optional[str] = None,
-        agg_funcs: Optional[list[str]] = None,
-        limit: Optional[
-            int
-        ] = None,  # no effect, just for compatibility with the abstract method
+        aggregation_window: str | None = None,
+        agg_funcs: list[str] | None = None,
+        limit: int
+        | None = None,  # no effect, just for compatibility with the abstract method
     ) -> Union[
         mm_schemas.ModelEndpointMonitoringMetricNoData,
         mm_schemas.ModelEndpointMonitoringMetricValues,
@@ -1014,8 +1032,8 @@ class V3IOTSDBConnector(TSDBConnector):
     def get_last_request(
         self,
         endpoint_ids: Union[str, list[str]],
-        start: Optional[datetime] = None,
-        end: Optional[datetime] = None,
+        start: datetime | None = None,
+        end: datetime | None = None,
     ) -> dict[str, float]:
         if not endpoint_ids:
             return {}
@@ -1068,8 +1086,8 @@ class V3IOTSDBConnector(TSDBConnector):
     def get_drift_status(
         self,
         endpoint_ids: Union[str, list[str]],
-        start: Optional[datetime] = None,
-        end: Optional[datetime] = None,
+        start: datetime | None = None,
+        end: datetime | None = None,
         get_raw: bool = False,
     ) -> Union[pd.DataFrame, list[v3io_frames.client.RawFrame]]:
         filter_query = self._generate_filter_query(
@@ -1101,8 +1119,8 @@ class V3IOTSDBConnector(TSDBConnector):
     def get_metrics_metadata(
         self,
         endpoint_id: Union[str, list[str]],
-        start: Optional[datetime] = None,
-        end: Optional[datetime] = None,
+        start: datetime | None = None,
+        end: datetime | None = None,
     ) -> pd.DataFrame:
         start, end = get_start_end(start, end)
         filter_query = self._generate_filter_query(
@@ -1126,8 +1144,8 @@ class V3IOTSDBConnector(TSDBConnector):
     def get_results_metadata(
         self,
         endpoint_id: Union[str, list[str]],
-        start: Optional[datetime] = None,
-        end: Optional[datetime] = None,
+        start: datetime | None = None,
+        end: datetime | None = None,
     ) -> pd.DataFrame:
         start, end = get_start_end(start, end)
         filter_query = self._generate_filter_query(
@@ -1156,8 +1174,8 @@ class V3IOTSDBConnector(TSDBConnector):
     def get_error_count(
         self,
         endpoint_ids: Union[str, list[str]],
-        start: Optional[datetime] = None,
-        end: Optional[datetime] = None,
+        start: datetime | None = None,
+        end: datetime | None = None,
         get_raw: bool = False,
     ) -> Union[pd.DataFrame, list[v3io_frames.client.RawFrame]]:
         filter_query = self._generate_filter_query(
@@ -1196,8 +1214,8 @@ class V3IOTSDBConnector(TSDBConnector):
     def get_avg_latency(
         self,
         endpoint_ids: Union[str, list[str]],
-        start: Optional[datetime] = None,
-        end: Optional[datetime] = None,
+        start: datetime | None = None,
+        end: datetime | None = None,
         get_raw: bool = False,
     ) -> Union[pd.DataFrame, list[v3io_frames.client.RawFrame]]:
         filter_query = self._generate_filter_query(
@@ -1230,20 +1248,16 @@ class V3IOTSDBConnector(TSDBConnector):
             )
         return df.reset_index(drop=True)
 
-    async def add_basic_metrics(
+    def add_basic_metrics(
         self,
         model_endpoint_objects: list[mlrun.common.schemas.ModelEndpoint],
-        project: str,
-        run_in_threadpool: Callable,
-        metric_list: Optional[list[str]] = None,
+        metric_list: list[str] | None = None,
     ) -> list[mlrun.common.schemas.ModelEndpoint]:
         """
         Fetch basic metrics from V3IO TSDB and add them to MEP objects.
 
         :param model_endpoint_objects: A list of `ModelEndpoint` objects that will
                                        be filled with the relevant basic metrics.
-        :param project:                The name of the project.
-        :param run_in_threadpool:      A function that runs another function in a thread pool.
         :param metric_list:            List of metrics to include from the time series DB. Defaults to all metrics.
 
         :return: A list of `ModelEndpointMonitoringMetric` objects.
@@ -1272,8 +1286,7 @@ class V3IOTSDBConnector(TSDBConnector):
             function,
             _,
         ) in metric_name_to_function_and_column_name.items():
-            metric_name_to_result[metric_name] = await run_in_threadpool(
-                function,
+            metric_name_to_result[metric_name] = function(
                 endpoint_ids=uids,
                 get_raw=True,
             )
@@ -1321,11 +1334,11 @@ class V3IOTSDBConnector(TSDBConnector):
 
     def count_results_by_status(
         self,
-        start: Optional[Union[datetime, str]] = None,
-        end: Optional[Union[datetime, str]] = None,
-        endpoint_ids: Optional[Union[str, list[str]]] = None,
-        application_names: Optional[Union[str, list[str]]] = None,
-        result_status_list: Optional[list[int]] = None,
+        start: Union[datetime, str] | None = None,
+        end: Union[datetime, str] | None = None,
+        endpoint_ids: Union[str, list[str]] | None = None,
+        application_names: Union[str, list[str]] | None = None,
+        result_status_list: list[int] | None = None,
     ) -> dict[tuple[str, int], int]:
         start, end = get_start_end(start=start, end=end, delta=timedelta(hours=24))
         filter_query = ""
@@ -1344,7 +1357,7 @@ class V3IOTSDBConnector(TSDBConnector):
             else:
                 filter_query = app_filter_query
 
-        df = self._get_records(
+        raw_frames: list[v3io_frames.client.RawFrame] = self._get_records(
             table=mm_schemas.V3IOTSDBTables.APP_RESULTS,
             start=start,
             end=end,
@@ -1353,45 +1366,39 @@ class V3IOTSDBConnector(TSDBConnector):
                 mm_schemas.ResultData.RESULT_STATUS,
             ],
             filter_query=filter_query,
+            get_raw=True,
         )
 
-        # filter result status
-        if result_status_list and not df.empty:
-            df = df[df[mm_schemas.ResultData.RESULT_STATUS].isin(result_status_list)]
-
-        if df.empty:
+        if not raw_frames:
             return {}
-        else:
-            # convert application name to lower case
-            df[mm_schemas.ApplicationEvent.APPLICATION_NAME] = df[
-                mm_schemas.ApplicationEvent.APPLICATION_NAME
-            ].str.lower()
 
-            df = (
-                df[
-                    [
-                        mm_schemas.ApplicationEvent.APPLICATION_NAME,
-                        mm_schemas.ResultData.RESULT_STATUS,
-                        mm_schemas.ResultData.RESULT_VALUE,
-                    ]
-                ]
-                .groupby(
-                    [
-                        mm_schemas.ApplicationEvent.APPLICATION_NAME,
-                        mm_schemas.ResultData.RESULT_STATUS,
-                    ],
-                    observed=True,
-                )
-                .count()
-            )
+        # Count occurrences by (application_name, result_status) from RawFrame objects
+        count_dict = {}
 
-            return df[mm_schemas.ResultData.RESULT_VALUE].to_dict()
+        for frame in raw_frames:
+            # Extract column data from each RawFrame
+            app_name = frame.column_data(mm_schemas.ApplicationEvent.APPLICATION_NAME)[
+                0
+            ]
+            statuses = frame.column_data(mm_schemas.ResultData.RESULT_STATUS)
+
+            for status in statuses:
+                # Filter by result status if specified
+                if result_status_list and status not in result_status_list:
+                    continue
+
+                # Convert application name to lower case
+                key = (app_name.lower(), status)
+
+                # Update the count in the dictionary
+                count_dict[key] = count_dict.get(key, 0) + 1
+        return count_dict
 
     def count_processed_model_endpoints(
         self,
-        start: Optional[Union[datetime, str]] = None,
-        end: Optional[Union[datetime, str]] = None,
-        application_names: Optional[Union[str, list[str]]] = None,
+        start: Union[datetime, str] | None = None,
+        end: Union[datetime, str] | None = None,
+        application_names: Union[str, list[str]] | None = None,
     ) -> dict[str, int]:
         start, end = get_start_end(start=start, end=end, delta=timedelta(hours=24))
         group_by_columns = [
@@ -1439,9 +1446,9 @@ class V3IOTSDBConnector(TSDBConnector):
 
     def calculate_latest_metrics(
         self,
-        start: Optional[Union[datetime, str]] = None,
-        end: Optional[Union[datetime, str]] = None,
-        application_names: Optional[Union[str, list[str]]] = None,
+        start: Union[datetime, str] | None = None,
+        end: Union[datetime, str] | None = None,
+        application_names: Union[str, list[str]] | None = None,
     ) -> list[
         Union[mm_schemas.ApplicationResultRecord, mm_schemas.ApplicationMetricRecord]
     ]:
@@ -1490,14 +1497,12 @@ class V3IOTSDBConnector(TSDBConnector):
             return metric_list
 
         # Convert the results DataFrame to a list of ApplicationResultRecord
-        def build_metric_objects() -> (
-            list[
-                Union[
-                    mm_schemas.ApplicationResultRecord,
-                    mm_schemas.ApplicationMetricRecord,
-                ]
+        def build_metric_objects() -> list[
+            Union[
+                mm_schemas.ApplicationResultRecord,
+                mm_schemas.ApplicationMetricRecord,
             ]
-        ):
+        ]:
             metric_objects = []
             if not df_results.empty:
                 df_results.rename(
@@ -1543,51 +1548,111 @@ class V3IOTSDBConnector(TSDBConnector):
     ) -> mm_schemas.ModelEndpointDriftValues:
         table = mm_schemas.V3IOTSDBTables.APP_RESULTS
         start, end, interval = self._prepare_aligned_start_end(start, end)
-        df = self._get_records(
+
+        raw_frames: list[v3io_frames.client.RawFrame] = self._get_records(
             table=table,
             start=start,
             end=end,
             columns=[mm_schemas.ResultData.RESULT_STATUS],
+            get_raw=True,
         )
-        df = self._aggregate_raw_drift_data(df, start, end, interval)
-        if df.empty:
+
+        if not raw_frames:
             return mm_schemas.ModelEndpointDriftValues(values=[])
-        df = df[df[f"max({mm_schemas.ResultData.RESULT_STATUS})"] >= 1]
-        return self._df_to_drift_data(df)
+
+        # Combine aggregation, filtering, and conversion in one pass
+        drift_values = self._process_drifted_endpoints_data(
+            raw_frames=raw_frames, start=start, end=end, interval=interval
+        )
+
+        return drift_values
 
     @staticmethod
-    def _aggregate_raw_drift_data(
-        df: pd.DataFrame, start: datetime, end: datetime, interval: str
-    ) -> pd.DataFrame:
-        if df.empty:
-            return df
-        if not isinstance(df.index, pd.DatetimeIndex):
-            raise TypeError("Expected a DatetimeIndex on the DataFrame (time index).")
-        df[EventFieldType.ENDPOINT_ID] = (
-            df[EventFieldType.ENDPOINT_ID].astype("string").str.strip()
-        )  # remove extra data carried by the category dtype
-        window = df.loc[
-            (df.index >= start) & (df.index < end),
-            [mm_schemas.ResultData.RESULT_STATUS, EventFieldType.ENDPOINT_ID],
-        ]
-        out = (
-            window.groupby(
-                [
-                    EventFieldType.ENDPOINT_ID,
-                    pd.Grouper(
-                        freq=interval, origin=start, label="left", closed="left"
-                    ),
-                ]
-                # align to start, [start, end) intervals
-            )[mm_schemas.ResultData.RESULT_STATUS]
-            .max()
-            .reset_index()
-            .rename(
-                columns={
-                    mm_schemas.ResultData.RESULT_STATUS: f"max({mm_schemas.ResultData.RESULT_STATUS})"
-                }
+    def _process_drifted_endpoints_data(
+        raw_frames: list[v3io_frames.client.RawFrame],
+        start: datetime,
+        end: datetime,
+        interval: str,
+    ) -> mm_schemas.ModelEndpointDriftValues:
+        """
+        Optimized single-pass processing of drift data from RawFrame objects.
+        Combines aggregation, filtering, and conversion into one operation.
+
+        :param raw_frames: List of RawFrame objects containing drift data.
+        :param start:      Start datetime for filtering data.
+        :param end:        End datetime for filtering data.
+        :param interval:   Time interval string (e.g., '5min') for aggregation
+
+        :returns: ModelEndpointDriftValues with counts of suspected and detected per timestamp
+        """
+
+        if not raw_frames:
+            return mm_schemas.ModelEndpointDriftValues(values=[])
+
+        # Pre-compute constants
+        interval_td = pd.Timedelta(interval)
+        interval_ns = interval_td.value  # nanoseconds for integer arithmetic
+        start_ns = pd.Timestamp(start).value
+        end_ns = pd.Timestamp(end).value
+
+        suspected_val = mm_schemas.constants.ResultStatusApp.potential_detection.value
+        detected_val = mm_schemas.constants.ResultStatusApp.detected.value
+
+        # Single dictionary to track: bucket_start_ns -> {endpoint_id -> max_status}
+        # This allows us to calculate max per endpoint per bucket in one pass
+        bucket_endpoint_status = defaultdict(dict)
+
+        for frame in raw_frames:
+            endpoint_id = frame.column_data(EventFieldType.ENDPOINT_ID)[0]
+            result_statuses = frame.column_data(mm_schemas.ResultData.RESULT_STATUS)
+            timestamps = frame.indices()[0].times
+
+            for status, timestamp_ns in zip(result_statuses, timestamps):
+                # Early skip: invalid status or outside time range
+                if status is None or math.isnan(status) or status < 1:
+                    continue
+                if not (start_ns <= timestamp_ns < end_ns):
+                    continue
+
+                # Calculate bucket using integer arithmetic
+                bucket_index = (timestamp_ns - start_ns) // interval_ns
+                bucket_start_ns = start_ns + (bucket_index * interval_ns)
+
+                # Initialize bucket if needed
+                bucket = bucket_endpoint_status[bucket_start_ns]
+                bucket[endpoint_id] = max(bucket.get(endpoint_id, status), status)
+
+        if not bucket_endpoint_status:
+            return mm_schemas.ModelEndpointDriftValues(values=[])
+
+        # Second pass: count suspected/detected per timestamp bucket
+        # Structure: bucket_start_ns -> {count_suspected, count_detected}
+        timestamp_counts = {}
+
+        for bucket_start_ns, endpoint_statuses in bucket_endpoint_status.items():
+            count_suspected = 0
+            count_detected = 0
+
+            for status in endpoint_statuses.values():
+                if status == suspected_val:
+                    count_suspected += 1
+                elif status == detected_val:
+                    count_detected += 1
+
+            # Only store if there are counts
+            if count_suspected > 0 or count_detected > 0:
+                timestamp_counts[bucket_start_ns] = (count_suspected, count_detected)
+
+        # Convert to final format (sorted by timestamp)
+        values = [
+            (
+                pd.Timestamp(bucket_ns, unit="ns", tz="UTC").to_pydatetime(),
+                count_suspected,
+                count_detected,
             )
-        )
-        return out.rename(
-            columns={"time": "_wstart"}
-        )  # rename datetime column to _wstart to align with the tdengine result
+            for bucket_ns, (count_suspected, count_detected) in sorted(
+                timestamp_counts.items()
+            )
+        ]
+
+        return mm_schemas.ModelEndpointDriftValues(values=values)

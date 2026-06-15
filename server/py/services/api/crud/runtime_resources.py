@@ -33,12 +33,10 @@ class RuntimeResources(
     def list_runtime_resources(
         self,
         project: str,
-        kind: typing.Optional[str] = None,
-        object_id: typing.Optional[str] = None,
-        label_selector: typing.Optional[str] = None,
-        group_by: typing.Optional[
-            mlrun.common.schemas.ListRuntimeResourcesGroupByField
-        ] = None,
+        kind: str | None = None,
+        object_id: str | None = None,
+        label_selector: str | None = None,
+        group_by: mlrun.common.schemas.ListRuntimeResourcesGroupByField | None = None,
     ) -> typing.Union[
         mlrun.common.schemas.RuntimeResourcesOutput,
         mlrun.common.schemas.GroupedByJobRuntimeResourcesOutput,
@@ -68,9 +66,7 @@ class RuntimeResources(
         self,
         grouped_by_project_runtime_resources_output: mlrun.common.schemas.GroupedByProjectRuntimeResourcesOutput,
         allowed_projects: list[str],
-        group_by: typing.Optional[
-            mlrun.common.schemas.ListRuntimeResourcesGroupByField
-        ] = None,
+        group_by: mlrun.common.schemas.ListRuntimeResourcesGroupByField | None = None,
     ) -> typing.Union[
         mlrun.common.schemas.RuntimeResourcesOutput,
         mlrun.common.schemas.GroupedByJobRuntimeResourcesOutput,
@@ -111,11 +107,11 @@ class RuntimeResources(
     def delete_runtime_resources(
         self,
         db_session: sqlalchemy.orm.Session,
-        kind: typing.Optional[str] = None,
-        object_id: typing.Optional[str] = None,
-        label_selector: typing.Optional[str] = None,
+        kind: str | None = None,
+        object_id: str | None = None,
+        label_selector: str | None = None,
         force: bool = False,
-        grace_period: typing.Optional[int] = None,
+        grace_period: int | None = None,
     ):
         kinds = mlrun.runtimes.RuntimeKinds.runtime_with_handlers()
         if kind is not None:

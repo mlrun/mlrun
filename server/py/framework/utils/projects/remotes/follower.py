@@ -13,18 +13,24 @@
 # limitations under the License.
 
 import abc
-import typing
+import datetime
+import uuid
 
 import sqlalchemy.orm
 
 import mlrun.common.formatters
 import mlrun.common.schemas
 
+import framework.utils.project_formats
+
 
 class Member(abc.ABC):
     @abc.abstractmethod
     def create_project(
-        self, session: sqlalchemy.orm.Session, project: mlrun.common.schemas.Project
+        self,
+        session: sqlalchemy.orm.Session,
+        project: mlrun.common.schemas.Project,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ):
         pass
 
@@ -34,6 +40,7 @@ class Member(abc.ABC):
         session: sqlalchemy.orm.Session,
         name: str,
         project: mlrun.common.schemas.Project,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ):
         pass
 
@@ -44,6 +51,7 @@ class Member(abc.ABC):
         name: str,
         project: dict,
         patch_mode: mlrun.common.schemas.PatchMode = mlrun.common.schemas.PatchMode.replace,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ):
         pass
 
@@ -59,7 +67,10 @@ class Member(abc.ABC):
 
     @abc.abstractmethod
     def get_project(
-        self, session: sqlalchemy.orm.Session, name: str
+        self,
+        session: sqlalchemy.orm.Session,
+        name: str,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ) -> mlrun.common.schemas.Project:
         pass
 
@@ -67,11 +78,13 @@ class Member(abc.ABC):
     def list_projects(
         self,
         session: sqlalchemy.orm.Session,
-        owner: typing.Optional[str] = None,
-        format_: mlrun.common.formatters.ProjectFormat = mlrun.common.formatters.ProjectFormat.full,
-        labels: typing.Optional[list[str]] = None,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
+        owner: str | None = None,
+        format_: framework.utils.project_formats.ProjectFormatType = mlrun.common.formatters.ProjectFormat.full,
+        labels: list[str] | None = None,
         state: mlrun.common.schemas.ProjectState = None,
-        names: typing.Optional[list[str]] = None,
+        names: list[str] | None = None,
+        updated_after: datetime.datetime | None = None,
     ) -> mlrun.common.schemas.ProjectsOutput:
         pass
 
@@ -79,15 +92,67 @@ class Member(abc.ABC):
     def list_project_summaries(
         self,
         session: sqlalchemy.orm.Session,
-        owner: typing.Optional[str] = None,
-        labels: typing.Optional[list[str]] = None,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
+        owner: str | None = None,
+        labels: list[str] | None = None,
         state: mlrun.common.schemas.ProjectState = None,
-        names: typing.Optional[list[str]] = None,
+        names: list[str] | None = None,
     ) -> mlrun.common.schemas.ProjectSummariesOutput:
         pass
 
     @abc.abstractmethod
     def get_project_summary(
-        self, session: sqlalchemy.orm.Session, name: str
+        self,
+        session: sqlalchemy.orm.Session,
+        name: str,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ) -> mlrun.common.schemas.ProjectSummary:
+        pass
+
+    # ----- 2PC follower hooks ----------------------------------------------
+    # Invoked by the 2PC orchestrator on each remote follower as part of
+    # parallel fan-out. They take only data persisted on the project row, so
+    # request-driven and reconciliation-driven invocations are equivalent —
+    # no per-request session, no per-request auth_info. Concrete followers
+    # authenticate using their own service-account credentials.
+
+    @abc.abstractmethod
+    def prepare_create_project(
+        self,
+        project: mlrun.common.schemas.Project,
+        op_id: uuid.UUID,
+    ) -> None:
+        pass
+
+    @abc.abstractmethod
+    def commit_create_project(
+        self,
+        name: str,
+        op_id: uuid.UUID,
+    ) -> None:
+        pass
+
+    @abc.abstractmethod
+    def prepare_delete_project(
+        self,
+        name: str,
+        op_id: uuid.UUID,
+    ) -> None:
+        pass
+
+    @abc.abstractmethod
+    def commit_delete_project(
+        self,
+        name: str,
+        op_id: uuid.UUID,
+    ) -> None:
+        pass
+
+    @abc.abstractmethod
+    def update_project_follower(
+        self,
+        name: str,
+        project: mlrun.common.schemas.Project,
+        op_id: uuid.UUID,
+    ) -> None:
         pass

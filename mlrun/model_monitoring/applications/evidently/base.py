@@ -15,7 +15,6 @@
 import warnings
 from abc import ABC
 from tempfile import NamedTemporaryFile
-from typing import Optional
 
 import semver
 
@@ -73,7 +72,7 @@ class EvidentlyModelMonitoringApplicationBase(
     def __init__(
         self,
         evidently_project_id: "STR_UUID",
-        evidently_workspace_path: Optional[str] = None,
+        evidently_workspace_path: str | None = None,
         cloud_workspace: bool = False,
     ) -> None:
         """

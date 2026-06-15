@@ -13,22 +13,24 @@
 # limitations under the License.
 import functools
 import json
-import os
 import pickle
 import uuid
 import warnings
-from datetime import datetime, timezone
-from typing import Any, Callable
+from collections.abc import Callable
+from datetime import UTC, datetime
+from typing import Any
 
 import orjson
 from sqlalchemy import (
     BOOLEAN,
     JSON,
     Column,
+    Enum,
     ForeignKey,
     ForeignKeyConstraint,
     Index,
     Integer,
+    MetaData,
     PrimaryKeyConstraint,
     Table,
     UniqueConstraint,
@@ -36,15 +38,18 @@ from sqlalchemy import (
     text,
 )
 from sqlalchemy.engine import Connection
-from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import Mapper, Session, declared_attr, relationship
 
+import mlrun.common
 import mlrun.common.db.dialects
 import mlrun.common.schemas
+import mlrun.common.schemas.partition_interval
+import mlrun.utils
 
+import framework.db
 import framework.db.sqldb.base
-import framework.db.sqldb.partititioner
+import framework.db.sqldb.partition_bootstrapper
 import framework.db.sqldb.sql_types
 
 Base = declarative_base()
@@ -347,7 +352,7 @@ with warnings.catch_warnings():
         __tablename__ = "artifacts_v2"
         __table_args__ = (
             UniqueConstraint("uid", "project", "key", name="_artifacts_v2_uc"),
-            # Used when enriching workflow status with run artifacts. See https://iguazio.atlassian.net/browse/ML-6770
+            # Used when enriching workflow status with run artifacts. See ML-6770.
             Index(
                 "idx_artifacts_producer_id_best_iteration_and_project",
                 "project",
@@ -355,17 +360,17 @@ with warnings.catch_warnings():
                 "best_iteration",
             ),
             # Used to speed up querying artifact tags which is frequently done by UI with project and category.
-            # See https://iguazio.atlassian.net/browse/ML-7266
+            # See ML-7266.
             Index(
                 "idx_project_kind",
                 "project",
                 "kind",
             ),
             # Used for calculating the project counters more efficiently.
-            # See https://iguazio.atlassian.net/browse/ML-8556
+            # See ML-8556.
             Index("idx_project_kind_key", "project", "kind", "key"),
             # Used explicitly in list_artifacts, as most of the queries request best_iteration, and all always sort by
-            # updated. See https://iguazio.atlassian.net/browse/ML-9189
+            # updated. See ML-9189.
             Index(
                 "idx_project_bi_updated", "project", "best_iteration", "kind", "updated"
             ),
@@ -391,11 +396,11 @@ with warnings.catch_warnings():
         )
         created = Column(
             framework.db.sqldb.sql_types.DateTime,
-            default=lambda: datetime.now(timezone.utc),
+            default=lambda: datetime.now(UTC),
         )
         updated = Column(
             framework.db.sqldb.sql_types.DateTime,
-            default=lambda: datetime.now(timezone.utc),
+            default=lambda: datetime.now(UTC),
         )
         _full_object = Column("object", framework.db.sqldb.sql_types.Blob)
         parent = relationship(
@@ -434,6 +439,7 @@ with warnings.catch_warnings():
         __table_args__ = (
             UniqueConstraint("name", "project", "uid", name="_functions_uc"),
             Index("idx_project_state", "project", "state"),
+            Index("idx_function_project_kind", "project", "kind"),
         )
 
         id = Column(Integer, primary_key=True)
@@ -460,6 +466,13 @@ with warnings.catch_warnings():
         __table_args__ = (
             UniqueConstraint("uid", "project", "iteration", name="_runs_uc"),
             Index("idx_runs_project_id", "id", "project", unique=True),
+            Index(
+                "idx_runs_project_iter_start",
+                "project",
+                "iteration",
+                "start_time",
+                "name",
+            ),
         )
 
         id = Column(Integer, primary_key=True)
@@ -496,12 +509,12 @@ with warnings.catch_warnings():
         project = Column(framework.db.sqldb.sql_types.Utf8BinText, nullable=False)
         created = Column(
             framework.db.sqldb.sql_types.DateTime,
-            default=lambda: datetime.now(timezone.utc),
+            default=lambda: datetime.now(UTC),
         )
         updated = Column(
             framework.db.sqldb.sql_types.DateTime,
-            default=lambda: datetime.now(timezone.utc),
-            onupdate=lambda: datetime.now(timezone.utc),
+            default=lambda: datetime.now(UTC),
+            onupdate=lambda: datetime.now(UTC),
         )
         state = Column(framework.db.sqldb.sql_types.Utf8BinText, index=True)
         error = Column(framework.db.sqldb.sql_types.Utf8BinText)
@@ -521,7 +534,7 @@ with warnings.catch_warnings():
         __tablename__ = "background_task_labels"
         __table_args__ = (
             UniqueConstraint(
-                "task_id", "name", name="uq_bg_task_labels_task_id_and_name"
+                "project", "name", "value", name="uq_bg_task_labels_project_name_value"
             ),
         )
 
@@ -532,6 +545,7 @@ with warnings.catch_warnings():
             nullable=False,
             index=True,
         )
+        project = Column(framework.db.sqldb.sql_types.Utf8BinText, nullable=False)
         name = Column(framework.db.sqldb.sql_types.Utf8BinText, nullable=False)
         value = Column(framework.db.sqldb.sql_types.Utf8BinText, nullable=False)
 
@@ -539,7 +553,6 @@ with warnings.catch_warnings():
             "BackgroundTask",
             back_populates="labels",
         )
-        project = association_proxy("task", "project")
 
     class Schedule(Base, LabelMixin, framework.db.sqldb.base.BaseModel):
         __tablename__ = "schedules_v2"
@@ -596,6 +609,11 @@ with warnings.catch_warnings():
         created = Column(framework.db.sqldb.sql_types.DateTime, default=datetime.utcnow)
         default_function_node_selector = Column("default_function_node_selector", JSON)
         state = Column(framework.db.sqldb.sql_types.Utf8BinText)
+        op_id = Column(framework.db.sqldb.sql_types.UuidType, nullable=True)
+        phase = Column(Integer, nullable=True)
+        updated_at = Column(
+            framework.db.sqldb.sql_types.DateTime, nullable=True, index=True
+        )
 
         def get_identifier_string(self) -> str:
             return f"{self.name}"
@@ -656,11 +674,11 @@ with warnings.catch_warnings():
         project = Column(framework.db.sqldb.sql_types.Utf8BinText)
         created = Column(
             framework.db.sqldb.sql_types.DateTime,
-            default=lambda: datetime.now(timezone.utc),
+            default=lambda: datetime.now(UTC),
         )
         updated = Column(
             framework.db.sqldb.sql_types.DateTime,
-            default=lambda: datetime.now(timezone.utc),
+            default=lambda: datetime.now(UTC),
         )
         state = Column(framework.db.sqldb.sql_types.Utf8BinText)
         uid = Column(framework.db.sqldb.sql_types.Utf8BinText)
@@ -706,11 +724,11 @@ with warnings.catch_warnings():
         project = Column(framework.db.sqldb.sql_types.Utf8BinText)
         created = Column(
             framework.db.sqldb.sql_types.DateTime,
-            default=lambda: datetime.now(timezone.utc),
+            default=lambda: datetime.now(UTC),
         )
         updated = Column(
             framework.db.sqldb.sql_types.DateTime,
-            default=lambda: datetime.now(timezone.utc),
+            default=lambda: datetime.now(UTC),
         )
         state = Column(framework.db.sqldb.sql_types.Utf8BinText)
         uid = Column(framework.db.sqldb.sql_types.Utf8BinText)
@@ -739,11 +757,11 @@ with warnings.catch_warnings():
         index = Column(Integer)
         created = Column(
             framework.db.sqldb.sql_types.DateTime,
-            default=lambda: datetime.now(timezone.utc),
+            default=lambda: datetime.now(UTC),
         )
         updated = Column(
             framework.db.sqldb.sql_types.DateTime,
-            default=lambda: datetime.now(timezone.utc),
+            default=lambda: datetime.now(UTC),
         )
 
         _full_object = Column("object", JSON)
@@ -769,7 +787,7 @@ with warnings.catch_warnings():
         version = Column(framework.db.sqldb.sql_types.Utf8BinText)
         created = Column(
             framework.db.sqldb.sql_types.DateTime,
-            default=lambda: datetime.now(timezone.utc),
+            default=lambda: datetime.now(UTC),
         )
 
         def get_identifier_string(self) -> str:
@@ -810,7 +828,7 @@ with warnings.catch_warnings():
         kwargs = Column(JSON)
         last_accessed = Column(
             framework.db.sqldb.sql_types.DateTime,  # TODO: change to `datetime`, see ML-6921
-            default=lambda: datetime.now(timezone.utc),
+            default=lambda: datetime.now(UTC),
         )
 
         def get_identifier_string(self) -> str:
@@ -818,19 +836,31 @@ with warnings.catch_warnings():
 
     class AlertState(Base, framework.db.sqldb.base.BaseModel):
         __tablename__ = "alert_states"
-        __table_args__ = (UniqueConstraint("parent_id", name="_alert_state_parent_uc"),)
+        __table_args__ = (
+            UniqueConstraint("parent_id", name="_alert_state_parent_uc"),
+            Index(
+                "ix_alert_states_active_cooldown_end_time",
+                "active",
+                "cooldown_end_time",
+            ),
+        )
 
         id = Column(Integer, primary_key=True)
         count = Column(Integer)
         created = Column(
             framework.db.sqldb.sql_types.DateTime,  # TODO: change to `datetime`, see ML-6921
-            default=lambda: datetime.now(timezone.utc),
+            default=lambda: datetime.now(UTC),
         )
         last_updated = Column(
             framework.db.sqldb.sql_types.DateTime,  # TODO: change to `datetime`, see ML-6921
             default=None,
         )
         active = Column(BOOLEAN, default=False)
+        cooldown_end_time = Column(
+            framework.db.sqldb.sql_types.MicroSecondDateTime,
+            default=None,
+            nullable=True,
+        )
 
         parent_id = Column(Integer, ForeignKey("alert_configs.id"))
 
@@ -895,24 +925,30 @@ with warnings.catch_warnings():
         def full_object(self, value):
             self._full_object = json.dumps(value, default=str)
 
+    class TablePartitionInterval(Base):
+        __tablename__ = "table_partition_interval"
+
+        table_name: str = Column(
+            framework.db.sqldb.sql_types.Utf8BinText,
+            primary_key=True,
+        )
+
+        interval = Column(
+            Enum(
+                mlrun.common.schemas.partition_interval.PartitionInterval,
+                name="partition_interval",
+                native_enum=False,
+                create_constraint=True,
+            ),
+            nullable=False,
+        )
+
     class AlertActivation(Base):
         __tablename__ = "alert_activations"
-
-        # partition setup at import
-        _interval_name = os.getenv("PARTITION_INTERVAL", "YEARWEEK").upper()
-        if not mlrun.common.schemas.partition.PartitionInterval.is_valid(
-            _interval_name
-        ):
-            raise ValueError(
-                f"Partition interval must be one of: "
-                f"{mlrun.common.schemas.partition.PartitionInterval.valid_intervals()}"
-            )
-        _interval = mlrun.common.schemas.partition.PartitionInterval(_interval_name)
-        _expr = _interval.get_partition_expression(column_name="activation_time")
-        _pname, _pval = _interval.get_partition_info(datetime.utcnow())[0]
-
         __table_args__ = (
-            PrimaryKeyConstraint("id", "activation_time", name="_alert_activation_uc"),
+            PrimaryKeyConstraint(
+                "id", "activation_time", "partition_key", name="_alert_activation_uc"
+            ),
             Index("ix_alert_activation_project_name", "project", "name"),
             Index(
                 "ix_alert_activation_project_activation_time",
@@ -922,6 +958,7 @@ with warnings.catch_warnings():
             {
                 "mysql_engine": "InnoDB",
                 "mysql_charset": "utf8mb4",
+                "postgresql_partition_by": "RANGE (partition_key)",
             },
         )
 
@@ -933,6 +970,8 @@ with warnings.catch_warnings():
         activation_time = Column(
             framework.db.sqldb.sql_types.DateTime(timezone=True), nullable=False
         )
+        partition_key = Column(Integer, nullable=False)
+
         name = Column(framework.db.sqldb.sql_types.Utf8BinText(), nullable=False)
         project = Column(framework.db.sqldb.sql_types.Utf8BinText(), nullable=False)
         data = Column(JSON)
@@ -970,7 +1009,7 @@ with warnings.catch_warnings():
         timestamp = Column(
             framework.db.sqldb.sql_types.MicroSecondDateTime,
             nullable=False,
-            default=lambda: datetime.now(timezone.utc),
+            default=lambda: datetime.now(UTC),
         )
         max_window_size_seconds = Column(Integer)
 
@@ -997,11 +1036,11 @@ with warnings.catch_warnings():
         body = Column(framework.db.sqldb.sql_types.Blob)
         created = Column(
             framework.db.sqldb.sql_types.DateTime,
-            default=lambda: datetime.now(timezone.utc),
+            default=lambda: datetime.now(UTC),
         )
         updated = Column(
             framework.db.sqldb.sql_types.DateTime,
-            default=lambda: datetime.now(timezone.utc),
+            default=lambda: datetime.now(UTC),
         )
         function_id = Column(
             Integer,
@@ -1033,7 +1072,7 @@ with warnings.catch_warnings():
             return f"{self.key}"
 
 
-def event_listen_for_dialects(
+def _event_listen_for_dialects(
     target: Any,
     identifier: str,
     relevant_dialects: list[str],
@@ -1093,7 +1132,7 @@ def event_listen_for_dialects(
     return decorator
 
 
-@event_listen_for_dialects(
+@_event_listen_for_dialects(
     target=AlertActivation.__table__,
     identifier="before_create",
     relevant_dialects=[mlrun.common.db.dialects.Dialects.SQLITE],
@@ -1106,12 +1145,12 @@ def _disable_autoinc_on_sqlite(
     table.c.id.autoincrement = False
 
 
-@event_listen_for_dialects(
+@_event_listen_for_dialects(
     target=AlertActivation,
     identifier="before_insert",
     relevant_dialects=[mlrun.common.db.dialects.Dialects.SQLITE],
 )
-def _sqlite_autoincrement(
+def alert_activations_sqlite_autoincrement(
     _: Mapper,
     connection: Connection,
     target: AlertActivation,
@@ -1123,7 +1162,7 @@ def _sqlite_autoincrement(
         target.id = next_id
 
 
-@event_listen_for_dialects(
+@_event_listen_for_dialects(
     target=AlertActivation.__table__,
     identifier="after_create",
     relevant_dialects=[
@@ -1136,27 +1175,90 @@ def bootstrap_partitions(
     connection: Connection,
     **_,
 ) -> None:
-    interval_name = os.getenv("PARTITION_INTERVAL", "YEARWEEK").upper()
-    if not mlrun.common.schemas.partition.PartitionInterval.is_valid(interval_name):
-        raise ValueError(
-            f"Partition interval must be one of: "
-            f"{mlrun.common.schemas.partition.PartitionInterval.valid_intervals()}"
-        )
-    interval = mlrun.common.schemas.PartitionInterval(interval_name)
-
-    partition_expression = interval.get_partition_expression("activation_time")
-    partition_name, partition_value = interval.get_partition_info(datetime.utcnow())[0]
-
+    partition_interval = mlrun.common.schemas.partition_interval.PartitionInterval.get_partition_interval_from_env()
     dialect = connection.dialect.name
+
     with Session(bind=connection) as session:
-        # Ensure the partitioner is initialized for the dialect
-        framework.db.sqldb.partititioner.RangePartitioner(dialect).bootstrap(
+        framework.db.sqldb.partition_bootstrapper.PartitionBootstrapper(
+            dialect
+        ).bootstrap(
+            partition_interval=partition_interval,
             session=session,
             table_name=table.name,
-            partition_expression=partition_expression,
-            first_partition_name=partition_name,
-            first_partition_upper_bound=partition_value,
+            partitions_count=1,  # Create a single partition for the initial bootstrap
         )
+
+
+@_event_listen_for_dialects(
+    target=AlertActivation.__table__,
+    identifier="after_create",
+    relevant_dialects=[
+        mlrun.common.db.dialects.Dialects.MYSQL,
+        mlrun.common.db.dialects.Dialects.POSTGRESQL,
+    ],
+)
+def set_alert_activations_partition_interval(
+    table: Table,
+    connection: Connection,
+    **_,
+) -> None:
+    """This is required for integration tests,as they don't set the partition interval for
+    alert_activations via alembic migration.
+    """
+    partition_interval = mlrun.common.schemas.partition_interval.PartitionInterval.get_partition_interval_from_env()
+    with Session(bind=connection) as session:
+        import framework.db.sqldb.db
+
+        db = framework.db.sqldb.db.SQLDB()
+        db.set_partition_interval_for_table(
+            session=session,
+            table_name=table.name,
+            partition_interval=partition_interval,
+        )
+
+
+@_event_listen_for_dialects(
+    target=Base.metadata,
+    identifier="before_create",
+    relevant_dialects=[mlrun.common.db.dialects.Dialects.POSTGRESQL],
+)
+def postgres_create_utf8_bin(
+    _: MetaData,
+    connection: Connection,
+    **__,
+):
+    """
+    Ensure a binary, deterministic UTF-8 collation exists in PostgreSQL before
+    schema creation.
+
+    PostgreSQL does not ship with a built-in `utf8_bin` collation equivalent to
+    MySQL's `utf8_bin`. In order to achieve consistent, byte-wise string
+    comparison semantics across databases (case-sensitive, accent-sensitive,
+    and fully deterministic), we explicitly create a custom collation named
+    `utf8_bin`.
+
+    This function is registered as a SQLAlchemy `before_create` event listener
+    and runs once per database initialization *before* any tables are created.
+    The collation is therefore guaranteed to exist when columns later declare:
+
+        Text(collation="utf8_bin")
+
+    Key properties of the created collation:
+    - Uses the `libc` provider with locale `C` for byte-wise comparisons
+    - Marked as `deterministic` so it is safe for indexes and constraints
+    - Created conditionally (`IF NOT EXISTS`) to allow repeated runs and
+      parallel migrations without failure
+
+    This is part of the cross-dialect compatibility layer that allows
+    `Utf8BinText` columns to behave consistently on MySQL, PostgreSQL, and
+    SQLite.
+    """
+    connection.execute(
+        text(
+            "CREATE COLLATION IF NOT EXISTS utf8_bin "
+            "(provider = 'libc', locale = 'C', deterministic = true)"
+        )
+    )
 
 
 # Must be after all table definitions

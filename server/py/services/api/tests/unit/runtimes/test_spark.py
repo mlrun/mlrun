@@ -15,7 +15,6 @@
 import base64
 import json
 import os
-import typing
 import unittest
 
 import deepdiff
@@ -99,15 +98,15 @@ class TestSpark3Runtime(services.api.tests.unit.runtimes.base.TestRuntimeBase):
         self,
         expected_runtime_class_name="spark",
         assert_create_custom_object_called=True,
-        expected_volumes: typing.Optional[list] = None,
-        expected_driver_volume_mounts: typing.Optional[list] = None,
-        expected_executor_volume_mounts: typing.Optional[list] = None,
+        expected_volumes: list | None = None,
+        expected_driver_volume_mounts: list | None = None,
+        expected_executor_volume_mounts: list | None = None,
         expected_driver_java_options=None,
         expected_executor_java_options=None,
-        expected_driver_resources: typing.Optional[dict] = None,
-        expected_executor_resources: typing.Optional[dict] = None,
-        expected_cores: typing.Optional[dict] = None,
-        expected_code: typing.Optional[str] = None,
+        expected_driver_resources: dict | None = None,
+        expected_executor_resources: dict | None = None,
+        expected_cores: dict | None = None,
+        expected_code: str | None = None,
     ):
         if assert_create_custom_object_called:
             framework.utils.singletons.k8s.get_k8s_helper().crdapi.create_namespaced_custom_object.assert_called_once()
@@ -151,9 +150,9 @@ class TestSpark3Runtime(services.api.tests.unit.runtimes.base.TestRuntimeBase):
     def _assert_volume_and_mounts(
         self,
         body: dict,
-        expected_volumes: typing.Optional[list] = None,
-        expected_driver_volume_mounts: typing.Optional[list] = None,
-        expected_executor_volume_mounts: typing.Optional[list] = None,
+        expected_volumes: list | None = None,
+        expected_driver_volume_mounts: list | None = None,
+        expected_executor_volume_mounts: list | None = None,
     ):
         if expected_volumes is not None:
             sanitized_volumes = self._sanitize_list_for_serialization(expected_volumes)
@@ -1242,4 +1241,105 @@ class TestSpark3Runtime(services.api.tests.unit.runtimes.base.TestRuntimeBase):
         assert (
             str(exc.value) == "Sparkjob does not support loading source code on run, "
             "use func.with_source_archive(pull_at_runtime=False)"
+        )
+
+    def test_mount_secret_token_to_spark_driver_and_executor(
+        self, db: sqlalchemy.orm.Session, k8s_secrets_mock
+    ):
+        """
+        Test that auth token secret is mounted to both driver and executor pods.
+        This test addresses ML-11590.
+        """
+        import mlrun.common.constants
+        from mlrun.common.types import AuthenticationMode
+
+        token_name = "test-token"
+
+        runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime()
+        runtime.metadata.name = "test-spark-auth-mount"
+        runtime.metadata.project = self.project
+
+        # Create a mock secret
+        mock_secret = kubernetes.client.V1Secret(
+            metadata=kubernetes.client.V1ObjectMeta(
+                name="mlrun-auth-secrets.abcdef123456"
+            ),
+            data={"tokensFile": base64.b64encode(b"dummy-token").decode("utf-8")},
+        )
+
+        # Set authentication mode to IG4 to enable token mounting
+        original_auth_mode = mlrun.mlconf.httpdb.authentication.mode
+        mlrun.mlconf.httpdb.authentication.mode = AuthenticationMode.IGUAZIO_V4
+
+        # Get the existing k8s helper and add our mocks to it
+        k8s_helper = framework.utils.singletons.k8s.get_k8s_helper()
+        k8s_helper._get_user_token_secret = unittest.mock.Mock(return_value=mock_secret)
+        k8s_helper.get_user_secret_tokens_as_igz_yml_data = unittest.mock.Mock(
+            return_value=""
+        )
+        k8s_helper.get_project_secret_keys = unittest.mock.Mock(return_value=[])
+
+        try:
+            with (
+                unittest.mock.patch(
+                    "services.api.crud.secrets.Secrets.list_project_secrets",
+                    return_value=mlrun.common.schemas.SecretsData(
+                        provider="kubernetes", secrets={"tokensFile": "dummy-token"}
+                    ),
+                ),
+                unittest.mock.patch(
+                    "services.api.utils.helpers.resolve_auth_token_name",
+                    return_value=token_name,
+                ),
+            ):
+                # Execute function with auth in run_spec
+                run_spec = {"parameters": {}, "auth": {"token_name": token_name}}
+                self.execute_function(runtime, run_spec=run_spec)
+        finally:
+            # Restore original auth mode
+            mlrun.mlconf.httpdb.authentication.mode = original_auth_mode
+
+        # Get the created SparkApplication CRD
+        body = self._get_custom_object_creation_body()
+
+        # Verify that the auth secret is mounted to both driver and executor
+        expected_secret_volume_mount_path = (
+            mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_PATH
+        )
+
+        # Check driver volume mounts
+        driver_volume_mounts = body["spec"]["driver"]["volumeMounts"]
+        driver_auth_mount = [
+            vm
+            for vm in driver_volume_mounts
+            if vm["mountPath"] == expected_secret_volume_mount_path
+        ]
+        assert len(driver_auth_mount) == 1, (
+            f"Auth secret should be mounted to driver. "
+            f"Expected mount path: {expected_secret_volume_mount_path}. "
+            f"Actual mounts: {driver_volume_mounts}"
+        )
+
+        # Check executor volume mounts
+        executor_volume_mounts = body["spec"]["executor"]["volumeMounts"]
+        executor_auth_mount = [
+            vm
+            for vm in executor_volume_mounts
+            if vm["mountPath"] == expected_secret_volume_mount_path
+        ]
+        assert len(executor_auth_mount) == 1, (
+            "Auth secret should be mounted to executor"
+        )
+
+        # Verify the secret volume is in the volumes list
+        volumes = body["spec"]["volumes"]
+        auth_volumes = [
+            vol
+            for vol in volumes
+            if vol.get("secret", {}).get("secretName") == mock_secret.metadata.name
+        ]
+        assert len(auth_volumes) == 1, (
+            f"Auth secret volume should be in volumes list. "
+            f"Expected secret name: {mock_secret.metadata.name}. "
+            f"Actual volumes: {volumes}"
         )

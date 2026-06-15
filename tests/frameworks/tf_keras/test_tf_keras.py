@@ -26,7 +26,9 @@ try:
     from mlrun.frameworks.tf_keras import TFKerasModelHandler, apply_mlrun
     from mlrun.frameworks.tf_keras.utils import is_keras_3
 except ImportError:
-    pass
+    # just so pytest doesn't fail
+    def is_keras_3():
+        return False
 
 
 def preprocess_data(x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
@@ -100,10 +102,10 @@ def train(epochs=1, batch_size=32):
     return model
 
 
-def evaluate(model: tf.keras.Model) -> dict:
+def evaluate(model: "tf.keras.Model") -> dict:
     # Load the model:
     model_path = None
-    if not isinstance(model, tf.keras.Model):
+    if not isinstance(model, "tf.keras.Model"):
         model_path = model
         model_handler = TFKerasModelHandler(model_path=model)
         model_handler.load()
@@ -142,7 +144,7 @@ def test_training(rundb_mock):
     with tempfile.TemporaryDirectory() as test_directory:
         # Run training:
         train_run = mlrun.new_function().run(
-            artifact_path=test_directory,
+            output_path=test_directory,
             handler=train,
             local=True,
         )
@@ -193,14 +195,14 @@ def test_evaluation(rundb_mock):
     with tempfile.TemporaryDirectory() as test_directory:
         # Run training:
         train_run = mlrun.new_function().run(
-            artifact_path=test_directory,
+            output_path=test_directory,
             handler=train,
             local=True,
         )
 
         # Run evaluation (on the model that was just trained):
         evaluate_run = mlrun.new_function().run(
-            artifact_path=test_directory,
+            output_path=test_directory,
             handler=evaluate,
             params={
                 "model": train_run.outputs["model"],

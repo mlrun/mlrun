@@ -15,7 +15,6 @@ import json
 import random
 import sys
 from copy import deepcopy
-from typing import Optional
 
 import pandas as pd
 
@@ -27,7 +26,7 @@ default_max_iterations = 10
 default_max_errors = 3
 
 
-def get_generator(spec: RunSpec, execution, param_file_secrets: Optional[dict] = None):
+def get_generator(spec: RunSpec, execution, param_file_secrets: dict | None = None):
     options = spec.hyper_param_options
     strategy = spec.strategy or options.strategy
     if not spec.is_hyper_job() or strategy == "custom":
@@ -214,7 +213,7 @@ def selector(results: list, criteria):
     best_id = 0
     best_item = 0
     if op == "max":
-        best_val = sys.float_info.min
+        best_val = -sys.float_info.max
     elif op == "min":
         best_val = sys.float_info.max
 

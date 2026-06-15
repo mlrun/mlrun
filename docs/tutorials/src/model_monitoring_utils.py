@@ -3,7 +3,7 @@ import os
 import mlrun
 from mlrun.datastore.datastore_profile import (
     DatastoreProfileKafkaStream,
-    DatastoreProfileTDEngine,
+    DatastoreProfilePostgreSQL,
     DatastoreProfileV3io,
 )
 
@@ -15,6 +15,8 @@ def enable_model_monitoring(
     base_period: int = 10,
     wait_for_deployment: bool = False,
     deploy_histogram_data_drift_app: bool = True,
+    lag_threshold: int | None = None,
+    lag_event_cooldown: int | None = None,
 ) -> mlrun.projects.MlrunProject:
     # Setting model monitoring creds
     tsdb_profile = DatastoreProfileV3io(name=tsdb_profile_name)
@@ -22,19 +24,33 @@ def enable_model_monitoring(
         name=stream_profile_name, v3io_access_key=mlrun.mlconf.get_v3io_access_key()
     )
 
-    if mlrun.mlconf.is_ce_mode():
+    if not mlrun.mlconf.is_using_v3io():
         mlrun_namespace = os.environ.get("MLRUN_NAMESPACE", "mlrun")
-        tsdb_profile = DatastoreProfileTDEngine(
+
+        kafka_broker = ""
+        if "KAFKA_BROKER" in os.environ:
+            kafka_broker = os.environ.get("KAFKA_BROKER")
+        else:
+            kafka_broker = f"kafka-stream.{mlrun_namespace}.svc.cluster.local:9092"
+
+        pg_sql = ""
+        if "PG_SQL" in os.environ:
+            pg_sql = os.environ.get("PG_SQL")
+        else:
+            pg_sql = f"timescaledb.{mlrun_namespace}.svc.cluster.local"
+
+        tsdb_profile = DatastoreProfilePostgreSQL(
             name=tsdb_profile_name,
-            user="root",
-            password="taosdata",
-            host=f"tdengine-tsdb.{mlrun_namespace}.svc.cluster.local",
-            port="6041",
+            user="postgres",
+            password="postgres",
+            host=pg_sql,
+            port=5432,
+            database="mlrun",
         )
 
         stream_profile = DatastoreProfileKafkaStream(
             name=stream_profile_name,
-            brokers=f"kafka-stream.{mlrun_namespace}.svc.cluster.local:9092",
+            brokers=kafka_broker,
             topics=[],
         )
 
@@ -51,5 +67,7 @@ def enable_model_monitoring(
         base_period=base_period,
         wait_for_deployment=wait_for_deployment,
         deploy_histogram_data_drift_app=deploy_histogram_data_drift_app,
+        lag_threshold=lag_threshold,
+        lag_event_cooldown=lag_event_cooldown,
     )
     return project

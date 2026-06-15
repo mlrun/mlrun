@@ -34,7 +34,7 @@ class Notifications(
         session: sqlalchemy.orm.Session,
         notification_objects: list[mlrun.model.Notification],
         alert_id: str,
-        project: typing.Optional[str] = None,
+        project: str | None = None,
         mask_params: bool = True,
     ):
         # we don't mask the notification params when it's a status update as they are already masked
@@ -55,7 +55,7 @@ class Notifications(
         session: sqlalchemy.orm.Session,
         notification_objects: list[mlrun.model.Notification],
         run_uid: str,
-        project: typing.Optional[str] = None,
+        project: str | None = None,
         mask_params: bool = True,
     ):
         # we don't mask the notification params when it's a status update as they are already masked
@@ -84,9 +84,9 @@ class Notifications(
     def delete_run_notifications(
         self,
         session: sqlalchemy.orm.Session,
-        name: typing.Optional[str] = None,
-        run_uid: typing.Optional[str] = None,
-        project: typing.Optional[str] = None,
+        name: str | None = None,
+        run_uid: str | None = None,
+        project: str | None = None,
     ):
         # Delete notification param project secret
         notifications = [

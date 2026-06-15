@@ -14,7 +14,7 @@
 
 import tempfile
 from os import path
-from typing import Any, Optional, Union
+from typing import Any, Union
 
 import pandas as pd
 import yaml
@@ -71,8 +71,8 @@ class ModelArtifactSpec(ArtifactSpec):
         model_file=None,
         metrics=None,
         paraemeters=None,
-        inputs: Optional[list[Feature]] = None,
-        outputs: Optional[list[Feature]] = None,
+        inputs: list[Feature] | None = None,
+        outputs: list[Feature] | None = None,
         framework=None,
         algorithm=None,
         feature_vector=None,
@@ -162,8 +162,8 @@ class ModelArtifact(Artifact):
         feature_weights=None,
         extra_data=None,
         model_dir=None,
-        model_url: Optional[str] = None,
-        default_config: Optional[dict] = None,
+        model_url: str | None = None,
+        default_config: dict | None = None,
         **kwargs,
     ):
         """
@@ -368,7 +368,7 @@ class ModelArtifact(Artifact):
             self.metadata.labels = self.metadata.labels or {}
             self.metadata.labels["framework"] = self.spec.framework
 
-    def upload(self, artifact_path: Optional[str] = None):
+    def upload(self, artifact_path: str | None = None):
         """
         internal, upload to target store
         :param artifact_path: required only for when generating target_path from artifact hash
@@ -418,7 +418,7 @@ class ModelArtifact(Artifact):
     def _upload_body_or_file(
         self,
         artifact_path: str,
-        target_model_path: Optional[str] = None,
+        target_model_path: str | None = None,
     ):
         body = self.spec.get_body()
         if body:
@@ -467,9 +467,7 @@ class ModelArtifact(Artifact):
 
 
 def get_model(
-    model_dir: Optional[
-        Union[str, ModelArtifact, "mlrun.datastore.base.DataItem"]
-    ] = None,
+    model_dir: Union[str, ModelArtifact, "mlrun.datastore.base.DataItem"] | None = None,
     suffix="",
 ) -> (str, ModelArtifact, dict):
     """Return model file, model spec object, and dictionary of extra data items
@@ -569,15 +567,15 @@ def get_model(
 
 def update_model(
     model_artifact,
-    parameters: Optional[dict] = None,
-    metrics: Optional[dict] = None,
-    extra_data: Optional[dict] = None,
-    inputs: Optional[list[Feature]] = None,
-    outputs: Optional[list[Feature]] = None,
-    feature_vector: Optional[str] = None,
-    feature_weights: Optional[list] = None,
+    parameters: dict | None = None,
+    metrics: dict | None = None,
+    extra_data: dict | None = None,
+    inputs: list[Feature] | None = None,
+    outputs: list[Feature] | None = None,
+    feature_vector: str | None = None,
+    feature_weights: list | None = None,
     key_prefix: str = "",
-    labels: Optional[dict] = None,
+    labels: dict | None = None,
     write_spec_copy=True,
     store_object: bool = True,
 ) -> ModelArtifact:

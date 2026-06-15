@@ -12,6 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
+import concurrent.futures
+
 import mlrun
 import mlrun.artifacts
 from mlrun.config import config
@@ -20,14 +23,8 @@ from mlrun.utils.helpers import parse_artifact_uri
 from ..common.helpers import parse_versioned_object_uri
 from ..platforms.iguazio import parse_path
 from ..utils import DB_SCHEMA, StorePrefix
+from ..utils.helpers import is_store_uri
 from .targets import get_online_target
-
-
-def is_store_uri(url):
-    """detect if the uri starts with the store schema prefix"""
-    if not url:
-        return False
-    return url.startswith(DB_SCHEMA + "://")
 
 
 def parse_store_uri(url):
@@ -76,9 +73,9 @@ class ResourceCache:
             return self._tabels[uri]
 
         if uri.startswith("v3io://") or uri.startswith("v3ios://"):
-            endpoint, uri = parse_path(uri)
+            endpoint, path = parse_path(uri)
             self._tabels[uri] = Table(
-                uri,
+                path,
                 V3ioDriver(webapi=endpoint or mlrun.mlconf.v3io_api),
                 flush_interval_secs=mlrun.mlconf.feature_store.flush_interval,
             )
@@ -87,10 +84,10 @@ class ResourceCache:
         if uri.startswith("redis://") or uri.startswith("rediss://"):
             from storey.redis_driver import RedisDriver
 
-            endpoint, uri = parse_path(uri)
+            endpoint, path = parse_path(uri)
             endpoint = endpoint or mlrun.mlconf.redis.url
             self._tabels[uri] = Table(
-                uri,
+                path,
                 RedisDriver(redis_url=endpoint, key_prefix="/"),
                 flush_interval_secs=mlrun.mlconf.feature_store.flush_interval,
             )
@@ -121,6 +118,23 @@ class ResourceCache:
     def get_resource(self, uri):
         """get resource from cache by uri"""
         return self._resources[uri]
+
+    async def close(self):
+        """Close all cached Table objects, releasing their underlying connections."""
+        for table in self._tabels.values():
+            if hasattr(table, "close"):
+                await table.close()
+        self._tabels.clear()
+
+    def close_sync(self):
+        """Synchronous wrapper for close(), safe to call from within a running event loop (e.g. Jupyter)."""
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            asyncio.run(self.close())
+            return
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            executor.submit(asyncio.run, self.close()).result()
 
     def resource_getter(self, db=None, secrets=None):
         """wraps get_store_resource with a simple object cache"""
@@ -174,6 +188,8 @@ def get_store_resource(
             tree=tree,
             uid=uid,
         )
+        if not resource:
+            return None
         if resource.get("kind", "") == "link":
             # todo: support other link types (not just iter, move this to the db/api layer
             link_iteration = resource["spec"].get("link_iteration", 0)

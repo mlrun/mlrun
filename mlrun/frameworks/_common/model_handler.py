@@ -20,7 +20,7 @@ import sys
 import zipfile
 from abc import ABC, abstractmethod
 from types import MethodType
-from typing import Any, Generic, Optional, Union
+from typing import Any, Generic, Union
 
 import numpy as np
 
@@ -55,7 +55,7 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
         self,
         model: CommonTypes.ModelType = None,
         model_path: CommonTypes.PathType = None,
-        model_name: Optional[str] = None,
+        model_name: str | None = None,
         modules_map: Union[
             dict[str, Union[None, str, list[str]]], CommonTypes.PathType
         ] = None,
@@ -306,7 +306,7 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
     def set_inputs(
         self,
         from_sample: CommonTypes.IOSampleType = None,
-        features: Optional[list[Feature]] = None,
+        features: list[Feature] | None = None,
         **kwargs,
     ):
         """
@@ -335,7 +335,7 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
     def set_outputs(
         self,
         from_sample: CommonTypes.IOSampleType = None,
-        features: Optional[list[Feature]] = None,
+        features: list[Feature] | None = None,
         **kwargs,
     ):
         """
@@ -363,8 +363,8 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
 
     def set_labels(
         self,
-        to_add: Optional[dict[str, Union[str, int, float]]] = None,
-        to_remove: Optional[list[str]] = None,
+        to_add: dict[str, Union[str, int, float]] | None = None,
+        to_remove: list[str] | None = None,
     ):
         """
         Update the labels dictionary of this model artifact.
@@ -383,8 +383,8 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
 
     def set_parameters(
         self,
-        to_add: Optional[dict[str, Union[str, int, float]]] = None,
-        to_remove: Optional[list[str]] = None,
+        to_add: dict[str, Union[str, int, float]] | None = None,
+        to_remove: list[str] | None = None,
     ):
         """
         Update the parameters dictionary of this model artifact.
@@ -403,8 +403,8 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
 
     def set_metrics(
         self,
-        to_add: Optional[dict[str, CommonTypes.ExtraDataType]] = None,
-        to_remove: Optional[list[str]] = None,
+        to_add: dict[str, CommonTypes.ExtraDataType] | None = None,
+        to_remove: list[str] | None = None,
     ):
         """
         Update the metrics dictionary of this model artifact.
@@ -423,8 +423,8 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
 
     def set_extra_data(
         self,
-        to_add: Optional[dict[str, CommonTypes.ExtraDataType]] = None,
-        to_remove: Optional[list[str]] = None,
+        to_add: dict[str, CommonTypes.ExtraDataType] | None = None,
+        to_remove: list[str] | None = None,
     ):
         """
         Update the extra data dictionary of this model artifact.
@@ -509,9 +509,7 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
             self._import_custom_objects()
 
     @abstractmethod
-    def to_onnx(
-        self, model_name: Optional[str] = None, optimize: bool = True, **kwargs
-    ):
+    def to_onnx(self, model_name: str | None = None, optimize: bool = True, **kwargs):
         """
         Convert the model in this handler to an ONNX model.
 
@@ -527,13 +525,13 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
     def log(
         self,
         tag: str = "",
-        labels: Optional[dict[str, Union[str, int, float]]] = None,
-        parameters: Optional[dict[str, Union[str, int, float]]] = None,
-        inputs: Optional[list[Feature]] = None,
-        outputs: Optional[list[Feature]] = None,
-        metrics: Optional[dict[str, Union[int, float]]] = None,
-        artifacts: Optional[dict[str, Artifact]] = None,
-        extra_data: Optional[dict[str, CommonTypes.ExtraDataType]] = None,
+        labels: dict[str, Union[str, int, float]] | None = None,
+        parameters: dict[str, Union[str, int, float]] | None = None,
+        inputs: list[Feature] | None = None,
+        outputs: list[Feature] | None = None,
+        metrics: dict[str, Union[int, float]] | None = None,
+        artifacts: dict[str, Artifact] | None = None,
+        extra_data: dict[str, CommonTypes.ExtraDataType] | None = None,
         **kwargs,
     ):
         """
@@ -632,13 +630,13 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
 
     def update(
         self,
-        labels: Optional[dict[str, Union[str, int, float]]] = None,
-        parameters: Optional[dict[str, Union[str, int, float]]] = None,
-        inputs: Optional[list[Feature]] = None,
-        outputs: Optional[list[Feature]] = None,
-        metrics: Optional[dict[str, Union[int, float]]] = None,
-        artifacts: Optional[dict[str, Artifact]] = None,
-        extra_data: Optional[dict[str, CommonTypes.ExtraDataType]] = None,
+        labels: dict[str, Union[str, int, float]] | None = None,
+        parameters: dict[str, Union[str, int, float]] | None = None,
+        inputs: list[Feature] | None = None,
+        outputs: list[Feature] | None = None,
+        metrics: dict[str, Union[int, float]] | None = None,
+        artifacts: dict[str, Artifact] | None = None,
+        extra_data: dict[str, CommonTypes.ExtraDataType] | None = None,
         **kwargs,
     ):
         """

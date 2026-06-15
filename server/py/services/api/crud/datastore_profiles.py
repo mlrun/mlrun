@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional
 
 import sqlalchemy.orm
 
@@ -76,8 +75,8 @@ class DatastoreProfiles(
         session: sqlalchemy.orm.Session,
         profile_name: str,
         profile_public_json: str,
-        profile_secret_json: Optional[str] = None,
-        project: Optional[str] = None,
+        profile_secret_json: str | None = None,
+        project: str | None = None,
     ):
         framework.utils.singletons.db.get_db().store_datastore_profile(
             session, profile_name, profile_public_json, project
@@ -90,7 +89,7 @@ class DatastoreProfiles(
     def list_datastore_profiles(
         self,
         session: sqlalchemy.orm.Session,
-        project: Optional[str] = None,
+        project: str | None = None,
     ) -> list:
         return framework.utils.singletons.db.get_db().list_datastore_profiles(
             session, project
@@ -99,8 +98,8 @@ class DatastoreProfiles(
     def delete_datastore_profile(
         self,
         session: sqlalchemy.orm.Session,
-        profile_name: Optional[str] = None,
-        project: Optional[str] = None,
+        profile_name: str | None = None,
+        project: str | None = None,
     ):
         # Delete public part of the secret
         framework.utils.singletons.db.get_db().delete_datastore_profile(
@@ -112,8 +111,8 @@ class DatastoreProfiles(
     def get_datastore_profile(
         self,
         session: sqlalchemy.orm.Session,
-        profile_name: Optional[str] = None,
-        project: Optional[str] = None,
+        profile_name: str | None = None,
+        project: str | None = None,
     ):
         return framework.utils.singletons.db.get_db().get_datastore_profile(
             session, profile_name, project

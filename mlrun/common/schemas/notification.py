@@ -15,7 +15,6 @@
 import datetime
 import enum
 import typing
-from typing import Optional
 
 import pydantic.v1
 
@@ -121,15 +120,15 @@ class Notification(pydantic.v1.BaseModel):
 
     kind: NotificationKind
     name: str
-    message: typing.Optional[str] = None
-    severity: typing.Optional[NotificationSeverity] = None
-    when: typing.Optional[list[str]] = None
-    condition: typing.Optional[str] = None
-    params: typing.Optional[dict[str, typing.Any]] = None
-    status: typing.Optional[NotificationStatus] = None
-    sent_time: typing.Optional[typing.Union[str, datetime.datetime]] = None
-    secret_params: typing.Optional[dict[str, typing.Any]] = None
-    reason: typing.Optional[str] = None
+    message: str | None = None
+    severity: NotificationSeverity | None = None
+    when: list[str] | None = None
+    condition: str | None = None
+    params: dict[str, typing.Any] | None = None
+    status: NotificationStatus | None = None
+    sent_time: typing.Union[str, datetime.datetime] | None = None
+    secret_params: dict[str, typing.Any] | None = None
+    reason: str | None = None
 
 
 class SetNotificationRequest(pydantic.v1.BaseModel):
@@ -143,7 +142,5 @@ class NotificationSummary(pydantic.v1.BaseModel):
 
 class NotificationState(pydantic.v1.BaseModel):
     kind: str
-    err: Optional[
-        str
-    ]  # empty error means that the notifications were sent successfully
+    err: str | None  # empty error means that the notifications were sent successfully
     summary: NotificationSummary

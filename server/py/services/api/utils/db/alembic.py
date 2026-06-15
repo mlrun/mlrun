@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import pathlib
-import typing
 
 import alembic.command
 import alembic.config
@@ -37,6 +36,13 @@ class AlembicUtil:
         logger.debug("Performing alembic schema migrations")
         alembic.command.upgrade(self._alembic_config, "head")
 
+    @property
+    def latest_revision(self) -> str:
+        return self._latest_revision
+
+    def get_current_revision(self) -> str | None:
+        return self._get_current_revision()
+
     def is_schema_migration_needed(self):
         current_revision = self._get_current_revision()
         logger.debug(
@@ -52,7 +58,7 @@ class AlembicUtil:
             return True
         return current_revision == self._initial_revision
 
-    def _get_current_revision(self) -> typing.Optional[str]:
+    def _get_current_revision(self) -> str | None:
         # create separate config in order to catch the stdout
         catch_stdout_config = alembic.config.Config(self._alembic_config_path)
         catch_stdout_config.print_stdout = self._save_output

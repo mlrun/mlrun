@@ -13,6 +13,10 @@
 # limitations under the License.
 
 import http.server
+import json
+import socketserver
+import threading
+import time
 from contextlib import nullcontext as does_not_raise
 from unittest import mock
 
@@ -56,9 +60,9 @@ async def test_retry_os_exception_fail(
     with pytest.raises(exception.__class__):
         async_client.retry_options.attempts = max_retries
         await async_client.get("http://localhost:30678")
-    assert (
-        aioresponses_mock.called_times() == max_retries
-    ), f"Expected {max_retries} retries"
+    assert aioresponses_mock.called_times() == max_retries, (
+        f"Expected {max_retries} retries"
+    )
 
 
 @pytest.mark.asyncio
@@ -82,9 +86,9 @@ async def test_retry_os_exception_success(
         )
     response = await async_client.get("http://localhost:30678")
     assert response.status == 200, "Expected to succeed after retries"
-    assert (
-        aioresponses_mock.called_times() == max_retries - 1
-    ), f"Expected {max_retries - 1} retries"
+    assert aioresponses_mock.called_times() == max_retries - 1, (
+        f"Expected {max_retries - 1} retries"
+    )
 
 
 @pytest.mark.asyncio
@@ -144,9 +148,9 @@ async def test_retry_method_status_codes(
     assert response.status == status_codes[-1], "response status is not as expected"
 
     # ensure we called the request the correct number of times
-    assert aioresponses_mock.called_times() == len(
-        status_codes
-    ), "Wrong number of retries"
+    assert aioresponses_mock.called_times() == len(status_codes), (
+        "Wrong number of retries"
+    )
 
 
 @pytest.mark.asyncio
@@ -217,3 +221,59 @@ async def test_session_retry(
         )
     with expected:
         await async_client.get("http://localhost:30678")
+
+
+@pytest.mark.asyncio
+async def test_async_client_does_not_persist_cookies():
+    """Test that AsyncClientWithRetry doesn't store or send cookies"""
+
+    class MockServer(http.server.BaseHTTPRequestHandler):
+        def log_message(self, *args):
+            pass
+
+        def do_GET(self):  # noqa: N802
+            cookie_header = self.headers.get("Cookie", "")
+
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Set-Cookie", "test_cookie=test_value; Path=/")
+            self.end_headers()
+            self.wfile.write(json.dumps({"cookies_received": cookie_header}).encode())
+
+    # Use ephemeral port (OS-chosen)
+    server = socketserver.TCPServer(("127.0.0.1", 0), MockServer)
+    port = server.server_address[1]
+    server_thread = threading.Thread(target=server.serve_forever, daemon=True)
+    server_thread.start()
+    time.sleep(0.1)  # Minimal sleep for server readiness
+
+    try:
+        client = AsyncClientWithRetry(retry_on_exception=False)
+
+        # Request 1 - server sets cookie
+        async with client.get(f"http://127.0.0.1:{port}/first") as resp:
+            data = await resp.json()
+            # Check what cookies the server RECEIVED (should be none)
+            assert data["cookies_received"] == ""
+
+            # Check what cookies the server SENT (in Set-Cookie header)
+            # Access via response.cookies (SimpleCookie object)
+            assert "test_cookie" in resp.cookies
+            assert resp.cookies["test_cookie"].value == "test_value"
+
+        # Request 2 - verify cookie was NOT sent back to server
+        async with client.get(f"http://127.0.0.1:{port}/second") as resp:
+            data = await resp.json()
+            # This verifies the cookie we received in Request 1 was NOT sent back
+            assert data["cookies_received"] == ""
+
+            # Server still sets cookies in response, but we don't store them
+            assert "test_cookie" in resp.cookies, (
+                "Server still sends cookies in response"
+            )
+
+        await client.close()
+    finally:
+        server.shutdown()
+        server.server_close()
+        server_thread.join(timeout=1)

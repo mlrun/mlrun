@@ -16,6 +16,7 @@ import io
 import pathlib
 import sys
 import tempfile
+import warnings
 from unittest.mock import MagicMock, Mock
 
 import pytest
@@ -130,6 +131,42 @@ def test_schedule_with_local_exploding():
         "Unexpected schedule='* * * * *' parameter for local function execution"
         in str(excinfo.value)
     )
+
+
+def test_run_warns_on_unexpected_kwarg_with_suggestion():
+    def handler(context):
+        return None
+
+    # ensure warning is raised
+    with pytest.warns(
+        UserWarning,
+    ) as caught:
+        mlrun.new_function().run(
+            local=True,
+            handler=handler,
+            param={"x": 1},
+            does_not_exists_parameter=None,
+        )
+        assert len(caught) == 2, "Expected 2 warnings, but got: {caught}"
+
+        # verify warnings are correct, could be in any order
+        assert any(
+            caught_warning.message.args[0]
+            == "Unexpected run keyword argument 'param' was ignored. Did you mean 'params'?"
+            for caught_warning in caught
+        )
+        assert any(
+            caught_warning.message.args[0]
+            == "Unexpected run keyword argument 'does_not_exists_parameter' was ignored."
+            for caught_warning in caught
+        )
+
+    # ensure no warning is raised
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        mlrun.new_function().run(local=True, handler=handler, params={"x": 1})
+
+    assert not caught, "Expected no warnings, but got: {caught}"
 
 
 def test_invalid_name():

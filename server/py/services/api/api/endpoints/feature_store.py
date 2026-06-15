@@ -14,7 +14,6 @@
 
 import asyncio
 from http import HTTPStatus
-from typing import Optional
 
 from fastapi import APIRouter, Depends, Header, Query, Response
 from fastapi.concurrency import run_in_threadpool
@@ -202,7 +201,7 @@ async def get_feature_set(
 async def delete_feature_set(
     project: str,
     name: str,
-    reference: Optional[str] = None,
+    reference: str | None = None,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
@@ -235,9 +234,9 @@ async def delete_feature_set(
 )
 async def list_feature_sets(
     project: str,
-    name: Optional[str] = None,
-    state: Optional[str] = None,
-    tag: Optional[str] = None,
+    name: str | None = None,
+    state: str | None = None,
+    tag: str | None = None,
     entities: list[str] = Query(None, alias="entity"),
     features: list[str] = Query(None, alias="feature"),
     labels: list[str] = Query(None, alias="label"),
@@ -367,9 +366,8 @@ async def ingest_feature_set(
     project: str,
     name: str,
     reference: str,
-    ingest_parameters: Optional[
-        mlrun.common.schemas.FeatureSetIngestInput
-    ] = mlrun.common.schemas.FeatureSetIngestInput(),
+    ingest_parameters: mlrun.common.schemas.FeatureSetIngestInput
+    | None = mlrun.common.schemas.FeatureSetIngestInput(),
     username: str = Header(None, alias=mlrun.common.schemas.HeaderNames.remote_user),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
@@ -564,9 +562,9 @@ async def get_feature_vector(
 )
 async def list_feature_vectors(
     project: str,
-    name: Optional[str] = None,
-    state: Optional[str] = None,
-    tag: Optional[str] = None,
+    name: str | None = None,
+    state: str | None = None,
+    tag: str | None = None,
     labels: list[str] = Query(None, alias="label"),
     partition_by: mlrun.common.schemas.FeatureStorePartitionByField = Query(
         None, alias="partition-by"
@@ -761,7 +759,7 @@ async def patch_feature_vector(
 async def delete_feature_vector(
     project: str,
     name: str,
-    reference: Optional[str] = None,
+    reference: str | None = None,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):

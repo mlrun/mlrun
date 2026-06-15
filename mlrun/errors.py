@@ -41,10 +41,8 @@ class MLRunHTTPError(MLRunBaseError, requests.HTTPError):
     def __init__(
         self,
         *args,
-        response: typing.Optional[
-            typing.Union[requests.Response, aiohttp.ClientResponse]
-        ] = None,
-        status_code: typing.Optional[int] = None,
+        response: typing.Union[requests.Response, aiohttp.ClientResponse] | None = None,
+        status_code: int | None = None,
         **kwargs,
     ):
         # because response object is probably with an error, it returns False, so we
@@ -86,7 +84,7 @@ def raise_for_status(
         requests.Response,
         aiohttp.ClientResponse,
     ],
-    message: typing.Optional[str] = None,
+    message: str | None = None,
 ):
     """
     Raise a specific MLRunSDK error depending on the given response status code.
@@ -107,7 +105,7 @@ def raise_for_status(
             raise MLRunHTTPError(error_message, response=response) from exc
 
 
-def err_for_status_code(status_code: int, message: typing.Optional[str] = None):
+def err_for_status_code(status_code: int, message: str | None = None):
     """
     Return a specific MLRunSDK error depending on the given response status code.
     If no specific error exists, returns an MLRunHTTPError.
@@ -168,6 +166,14 @@ class MLRunPaginationEndOfResultsError(MLRunNotFoundError):
 
 class MLRunBadRequestError(MLRunHTTPStatusError):
     error_status_code = HTTPStatus.BAD_REQUEST.value
+
+
+class MLRunMethodNotAllowedError(MLRunHTTPStatusError):
+    error_status_code = HTTPStatus.METHOD_NOT_ALLOWED.value
+
+
+class MLRunUnprocessableEntityError(MLRunHTTPStatusError):
+    error_status_code = HTTPStatus.UNPROCESSABLE_ENTITY.value
 
 
 class MLRunInvalidArgumentError(MLRunHTTPStatusError, ValueError):
@@ -257,19 +263,21 @@ class MLRunFatalFailureError(Exception):
     """
 
     def __init__(
-        self, *args, original_exception: typing.Optional[Exception] = None, **kwargs
+        self, *args, original_exception: Exception | None = None, **kwargs
     ) -> None:
         super().__init__(*args, **kwargs)
         self.original_exception = original_exception
 
 
 class ModelRunnerError(MLRunBaseError):
-    def __init__(self, models_errors: dict[str:str], *args) -> None:
+    def __init__(self, models_errors: dict[str, str], *args) -> None:
         self.models_errors = models_errors
         super().__init__(self.__repr__(), *args)
 
     def __repr__(self):
-        return f"ModelRunnerError: {repr(self.models_errors)}"
+        return "ModelRunnerError: " + ";\n".join(
+            f"{model} {msg}" for model, msg in self.models_errors.items()
+        )
 
     def __copy__(self):
         return type(self)(models_errors=self.models_errors)

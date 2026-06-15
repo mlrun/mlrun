@@ -20,3 +20,4 @@ sphinx-image-inverter~=1.1
 # snowballstemmer==3.0.0, which was released with breaking changes and removed the 'porter' algorithm, leading to
 # the error 'Stemming algorithm 'porter' not found'
 snowballstemmer!=3.0.0
+-r ../extras-requirements.txt

@@ -13,11 +13,11 @@
 # limitations under the License.
 
 import datetime
-from typing import Callable, Optional
 
 import pandas as pd
 
 import mlrun
+import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas.model_monitoring as mm_schemas
 import mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_schema as timescaledb_schema
 from mlrun.config import config
@@ -37,6 +37,7 @@ from mlrun.model_monitoring.db.tsdb.timescaledb.queries.timescaledb_results_quer
     TimescaleDBResultsQueries,
 )
 from mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_connection import (
+    Statement,
     TimescaleDBConnection,
 )
 from mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_operations import (
@@ -56,6 +57,10 @@ class TimescaleDBConnector(TSDBConnector):
     - TimescaleDBMetricsQueries, TimescaleDBPredictionsQueries, TimescaleDBResultsQueries: Direct query operations
     - TimescaleDBOperationsManager: Table management and write operations
     - TimescaleDBStreamProcessor: Stream processing operations
+
+    Database naming (controlled by mlrun.mlconf.model_endpoint_monitoring.tsdb.auto_create_database):
+    - When auto_create_database=True (default): generates database name using system_id: 'mlrun_mm_{system_id}'
+    - When auto_create_database=False: uses the database from the profile/connection string as-is
     """
 
     type: str = mm_schemas.TSDBTarget.TimescaleDB
@@ -64,12 +69,34 @@ class TimescaleDBConnector(TSDBConnector):
         self,
         project: str,
         profile: DatastoreProfilePostgreSQL,
-        pre_aggregate_config: Optional[PreAggregateConfig] = None,
+        pre_aggregate_config: PreAggregateConfig | None = None,
         **kwargs,
     ):
         super().__init__(project=project)
 
         self.profile = profile
+
+        # Determine the monitoring database name
+        self.database = self._determine_database_name(profile)
+
+        # Update profile to use the determined database name
+        # This ensures the connection uses the correct database
+        if profile.database != self.database:
+            logger.info(
+                "Auto-generated database name for TimescaleDB",
+                original_database=profile.database,
+                database=self.database,
+            )
+            # Create a new profile with the generated database
+            profile = DatastoreProfilePostgreSQL(
+                name=profile.name,
+                user=profile.user,
+                password=profile.password,
+                host=profile.host,
+                port=profile.port,
+                database=self.database,
+            )
+            self.profile = profile
 
         # Create shared connection
         self._connection = TimescaleDBConnection(
@@ -82,27 +109,27 @@ class TimescaleDBConnector(TSDBConnector):
         )
 
         # Create shared components needed by query classes
-        tables = timescaledb_schema.create_table_schemas(project)
-        pre_aggregate_manager = PreAggregateManager(pre_aggregate_config)
+        self._tables = timescaledb_schema.create_table_schemas(project)
+        self._pre_aggregate_manager = PreAggregateManager(pre_aggregate_config)
 
         # Create specialized query handlers with proper initialization
         self._metrics_queries = TimescaleDBMetricsQueries(
             project=project,
             connection=self._connection,
-            pre_aggregate_manager=pre_aggregate_manager,
-            tables=tables,
+            pre_aggregate_manager=self._pre_aggregate_manager,
+            tables=self._tables,
         )
         self._predictions_queries = TimescaleDBPredictionsQueries(
             project=project,
             connection=self._connection,
-            pre_aggregate_manager=pre_aggregate_manager,
-            tables=tables,
+            pre_aggregate_manager=self._pre_aggregate_manager,
+            tables=self._tables,
         )
         self._results_queries = TimescaleDBResultsQueries(
             connection=self._connection,
             project=project,
-            pre_aggregate_manager=pre_aggregate_manager,
-            tables=tables,
+            pre_aggregate_manager=self._pre_aggregate_manager,
+            tables=self._tables,
         )
 
         # Create operations and stream handlers
@@ -110,6 +137,7 @@ class TimescaleDBConnector(TSDBConnector):
             project=project,
             connection=self._connection,
             pre_aggregate_config=pre_aggregate_config,
+            profile=profile,
         )
 
         self._stream = TimescaleDBStreamProcessor(
@@ -117,6 +145,20 @@ class TimescaleDBConnector(TSDBConnector):
         )
 
         self._pre_aggregate_config = pre_aggregate_config
+
+    def _determine_database_name(self, profile: DatastoreProfilePostgreSQL) -> str:
+        """
+        Determine the database name to use.
+
+        Delegates to the shared helper function to ensure consistent database naming
+        across all TimescaleDB components (connector, stream, storey targets).
+
+        :param profile: The PostgreSQL profile
+        :return: The database name to use
+        """
+        return mlrun.common.model_monitoring.helpers.get_tsdb_database_name(
+            profile.database
+        )
 
     # Delegate operations methods
     def create_tables(self, *args, **kwargs) -> None:
@@ -179,29 +221,20 @@ class TimescaleDBConnector(TSDBConnector):
     def get_metrics_metadata(self, *args, **kwargs):
         return self._metrics_queries.get_metrics_metadata(*args, **kwargs)
 
-    async def add_basic_metrics(
+    def add_basic_metrics(
         self,
         model_endpoint_objects: list[mlrun.common.schemas.ModelEndpoint],
-        project: str,
-        run_in_threadpool: Callable,
-        metric_list: Optional[list[str]] = None,
+        metric_list: list[str] | None = None,
     ) -> list[mlrun.common.schemas.ModelEndpoint]:
         """
         Add basic metrics to the model endpoint object using TimescaleDB optimizations.
 
         :param model_endpoint_objects: A list of `ModelEndpoint` objects that will
                                         be filled with the relevant basic metrics.
-        :param project:                The name of the project (unused - uses self.project from constructor).
-        :param run_in_threadpool:      A function that runs another function in a thread pool
-                                       (unused - TimescaleDB operations are synchronous).
         :param metric_list:            List of metrics to include from the time series DB. Defaults to all metrics.
 
         :return: A list of `ModelEndpointMonitoringMetric` objects.
         """
-        # Note: project and run_in_threadpool parameters are part of the interface
-        # but unused in TimescaleDB implementation (uses self.project, synchronous operations)
-        del project, run_in_threadpool  # Suppress unused variable warnings
-
         uids = [mep.metadata.uid for mep in model_endpoint_objects]
 
         # Access methods directly from the respective query classes
@@ -298,16 +331,140 @@ class TimescaleDBConnector(TSDBConnector):
     def read_predictions(self, *args, **kwargs):
         return self._predictions_queries.read_predictions(*args, **kwargs)
 
+    def _get_records(
+        self,
+        table: str,
+        start: datetime.datetime,
+        end: datetime.datetime,
+        endpoint_id: str | None = None,
+        columns: list[str] | None = None,
+        timestamp_column: str | None = None,
+    ) -> pd.DataFrame:
+        """
+        Get raw records from TimescaleDB as pandas DataFrame.
+
+        This method provides direct access to raw table data.
+
+        :param table: Table name - use TimescaleDBTables enum (METRICS, APP_RESULTS, or PREDICTIONS)
+        :param start: Start time for the query
+        :param end: End time for the query
+        :param endpoint_id: Optional endpoint ID filter (None = all endpoints)
+        :param columns: Optional list of specific columns to return (None = all columns)
+        :param timestamp_column: Optional timestamp column to use for time filtering (None = use table's default)
+        :return: Raw pandas DataFrame with all matching records
+        """
+        if table == mm_schemas.TimescaleDBTables.METRICS:
+            df = self._metrics_queries.read_metrics_data_impl(
+                endpoint_id=endpoint_id,
+                start=start,
+                end=end,
+                metrics=None,  # Get all metrics
+                timestamp_column=timestamp_column,
+            )
+        elif table == mm_schemas.TimescaleDBTables.APP_RESULTS:
+            df = self._results_queries.read_results_data_impl(
+                endpoint_id=endpoint_id,
+                start=start,
+                end=end,
+                metrics=None,  # Get all results
+                with_result_extra_data=True,
+                timestamp_column=timestamp_column,
+            )
+        elif table == mm_schemas.TimescaleDBTables.PREDICTIONS:
+            df = self._predictions_queries.read_predictions_impl(
+                endpoint_id=endpoint_id,
+                start=start,
+                end=end,
+                columns=columns,
+                timestamp_column=timestamp_column,
+            )
+        else:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Invalid table '{table}'. Must be METRICS, APP_RESULTS, or PREDICTIONS from TimescaleDBTables enum"
+            )
+
+        if columns is not None and not df.empty:
+            # Filter to requested columns if specified
+            available_columns = [col for col in columns if col in df.columns]
+            df = df[available_columns]
+
+        return df
+
     def get_last_request(self, *args, **kwargs):
         return self._predictions_queries.get_last_request(*args, **kwargs)
 
     def get_avg_latency(self, *args, **kwargs):
         return self._predictions_queries.get_avg_latency(*args, **kwargs)
 
-    def count_processed_model_endpoints(self, *args, **kwargs):
-        return self._predictions_queries.count_processed_model_endpoints(
-            *args, **kwargs
-        )
+    def count_processed_model_endpoints(
+        self,
+        start: datetime.datetime | None = None,
+        end: datetime.datetime | None = None,
+        application_names: list[str] | str | None = None,
+    ) -> dict[str, int]:
+        """
+        Count unique endpoints per application from METRICS and APP_RESULTS tables.
+
+        Uses SQL UNION to efficiently count endpoints that have data in EITHER table.
+
+        :param start: Start time for the query (default: last 24 hours)
+        :param end: End time for the query (default: current time)
+        :param application_names: Filter by specific application names
+        :return: Dictionary mapping application_name to endpoint count
+        """
+        # Set default time range
+        start = start or (mlrun.utils.datetime_now() - datetime.timedelta(hours=24))
+        start, end = self._pre_aggregate_manager.get_start_end(start, end)
+
+        metrics_table = self._tables[mm_schemas.TimescaleDBTables.METRICS]
+        app_results_table = self._tables[mm_schemas.TimescaleDBTables.APP_RESULTS]
+        time_column = mm_schemas.WriterEvent.END_INFER_TIME
+        app_column = mm_schemas.WriterEvent.APPLICATION_NAME
+        endpoint_column = mm_schemas.WriterEvent.ENDPOINT_ID
+
+        # Build application filter and params
+        app_filter_metrics = ""
+        app_filter_results = ""
+
+        if application_names:
+            if isinstance(application_names, str):
+                application_names = [application_names]
+            app_names_list = list(application_names)
+            app_placeholders = ", ".join(["%s"] * len(app_names_list))
+            app_filter_metrics = f"AND {app_column} IN ({app_placeholders})"
+            app_filter_results = f"AND {app_column} IN ({app_placeholders})"
+            # Params: metrics (start, end, apps), app_results (start, end, apps)
+            params = [start, end] + app_names_list + [start, end] + app_names_list
+        else:
+            params = [start, end, start, end]
+
+        # Use UNION to combine endpoints from both METRICS and APP_RESULTS tables
+        query_sql = f"""
+        SELECT {app_column}, COUNT(DISTINCT {endpoint_column}) as endpoint_count
+        FROM (
+            SELECT DISTINCT {app_column}, {endpoint_column}
+            FROM {metrics_table.full_name()}
+            WHERE {time_column} >= %s AND {time_column} <= %s
+            {app_filter_metrics}
+
+            UNION
+
+            SELECT DISTINCT {app_column}, {endpoint_column}
+            FROM {app_results_table.full_name()}
+            WHERE {time_column} >= %s AND {time_column} <= %s
+            {app_filter_results}
+        ) combined
+        GROUP BY {app_column}
+        """
+
+        stmt = Statement(query_sql, params)
+        result = self._connection.run(query=stmt)
+
+        if not result or not result.data:
+            return {}
+
+        # Convert result to dict: {application_name: count}
+        return {row[0]: row[1] for row in result.data}
 
     def get_drift_status(self, *args, **kwargs):
         return self._results_queries.get_drift_status(*args, **kwargs)

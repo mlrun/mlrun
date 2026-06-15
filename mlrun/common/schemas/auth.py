@@ -12,11 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import typing
 
 import pydantic.v1
-from nuclio.auth import AuthInfo as NuclioAuthInfo
-from nuclio.auth import AuthKinds as NuclioAuthKinds
 
 import mlrun.common.types
 
@@ -39,8 +36,14 @@ class AuthorizationAction(mlrun.common.types.StrEnum):
     store = "store"
 
 
+class AuthorizationResourceNamespace(mlrun.common.types.StrEnum):
+    resources = "resources"
+    mgmt = "mgmt"
+
+
 class AuthorizationResourceTypes(mlrun.common.types.StrEnum):
     project = "project"
+    project_global = "project-global"
     log = "log"
     runtime_resource = "runtime-resource"
     function = "function"
@@ -66,6 +69,8 @@ class AuthorizationResourceTypes(mlrun.common.types.StrEnum):
     datastore_profile = "datastore-profile"
     api_gateway = "api-gateway"
     project_summaries = "project-summaries"
+    project_owner = "project-owner"
+    tokens = "tokens"
 
     def to_resource_string(
         self,
@@ -75,6 +80,7 @@ class AuthorizationResourceTypes(mlrun.common.types.StrEnum):
         return {
             # project is the resource itself, so no need for both resource_name and project_name
             AuthorizationResourceTypes.project: "/projects/{project_name}",
+            AuthorizationResourceTypes.project_global: "/projects",
             AuthorizationResourceTypes.project_summaries: "/projects/{project_name}/project-summaries/{resource_name}",
             AuthorizationResourceTypes.function: "/projects/{project_name}/functions/{resource_name}",
             AuthorizationResourceTypes.artifact: "/projects/{project_name}/artifacts/{resource_name}",
@@ -101,12 +107,12 @@ class AuthorizationResourceTypes(mlrun.common.types.StrEnum):
             AuthorizationResourceTypes.pipeline: "/projects/{project_name}/pipelines/{resource_name}",
             AuthorizationResourceTypes.datastore_profile: "/projects/{project_name}/datastore_profiles",
             # Hub sources are not project-scoped, and auth is globally on the sources endpoint.
-            # TODO - this was reverted to /marketplace since MLRun needs to be able to run with old igz versions. Once
-            #  we only have support for igz versions that support /hub (>=3.5.4), change this to "/hub/sources".
-            AuthorizationResourceTypes.hub_source: "/marketplace/sources",
+            AuthorizationResourceTypes.hub_source: "/hub/sources",
             # workflow define how to run a pipeline and can be considered as the specification of a pipeline.
             AuthorizationResourceTypes.workflow: "/projects/{project_name}/workflows/{resource_name}",
             AuthorizationResourceTypes.api_gateway: "/projects/{project_name}/api-gateways/{resource_name}",
+            AuthorizationResourceTypes.project_owner: "/projects/{project_name}/owner",
+            AuthorizationResourceTypes.tokens: "/user_secrets/tokens",
         }[self].format(project_name=project_name, resource_name=resource_name)
 
 
@@ -115,34 +121,37 @@ class AuthorizationVerificationInput(pydantic.v1.BaseModel):
     action: AuthorizationAction
 
 
+class AuthInfoKind(mlrun.common.types.StrEnum):
+    user = "user"
+    service_account = "serviceaccount"
+
+
 class AuthInfo(pydantic.v1.BaseModel):
     # Keep request headers for inter-service communication
-    request_headers: typing.Optional[dict[str, str]] = None
+    request_headers: dict[str, str] | None = None
     # Basic + Iguazio auth
-    username: typing.Optional[str] = None
+    username: str | None = None
     # Basic auth
-    password: typing.Optional[str] = None
+    password: str | None = None
     # Bearer auth
-    token: typing.Optional[str] = None
+    token: str | None = None
     # Iguazio auth
-    session: typing.Optional[str] = None
-    data_session: typing.Optional[str] = None
-    access_key: typing.Optional[str] = None
-    user_id: typing.Optional[str] = None
+    session: str | None = None
+    data_session: str | None = None
+    access_key: str | None = None
+    user_id: str | None = None
     user_group_ids: list[str] = []
-    user_unix_id: typing.Optional[int] = None
-    projects_role: typing.Optional[ProjectsRole] = None
+    user_unix_id: int | None = None
+    projects_role: ProjectsRole | None = None
     planes: list[str] = []
-
-    def to_nuclio_auth_info(self):
-        if self.session != "":
-            return NuclioAuthInfo(password=self.session, mode=NuclioAuthKinds.iguazio)
-        return None
+    kind: AuthInfoKind = AuthInfoKind.user
 
     def get_member_ids(self) -> list[str]:
         member_ids = []
         if self.user_id:
             member_ids.append(self.user_id)
+        if self.username:
+            member_ids.append(self.username)
         if self.user_group_ids:
             member_ids.extend(self.user_group_ids)
         return member_ids
@@ -150,6 +159,9 @@ class AuthInfo(pydantic.v1.BaseModel):
     def get_session(self) -> str:
         return self.data_session or self.session
 
+    def is_service_account(self) -> bool:
+        return self.kind == AuthInfoKind.service_account
+
 
 class Credentials(pydantic.v1.BaseModel):
-    access_key: typing.Optional[str]
+    access_key: str | None

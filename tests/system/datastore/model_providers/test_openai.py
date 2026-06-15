@@ -14,19 +14,25 @@
 import json
 import os
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 import pytest
+import requests
 import tiktoken
 
+import mlrun
 from mlrun.datastore.datastore_profile import (
     OpenAIProfile,
 )
-from mlrun.datastore.model_provider.model_provider import UsageResponseKeys
+from mlrun.runtimes.nuclio.function import AsyncSpec
 from tests.datastore.remote_model.remote_model_utils import (
+    BATCH_INPUT_DATA,
     EXPECTED_RESULTS,
-    INPUT_DATA,
     assert_async_invocations,
+    retry_on_content_mismatch,
     setup_remote_model_test,
+    validate_openai_batch_response,
+    validate_openai_single_response,
 )
 from tests.system.base import TestMLRunSystem
 
@@ -92,40 +98,67 @@ class TestOpenAIModelRunner(TestMLRunSystem):
         )
         function.deploy()
 
-        response = None
-        answer = None
+        def _test_single():
+            response = function.invoke(
+                f"v2/models/{mlrun_model_name}/infer",
+                json.dumps(BATCH_INPUT_DATA[0]),
+            )["output"]
+            validate_openai_single_response(
+                response, EXPECTED_RESULTS[0], self.basic_llm_model
+            )
 
-        # retry loop only for fragile assertions
-        for attempt in range(1, MAX_ATTEMPTS + 1):
-            try:
-                response = function.invoke(
-                    f"v2/models/{mlrun_model_name}/infer",
-                    json.dumps(INPUT_DATA[0]),
-                )["output"]
+        retry_on_content_mismatch(_test_single, MAX_ATTEMPTS)
 
-                assert len(response) == 2
-                answer = response[UsageResponseKeys.ANSWER]
-                assert EXPECTED_RESULTS[0] in answer.lower()
+        def _test_batch():
+            batch_response = function.invoke(
+                f"v2/models/{mlrun_model_name}/infer",
+                json.dumps(BATCH_INPUT_DATA),
+            )
+            validate_openai_batch_response(
+                batch_response, EXPECTED_RESULTS, self.basic_llm_model
+            )
 
-                # success, exit loop
-                break
-            except AssertionError as e:
-                if attempt < MAX_ATTEMPTS:
-                    print(f"[Attempt {attempt}] Assertion failed, retrying...")
-                    continue
-                else:
-                    print(f"[Attempt {attempt}] Giving up after {MAX_ATTEMPTS} tries.")
-                    raise e
+        retry_on_content_mismatch(_test_batch, MAX_ATTEMPTS)
 
-        # only run these once, after a valid answer was obtained
-        encoding = tiktoken.encoding_for_model(self.basic_llm_model)
-        assert len(encoding.encode(answer)) == 100
-        stats = response[UsageResponseKeys.USAGE]
-        assert stats["completion_tokens"] == 100
-        assert stats["prompt_tokens"] > 0
-        assert (
-            stats["total_tokens"] == stats["completion_tokens"] + stats["prompt_tokens"]
+    @pytest.mark.parametrize(
+        "execution_mechanism",
+        ["process_pool", "dedicated_process", "naive", "asyncio", "thread_pool"],
+    )
+    def test_openai_model_runner_batch_step(self, execution_mechanism):
+        mlrun_model_name = "batch_step_model"
+        model_artifact, llm_prompt_artifact, function = setup_remote_model_test(
+            self.project,
+            self.model_url,
+            mlrun_model_name=mlrun_model_name,
+            image=self.image,
+            requirements=["openai==1.77.0"],
+            execution_mechanism=execution_mechanism,
+            default_config={"max_tokens": 100},
+            batch_step=True,
         )
+        function.with_http(workers=None, async_spec=AsyncSpec())
+        function.deploy()
+
+        # Send events concurrently with staggered timing
+        def send_event(event, delay):
+            time.sleep(delay)
+            return function.invoke(
+                f"v2/models/{mlrun_model_name}/infer",
+                event,
+            )
+
+        def _test():
+            with ThreadPoolExecutor(max_workers=len(BATCH_INPUT_DATA)) as executor:
+                futures = [
+                    executor.submit(send_event, event, i * 0.1)
+                    for i, event in enumerate(BATCH_INPUT_DATA)
+                ]
+                batch_response = [future.result() for future in futures]
+            validate_openai_batch_response(
+                batch_response, EXPECTED_RESULTS, self.basic_llm_model
+            )
+
+        retry_on_content_mismatch(_test, MAX_ATTEMPTS)
 
     def test_model_runner_with_openai_async(self):
         mlrun_model_name = "async_invoke_model"
@@ -145,7 +178,7 @@ class TestOpenAIModelRunner(TestMLRunSystem):
             start = time.perf_counter()
             results_with_times = function.invoke(
                 f"v2/models/{mlrun_model_name}/infer",
-                json.dumps({"input": INPUT_DATA}),
+                json.dumps({"input": BATCH_INPUT_DATA}),
             )
             total_duration = time.perf_counter() - start
 
@@ -192,3 +225,35 @@ class TestOpenAIModelRunner(TestMLRunSystem):
         token_count = len(encoding.encode(prompt))
         assert len(result["data"][0]["embedding"]) == 256
         assert result["usage"]["total_tokens"] == token_count
+
+    def test_openai_model_runner_streaming(self):
+        mlrun_model_name = "streaming_model"
+        model_artifact, llm_prompt_artifact, function = setup_remote_model_test(
+            self.project,
+            self.model_url,
+            mlrun_model_name=mlrun_model_name,
+            execution_mechanism="asyncio",
+            image=self.image,
+            requirements=["openai==1.77.0"],
+            default_config={"max_tokens": 60},
+            streaming=True,
+        )
+        function.deploy()
+
+        url = function.get_url()
+        resp = requests.post(
+            f"{url}/v2/models/{mlrun_model_name}/infer",
+            data=json.dumps(BATCH_INPUT_DATA[0]),
+            stream=True,
+            verify=mlrun.mlconf.httpdb.http.verify,
+        )
+        assert resp.ok, f"Streaming request failed: {resp.status_code} {resp.text}"
+        assert resp.headers.get("Transfer-Encoding") == "chunked"
+
+        chunks = list(resp.iter_content(decode_unicode=True, chunk_size=1024))
+        assert len(chunks) > 1, "Expected multiple streamed chunks"
+        full_text = "".join(chunks)
+        assert EXPECTED_RESULTS[0] in full_text.lower()
+        encoding = tiktoken.encoding_for_model(self.basic_llm_model)
+        token_count = len(encoding.encode(full_text))
+        assert 50 <= token_count <= 70

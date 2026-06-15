@@ -14,7 +14,7 @@
 
 import json
 from collections import defaultdict
-from typing import Any, Optional
+from typing import Any
 
 import sqlalchemy.orm
 
@@ -68,8 +68,8 @@ class Hub(metaclass=mlrun.utils.singleton.Singleton):
     def get_source_catalog(
         self,
         source: mlrun.common.schemas.hub.HubSource,
-        version: Optional[str] = None,
-        tag: Optional[str] = None,
+        version: str | None = None,
+        tag: str | None = None,
         force_refresh: bool = False,
         object_type: HubSourceType = HubSourceType.functions,
     ) -> mlrun.common.schemas.hub.HubCatalog:
@@ -107,6 +107,7 @@ class Hub(metaclass=mlrun.utils.singleton.Singleton):
             if (tag is None or item.metadata.tag == tag) and (
                 version is None or item.metadata.version == version
             ):
+                self._normalize_categories(item)
                 result_catalog.catalog.append(item)
 
         return result_catalog
@@ -115,8 +116,8 @@ class Hub(metaclass=mlrun.utils.singleton.Singleton):
         self,
         source: mlrun.common.schemas.hub.HubSource,
         item_name: str,
-        version: Optional[str] = None,
-        tag: Optional[str] = None,
+        version: str | None = None,
+        tag: str | None = None,
         force_refresh: bool = False,
         item_type: HubSourceType = HubSourceType.functions,
     ) -> mlrun.common.schemas.hub.HubItem:
@@ -197,9 +198,9 @@ class Hub(metaclass=mlrun.utils.singleton.Singleton):
     def list_hub_sources(
         self,
         db_session: sqlalchemy.orm.Session,
-        item_name: Optional[str] = None,
-        tag: Optional[str] = None,
-        version: Optional[str] = None,
+        item_name: str | None = None,
+        tag: str | None = None,
+        version: str | None = None,
         item_type: HubSourceType = HubSourceType.functions,
     ) -> list[mlrun.common.schemas.IndexedHubSource]:
         hub_sources = framework.utils.singletons.db.get_db().list_hub_sources(
@@ -210,9 +211,9 @@ class Hub(metaclass=mlrun.utils.singleton.Singleton):
     def filter_hub_sources(
         self,
         sources: list[mlrun.common.schemas.IndexedHubSource],
-        item_name: Optional[str] = None,
-        tag: Optional[str] = None,
-        version: Optional[str] = None,
+        item_name: str | None = None,
+        tag: str | None = None,
+        version: str | None = None,
         item_type: HubSourceType = HubSourceType.functions,
     ) -> list[mlrun.common.schemas.IndexedHubSource]:
         """
@@ -396,3 +397,35 @@ class Hub(metaclass=mlrun.utils.singleton.Singleton):
         """
         normalized_name = mlrun.utils.helpers.normalize_name(item_name)
         return [item for item in catalog if item.metadata.name == normalized_name]
+
+    @staticmethod
+    def _normalize_categories(item: mlrun.common.schemas.hub.HubItem):
+        """
+        Normalize the item categories to UI format using a predefined mapping,
+        falling back to default (title) formatting when no match is found.
+        """
+
+        unique_mapping = {
+            "etl": "ETL",
+            "genai": "GenAI",
+            "NLP": "NLP",
+            "pytorch": "PyTorch",
+            "huggingface": "Hugging Face",
+            "structured-ML": "Structured ML",
+        }
+
+        categories = getattr(item.metadata, "categories", [])
+        normalized_categories = []
+
+        for s in categories:
+            if not isinstance(s, str):
+                continue
+
+            if s in unique_mapping:
+                normalized_categories.append(unique_mapping[s])
+                continue
+
+            normalized = s.replace("-", " ").title().strip()
+            normalized_categories.append(normalized)
+
+        setattr(item.metadata, "categories", normalized_categories)

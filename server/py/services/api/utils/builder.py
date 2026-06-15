@@ -28,6 +28,9 @@ import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.model
+import mlrun.runtimes
+import mlrun.runtimes.mounts
+import mlrun.runtimes.pod
 import mlrun.runtimes.utils
 import mlrun.utils
 from mlrun.config import config
@@ -37,19 +40,35 @@ from mlrun.utils.helpers import remove_image_protocol_prefix
 import framework.utils.helpers
 import framework.utils.singletons.k8s
 
+# mlrun datastore schemes routed through the fetch-source init container instead of being
+# handed to kaniko as --context: schemes kaniko cannot resolve (az, wasb, wasbs, ds, oss),
+# plus gs/gcs - kaniko resolves gs:// natively but GCP wants file-based creds its
+# storage-blind container never gets, so we let `mlrun load-source` fetch them instead.
+# excludes s3/http(s) (kaniko-native) and v3io (igz FUSE-mount).
+# aligned with `mlrun.datastore.datastore.schema_to_store`.
+_FETCH_SUPPORTED_SCHEMES = frozenset({"az", "wasb", "wasbs", "ds", "oss", "gs", "gcs"})
+
+# matches what ``mlrun load-source`` extracts.
+# TODO: support .tgz
+_FETCHABLE_ARCHIVE_EXTENSIONS = (".tar.gz", ".zip")
+
+_FETCHED_SOURCE_SUBDIR = "source"
+
+_DEFAULT_SOURCE_FETCH_IMAGE = "mlrun/mlrun"
+
 
 def make_dockerfile(
     base_image: str,
-    commands: typing.Optional[list] = None,
-    source: typing.Optional[str] = None,
-    requirements_path: typing.Optional[str] = None,
+    commands: list | None = None,
+    source: str | None = None,
+    requirements_path: str | None = None,
     target_dir: str = "/mlrun",
     extra: str = "",
-    user_unix_id: typing.Optional[int] = None,
-    enriched_group_id: typing.Optional[int] = None,
-    builder_env: typing.Optional[list[client.V1EnvVar]] = None,
+    user_unix_id: int | None = None,
+    enriched_group_id: int | None = None,
+    builder_env: list[client.V1EnvVar] | None = None,
     extra_args: str = "",
-    project_secrets: typing.Optional[list[client.V1EnvVar]] = None,
+    project_secrets: list[client.V1EnvVar] | None = None,
 ):
     """
     Generates the content of a Dockerfile for building a container image.
@@ -164,6 +183,9 @@ def make_kaniko_pod(
     extra_labels=None,
     project_secrets=None,
     project_default_fucntion_node_selector=None,
+    auth_info: mlrun.common.schemas.AuthInfo = None,
+    *,
+    source_to_fetch: str | None = None,
 ):
     extra_runtime_spec = {}
     if not registry:
@@ -175,6 +197,7 @@ def make_kaniko_pod(
         project,
         runtime_spec,
         project_default_fucntion_node_selector,
+        auth_info,
     ).items():
         attr_value = handler(getattr(runtime_spec, attribute, None))
         if attr_value:
@@ -235,6 +258,20 @@ def make_kaniko_pod(
         )
         if gpu_resources:
             resources["limits"] = gpu_resources
+
+    # apply the configured builder pod labels (e.g. the azure.workload.identity/use label that lets the
+    # Azure workload-identity webhook inject ACR push credentials into the builder pod).
+    # these platform-level labels are the lowest-precedence layer: mlrun's own internal labels
+    # (mlrun/class, mlrun/project, etc., set by BasePod and the call site) must never be clobbered by them.
+    configured_pod_labels = {
+        key: value
+        for key, value in config.get_builder_pod_labels().items()
+        if key not in mlrun_constants.MLRunInternalLabels.all()
+    }
+    extra_labels = mlrun.utils.helpers.merge_dicts_with_precedence(
+        configured_pod_labels,
+        extra_labels or {},
+    )
 
     kpod = framework.utils.singletons.k8s.BasePod(
         name or "mlrun-build",
@@ -312,6 +349,14 @@ def make_kaniko_pod(
     elif secret_name:
         items = [{"key": ".dockerconfigjson", "path": "config.json"}]
         kpod.mount_secret(secret_name, "/kaniko/.docker", items=items)
+
+    if source_to_fetch:
+        _append_source_fetch_init_container(
+            kpod=kpod,
+            source=source_to_fetch,
+            builder_env_list=builder_env,
+            project_secrets=project_secrets,
+        )
 
     return kpod
 
@@ -447,6 +492,7 @@ def build_image(
     parsed_url = urlparse(source)
     source_to_copy = None
     source_dir_to_mount = None
+    needs_source_fetch_init_container = False
     if inline_code or runtime_spec.build.load_source_on_run or not source:
         context = "/empty"
 
@@ -454,7 +500,14 @@ def build_image(
     elif is_http_source:
         source_to_copy = source
 
-    # source is remote
+    # source is in a scheme kaniko cannot resolve; fetch in a dedicated init container
+    elif source and _needs_source_fetch_init_container(source):
+        _validate_source_fetch_archive(source)
+        context = "/empty"
+        source_to_copy = f"./{_FETCHED_SOURCE_SUBDIR}"
+        needs_source_fetch_init_container = True
+
+    # source is remote (kaniko-native)
     elif source and "://" in source and not is_v3io_source:
         if source.startswith("git://"):
             # if the user provided branch (w/o refs/..) we add the "refs/.."
@@ -550,6 +603,8 @@ def build_image(
             mlrun_constants.MLRunInternalLabels.tag: runtime.metadata.tag or "latest",
         },
         project_default_fucntion_node_selector=project_default_function_node_selector,
+        auth_info=auth_info,
+        source_to_fetch=source if needs_source_fetch_init_container else None,
     )
 
     if to_mount:
@@ -574,21 +629,27 @@ def build_image(
 
 
 def get_kaniko_spec_attributes_from_runtime(
-    project, runtime_spec, project_default_fucntion_node_selector
+    project,
+    runtime_spec,
+    project_default_fucntion_node_selector,
+    auth_info: mlrun.common.schemas.AuthInfo = None,
 ):
     """Get the names of Kaniko spec attributes that are defined for runtime but should also be applied to Kaniko."""
     # preemption mode scheduling constraints cache
     _preemption_enrichment_result = {}
 
     def service_account_handler(attr_value):
-        from framework.api.utils import resolve_project_default_service_account
+        from framework.api.utils import resolve_project_service_account_details
 
         (
             allowed_service_accounts,
+            forbidden_service_accounts,
             default_service_account,
-        ) = resolve_project_default_service_account(project)
+        ) = resolve_project_service_account_details(project, auth_info=auth_info)
         if attr_value:
-            runtime_spec.validate_service_account(allowed_service_accounts)
+            runtime_spec.validate_service_account(
+                allowed_service_accounts, forbidden_service_accounts
+            )
         else:
             attr_value = default_service_account
         return attr_value
@@ -858,9 +919,9 @@ def is_mlrun_image(base_image):
 
 def resolve_and_enrich_image_target(
     image_target: str,
-    registry: typing.Optional[str] = None,
-    client_version: typing.Optional[str] = None,
-    client_python_version: typing.Optional[str] = None,
+    registry: str | None = None,
+    client_version: str | None = None,
+    client_python_version: str | None = None,
 ) -> str:
     image_target = resolve_image_target(image_target, registry)
     image_target = mlrun.utils.enrich_image_url(
@@ -869,9 +930,7 @@ def resolve_and_enrich_image_target(
     return image_target
 
 
-def resolve_image_target(
-    image_target: str, registry: typing.Optional[str] = None
-) -> str:
+def resolve_image_target(image_target: str, registry: str | None = None) -> str:
     if registry:
         return "/".join([registry, image_target])
 
@@ -898,6 +957,88 @@ def resolve_image_target(
 
     image_target = remove_image_protocol_prefix(image_target)
     return image_target
+
+
+def _needs_source_fetch_init_container(source: str) -> bool:
+    return urlparse(source).scheme in _FETCH_SUPPORTED_SCHEMES
+
+
+def _validate_source_fetch_archive(source: str) -> None:
+    # match ``load_source_code``'s case-sensitive extension check, so uppercased
+    # variants (.TAR.GZ, .ZIP) are rejected at the API boundary instead of slipping
+    # through and failing inside the init container with a worse error.
+    if not source.endswith(_FETCHABLE_ARCHIVE_EXTENSIONS):
+        scheme = urlparse(source).scheme
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"Source {source} uses scheme '{scheme}://' which is not natively "
+            "supported as a kaniko build context. Provide the source as an "
+            f"archive ending in one of: {', '.join(_FETCHABLE_ARCHIVE_EXTENSIONS)}"
+        )
+
+
+def _append_source_fetch_init_container(
+    kpod,
+    source: str,
+    builder_env_list: list,
+    project_secrets: list,
+) -> None:
+    # Env precedence: builder_env_list > project_secrets > storage.auto_mount_params.
+    # First-write wins so caller-supplied values are not overwritten by auto-mount defaults.
+    image = config.httpdb.builder.kaniko_source_fetch_init_container_image
+    if not image:
+        image = mlrun.utils.enrich_image_url(_DEFAULT_SOURCE_FETCH_IMAGE)
+
+    target_dir = f"/empty/{_FETCHED_SOURCE_SUBDIR}"
+    args = ["-m", "mlrun", "load-source", source, "--target", target_dir]
+
+    env_list = list(builder_env_list or []) + list(project_secrets or [])
+    already_set = {env_var.name for env_var in env_list}
+    for env_var in _resolve_storage_auto_mount_env():
+        if env_var.name in already_set:
+            continue
+        env_list.append(env_var)
+        already_set.add(env_var.name)
+
+    mlrun.utils.logger.debug(
+        "Adding source-fetch init container",
+        image=image,
+        source=source,
+        target=target_dir,
+    )
+    kpod.append_init_container(
+        image,
+        command=["python"],
+        args=args,
+        env=env_list,
+        name="fetch-source",
+    )
+
+
+def _resolve_storage_auto_mount_env() -> list:
+    # Gate on env_style_modifiers so mount-style outputs (volumes/volume_mounts) are
+    # not silently dropped. KubeResource.apply sanitizes spec.env to plain dicts, so
+    # rebuild V1EnvVar for callers that rely on attribute access.
+    auto_mount_type = mlrun.runtimes.pod.AutoMountType(
+        mlrun.mlconf.storage.auto_mount_type
+    )
+    modifier = auto_mount_type.get_modifier()
+    if (
+        modifier is None
+        or modifier not in mlrun.runtimes.pod.AutoMountType.env_style_modifiers()
+    ):
+        return []
+    scratch = mlrun.runtimes.KubejobRuntime()
+    scratch.try_auto_mount_based_on_config()
+    return [
+        client.V1EnvVar(
+            name=env_var["name"],
+            value=env_var.get("value"),
+            value_from=env_var.get("valueFrom"),
+        )
+        if isinstance(env_var, dict)
+        else env_var
+        for env_var in scratch.spec.env or []
+    ]
 
 
 def _generate_builder_env(
@@ -970,8 +1111,8 @@ def _resolve_build_requirements(
     requirements: typing.Union[list, str],
     commands: list,
     with_mlrun: bool,
-    mlrun_version_specifier: typing.Optional[str],
-    client_version: typing.Optional[str],
+    mlrun_version_specifier: str | None,
+    client_version: str | None,
 ):
     """
     Resolve build requirements list, requirements path and commands.
@@ -1128,7 +1269,7 @@ def _validate_and_merge_args_with_extra_args(args: list, extra_args: str) -> lis
     return merged_args
 
 
-def _resolve_function_image_name(function, image: typing.Optional[str] = None) -> str:
+def _resolve_function_image_name(function, image: str | None = None) -> str:
     project = function.metadata.project
     name = function.metadata.name
     tag = function.metadata.tag or "latest"
@@ -1163,7 +1304,7 @@ def _generate_function_image_name(project: str, name: str, tag: str) -> str:
 
 
 def _resolve_function_image_secret(
-    resolved_target_image: str, secret: typing.Optional[str] = None
+    resolved_target_image: str, secret: str | None = None
 ) -> str:
     if not secret:
         parsed_registry, _ = mlrun.utils.get_parsed_docker_registry()

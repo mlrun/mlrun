@@ -24,6 +24,6 @@ class MostCommonObjectTypesReport(pydantic.v1.BaseModel):
 class ObjectTypeReport(pydantic.v1.BaseModel):
     object_type: str
     sample_size: int
-    start_index: typing.Optional[int]
+    start_index: int | None
     max_depth: int
     object_report: list[dict[str, typing.Any]]

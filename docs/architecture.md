@@ -24,7 +24,7 @@ MLRun has two main components, the service and the client (SDK):
 <p align="center"><img src="_static/images/mlrun-cluster.png" alt="mlrun-flow" width="700"/></p><br>
 
 
-## MLRun: an integrated and open approach
+## MLRun an integrated and open approach
 
 Data preparation, model development, model and application delivery, and end to end monitoring are tightly connected: 
 they cannot be managed in silos. This is where MLRun AI orchestration comes in. Gen AI, ML, data, and DevOps/MLOps teams 
@@ -39,3 +39,11 @@ While each component in MLRun is independent, the integration provides much grea
 
 When one of the components detailed above is updated, it immediately impacts the feature generation, the model serving pipeline, and the monitoring. MLRun applies versioning to each component, as well as versioning and rolling upgrades across components.
 
+## MLRun non-root user support
+
+By default, MLRun assigns the root user to MLRun runtimes and pods. You can improve the security context by changing the security mode, which is implemented by Iguazio during installation, and applied system-wide:
+
+- **Override**: Use the user id of the user that triggered the current run or use the nogroupid for group id. Requires Iguazio v3.5.1 and higher.
+- **Disabled**: Security context is not auto applied (the system applies the root user). (default)
+
+See also {ref}`images-usage`.

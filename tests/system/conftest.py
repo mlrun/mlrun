@@ -23,11 +23,63 @@ from _pytest.terminal import TerminalReporter
 from pytest import CallInfo, ExitCode, Function, TestReport
 
 
+def pytest_addoption(parser):
+    """Add custom command line options."""
+    parser.addoption(
+        "--system-test-open-source",
+        action="store_true",
+        default=False,
+        help="Run system tests in open source mode (skip enterprise features)",
+    )
+
+
 def pytest_sessionstart(
     session: pytest.Session,
 ):
     # caching test results
     session.results = collections.defaultdict(TestReport)
+
+
+@pytest.fixture(autouse=True)
+def track_test_start_time(request):
+    """Track test start time for pod log collection on failure."""
+    request.node._test_start_time = time.time()
+    yield
+
+
+def _collect_pod_logs_on_failure(item: Function) -> None:
+    """Collect and print pod logs when a test fails.
+
+    This helps debug test failures by showing logs from relevant pods
+    (project-specific pods and system pods like mlrun-api).
+
+    Only runs for tests marked with @pytest.mark.collect_pod_logs.
+    """
+    # Only collect logs for tests that opt-in via marker
+    if not item.get_closest_marker("collect_pod_logs"):
+        return
+
+    try:
+        test_instance = item.instance
+        if test_instance is None:
+            return
+
+        if not hasattr(test_instance, "collect_pod_logs_on_failure"):
+            return
+
+        # Calculate test duration
+        start_time = getattr(item, "_test_start_time", None)
+        test_duration = 300 if start_time is None else int(time.time() - start_time)
+        print(f"\n>>> Collecting pod logs for FAILED test: {item.nodeid}")
+        print(f">>> Test duration: {test_duration}s")
+
+        logs = test_instance.collect_pod_logs_on_failure(
+            test_duration_seconds=test_duration
+        )
+        test_instance.print_pod_logs(logs)
+
+    except Exception as exc:
+        print(f">>> Failed to collect pod logs: {exc}")
 
 
 @pytest.hookimpl(tryfirst=True, hookwrapper=True)
@@ -38,6 +90,10 @@ def pytest_runtest_makereport(item: Function, call: CallInfo) -> TestReport:
     # cache test call result
     if report.when == "call":
         item.session.results[item] = report
+
+        # Collect pod logs on test failure
+        if report.failed:
+            _collect_pod_logs_on_failure(item)
 
     # commented due to spamming
     # try:

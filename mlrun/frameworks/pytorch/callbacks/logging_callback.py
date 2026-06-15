@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Callable, Optional, Union
+from collections.abc import Callable
+from typing import Union
 
 import numpy as np
 from torch import Tensor
@@ -59,23 +60,18 @@ class LoggingCallback(Callback):
     def __init__(
         self,
         context: mlrun.MLClientCtx = None,
-        dynamic_hyperparameters: Optional[
-            dict[
+        dynamic_hyperparameters: dict[
+            str,
+            tuple[
                 str,
-                tuple[
-                    str,
-                    Union[
-                        list[Union[str, int]], Callable[[], PyTorchTypes.TrackableType]
-                    ],
-                ],
-            ]
-        ] = None,
-        static_hyperparameters: Optional[
-            dict[
-                str,
-                Union[PyTorchTypes.TrackableType, tuple[str, list[Union[str, int]]]],
-            ]
-        ] = None,
+                Union[list[Union[str, int]], Callable[[], PyTorchTypes.TrackableType]],
+            ],
+        ]
+        | None = None,
+        static_hyperparameters: dict[
+            str, Union[PyTorchTypes.TrackableType, tuple[str, list[Union[str, int]]]]
+        ]
+        | None = None,
         auto_log: bool = False,
     ):
         """
@@ -496,7 +492,7 @@ class LoggingCallback(Callback):
             value = self._objects[source]
             for key in key_chain:
                 try:
-                    if isinstance(value, (dict, list, tuple)):
+                    if isinstance(value, dict | list | tuple):
                         value = value[key]
                     else:
                         value = getattr(value, key)
@@ -507,7 +503,7 @@ class LoggingCallback(Callback):
                     )
 
         # Parse the value:
-        if isinstance(value, (Tensor, Parameter)):
+        if isinstance(value, Tensor | Parameter):
             if value.numel() == 1:
                 value = float(value)
             else:
@@ -523,7 +519,7 @@ class LoggingCallback(Callback):
                     f"The parameter with the following key chain: {key_chain} is a numpy.ndarray with {value.size} "
                     f"elements. numpy arrays are trackable only if they have 1 element."
                 )
-        elif not isinstance(value, (float, int, str, bool)):
+        elif not isinstance(value, float | int | str | bool):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"The parameter with the following key chain: {key_chain} is of type '{type(value)}'. "
                 f"The only trackable types are: float, int, str and bool."

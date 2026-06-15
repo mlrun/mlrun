@@ -26,7 +26,7 @@ outputs:
 runs:
   using: "composite"
   steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
     - id: set-matrix
       run: |
         skipImages=",$INPUT_SKIP_IMAGES,"

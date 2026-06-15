@@ -20,12 +20,24 @@ MLRUN_SERVING_SPEC_FILENAME = "serving_spec.json"
 MLRUN_SERVING_SPEC_PATH = (
     f"{MLRUN_SERVING_SPEC_MOUNT_PATH}/{MLRUN_SERVING_SPEC_FILENAME}"
 )
+DEFAULT_SOURCE_CODE_TARGET_DIR = "/home/mlrun_code"
+SOURCE_LOADER_INIT_CONTAINER_NAME = "mlrun-source-loader"
+CODE_ARTIFACT_DOWNLOAD_SUBDIR = ".mlrun/code"
+SOURCE_CODE_VOLUME_NAME = "mlrun-source-code"
+STORE_URI_HANDLER_LOADER_MODULE = "_mlrun_store_uri_loader"
+# Bump when the loader stub body changes — existing functions re-bake on
+# next deploy via the `# stub_version=<N>` marker.
+STORE_URI_LOADER_STUB_VERSION = "1"
 MLRUN_FUNCTIONS_ANNOTATION = "mlrun/mlrun-functions"
 MYSQL_MEDIUMBLOB_SIZE_BYTES = 16 * 1024 * 1024
 MLRUN_LABEL_PREFIX = "mlrun/"
 DASK_LABEL_PREFIX = "dask.org/"
 NUCLIO_LABEL_PREFIX = "nuclio.io/"
 RESERVED_TAG_NAME_LATEST = "latest"
+
+# Internal path for application runtime source artifacts (avoids user artifact conflicts)
+# "+/" prefix makes it relative to the project's default artifact path (see extend_artifact_path)
+MLRUN_INTERNAL_ARTIFACT_PATH = "+/.mlrun/sources"
 
 # Kubernetes DNS-1123 label name length limit
 K8S_DNS_1123_LABEL_MAX_LENGTH = 63
@@ -37,6 +49,12 @@ JOB_TYPE_WORKFLOW_RUNNER = "workflow-runner"
 JOB_TYPE_PROJECT_LOADER = "project-loader"
 JOB_TYPE_RERUN_WORKFLOW_RUNNER = "rerun-workflow-runner"
 MLRUN_ACTIVE_PROJECT = "MLRUN_ACTIVE_PROJECT"
+
+MLRUN_JOB_AUTH_SECRET_PATH = "/var/mlrun-secrets/auth"
+MLRUN_JOB_AUTH_SECRET_FILE = ".igz.yml"
+MLRUN_RUNTIME_AUTH_DEFAULT_TOKEN_NAME = "default"
+
+MLRUN_TELEMETRY_OTLP_HEADERS_PATH = "/var/mlrun-secrets/telemetry-otlp-headers"
 
 
 class MLRunInternalLabels:
@@ -83,6 +101,8 @@ class MLRunInternalLabels:
     app_name = f"{MLRUN_LABEL_PREFIX}app-name"
     endpoint_id = f"{MLRUN_LABEL_PREFIX}endpoint-id"
     endpoint_name = f"{MLRUN_LABEL_PREFIX}endpoint-name"
+    function_name = f"{MLRUN_LABEL_PREFIX}function-name"
+    system_generated = f"{MLRUN_LABEL_PREFIX}system-generated"
     host = "host"
     job_type = "job-type"
     kind = "kind"
@@ -99,7 +119,9 @@ class MLRunInternalLabels:
     workflow = "workflow"
     feature_vector = "feature-vector"
 
-    user_token_secret_label_key = "mlrun/user"
+    auth_userid = f"{MLRUN_LABEL_PREFIX}user-id"
+    auth_username = f"{MLRUN_LABEL_PREFIX}user"
+    auth_token_name = f"{MLRUN_LABEL_PREFIX}token"
 
     @classmethod
     def all(cls):
@@ -125,3 +147,8 @@ class DeployStatusTextKind(mlrun.common.types.StrEnum):
 class WorkflowSubmitMode(mlrun.common.types.StrEnum):
     direct = "direct"  # call KFP retry API directly
     rerun = "rerun"  # launch a RerunRunner function
+
+
+class InternalAnnotations:
+    auth_username = f"{MLRUN_LABEL_PREFIX}user"
+    auth_token_name = f"{MLRUN_LABEL_PREFIX}token"

@@ -19,13 +19,14 @@ import time
 import typing
 import warnings
 from collections.abc import Iterable
-from enum import Enum
+from enum import StrEnum
 
 import dotenv
 import kubernetes.client as k8s_client
 from kubernetes.client import V1Volume, V1VolumeMount
 
 import mlrun.common.constants
+import mlrun.common.secrets
 import mlrun.errors
 import mlrun.runtimes.mounts
 import mlrun.utils.regex
@@ -92,6 +93,7 @@ class KubeResourceSpec(FunctionSpec):
         "volumes",
         "volume_mounts",
         "env",
+        "env_from",
         "resources",
         "replicas",
         "image_pull_policy",
@@ -110,6 +112,11 @@ class KubeResourceSpec(FunctionSpec):
         "parameters",
         "graph",
         "filename",
+        "mount_otlp_secret",
+        # Internal book-keeping for auto-mount modifiers (see has_user_set_plain_env).
+        # Serialized so it survives SDK->API; deliberately excluded from
+        # _k8s_fields_to_serialize so it never reaches the pod manifest.
+        "auto_mount_injected_env_names",
     ]
     _default_fields_to_strip = FunctionSpec._default_fields_to_strip + [
         "volumes",
@@ -132,6 +139,7 @@ class KubeResourceSpec(FunctionSpec):
         "volume_mounts",
         "resources",
         "env",
+        "env_from",
         "image_pull_policy",
         "service_account",
         "image_pull_secret",
@@ -189,6 +197,8 @@ class KubeResourceSpec(FunctionSpec):
         track_models=None,
         parameters=None,
         graph=None,
+        env_from=None,
+        mount_otlp_secret: bool = False,
     ):
         super().__init__(
             command=command,
@@ -209,6 +219,7 @@ class KubeResourceSpec(FunctionSpec):
         self.volume_mounts = volume_mounts or []
         # TODO: add env attribute to the sanitized types
         self.env = env or []
+        self.env_from = env_from or []
         self._resources = self.enrich_resources_with_default_pod_resources(
             "resources", resources
         )
@@ -239,6 +250,16 @@ class KubeResourceSpec(FunctionSpec):
         self.parameters = parameters
         self._graph = None
         self.graph = graph
+        # When True, the API server mounts the OTLP telemetry headers secret onto
+        # the function pod so the runtime can authenticate against the OTLP endpoint
+        # via mlrun.utils.telemetry.resolve_otlp_headers().
+        self.mount_otlp_secret = mount_otlp_secret
+        # Names of env vars an auto-mount modifier wrote as plain values. Project-secret
+        # injection (server-side) consults this via has_user_set_plain_env to know it
+        # may override these — they were not set by the user. Internal book-keeping:
+        # in _dict_fields so it round-trips SDK↔API via from_dict's setattr, but
+        # deliberately not a constructor kwarg (no external caller sets it).
+        self.auto_mount_injected_env_names = []
         # Termination grace period is internal for runtimes that have a pod termination hook hence it is not in the
         # _dict_fields and doesn't have a setter.
         self._termination_grace_period_seconds = None
@@ -313,7 +334,7 @@ class KubeResourceSpec(FunctionSpec):
         )
 
     @property
-    def termination_grace_period_seconds(self) -> typing.Optional[int]:
+    def termination_grace_period_seconds(self) -> int | None:
         return self._termination_grace_period_seconds
 
     @property
@@ -328,7 +349,7 @@ class KubeResourceSpec(FunctionSpec):
         graph_root_setter(self, graph)
 
     def _serialize_field(
-        self, struct: dict, field_name: typing.Optional[str] = None, strip: bool = False
+        self, struct: dict, field_name: str | None = None, strip: bool = False
     ) -> typing.Any:
         """
         Serialize a field to a dict, list, or primitive type.
@@ -340,7 +361,7 @@ class KubeResourceSpec(FunctionSpec):
         return super()._serialize_field(struct, field_name, strip)
 
     def _enrich_field(
-        self, struct: dict, field_name: typing.Optional[str] = None, strip: bool = False
+        self, struct: dict, field_name: str | None = None, strip: bool = False
     ) -> typing.Any:
         k8s_api = k8s_client.ApiClient()
         if strip:
@@ -375,7 +396,9 @@ class KubeResourceSpec(FunctionSpec):
             for volume_mount in volume_mounts:
                 self._set_volume_mount(volume_mount, volume_mounts_field_name)
 
-    def validate_service_account(self, allowed_service_accounts):
+    def validate_service_account(
+        self, allowed_service_accounts, forbidden_service_accounts
+    ):
         if (
             allowed_service_accounts
             and self.service_account not in allowed_service_accounts
@@ -383,6 +406,14 @@ class KubeResourceSpec(FunctionSpec):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Function service account {self.service_account} is not in allowed "
                 + f"service accounts {allowed_service_accounts}"
+            )
+        if (
+            forbidden_service_accounts
+            and self.service_account in forbidden_service_accounts
+        ):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Function service account {self.service_account} is in forbidden "
+                + f"service accounts {forbidden_service_accounts}"
             )
 
     def with_volumes(
@@ -428,9 +459,9 @@ class KubeResourceSpec(FunctionSpec):
     def _verify_and_set_limits(
         self,
         resources_field_name,
-        mem: typing.Optional[str] = None,
-        cpu: typing.Optional[str] = None,
-        gpus: typing.Optional[int] = None,
+        mem: str | None = None,
+        cpu: str | None = None,
+        gpus: int | None = None,
         gpu_type: str = "nvidia.com/gpu",
         patch: bool = False,
     ):
@@ -478,8 +509,8 @@ class KubeResourceSpec(FunctionSpec):
     def _verify_and_set_requests(
         self,
         resources_field_name,
-        mem: typing.Optional[str] = None,
-        cpu: typing.Optional[str] = None,
+        mem: str | None = None,
+        cpu: str | None = None,
         patch: bool = False,
     ):
         resources = verify_requests(resources_field_name, mem=mem, cpu=cpu)
@@ -504,9 +535,9 @@ class KubeResourceSpec(FunctionSpec):
 
     def with_limits(
         self,
-        mem: typing.Optional[str] = None,
-        cpu: typing.Optional[str] = None,
-        gpus: typing.Optional[int] = None,
+        mem: str | None = None,
+        cpu: str | None = None,
+        gpus: int | None = None,
         gpu_type: str = "nvidia.com/gpu",
         patch: bool = False,
     ):
@@ -524,8 +555,8 @@ class KubeResourceSpec(FunctionSpec):
 
     def with_requests(
         self,
-        mem: typing.Optional[str] = None,
-        cpu: typing.Optional[str] = None,
+        mem: str | None = None,
+        cpu: str | None = None,
         patch: bool = False,
     ):
         """
@@ -620,7 +651,7 @@ class KubeResourceSpec(FunctionSpec):
         return new_node_selector_terms
 
 
-class AutoMountType(str, Enum):
+class AutoMountType(StrEnum):
     none = "none"
     auto = "auto"
     v3io_credentials = "v3io_credentials"
@@ -628,6 +659,7 @@ class AutoMountType(str, Enum):
     pvc = "pvc"
     s3 = "s3"
     env = "env"
+    secret_env = "secret_env"
 
     @classmethod
     def _missing_(cls, value):
@@ -652,7 +684,19 @@ class AutoMountType(str, Enum):
             mlrun.runtimes.mounts.auto_mount.__name__,
             mlrun.runtimes.mounts.mount_s3.__name__,
             mlrun.runtimes.mounts.set_env_variables.__name__,
+            mlrun.runtimes.mounts.set_env_vars_from_secret.__name__,
         ]
+
+    # Modifiers that contribute only env vars / envFrom (no volumes) - safe to harvest
+    # by reading spec.env after applying them.
+    @classmethod
+    def env_style_modifiers(cls) -> set:
+        return {
+            mlrun.runtimes.mounts.set_env_variables,
+            mlrun.runtimes.mounts.set_env_vars_from_secret,
+            mlrun.runtimes.mounts.v3io_cred,
+            mlrun.runtimes.mounts.mount_s3,
+        }
 
     @classmethod
     def is_auto_modifier(cls, modifier):
@@ -685,6 +729,7 @@ class AutoMountType(str, Enum):
             AutoMountType.auto: self._get_auto_modifier(),
             AutoMountType.s3: mlrun.runtimes.mounts.mount_s3,
             AutoMountType.env: mlrun.runtimes.mounts.set_env_variables,
+            AutoMountType.secret_env: mlrun.runtimes.mounts.set_env_vars_from_secret,
         }[self]
 
 
@@ -708,19 +753,57 @@ class KubeResource(BaseRuntime):
     def spec(self, spec):
         self._spec = self._verify_dict(spec, "spec", KubeResourceSpec)
 
-    def set_env_from_secret(self, name, secret=None, secret_key=None):
-        """set pod environment var from secret"""
-        secret_key = secret_key or name
+    def set_env_from_secret(
+        self,
+        name: str,
+        secret: str | None = None,
+        secret_key: str | None = None,
+    ):
+        """
+        Set an environment variable from a Kubernetes Secret.
+        Client-side guard forbids MLRun internal auth/project secrets; no-op on API.
+        """
+        mlrun.common.secrets.validate_not_forbidden_secret(secret)
+        key = secret_key or name
         value_from = k8s_client.V1EnvVarSource(
-            secret_key_ref=k8s_client.V1SecretKeySelector(name=secret, key=secret_key)
+            secret_key_ref=k8s_client.V1SecretKeySelector(name=secret, key=key)
         )
-        return self._set_env(name, value_from=value_from)
+        return self._set_env(name=name, value_from=value_from)
 
-    def set_env(self, name, value=None, value_from=None):
-        """set pod environment var from value"""
-        if value is not None:
-            return self._set_env(name, value=str(value))
-        return self._set_env(name, value_from=value_from)
+    def set_env_from_secret_ref(self, secret_name: str):
+        """
+        Mount all keys from a Kubernetes Secret as environment variables.
+        Uses envFrom.secretRef so every key in the secret becomes an env var.
+        """
+        mlrun.common.secrets.validate_not_forbidden_secret(secret_name)
+        env_from_source = k8s_client.V1EnvFromSource(
+            secret_ref=k8s_client.V1SecretEnvSource(name=secret_name)
+        )
+        self.spec.env_from.append(env_from_source)
+        return self
+
+    def set_env(
+        self,
+        name: str,
+        value: str | None = None,
+        value_from: typing.Any | None = None,
+    ):
+        """
+        Set an environment variable.
+        If value comes from a Secret, validate on client-side only.
+        """
+        if value_from is not None:
+            secret_name = self._extract_secret_name_from_value_from(
+                value_from=value_from
+            )
+            if secret_name:
+                mlrun.common.secrets.validate_not_forbidden_secret(secret_name)
+            return self._set_env(name=name, value_from=value_from)
+
+        # Plain literal value path
+        return self._set_env(
+            name=name, value=(str(value) if value is not None else None)
+        )
 
     def with_annotations(self, annotations: dict):
         """set a key/value annotations in the metadata of the pod"""
@@ -750,8 +833,47 @@ class KubeResource(BaseRuntime):
                 return True
         return False
 
+    def has_user_set_plain_env(self, name: str) -> bool:
+        """Check whether `name` is present in the runtime spec as a plain-value env var.
+
+        Returns True only for env vars with a plain ``.value`` *and* not flagged as
+        auto-mount-injected (see ``mark_env_auto_mount_injected``). Returns False
+        for secret-injected vars (``.value_from``) and for plain values that an
+        auto-mount modifier wrote — the latter must yield to project-secret
+        injection. Auto-mount modifiers and secret-store injection consult this
+        to defer to user-set values instead of overriding them.
+        """
+        if name in self.spec.auto_mount_injected_env_names:
+            return False
+        for env_var in self.spec.env:
+            if get_item_name(env_var) == name:
+                return get_item_name(env_var, "value") is not None
+        return False
+
+    def mark_env_auto_mount_injected(self, name: str) -> None:
+        """Flag ``name`` as written by an auto-mount modifier (plain-value path).
+
+        Called by ``mount_s3`` (and any future modifier that injects plain
+        values) right after writing the env var, so that project-secret
+        injection can override the value via ``has_user_set_plain_env``.
+        Idempotent.
+
+        Ordering contract: must be called *after* ``set_env``/``_set_env``,
+        never before. Any write to ``name`` via ``_set_env`` clears the marker
+        (see the comment there), so flagging first and writing second would
+        silently wipe the flag.
+        """
+        if name not in self.spec.auto_mount_injected_env_names:
+            self.spec.auto_mount_injected_env_names.append(name)
+
     def _set_env(self, name, value=None, value_from=None):
         new_var = k8s_client.V1EnvVar(name=name, value=value, value_from=value_from)
+
+        # Any write to `name` invalidates a stale auto-mount-injected marker;
+        # the auto-mount caller re-asserts it via mark_env_auto_mount_injected
+        # immediately after writing if it owns the new value.
+        if name in self.spec.auto_mount_injected_env_names:
+            self.spec.auto_mount_injected_env_names.remove(name)
 
         # ensure we don't have duplicate env vars with the same name
         for env_index, value_item in enumerate(self.spec.env):
@@ -763,8 +885,8 @@ class KubeResource(BaseRuntime):
 
     def set_envs(
         self,
-        env_vars: typing.Optional[dict] = None,
-        file_path: typing.Optional[str] = None,
+        env_vars: dict | None = None,
+        file_path: str | None = None,
     ):
         """set pod environment var from key/value dict or .env file
 
@@ -793,8 +915,8 @@ class KubeResource(BaseRuntime):
 
     def set_image_pull_configuration(
         self,
-        image_pull_policy: typing.Optional[str] = None,
-        image_pull_secret_name: typing.Optional[str] = None,
+        image_pull_policy: str | None = None,
+        image_pull_secret_name: str | None = None,
     ):
         """
         Configure the image pull parameters for the runtime.
@@ -843,9 +965,9 @@ class KubeResource(BaseRuntime):
 
     def with_limits(
         self,
-        mem: typing.Optional[str] = None,
-        cpu: typing.Optional[str] = None,
-        gpus: typing.Optional[int] = None,
+        mem: str | None = None,
+        cpu: str | None = None,
+        gpus: int | None = None,
         gpu_type: str = "nvidia.com/gpu",
         patch: bool = False,
     ):
@@ -863,8 +985,8 @@ class KubeResource(BaseRuntime):
 
     def with_requests(
         self,
-        mem: typing.Optional[str] = None,
-        cpu: typing.Optional[str] = None,
+        mem: str | None = None,
+        cpu: str | None = None,
         patch: bool = False,
     ):
         """
@@ -960,9 +1082,9 @@ class KubeResource(BaseRuntime):
 
     def raise_preemptible_warning(
         self,
-        node_selector: typing.Optional[dict[str, str]],
-        tolerations: typing.Optional[list[k8s_client.V1Toleration]],
-        affinity: typing.Optional[k8s_client.V1Affinity],
+        node_selector: dict[str, str] | None,
+        tolerations: list[k8s_client.V1Toleration] | None,
+        affinity: k8s_client.V1Affinity | None,
     ) -> None:
         """
         Detect conflicts and emit a single consolidated warning if needed.
@@ -1006,10 +1128,10 @@ class KubeResource(BaseRuntime):
 
     def with_node_selection(
         self,
-        node_name: typing.Optional[str] = None,
-        node_selector: typing.Optional[dict[str, str]] = None,
-        affinity: typing.Optional[k8s_client.V1Affinity] = None,
-        tolerations: typing.Optional[list[k8s_client.V1Toleration]] = None,
+        node_name: str | None = None,
+        node_selector: dict[str, str] | None = None,
+        affinity: k8s_client.V1Affinity | None = None,
+        tolerations: list[k8s_client.V1Toleration] | None = None,
     ):
         """
         Configure Kubernetes node scheduling for this function.
@@ -1030,7 +1152,9 @@ class KubeResource(BaseRuntime):
 
                 job.with_node_selection(
                     node_selector={"nodepool": "gpu"},
-                    tolerations=[k8s_client.V1Toleration(key="spot", operator="Exists")],
+                    tolerations=[
+                        k8s_client.V1Toleration(key="spot", operator="Exists")
+                    ],
                 )
         """
         if node_name:
@@ -1048,7 +1172,7 @@ class KubeResource(BaseRuntime):
             affinity=self.spec.affinity,
         )
 
-    def with_priority_class(self, name: typing.Optional[str] = None):
+    def with_priority_class(self, name: str | None = None):
         """
         Enables to control the priority of the pod
         If not passed - will default to mlrun.mlconf.default_function_priority_class_name
@@ -1179,7 +1303,10 @@ class KubeResource(BaseRuntime):
         self.apply(modifier(**mount_params_dict))
 
     def validate_and_enrich_service_account(
-        self, allowed_service_accounts, default_service_account
+        self,
+        allowed_service_accounts,
+        forbidden_service_accounts,
+        default_service_account,
     ):
         if not self.spec.service_account:
             if default_service_account:
@@ -1188,7 +1315,9 @@ class KubeResource(BaseRuntime):
                     f"Setting default service account to function: {default_service_account}"
                 )
 
-        self.spec.validate_service_account(allowed_service_accounts)
+        self.spec.validate_service_account(
+            allowed_service_accounts, forbidden_service_accounts
+        )
 
     def _configure_mlrun_build_with_source(
         self, source, workdir=None, handler=None, pull_at_runtime=True, target_dir=None
@@ -1217,7 +1346,7 @@ class KubeResource(BaseRuntime):
             self.spec.build.base_image = self.spec.build.base_image or self.spec.image
             self.spec.image = ""
 
-    def _resolve_build_with_mlrun(self, with_mlrun: typing.Optional[bool] = None):
+    def _resolve_build_with_mlrun(self, with_mlrun: bool | None = None):
         build = self.spec.build
         if with_mlrun is None:
             if build.with_mlrun is not None:
@@ -1244,12 +1373,12 @@ class KubeResource(BaseRuntime):
         self,
         builder_env: dict,
         force_build: bool,
-        mlrun_version_specifier: typing.Optional[bool],
+        mlrun_version_specifier: bool | None,
         show_on_failure: bool,
         skip_deployed: bool,
         watch: bool,
         is_kfp: bool,
-        with_mlrun: typing.Optional[bool],
+        with_mlrun: bool | None,
     ):
         # When we're in pipelines context we must watch otherwise the pipelines pod will exit before the operation
         # is actually done. (when a pipelines pod exits, the pipeline step marked as done)
@@ -1365,6 +1494,27 @@ class KubeResource(BaseRuntime):
                     offset += len(text)
 
         return self.status.state
+
+    @staticmethod
+    def _extract_secret_name_from_value_from(
+        value_from: typing.Any,
+    ) -> str | None:
+        """Extract secret name from a V1EnvVarSource or dict representation."""
+        if isinstance(value_from, k8s_client.V1EnvVarSource):
+            if value_from.secret_key_ref:
+                return value_from.secret_key_ref.name
+        elif isinstance(value_from, dict):
+            value_from = (
+                value_from.get("valueFrom")
+                or value_from.get("value_from")
+                or value_from
+            )
+            secret_key_ref = (value_from or {}).get("secretKeyRef") or (
+                value_from or {}
+            ).get("secret_key_ref")
+            if isinstance(secret_key_ref, dict):
+                return secret_key_ref.get("name")
+        return None
 
 
 def _resolve_if_type_sanitized(attribute_name, attribute):

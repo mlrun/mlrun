@@ -14,8 +14,9 @@
 
 import json
 import subprocess
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from sys import executable
+from typing import cast
 
 import pandas as pd
 import pytest
@@ -29,6 +30,7 @@ import mlrun.feature_store.common
 import mlrun.model
 import tests.system.base
 from mlrun.runtimes.function_reference import FunctionReference
+from mlrun.serving import ModelRunnerStep
 
 
 def exec_cli(args, action="run"):
@@ -45,7 +47,6 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
 
     image: str = "mlrun/mlrun"
 
-    @pytest.mark.smoke
     def test_deploy_function(self):
         code_path = str(self.assets_path / "kubejob_function.py")
 
@@ -387,7 +388,7 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
         assert run.output("return") == '{"x": 99}'
 
     def test_list_runs_with_end_time(self):
-        beginning_time = datetime.now(timezone.utc)
+        beginning_time = datetime.now(UTC)
 
         sleep_func = mlrun.code_to_function(
             "sleep-function",
@@ -459,7 +460,7 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
         assert len(runs) == 1
 
         # list failed runs from now, should not return any
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         runs = mlrun.get_run_db().list_runs(
             project=self.project_name,
             end_time_from=now,
@@ -500,9 +501,9 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
         exec_cli(args)
         end_time = datetime.now()
 
-        assert (
-            end_time - start_time
-        ).seconds >= time_to_sleep, "run did not wait for completion"
+        assert (end_time - start_time).seconds >= time_to_sleep, (
+            "run did not wait for completion"
+        )
 
         runs = mlrun.get_run_db().list_runs(project=self.project_name, name=run_name)
         assert len(runs) == 1
@@ -697,17 +698,13 @@ def print_df(df):
     )
     @pytest.mark.parametrize("local", [True, False])
     def test_job_from_serving_with_mrs(self, execution_mechanism: str, local: bool):
-        import mlrun.serving.states
-
         serving_func_obj = self.project.set_function(
             func=str(self.assets_path / "function_with_model.py"),
             name="srv_fn",
             kind="serving",
             image=self.image,
         )
-        mode_runner_obj = mlrun.serving.states.ModelRunnerStep(
-            name="model_runner_step_name"
-        )
+        mode_runner_obj = ModelRunnerStep(name="model_runner_step_name")
         mode_runner_obj.add_model(
             endpoint_name="my-endpoint",
             model_class="DummyModel",
@@ -734,6 +731,51 @@ def print_df(df):
         assert run_object.status.results == {
             "num_rows": 1,
         }
+        assert run_object.artifact("prediction").as_df().to_dict(orient="records") == [
+            {"x": "a", "y": 1, "extra": 123}
+        ]
+        assert run_object.artifact("prediction_my-endpoint") is None
+
+    def test_job_from_serving_with_multiple_mrs(self):
+        serving_func_obj = self.project.set_function(
+            func=str(self.assets_path / "function_with_model.py"),
+            name="srv_fn",
+            kind="serving",
+            image=self.image,
+        )
+        mode_runner_obj = ModelRunnerStep(name="model_runner_step_name")
+        mode_runner_obj.add_model(
+            endpoint_name="my-endpoint",
+            model_class="DummyModel",
+            execution_mechanism="naive",
+        )
+        mode_runner_obj.add_model(
+            endpoint_name="my-other-endpoint",
+            model_class="DummyModel",
+            execution_mechanism="naive",
+        )
+        graph_obj = serving_func_obj.set_topology("flow", engine="async")
+        graph_obj.to(mode_runner_obj).respond()
+        job = serving_func_obj.to_job()
+        local_input_path = str(self.assets_path / "in.csv")
+        input_path = local_input_path
+        inputs = {"data": input_path}
+        run_object = self.project.run_function(job, inputs=inputs, local=True)
+        assert run_object.status.results == {
+            "num_rows": 1,
+        }
+        assert run_object.artifact("prediction").as_df().to_dict(orient="records") == [
+            {
+                "my-endpoint": {"extra": 123, "x": "a", "y": 1},
+                "my-other-endpoint": {"extra": 123, "x": "a", "y": 1},
+            }
+        ]
+        assert run_object.artifact("prediction_my-endpoint").as_df().to_dict(
+            orient="records"
+        ) == [{"x": "a", "y": 1, "extra": 123}]
+        assert run_object.artifact("prediction_my-other-endpoint").as_df().to_dict(
+            orient="records"
+        ) == [{"x": "a", "y": 1, "extra": 123}]
 
     @pytest.mark.parametrize("local", [True, False])
     @pytest.mark.parametrize("deploy_original", [True, False])
@@ -759,16 +801,16 @@ def print_df(df):
         job = function.to_job()
 
         if deploy_original:
-            assert (
-                job.metadata.name != function.metadata.name
-            ), "Job should have different name than serving function to prevent DB collision"
-            assert (
-                job.metadata.name == "test-batch"
-            ), f"Job should be auto-renamed to 'test-batch', got '{job.metadata.name}'"
+            assert job.metadata.name != function.metadata.name, (
+                "Job should have different name than serving function to prevent DB collision"
+            )
+            assert job.metadata.name == "test-batch", (
+                f"Job should be auto-renamed to 'test-batch', got '{job.metadata.name}'"
+            )
             # Verify original serving function name is unchanged
-            assert (
-                function.metadata.name == "test"
-            ), f"Original serving function name should remain 'test', got '{function.metadata.name}'"
+            assert function.metadata.name == "test", (
+                f"Original serving function name should remain 'test', got '{function.metadata.name}'"
+            )
 
         with open(str(self.assets_path / "test_data.csv")) as f:
             csv_content = f.read()
@@ -783,9 +825,9 @@ def print_df(df):
             read_back_df = pd.read_parquet(
                 f"v3io:///projects/{self.project_name}/out.parquet"
             )
-            assert (
-                "Mickey Mouse" in read_back_df["Product"].values
-            ), f"Dataframe {read_back_df} was not transformed as expected"
+            assert "Mickey Mouse" in read_back_df["Product"].values, (
+                f"Dataframe {read_back_df} was not transformed as expected"
+            )
 
             if deploy_original and not local:
                 # Only test invoke for deployed (non-local) functions
@@ -794,9 +836,9 @@ def print_df(df):
                 # This should succeed - the serving function should still be invokable
                 # after the job has been run with a different name
                 response = function.invoke("/", body=test_input)
-                assert (
-                    response is not None
-                ), "Invoke should succeed after running job with different name"
+                assert response is not None, (
+                    "Invoke should succeed after running job with different name"
+                )
         finally:
             v3io_client.close()
 
@@ -831,11 +873,73 @@ def print_df(df):
             read_back_df = pd.read_parquet(
                 f"v3io:///projects/{self.project_name}/out.parquet"
             )
-            assert (
-                "Mickey Mouse" in read_back_df["Product"].values
-            ), f"Dataframe {read_back_df} was not transformed as expected"
+            assert "Mickey Mouse" in read_back_df["Product"].values, (
+                f"Dataframe {read_back_df} was not transformed as expected"
+            )
         finally:
             v3io_client.close()
+
+    @pytest.mark.parametrize("local", [True, False])
+    def test_job_from_serving_runtime_with_data_object(self, local: bool) -> None:
+        """data_object single-instance path on to_job() serving runtime.
+
+        Builds a serving function with a responder graph, converts to a job, then
+        runs it with a single dict input via params={"data_object": ...}. Asserts:
+        - num_rows == 1 (graph ran exactly once)
+        - run.output("return") equals the responder's output (returned as-is per Jira (6))
+        - prediction artifact has 1 row matching the input
+        """
+        serving_func_obj = self.project.set_function(
+            func=str(self.assets_path / "function_with_model.py"),
+            name="srv_fn_data_object",
+            kind="serving",
+            image=self.image,
+        )
+        model_runner_obj = ModelRunnerStep(name="model_runner_step_name")
+        model_runner_obj.add_model(
+            endpoint_name="my-endpoint",
+            model_class="DummyModel",
+            execution_mechanism="naive",
+        )
+        graph_obj = serving_func_obj.set_topology("flow", engine="async")
+        graph_obj.to(model_runner_obj).respond()
+        job = serving_func_obj.to_job()
+
+        run_object = self.project.run_function(
+            job,
+            params={
+                "data_object": {"x": "a", "y": 1},
+                "timestamp_column": None,
+            },
+            local=local,
+        )
+
+        # num_rows must be 1 (graph executed exactly once).
+        assert run_object.status.results.get("num_rows") == 1, (
+            f"Expected num_rows=1 on data_object path, got "
+            f"{run_object.status.results.get('num_rows')}"
+        )
+
+        # Per Jira (6): the graph response is returned as-is via run.output("return").
+        returned = run_object.output("return")
+        assert returned is not None, "Expected non-None return on data_object path"
+
+        # prediction artifact should be a 1-row dataset.
+        prediction_df = run_object.artifact("prediction").as_df()
+        assert len(prediction_df) == 1, (
+            f"Expected 1-row prediction artifact, got {len(prediction_df)} rows"
+        )
+
+    @pytest.mark.parametrize("local", [True, False])
+    def test_async_handler_completes(self, local: bool) -> None:
+        """Async handler completes with correct output for both local and remote (K8s) execution."""
+        name = "async-fetch-data-local" if local else "async-fetch-data"
+        fn = self._make_async_handler_function(name=name)
+        run = fn.run(local=local)
+        assert run.state() == "completed", f"Unexpected state: {run.state()}"
+        assert run.output("async_result") == 42, (
+            f"Expected async_result=42, got {run.output('async_result')}"
+        )
 
     def test_retry_job_exhausted(self):
         code_path = str(self.assets_path / "raise_func.py")
@@ -870,9 +974,9 @@ def print_df(df):
             runs = self._run_db.list_runs(project=self.project_name)
             assert len(runs) == 1
             run = mlrun.RunObject.from_dict(runs[0])
-            assert (
-                run.status.retry_count == 3
-            ), f"Expected retry_count=3, got {run.status.retry_count}"
+            assert run.status.retry_count == 3, (
+                f"Expected retry_count=3, got {run.status.retry_count}"
+            )
             assert run.status.state == mlrun.common.runtimes.constants.RunStates.error
             assert f"Run failed after {max_attempts} attempts" in run.status.status_text
             self._assert_retry_attempts_metadata(run.status.retries)
@@ -889,9 +993,9 @@ def print_df(df):
             run.metadata.uid, project=self.project_name, attempt=2
         )
         assert state == mlrun.common.runtimes.constants.RunStates.error
-        assert "Retrying run - attempt: 2" in str(
-            content
-        ), "Expected logs to contain retry attempt message"
+        assert "Retrying run - attempt: 2" in str(content), (
+            "Expected logs to contain retry attempt message"
+        )
 
     @staticmethod
     def _assert_retry_attempts_metadata(retry_attempts):
@@ -912,7 +1016,21 @@ def print_df(df):
             )
             if previous_start_time is not None:
                 assert previous_start_time < current_start_time, (
-                    f"Retry {i} start_time is not after retry {i-1}: "
+                    f"Retry {i} start_time is not after retry {i - 1}: "
                     f"{previous_start_time} >= {current_start_time}"
                 )
             previous_start_time = current_start_time
+
+    def _make_async_handler_function(
+        self, name: str = "async-fetch-data"
+    ) -> mlrun.runtimes.KubejobRuntime:
+        return cast(
+            mlrun.runtimes.KubejobRuntime,
+            cast(mlrun.MlrunProject, self.project).set_function(
+                str(self.assets_path / "async_handler.py"),
+                name=name,
+                kind="job",
+                handler="fetch_data",
+                image=self.image,
+            ),
+        )

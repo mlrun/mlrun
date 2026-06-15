@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional
 
 import numpy as np
 import packaging.version
@@ -33,10 +32,10 @@ def infer_schema_from_df(
     df: pd.DataFrame,
     features: ObjectList,
     entities,
-    timestamp_key: Optional[str] = None,
+    timestamp_key: str | None = None,
     entity_columns=None,
     options: InferOptions = InferOptions.Null,
-    push_at_start: Optional[bool] = False,
+    push_at_start: bool | None = False,
 ):
     """infer feature set schema from dataframe"""
     timestamp_fields = []
@@ -134,9 +133,9 @@ def get_df_stats(df, options, num_bins=None, sample_size=None):
     for col, values in df.describe(include="all", **kwargs).items():
         stats_dict = {}
         for stat, val in values.dropna().items():
-            if isinstance(val, (float, np.floating, np.float64)):
+            if isinstance(val, float | np.floating | np.float64):
                 stats_dict[stat] = float(val)
-            elif isinstance(val, (int, np.integer, np.int64)):
+            elif isinstance(val, int | np.integer | np.int64):
                 # boolean values are considered subclass of int
                 if isinstance(val, bool):
                     stats_dict[stat] = bool(val)

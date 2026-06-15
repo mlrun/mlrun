@@ -14,9 +14,10 @@
 
 import os
 import typing
-import warnings
 from collections import namedtuple
 
+import mlrun.common.secrets
+import mlrun.errors
 from mlrun.config import config
 from mlrun.config import config as mlconf
 from mlrun.errors import MLRunInvalidArgumentError
@@ -69,8 +70,8 @@ def mount_v3io(
     remote: str = "",
     access_key: str = "",
     user: str = "",
-    secret: typing.Optional[str] = None,
-    volume_mounts: typing.Optional[list[VolumeMount]] = None,
+    secret: str | None = None,
+    volume_mounts: list[VolumeMount] | None = None,
 ) -> typing.Callable[["KubeResource"], "KubeResource"]:
     """Modifier function to apply to a Container Op to volume mount a v3io path
 
@@ -208,12 +209,12 @@ def mount_v3iod(
 
 
 def mount_s3(
-    secret_name: typing.Optional[str] = None,
+    secret_name: str | None = None,
     aws_access_key: str = "",
     aws_secret_key: str = "",
-    endpoint_url: typing.Optional[str] = None,
+    endpoint_url: str | None = None,
     prefix: str = "",
-    aws_region: typing.Optional[str] = None,
+    aws_region: str | None = None,
     non_anonymous: bool = False,
 ) -> typing.Callable[["KubeResource"], "KubeResource"]:
     """Modifier function to add s3 env vars or secrets to container
@@ -249,54 +250,49 @@ def mount_s3(
         _access_key = aws_access_key or os.environ.get(prefix + "AWS_ACCESS_KEY_ID")
         _secret_key = aws_secret_key or os.environ.get(prefix + "AWS_SECRET_ACCESS_KEY")
 
-        # Check for endpoint URL with backward compatibility
         _endpoint_url = endpoint_url or os.environ.get(prefix + "AWS_ENDPOINT_URL_S3")
-        if not _endpoint_url:
-            # Check for deprecated environment variable
-            _endpoint_url = os.environ.get(prefix + "S3_ENDPOINT_URL")
-            if _endpoint_url:
-                warnings.warn(
-                    "S3_ENDPOINT_URL is deprecated in 1.10.0 and will be removed in 1.12.0, "
-                    "use AWS_ENDPOINT_URL_S3 instead.",
-                    # TODO: Remove this in 1.12.0
-                    FutureWarning,
-                )
+
+        # Auto-mount fills only env vars the user did not already set as a plain value,
+        # so explicit user input (e.g. from the UI batch-run wizard) survives enrichment
+        # (ML-12330). Plain values we *do* write get flagged so server-side project-secret
+        # injection can later override them (ML-12572); value_from writes don't need the
+        # flag — has_user_set_plain_env already returns False for them.
+        def _set_if_not_user_set(name, value=None, value_from=None):
+            if runtime.has_user_set_plain_env(name):
+                return
+            runtime.set_env(name, value=value, value_from=value_from)
+            if value_from is None:
+                runtime.mark_env_auto_mount_injected(name)
 
         if _endpoint_url:
-            runtime.set_env(prefix + "AWS_ENDPOINT_URL_S3", _endpoint_url)
+            _set_if_not_user_set(prefix + "AWS_ENDPOINT_URL_S3", _endpoint_url)
         if aws_region:
-            runtime.set_env(prefix + "AWS_REGION", aws_region)
+            _set_if_not_user_set(prefix + "AWS_REGION", aws_region)
         if non_anonymous:
-            runtime.set_env(prefix + "S3_NON_ANONYMOUS", "true")
+            _set_if_not_user_set(prefix + "S3_NON_ANONYMOUS", "true")
 
         if secret_name:
-            runtime.set_envs(
-                {
-                    f"{prefix}AWS_ACCESS_KEY_ID": {
-                        "valueFrom": {
-                            "secretKeyRef": {
-                                "name": secret_name,
-                                "key": "AWS_ACCESS_KEY_ID",
-                            }
-                        }
-                    },
-                    f"{prefix}AWS_SECRET_ACCESS_KEY": {
-                        "valueFrom": {
-                            "secretKeyRef": {
-                                "name": secret_name,
-                                "key": "AWS_SECRET_ACCESS_KEY",
-                            }
-                        },
-                    },
-                }
-            )
-        else:
-            runtime.set_envs(
-                {
-                    f"{prefix}AWS_ACCESS_KEY_ID": _access_key,
-                    f"{prefix}AWS_SECRET_ACCESS_KEY": _secret_key,
+            _set_if_not_user_set(
+                f"{prefix}AWS_ACCESS_KEY_ID",
+                value_from={
+                    "secretKeyRef": {
+                        "name": secret_name,
+                        "key": "AWS_ACCESS_KEY_ID",
+                    }
                 },
             )
+            _set_if_not_user_set(
+                f"{prefix}AWS_SECRET_ACCESS_KEY",
+                value_from={
+                    "secretKeyRef": {
+                        "name": secret_name,
+                        "key": "AWS_SECRET_ACCESS_KEY",
+                    }
+                },
+            )
+        else:
+            _set_if_not_user_set(f"{prefix}AWS_ACCESS_KEY_ID", _access_key)
+            _set_if_not_user_set(f"{prefix}AWS_SECRET_ACCESS_KEY", _secret_key)
 
         return runtime
 
@@ -304,7 +300,7 @@ def mount_s3(
 
 
 def mount_pvc(
-    pvc_name: typing.Optional[str] = None,
+    pvc_name: str | None = None,
     volume_name: str = "pipeline",
     volume_mount_path: str = "/mnt/pipeline",
 ) -> typing.Callable[["KubeResource"], "KubeResource"]:
@@ -360,7 +356,7 @@ def mount_pvc(
 def auto_mount(
     pvc_name: str = "",
     volume_mount_path: str = "",
-    volume_name: typing.Optional[str] = None,
+    volume_name: str | None = None,
 ) -> typing.Callable[["KubeResource"], "KubeResource"]:
     """Choose the mount based on env variables and params
 
@@ -369,6 +365,8 @@ def auto_mount(
     - k8s PVC volume when both pvc_name and volume_mount_path are set
     - k8s PVC volume when env var is set: MLRUN_PVC_MOUNT=<pvc-name>:<mount-path>
     - k8s PVC volume if it's configured as the auto mount type
+    - S3 credentials when configured as the auto mount type
+    - Secret-based env vars when configured as the auto mount type
     - iguazio v3io volume when V3IO_ACCESS_KEY and V3IO_USERNAME env vars are set
 
     """
@@ -378,14 +376,25 @@ def auto_mount(
             volume_mount_path=volume_mount_path,
             volume_name=volume_name or "shared-persistency",
         )
+    # When auto_mount_type is explicitly configured (not the default "auto"),
+    # honour it regardless of env variables like MLRUN_PVC_MOUNT.  This ensures
+    # that an admin-configured S3 or secret_env mount type takes precedence over
+    # a PVC env var that may be set on the client machine (e.g., external Jupyter).
+    # Lazy import to avoid circular dependency (pod.py imports mounts.py at module level).
+    from mlrun.runtimes.pod import AutoMountType, _filter_modifier_params
+
+    auto_mount_type = AutoMountType(config.storage.auto_mount_type)
+    if auto_mount_type != AutoMountType.auto:
+        modifier = auto_mount_type.get_modifier()
+        if modifier:
+            params = _filter_modifier_params(
+                modifier, config.get_storage_auto_mount_params()
+            )
+            return modifier(**params)
     if "MLRUN_PVC_MOUNT" in os.environ:
         return mount_pvc(
             volume_name=volume_name or "shared-persistency",
         )
-    # In the case of CE when working remotely, no env variables will be defined but auto-mount
-    # parameters may still be declared - use them in that case.
-    if config.storage.auto_mount_type == "pvc":
-        return mount_pvc(**config.get_storage_auto_mount_params())
     if "V3IO_ACCESS_KEY" in os.environ:
         return mount_v3io(name=volume_name or "v3io")
 
@@ -396,7 +405,7 @@ def mount_secret(
     secret_name: str,
     mount_path: str,
     volume_name: str = "secret",
-    items: typing.Optional[list[dict]] = None,
+    items: list[dict] | None = None,
 ) -> typing.Callable[["KubeResource"], "KubeResource"]:
     """
     Modifier function to mount a Kubernetes secret as file(s).
@@ -411,6 +420,9 @@ def mount_secret(
                          If specified, the listed keys will be projected into
                          the specified paths, and unlisted keys will not be
                          present."""
+
+    if secret_name:
+        mlrun.common.secrets.validate_not_forbidden_secret(secret_name.strip())
 
     def _mount_secret(runtime: "KubeResource"):
         # Define the secret volume source
@@ -444,7 +456,7 @@ def mount_configmap(
     configmap_name: str,
     mount_path: str,
     volume_name: str = "configmap",
-    items: typing.Optional[list[dict]] = None,
+    items: list[dict] | None = None,
 ) -> typing.Callable[["KubeResource"], "KubeResource"]:
     """
     Modifier function to mount a Kubernetes ConfigMap as file(s).
@@ -522,7 +534,7 @@ def mount_hostpath(
 
 
 def set_env_variables(
-    env_vars_dict: typing.Optional[dict[str, str]] = None, **kwargs
+    env_vars_dict: dict[str, str] | None = None, **kwargs
 ) -> typing.Callable[["KubeResource"], "KubeResource"]:
     """
     Modifier function to apply a set of environment variables to a runtime. Variables may be passed
@@ -551,9 +563,111 @@ def set_env_variables(
     return _set_env_variables
 
 
+def set_env_vars_from_secret(
+    secret_name: str | None = None,
+    keys: typing.Union[str, list[str], None] = None,
+    cleartext_env: typing.Union[str, dict[str, str], None] = None,
+) -> typing.Callable[["KubeResource"], "KubeResource"]:
+    """
+    Modifier function to set environment variables from a Kubernetes Secret.
+    If keys are given, each key is exposed as an environment variable with the same name.
+    If no keys are given, all keys in the secret are mounted as env vars (via envFrom).
+
+    ``secret_name`` is optional: when it is omitted only the ``cleartext_env`` variables are
+    injected (no secret is mounted). This supports identity-based auth (e.g. Azure workload
+    identity), where the credentials arrive via a federated token rather than a Kubernetes
+    secret, but a plain config value such as the storage account name still has to be set.
+
+    Performs the same secret-name validation as other secret-mount functions
+    (validate_not_forbidden_secret); when using specific keys this is done via
+    set_env_from_secret(), and when mounting all keys via set_env_from_secret_ref().
+
+    Supports auto-mount-params in two forms:
+    - Semicolon-delimited string: e.g. keys="key1;key2;key3" (used when passing keys
+      via ``storage.auto_mount_params``, where commas separate top-level parameters).
+    - List of strings: e.g. keys=["key1", "key2", "key3"] (when params are base64-encoded JSON).
+
+    Usage::
+
+        function.apply(set_env_vars_from_secret("my-secret"))  # mount all keys
+        function.apply(set_env_vars_from_secret("my-secret", keys=["KEY1", "KEY2"]))
+        function.apply(set_env_vars_from_secret("my-secret", keys="KEY1;KEY2;KEY3"))
+        function.apply(
+            set_env_vars_from_secret("my-secret", cleartext_env={"ACCT": "name"})
+        )
+        function.apply(
+            set_env_vars_from_secret(
+                "my-secret", cleartext_env="ACCT:name;REGION:eastus"
+            )
+        )
+
+    :param secret_name: Optional. Kubernetes secret name. When omitted, no secret is mounted
+        and only ``cleartext_env`` is injected (used for identity-based auth).
+    :param keys: Optional. Secret data keys to expose as env vars. Either a semicolon-delimited
+        string (e.g. "key1;key2;key3") or a list of strings. If omitted, all keys in the
+        secret are mounted as environment variables.
+    :param cleartext_env: Optional. Plain (non-secret) key=value environment variables to inject
+        alongside the secret-backed vars. Accepts either a ``dict[str, str]`` (recommended for
+        the base64-JSON params path, supports colons in values) or a semicolon-delimited
+        ``key:value`` string (for the plain-string params path, e.g. ``"ACCT:name;REGION:eastus"``).
+        In string form the first colon in each token is the delimiter; colons in values are not
+        supported. Defaults to None (no cleartext vars injected).
+    """
+
+    if isinstance(keys, str):
+        keys_list = [k.strip() for k in keys.split(";") if k.strip()]
+    elif keys is not None:
+        keys_list = [k if isinstance(k, str) else str(k) for k in keys]
+    else:
+        keys_list = []
+
+    if isinstance(cleartext_env, str):
+        cleartext_env_dict: dict[str, str] = {}
+        for token in cleartext_env.split(";"):
+            token = token.strip()
+            if not token:
+                continue
+            sep = token.find(":")
+            if sep == -1:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"cleartext_env token missing ':' separator: {token!r}"
+                )
+            cleartext_env_dict[token[:sep].strip()] = token[sep + 1 :].strip()
+    elif cleartext_env is not None:
+        cleartext_env_dict = dict(cleartext_env)
+    else:
+        cleartext_env_dict = {}
+
+    if secret_name:
+        mlrun.common.secrets.validate_not_forbidden_secret(secret_name.strip())
+    elif keys_list:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "set_env_vars_from_secret requires a secret_name when keys are specified"
+        )
+    elif not cleartext_env_dict:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "set_env_vars_from_secret requires either a secret_name or cleartext_env"
+        )
+
+    def _set_env_vars_from_secret(runtime: "KubeResource"):
+        if secret_name:
+            if not keys_list:
+                runtime.set_env_from_secret_ref(secret_name)
+            else:
+                for key in keys_list:
+                    runtime.set_env_from_secret(
+                        name=key, secret=secret_name, secret_key=key
+                    )
+        for k, v in cleartext_env_dict.items():
+            runtime.set_env(k, v)
+        return runtime
+
+    return _set_env_vars_from_secret
+
+
 def _enrich_and_validate_v3io_mounts(
     remote: str = "",
-    volume_mounts: typing.Optional[list[VolumeMount]] = None,
+    volume_mounts: list[VolumeMount] | None = None,
     user: str = "",
 ) -> tuple[list[VolumeMount], str]:
     if volume_mounts is None:
@@ -583,5 +697,5 @@ def _enrich_and_validate_v3io_mounts(
     return volume_mounts, user
 
 
-def _resolve_mount_user(user: typing.Optional[str] = None):
+def _resolve_mount_user(user: str | None = None):
     return user or os.environ.get("V3IO_USERNAME")

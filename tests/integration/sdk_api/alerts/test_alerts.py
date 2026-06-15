@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from datetime import timezone
+from datetime import UTC
 
 import pytest
 
@@ -518,9 +518,9 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
         )
 
         drift_template = project.get_alert_template("DataDriftDetected")
-        assert not drift_template.templates_differ(
-            drift_system_template
-        ), "Templates are different"
+        assert not drift_template.templates_differ(drift_system_template), (
+            "Templates are different"
+        )
 
         all_system_templates = project.list_alert_templates()
         assert len(all_system_templates) == 3
@@ -1063,7 +1063,7 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
         if alert_count:
             assert alert.count == alert_count
         if alert_updated:
-            assert alert.updated > alert.created.replace(tzinfo=timezone.utc)
+            assert alert.updated > alert.created.replace(tzinfo=UTC)
 
     @staticmethod
     def _generate_event_request(project, event_kind, entity_kind):

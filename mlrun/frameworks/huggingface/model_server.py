@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Optional
+from typing import Any
 
 import numpy as np
 import transformers
@@ -32,14 +32,14 @@ class HuggingFaceModelServer(V2ModelServer):
     def __init__(
         self,
         context: mlrun.MLClientCtx = None,
-        name: Optional[str] = None,
-        task: Optional[str] = None,
-        model_path: Optional[str] = None,
-        model_name: Optional[str] = None,
-        model_class: Optional[str] = None,
-        tokenizer_name: Optional[str] = None,
-        tokenizer_class: Optional[str] = None,
-        framework: Optional[str] = None,
+        name: str | None = None,
+        task: str | None = None,
+        model_path: str | None = None,
+        model_name: str | None = None,
+        model_class: str | None = None,
+        tokenizer_name: str | None = None,
+        tokenizer_class: str | None = None,
+        framework: str | None = None,
         **class_args,
     ):
         """

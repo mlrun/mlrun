@@ -53,10 +53,27 @@ on:
         default: ''
         type: string
         required: false
+      pr_base_sha:
+        description: 'Pinned SHA of the PR base branch to merge into the PR'
+        default: ''
+        type: string
+        required: false
       cache_tag_suffix:
         description: 'The suffix to add to the cache tag'
         default: ''
         type: string
+      runner:
+        description: 'The GitHub runner to use for building images (e.g., ubuntu-latest, self-hosted)'
+        default: 'ubuntu-latest'
+        type: string
+      is_private_release:
+        description: 'Whether this is a private release build or not. If specified the docker_registries will be ignored and the private Artifactory will be used. '
+        default: false
+        type: boolean
+      build_to_cache:
+        description: 'Whether to push built images to cache registry'
+        default: true
+        type: boolean
 
 jobs:
   matrix_prep:
@@ -64,7 +81,7 @@ jobs:
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - id: set-matrix
         uses: ./.github/actions/image-matrix-prep
         with:
@@ -72,28 +89,55 @@ jobs:
 
   build-images:
     name: Build and push image - ${{ matrix.image-name }} (Python ${{ matrix.python-version }})
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.runner }}
     needs: matrix_prep
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.matrix_prep.outputs.matrix) }}
     steps:
-    - uses: actions/checkout@v5
-      if: github.event.inputs.pr_number == ''
 
-    - uses: actions/checkout@v5
-      if: github.event.inputs.pr_number != ''
+    - name: Cleanup build artifacts from previous runs
+      if: true
+      run: |
+        # Remove any root-owned build artifacts from previous runs using Docker
+        # This works even when files are owned by root
+        if [ -d "$GITHUB_WORKSPACE/server" ]; then
+          docker run --rm -v "$GITHUB_WORKSPACE:/workspace" alpine sh -c "rm -rf /workspace/server/common/proto/build /workspace/server/go/proto/build" || true
+        fi       
+    - uses: actions/checkout@v6
+      if: inputs.pr_number == ''
+
+    - uses: actions/checkout@v6
+      if: inputs.pr_number != ''
       with:
         fetch-depth: 0
-        ref: refs/pull/${{ github.event.inputs.pr_number }}/merge
+        ref: refs/pull/${{ inputs.pr_number }}/head
+
+    - name: Merge base branch into PR
+      if: inputs.pr_number != ''
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        BASE_SHA="${{ inputs.pr_base_sha }}"
+
+        git fetch origin "${BASE_SHA}"
+        if ! git merge "${BASE_SHA}" --no-edit; then
+          echo "::error::Merge of ${BASE_SHA} into PR #${{ inputs.pr_number }} failed due to conflicts. Please merge or rebase your branch locally and push."
+          git merge --abort
+          exit 1
+        fi
+
+        echo "Merged ${BASE_SHA} into PR"
 
     # since github-actions gives us 14G only, and fills it up with some garbage
     - name: Freeing up disk space
+      if: inputs.runner == 'ubuntu-latest'
       run: |
         "${GITHUB_WORKSPACE}/automation/scripts/github_workflow_free_space.sh"
 
     - name: Install curl and jq
-      run: sudo apt-get install curl jq
+      if: runner == 'ubuntu-latest'
+      run: sudo apt-get install -y curl jq
 
     - name: Extract git hash, ref and latest version
       id: git_info
@@ -108,11 +152,15 @@ jobs:
         export unstable_tag="unstable-cache${version_suffix:+-$version_suffix}${INPUT_CACHE_TAG_SUFFIX:+-$INPUT_CACHE_TAG_SUFFIX}"
         export build_from_cache=$(if [ -z "$INPUT_BUILD_FROM_CACHE" ]; then echo "true" ; else echo "$INPUT_BUILD_FROM_CACHE";fi);
         export no_cache=$(if [ "$build_from_cache" = "false" ]; then echo "true" ; else echo "";fi);
+        export build_to_cache=$(if [ -z "$INPUT_BUILD_TO_CACHE" ]; then echo "true" ; else echo "$INPUT_BUILD_TO_CACHE";fi);
+        export push_cache=$(if [ "$build_to_cache" = "true" ]; then echo "true" ; else echo "";fi);
         echo "tag=$(echo $unstable_tag)" >> $GITHUB_OUTPUT
         echo "no_cache=$(echo $no_cache)" >> $GITHUB_OUTPUT
+        echo "push_cache=$(echo $push_cache)" >> $GITHUB_OUTPUT
       env:
         INPUT_BUILD_FROM_CACHE: ${{ inputs.build_from_cache }}
         INPUT_CACHE_TAG_SUFFIX: ${{ inputs.cache_tag_suffix }}
+        INPUT_BUILD_TO_CACHE: ${{ inputs.build_to_cache }}
 
     - name: Set computed versions params
       id: computed_params
@@ -122,20 +170,23 @@ jobs:
           default_mlrun_version=$(echo ${{ steps.git_info.outputs.unstable_version_prefix }}+${{ steps.git_info.outputs.mlrun_commit_hash }}) && \
           echo ${input_mlrun_version:-`echo $default_mlrun_version`})" >> $GITHUB_OUTPUT
         echo "mlrun_docker_repo=$( \
-          input_docker_repo=$INPUT_DOCKER_VERSION && \
+          input_docker_repo=$INPUT_DOCKER_REPO && \
           default_docker_repo=$(echo ${{ github.repository_owner }} | tr '[:upper:]' '[:lower:]') && \
           echo ${input_docker_repo:-`echo $default_docker_repo`})" >> $GITHUB_OUTPUT
+
         echo "mlrun_docker_registries=$( \
-          input_docker_registries=$INPUT_DOCKER_REGISTRIES && \
-          echo ${input_docker_registries:-ghcr.io/})" >> $GITHUB_OUTPUT
+          if [ \"${{ inputs.is_private_release }}\" = \"true\" ]; then \
+            echo \"${{ secrets.ARTIFACTORY_URL }}/\"; \
+          else \
+            echo ${{ inputs.docker_registries || 'ghcr.io/' }}; \
+          fi)" >> $GITHUB_OUTPUT
         echo "mlrun_cache_date=$(date +%s)" >> $GITHUB_OUTPUT
       env:
         INPUT_VERSION: ${{ inputs.version }}
-        INPUT_DOCKER_VERSION: ${{ inputs.docker_repo }}
-        INPUT_DOCKER_REGISTRIES: ${{ inputs.docker_registries }}
+        INPUT_DOCKER_REPO: ${{ inputs.docker_repo }}
 
     - name: Docker login (ghcr)
-      uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # 3.6.0
+      uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # 4.2.0
       with:
         registry: ghcr.io
         username: ${{ github.repository_owner }}
@@ -143,21 +194,40 @@ jobs:
 
     - name: Docker login (quay.io)
       continue-on-error: true
-      if: github.event.inputs.pr_number == ''
-      uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # 3.6.0
+      if: inputs.pr_number == ''
+      uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # 4.2.0
       with:
         registry: quay.io
         username: ${{ secrets.QUAY_IO_DOCKER_REGISTRY_USERNAME }}
         password: ${{ secrets.QUAY_IO_DOCKER_REGISTRY_PASSWORD }}
 
     - name: Docker login (docker.com)
-      if: github.event.inputs.pr_number == ''
+      if: inputs.pr_number == ''
       continue-on-error: true
-      uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # 3.6.0
+      uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # 4.2.0
       with:
         registry: registry.hub.docker.com
         username: ${{ secrets.DOCKER_HUB_DOCKER_REGISTRY_USERNAME }}
         password: ${{ secrets.DOCKER_HUB_DOCKER_REGISTRY_PASSWORD }}
+
+    - name: Docker login (Artifactory)
+      if: inputs.is_private_release == true
+      uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # 4.2.0
+      with:
+        registry: ${{ secrets.ARTIFACTORY_URL }}
+        username: ${{ secrets.ARTIFACTORY_USERNAME }}
+        password: ${{ secrets.ARTIFACTORY_PASSWORD }}
+
+    # We need to use a python venv to avoid conflicts with the system python packages (like docker etc.)
+    # Also those self hosted runners are not ephemeral, so we need to make sure we have a clean env   
+    - name: Set up Python virtual environment
+      if: inputs.is_private_release == true
+      run: |
+        # Remove any existing venv from previous runs, better new venv per job at this stage
+        rm -rf $GITHUB_WORKSPACE/.venv
+        # Create new venv and add it to PATH
+        python3 -m venv $GITHUB_WORKSPACE/.venv
+        echo "$GITHUB_WORKSPACE/.venv/bin" >> $GITHUB_PATH
 
     - name: Pull cache, build and push image
 
@@ -174,7 +244,7 @@ jobs:
             MLRUN_VERSION=${{ steps.computed_params.outputs.mlrun_version }} \
             MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
             MLRUN_NO_CACHE=${{ steps.docker_cache.outputs.no_cache }} \
-            MLRUN_PUSH_DOCKER_CACHE_IMAGE="true" \
+            MLRUN_PUSH_DOCKER_CACHE_IMAGE=${{ steps.docker_cache.outputs.push_cache }} \
             MLRUN_PYTHON_VERSION=${{ matrix.python-version }} \
             INCLUDE_PYTHON_VERSION_SUFFIX=${{ matrix.include-suffix }} \
             make push-${{ matrix.image-name }}; \
@@ -182,9 +252,13 @@ jobs:
 
     - name: Build and push unstable tag
 
-      # we don't need to have unstable tag for the test image
-      # And we don't need to run this when triggered manually (workflow dispatch)
-      if: matrix.image-name != 'test' && github.event_name != 'workflow_dispatch' && github.ref_name == 'development'
+      # Push the "unstable" tag only when building from a direct push to development:
+      # - skip the test image
+      # - skip PR-driven builds (fork PRs are unauthorized to push pacakges to mlrun-org)
+      # - skip workflow_dispatch (private-release.yaml uses MLRUN_DOCKER_REPO that doesn't own the
+      #   ghcr.io path being pushed to)
+      # - skip non-dev branches (e.g., 1.11.x backports)
+      if: matrix.image-name != 'test' && inputs.pr_number == '' && github.event_name != 'workflow_dispatch' && github.ref_name == 'development'
       run: |
         for registry in "ghcr.io/" "quay.io/" "registry.hub.docker.com/"; \
           do \
@@ -208,7 +282,14 @@ jobs:
         MLRUN_DOCKER_REPO=${{ steps.computed_params.outputs.mlrun_docker_repo }} \
         MLRUN_VERSION=${{ steps.docker_cache.outputs.tag }} \
         MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
-        MLRUN_PUSH_DOCKER_CACHE_IMAGE=true \
+        MLRUN_PUSH_DOCKER_CACHE_IMAGE=${{ inputs.build_to_cache }} \
         MLRUN_PYTHON_VERSION=${{ matrix.python-version }} \
         INCLUDE_PYTHON_VERSION_SUFFIX=${{ matrix.include-suffix }} \
         make push-${{ matrix.image-name }}
+
+    - name: Clean docker images
+      if: always()
+      run: |
+        docker images --format '{{.Repository}}:{{.Tag}}' | grep 'mlrun/' | xargs -r docker rmi -f || true
+        docker image prune -af || true
+        docker builder prune -f --filter "until=720h" || true

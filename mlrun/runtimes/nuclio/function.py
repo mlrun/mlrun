@@ -17,8 +17,9 @@ import copy
 import json
 import typing
 import warnings
+from dataclasses import dataclass
 from datetime import datetime
-from time import sleep
+from time import monotonic, sleep
 
 import inflection
 import nuclio
@@ -30,13 +31,16 @@ from kubernetes import client
 from nuclio.deploy import find_dashboard_url, get_deploy_status
 from nuclio.triggers import V3IOStreamTrigger
 
+import mlrun.auth.nuclio
 import mlrun.common.constants
 import mlrun.db
 import mlrun.errors
 import mlrun.k8s_utils
+import mlrun.runtime_configuration_context
 import mlrun.utils
 import mlrun.utils.helpers
-from mlrun.common.schemas import AuthInfo
+from mlrun.common.schemas import AuthInfo, BatchingSpec
+from mlrun.common.schemas.model_monitoring import ModelEndpointInstruction
 from mlrun.config import config as mlconf
 from mlrun.errors import err_to_str
 from mlrun.lists import RunList
@@ -47,6 +51,7 @@ from mlrun.platforms.iguazio import (
 )
 from mlrun.runtimes.base import FunctionStatus, RunError
 from mlrun.runtimes.mounts import VolumeMount, mount_v3io, v3io_cred
+from mlrun.runtimes.nuclio.triggers import RabbitMQTrigger, extract_credentials_from_url
 from mlrun.runtimes.pod import KubeResource, KubeResourceSpec
 from mlrun.runtimes.utils import get_item_name, log_std
 from mlrun.utils import get_in, logger, update_in
@@ -96,6 +101,13 @@ def min_nuclio_versions(*versions):
     return decorator
 
 
+@dataclass
+class AsyncSpec:
+    enabled: bool = True
+    max_connections: int | None = None
+    connection_availability_timeout: int | None = None
+
+
 class NuclioSpec(KubeResourceSpec):
     _dict_fields = KubeResourceSpec._dict_fields + [
         "min_replicas",
@@ -113,6 +125,12 @@ class NuclioSpec(KubeResourceSpec):
         "service_type",
         "add_templated_ingress_host_mode",
         "disable_default_http_trigger",
+        "custom_scaling_metric_specs",
+        "auth",
+    ]
+    # model_endpoints_instructions requires custom serialization (list of pydantic objects → dicts)
+    _fields_to_serialize = KubeResourceSpec._fields_to_serialize + [
+        "model_endpoints_instructions",
     ]
 
     def __init__(
@@ -156,10 +174,15 @@ class NuclioSpec(KubeResourceSpec):
         add_templated_ingress_host_mode=None,
         state_thresholds=None,
         disable_default_http_trigger=None,
+        custom_scaling_metric_specs=None,
         serving_spec=None,
         graph=None,
         parameters=None,
         track_models=None,
+        auth=None,
+        env_from=None,
+        mount_otlp_secret: bool = False,
+        model_endpoints_instructions=None,
     ):
         super().__init__(
             command=command,
@@ -169,6 +192,7 @@ class NuclioSpec(KubeResourceSpec):
             volumes=volumes,
             volume_mounts=volume_mounts,
             env=env,
+            env_from=env_from,
             resources=resources,
             replicas=replicas,
             image_pull_policy=image_pull_policy,
@@ -193,8 +217,10 @@ class NuclioSpec(KubeResourceSpec):
             graph=graph,
             parameters=parameters,
             track_models=track_models,
+            mount_otlp_secret=mount_otlp_secret,
         )
 
+        self.auth = auth or {}
         self.base_spec = base_spec or {}
         self.function_kind = function_kind
         self.source = source or ""
@@ -212,10 +238,36 @@ class NuclioSpec(KubeResourceSpec):
         self.max_replicas = max_replicas or 4
 
         self.disable_default_http_trigger = disable_default_http_trigger
+        self.custom_scaling_metric_specs = custom_scaling_metric_specs or []
+        self.model_endpoints_instructions = model_endpoints_instructions or []
 
         # When True it will set Nuclio spec.noBaseImagesPull to False (negative logic)
         # indicate that the base image should be pulled from the container registry (not cached)
         self.base_image_pull = False
+
+    def _serialize_field(self, struct, field_name=None, strip=False):
+        if field_name == "model_endpoints_instructions":
+            return [inst.dict() for inst in self._model_endpoints_instructions]
+        return super()._serialize_field(struct, field_name, strip)
+
+    @property
+    def model_endpoints_instructions(self) -> list:
+        return self._model_endpoints_instructions
+
+    @model_endpoints_instructions.setter
+    def model_endpoints_instructions(
+        self,
+        model_endpoints_instructions: list[
+            typing.Union[ModelEndpointInstruction, dict]
+        ],
+    ):
+
+        self._model_endpoints_instructions = [
+            ModelEndpointInstruction.from_dict(instruction)
+            if isinstance(instruction, dict)
+            else instruction
+            for instruction in (model_endpoints_instructions or [])
+        ]
 
     def generate_nuclio_volumes(self):
         nuclio_volumes = []
@@ -252,6 +304,8 @@ class NuclioStatus(FunctionStatus):
         external_invocation_urls=None,
         build_pod=None,
         container_image=None,
+        application_source=None,
+        original_handler=None,
     ):
         super().__init__(state, build_pod)
 
@@ -268,6 +322,21 @@ class NuclioStatus(FunctionStatus):
 
         # the name of the image that was built and pushed to the registry, and used by the nuclio function
         self.container_image = container_image
+
+        # Stash for the original spec.build.source — used when the deploy path
+        # clears spec.build.source mid-deploy (Application from_image; vanilla
+        # Nuclio store:// gate). Lets _should_fetch_source_code recover the URI
+        # on redeploys after spec.build.source has been cleared.
+        self.application_source = application_source
+
+        # User-provided handler for store:// CodeArtifact deploys. The deployed
+        # CRD's spec.handler points at a generated loader module (so Nuclio's
+        # bake doesn't shadow the user's handler module via /opt/nuclio); the
+        # loader reads the real handler from the MLRUN_REAL_HANDLER env var,
+        # which is sourced from this field. Persisting it lets us recover the
+        # original on redeploys (when spec.function_handler already shows the
+        # loader handler).
+        self.original_handler = original_handler
 
 
 class RemoteRuntime(KubeResource):
@@ -300,34 +369,120 @@ class RemoteRuntime(KubeResource):
             return {}
 
         raw_config = copy.deepcopy(self.spec.config)
-
         for key, value in self.spec.config.items():
             if key.startswith("spec.triggers"):
-                trigger_name = key.split(".")[-1]
-
-                for path in SENSITIVE_PATHS_IN_TRIGGER_CONFIG:
-                    # Handle nested keys
-                    nested_keys = path.split("/")
-                    target = value
-                    for sub_key in nested_keys[:-1]:
-                        target = target.get(sub_key, {})
-
-                    last_key = nested_keys[-1]
-                    if last_key in target:
-                        sensitive_field = target[last_key]
-                        if sensitive_field.startswith(
-                            mlrun.model.Credentials.secret_reference_prefix
-                        ):
-                            # already masked
-                            continue
-                        target[last_key] = (
-                            f"{mlrun.model.Credentials.secret_reference_prefix}/spec/triggers/{trigger_name}/{path}"
-                        )
+                # support both types depending on the way how it was set
+                # sometimes trigger name is in the same key, sometimes it's nested in the value dict
+                if key == "spec.triggers":
+                    for trigger_name, trigger_config in value.items():
+                        self._mask_trigger_config(trigger_name, trigger_config)
+                else:
+                    trigger_name = key.split(".")[-1]
+                    self._mask_trigger_config(trigger_name, value)
 
         return raw_config
 
     def set_config(self, key, value):
         self.spec.config[key] = value
+        return self
+
+    def setup_model_monitoring(
+        self,
+        general_model_endpoint_instructions: ModelEndpointInstruction | None = None,
+        extra_model_endpoint_instructions: typing.Union[
+            list[mlrun.common.schemas.model_monitoring.ModelEndpointInstruction],
+            list[dict],
+        ]
+        | None = None,
+    ) -> "RemoteRuntime":
+        """
+        Setup model monitoring on the RemoteRuntime create by default model endpoint represent the Runtime,
+        Optional configure  custom model endpoint or extra model endpoints to be created at deployment time.
+
+        Each instruction describes a ``USER_EP`` model endpoint that will be registered
+        when this function is deployed. Calling this method sets the ``track_models``
+        flag on the spec so the deployment stage knows to create the endpoints.
+
+        Instructions must not set ``function_name`` or ``function_tag``; both are
+        derived from the runtime's ``metadata.name`` / ``metadata.tag`` at deployment
+        time. Setting either raises ``MLRunInvalidArgumentError``.
+
+        :param general_model_endpoint_instructions: Optional ModelEndpointInstruction parameter for main model endpoint
+            instructions, if not provided a default one will be created with the USER_EP endpoint type and the default
+            name f'{function_name}_model_endpoint'.
+        :param extra_model_endpoint_instructions: List of ModelEndpointInstruction
+            objects or equivalent dicts, one per model endpoint to register.
+        :return: The runtime object, for method chaining.
+        """
+        if self.spec.model_endpoints_instructions:
+            warnings.warn(
+                "Previous  model_endpoints_instructions will be overridden by this call"
+            )
+        if general_model_endpoint_instructions is None:
+            self.spec.model_endpoints_instructions = [
+                ModelEndpointInstruction(
+                    name=f"{self.metadata.name}_model_endpoint",
+                    function_name=self.metadata.name,
+                    function_tag=self.metadata.tag,
+                ),
+            ]
+        else:
+            general_model_endpoint_instructions = (
+                general_model_endpoint_instructions
+                if isinstance(
+                    general_model_endpoint_instructions, ModelEndpointInstruction
+                )
+                else ModelEndpointInstruction.from_dict(
+                    general_model_endpoint_instructions
+                )
+            )
+            if general_model_endpoint_instructions.function_name is not None:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "function_name must not be set on ModelEndpointInstruction; "
+                    "it is derived from the function's metadata.name "
+                    f"(endpoint={general_model_endpoint_instructions.name})"
+                )
+            if general_model_endpoint_instructions.function_tag is not None:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "function_tag must not be set on ModelEndpointInstruction; "
+                    "it is derived from the function's metadata.tag "
+                    f"(endpoint={general_model_endpoint_instructions.name})"
+                )
+            self.spec.model_endpoints_instructions = [
+                general_model_endpoint_instructions
+            ]
+        if extra_model_endpoint_instructions:
+            if all(isinstance(i, dict) for i in extra_model_endpoint_instructions):
+                extra_model_endpoint_instructions = [
+                    ModelEndpointInstruction.from_dict(instruction)
+                    for instruction in extra_model_endpoint_instructions
+                ]
+            elif not all(
+                isinstance(instruction, ModelEndpointInstruction)
+                for instruction in extra_model_endpoint_instructions
+            ):
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "extra_model_endpoint_instructions must be a uniform list of "
+                    "ModelEndpointInstruction objects or dicts, not a mix of both."
+                )
+            for extra_instruction in extra_model_endpoint_instructions:
+                if extra_instruction.function_name is not None:
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        "function_name must not be set on ModelEndpointInstruction; "
+                        "it is derived from the function's metadata.name "
+                        f"(endpoint={extra_instruction.name})"
+                    )
+                if extra_instruction.function_tag is not None:
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        "function_tag must not be set on ModelEndpointInstruction; "
+                        "it is derived from the function's metadata.tag "
+                        f"(endpoint={extra_instruction.name})"
+                    )
+
+            self.spec.model_endpoints_instructions.extend(
+                extra_model_endpoint_instructions
+            )
+        self.spec.track_models = True
         return self
 
     def with_annotations(self, annotations: dict):
@@ -464,17 +619,19 @@ class RemoteRuntime(KubeResource):
 
     def with_http(
         self,
-        workers: typing.Optional[int] = 8,
-        port: typing.Optional[int] = None,
-        host: typing.Optional[str] = None,
-        paths: typing.Optional[list[str]] = None,
-        canary: typing.Optional[float] = None,
-        secret: typing.Optional[str] = None,
-        worker_timeout: typing.Optional[int] = None,
-        gateway_timeout: typing.Optional[int] = None,
-        trigger_name: typing.Optional[str] = None,
-        annotations: typing.Optional[typing.Mapping[str, str]] = None,
-        extra_attributes: typing.Optional[typing.Mapping[str, str]] = None,
+        workers: int | None = None,
+        port: int | None = None,
+        host: str | None = None,
+        paths: list[str] | None = None,
+        canary: float | None = None,
+        secret: str | None = None,
+        worker_timeout: int | None = None,
+        gateway_timeout: int | None = None,
+        trigger_name: str | None = None,
+        annotations: typing.Mapping[str, str] | None = None,
+        extra_attributes: typing.Mapping[str, str] | None = None,
+        batching_spec: BatchingSpec | None = None,
+        async_spec: AsyncSpec | None = None,
     ):
         """update/add nuclio HTTP trigger settings
 
@@ -482,7 +639,8 @@ class RemoteRuntime(KubeResource):
         if the max time a request will wait for until it will start processing, gateway_timeout must be greater than
         the worker_timeout.
 
-        :param workers:    number of worker processes (default=8). set 0 to use Nuclio's default workers count
+        :param workers: Number of worker processes. Defaults to 8 in synchronous mode and
+                        1 in asynchronous mode. Set to 0 to use Nuclio’s default worker count.
         :param port:       TCP port to listen on. by default, nuclio will choose a random port as long as
                            the function service is NodePort. if the function service is ClusterIP, the port
                            is ignored.
@@ -496,6 +654,13 @@ class RemoteRuntime(KubeResource):
         :param trigger_name:    alternative nuclio trigger name
         :param annotations:     key/value dict of ingress annotations
         :param extra_attributes: key/value dict of extra nuclio trigger attributes
+        :param batching_spec: BatchingSpec object that defines batching configuration.
+            By default, batching is disabled.
+
+        :param async_spec: AsyncSpec object defines async configuration. By default, mode will be sync.
+            If number of max connections won't be set, the default value will be set to 1000 according to nuclio
+            default.
+
         :return: function object (self)
         """
         if self.disable_default_http_trigger:
@@ -503,11 +668,22 @@ class RemoteRuntime(KubeResource):
                 "Adding HTTP trigger despite the default HTTP trigger creation being disabled"
             )
 
+        nuclio_version_support_async = validate_nuclio_version_compatibility("1.15.3")
+        if async_spec is not None and not nuclio_version_support_async:
+            raise mlrun.errors.MLRunValueError(
+                "Async spec is only supported from Nuclio 1.15.3"
+            )
+
+        async_enabled = getattr(async_spec, "enabled", False)
+        if async_enabled:
+            workers = 1 if workers is None else workers
+        else:
+            workers = 8 if workers is None else workers
+
         annotations = annotations or {}
         if worker_timeout:
             gateway_timeout = gateway_timeout or (worker_timeout + 60)
-        if workers is None:
-            workers = 0
+
         if gateway_timeout:
             if worker_timeout and worker_timeout >= gateway_timeout:
                 raise ValueError(
@@ -531,6 +707,24 @@ class RemoteRuntime(KubeResource):
             trigger._struct["workerAvailabilityTimeoutMilliseconds"] = (
                 worker_timeout
             ) * 1000
+
+        if batching_spec and (
+            batching_config := batching_spec.get_nuclio_batch_config()
+        ):
+            if not validate_nuclio_version_compatibility("1.14.0"):
+                raise mlrun.errors.MLRunValueError(
+                    "Batching is only supported on Nuclio 1.14.0 and higher"
+                )
+            trigger._struct["batch"] = batching_config
+
+        if nuclio_version_support_async:
+            trigger._struct["mode"] = "async" if async_enabled else "sync"
+            if async_enabled:
+                trigger._struct["async"] = {
+                    "maxConnectionsNumber": async_spec.max_connections,
+                    "connectionAvailabilityTimeout": async_spec.connection_availability_timeout,
+                }
+
         self.add_trigger(trigger_name or "http", trigger)
         return self
 
@@ -623,13 +817,116 @@ class RemoteRuntime(KubeResource):
             self.spec.min_replicas = shards
             self.spec.max_replicas = shards
 
+    def add_rabbitmq_trigger(
+        self,
+        url: str,
+        exchange_name: str | None = None,
+        name: str = "rabbitmq",
+        queue_name: str | None = None,
+        topics: list[str] | None = None,
+        username: str | None = None,
+        password: str | None = None,
+        prefetch_count: int | None = None,
+        durable_exchange: bool | None = None,
+        durable_queue: bool | None = None,
+        on_error: str | None = None,
+        requeue_on_error: bool | None = None,
+        reconnect_duration: str | None = None,
+        reconnect_interval: str | None = None,
+        num_workers: int | None = None,
+        worker_termination_timeout: str | None = None,
+    ):
+        """Add a RabbitMQ trigger to the function.
+
+        Allows consuming messages from RabbitMQ queues or topic-based routing.
+        See https://docs.nuclio.io/en/latest/reference/triggers/rabbitmq.html for more details.
+
+        :param url:                       RabbitMQ connection URL in AMQP format
+                                          (e.g., 'amqp://host:port' or 'amqp://user:pass@host:port')
+                                          or a datastore profile URL (e.g., 'ds://profile-name')
+        :param exchange_name:             The exchange that contains the queue (required unless
+                                          using a datastore profile that provides it)
+        :param name:                      Trigger name (default: 'rabbitmq')
+        :param queue_name:                Specific queue to consume from. Either queue_name or
+                                          topics must be specified, but not both.
+        :param topics:                    List of topics (routing keys) to subscribe to. Creates
+                                          a unique queue and binds it to these routing keys. Either
+                                          queue_name or topics must be specified, but not both.
+        :param username:                  RabbitMQ username (can also be embedded in URL)
+        :param password:                  RabbitMQ password (can also be embedded in URL)
+        :param prefetch_count:            Broker channel prefetch limit (0 = unlimited)
+        :param durable_exchange:          Whether the exchange should survive broker restart
+        :param durable_queue:             Whether the queue should survive broker restart
+        :param on_error:                  Error handling strategy: 'ack' or 'nack'
+        :param requeue_on_error:          Whether to requeue failed messages (when on_error='nack')
+        :param reconnect_duration:        Total time to attempt reconnection (e.g., '5m')
+        :param reconnect_interval:        Time between reconnection attempts (e.g., '15s')
+        :param num_workers:               Number of workers processing messages concurrently
+        :param worker_termination_timeout: Timeout for worker termination (e.g., '10s')
+
+        Example usage::
+
+            function.add_rabbitmq_trigger(
+                url="amqp://rabbitmq-host:5672",
+                exchange_name="my-exchange",
+                queue_name="my-queue",
+                username="user",
+                password="pass",
+            )
+
+        Or with topics (routing keys)::
+
+            function.add_rabbitmq_trigger(
+                url="amqp://rabbitmq-host:5672",
+                exchange_name="my-exchange",
+                topics=["key1", "key2"],
+            )
+
+        Or using a datastore profile::
+
+            function.add_rabbitmq_trigger(url="ds://my-rabbitmq-profile")
+
+        When using a datastore profile (ds:// URL), all parameters from the profile
+        are used as defaults. Any parameter explicitly passed to this method will
+        override the corresponding profile value, including falsy values like 0 or False::
+
+            # Profile has prefetch_count=10, but explicit 0 overrides it
+            function.add_rabbitmq_trigger(
+                url="ds://my-rabbitmq-profile",
+                prefetch_count=0,  # Overrides profile's prefetch_count=10
+            )
+        """
+        self.add_trigger(
+            name,
+            RabbitMQTrigger(
+                url=url,
+                exchange_name=exchange_name,
+                queue_name=queue_name,
+                topics=topics,
+                username=username,
+                password=password,
+                prefetch_count=prefetch_count,
+                durable_exchange=durable_exchange,
+                durable_queue=durable_queue,
+                on_error=on_error,
+                requeue_on_error=requeue_on_error,
+                reconnect_duration=reconnect_duration,
+                reconnect_interval=reconnect_interval,
+                num_workers=num_workers,
+                worker_termination_timeout=worker_termination_timeout,
+            ),
+        )
+
     def deploy(
         self,
         project="",
         tag="",
         verbose=False,
-        builder_env: typing.Optional[dict] = None,
+        builder_env: dict | None = None,
         force_build: bool = False,
+        track_models: bool | None = None,
+        wait: bool = True,
+        timeout: int | None = None,
     ):
         """Deploy the nuclio function to the cluster
 
@@ -638,6 +935,20 @@ class RemoteRuntime(KubeResource):
         :param verbose:    set True for verbose logging
         :param builder_env: env vars dict for source archive config/credentials e.g. builder_env={"GIT_TOKEN": token}
         :param force_build: set True for force building the image
+        :param track_models: override state of self.spec.track_models. If not provided, uses the spec value (False
+            by default, True after setup_model_monitoring() is called). When True, model endpoints are created at
+            deployment time.
+        :param wait:       when ``True`` (default), wait for readiness and
+            return the invocation command (``str``). When ``False``, submit and
+            return ``self`` so the caller can later call
+            ``wait_for_deployment()`` or poll
+            ``db.get_nuclio_deploy_status``.
+        :param timeout:    optional deadline in seconds for the readiness wait
+            when ``wait=True``; forwarded to ``wait_for_deployment``. ``None``
+            waits indefinitely. Ignored when ``wait=False``.
+
+        :return: the invocation command (``str``) when ``wait=True``; the
+            function object (``self``) when ``wait=False``.
         """
 
         old_http_session = getattr(self, "_http_session", None)
@@ -655,11 +966,20 @@ class RemoteRuntime(KubeResource):
         if tag:
             self.metadata.tag = tag
 
-        mlrun.utils.helpers.validate_function_name(self.metadata.name)
+        if track_models and not self.spec.model_endpoints_instructions:
+            self.setup_model_monitoring()
+        self.spec.track_models = (
+            self.spec.track_models if track_models is None else track_models
+        )
 
         # Attempt auto-mounting, before sending to remote build
         self.try_auto_mount_based_on_config()
         self._fill_credentials()
+
+        # Set via context manager because nuclio does not go through the ClientRemoteLauncher
+        auth_token_name = mlrun.runtime_configuration_context.RuntimeConfigurationContext.get_auth_token_name()
+        mlrun.utils.helpers.set_auth_token_name(self.spec, auth_token_name)
+
         db = self._get_db()
         logger.info("Starting remote function deploy")
         data = db.deploy_nuclio_function(func=self, builder_env=builder_env)
@@ -671,15 +991,46 @@ class RemoteRuntime(KubeResource):
 
         self._update_credentials_from_remote_build(data["data"])
 
-        # when a function is deployed, we wait for it to be ready by default
-        # this also means that the function object will be updated with the function status
-        self._wait_for_function_deployment(db, verbose=verbose)
-        # check if there are any background tasks related to creating model endpoints
+        # Save submit-time model-endpoint tasks for wait_for_deployment().
+        self._deploy_background_tasks = data.get(
+            "background_tasks", {"background_tasks": []}
+        )
+
+        if not wait:
+            # Caller handles wait/finalization explicitly.
+            return self
+
+        return self.wait_for_deployment(verbose=verbose, timeout=timeout)
+
+    def wait_for_deployment(
+        self, verbose: bool = False, timeout: int | None = None
+    ) -> str:
+        """Finalize a submitted Nuclio deploy.
+
+        Waits for terminal deploy status, handles model-endpoint tasks,
+        enriches the invocation command from status, and returns it.
+        ``deploy(wait=True)`` calls this directly; callers of
+        ``deploy(wait=False)`` can call it explicitly.
+
+        :param verbose: print verbose build logs
+        :param timeout: optional deadline in seconds for reaching a terminal
+            deploy state. ``None`` waits indefinitely. Raises
+            :class:`mlrun.errors.MLRunTimeoutError` on timeout. The deadline is
+            checked once per status poll, so the wait may overshoot ``timeout``
+            by up to one poll interval.
+        :return: the function's invocation command
+        """
+        db = self._get_db()
+        # Wait for terminal state and refresh status.
+        self._wait_for_function_deployment(db, verbose=verbose, timeout=timeout)
+        # Consume submit-time model-endpoint tasks once.
         model_endpoints_creation_background_tasks = (
             mlrun.common.schemas.BackgroundTaskList(
-                **data.pop("background_tasks", {"background_tasks": []})
+                **getattr(self, "_deploy_background_tasks", None)
+                or {"background_tasks": []}
             ).background_tasks
         )
+        self._deploy_background_tasks = {"background_tasks": []}
         if model_endpoints_creation_background_tasks:
             self._check_model_endpoint_task_state(
                 db=db,
@@ -717,10 +1068,23 @@ class RemoteRuntime(KubeResource):
 
         return self.spec.command
 
-    def _wait_for_function_deployment(self, db, verbose=False):
+    def _wait_for_function_deployment(
+        self, db, verbose=False, timeout: int | None = None
+    ):
         state = ""
         last_log_timestamp = 1
+        deadline = monotonic() + timeout if timeout is not None else None
         while state not in ["ready", "error", "unhealthy"]:
+            if deadline is not None and monotonic() > deadline:
+                logger.error(
+                    "Nuclio deploy timed out",
+                    function_state=state,
+                    timeout=timeout,
+                )
+                raise mlrun.errors.MLRunTimeoutError(
+                    f"Function {self.metadata.name} deployment timed out after "
+                    f"{timeout}s (last state={state!r})"
+                )
             sleep(
                 int(mlrun.mlconf.httpdb.logs.nuclio.pull_deploy_status_default_interval)
             )
@@ -741,10 +1105,10 @@ class RemoteRuntime(KubeResource):
     @min_nuclio_versions("1.5.20", "1.6.10")
     def with_node_selection(
         self,
-        node_name: typing.Optional[str] = None,
-        node_selector: typing.Optional[dict[str, str]] = None,
-        affinity: typing.Optional[client.V1Affinity] = None,
-        tolerations: typing.Optional[list[client.V1Toleration]] = None,
+        node_name: str | None = None,
+        node_selector: dict[str, str] | None = None,
+        affinity: client.V1Affinity | None = None,
+        tolerations: list[client.V1Toleration] | None = None,
     ):
         """k8s node selection attributes"""
         if tolerations and not validate_nuclio_version_compatibility("1.7.5"):
@@ -774,14 +1138,14 @@ class RemoteRuntime(KubeResource):
         super().with_preemption_mode(mode=mode)
 
     @min_nuclio_versions("1.6.18")
-    def with_priority_class(self, name: typing.Optional[str] = None):
+    def with_priority_class(self, name: str | None = None):
         """k8s priority class"""
         super().with_priority_class(name)
 
     def with_service_type(
         self,
         service_type: str,
-        add_templated_ingress_host_mode: typing.Optional[str] = None,
+        add_templated_ingress_host_mode: str | None = None,
     ):
         """
         Enables to control the service type of the pod and the addition of templated ingress host
@@ -832,7 +1196,7 @@ class RemoteRuntime(KubeResource):
         last_log_timestamp=0,
         verbose=False,
         raise_on_exception=True,
-    ) -> tuple[str, str, typing.Optional[float]]:
+    ) -> tuple[str, str, float | None]:
         try:
             text, last_log_timestamp = self._get_db().get_nuclio_deploy_status(
                 self, last_log_timestamp=last_log_timestamp, verbose=verbose
@@ -842,22 +1206,6 @@ class RemoteRuntime(KubeResource):
                 return "", "", None
             raise ValueError("function or deploy process not found")
         return self.status.state, text, last_log_timestamp
-
-    def _get_runtime_env(self):
-        # for runtime specific env var enrichment (before deploy)
-        runtime_env = {
-            mlrun.common.constants.MLRUN_ACTIVE_PROJECT: self.metadata.project
-            or mlconf.active_project,
-        }
-        if mlconf.httpdb.api_url:
-            runtime_env["MLRUN_DBPATH"] = mlconf.httpdb.api_url
-        if mlconf.namespace:
-            runtime_env["MLRUN_NAMESPACE"] = mlconf.namespace
-        if self.metadata.credentials.access_key:
-            runtime_env[
-                mlrun.common.runtimes.constants.FunctionEnvironmentVariables.auth_session
-            ] = self.metadata.credentials.access_key
-        return runtime_env
 
     def _get_serving_spec(self):
         return None
@@ -883,8 +1231,9 @@ class RemoteRuntime(KubeResource):
             if value_from is not None:
                 external_source_env_dict[sanitized_env_var.get("name")] = value_from
 
-        for key, value in self._get_runtime_env().items():
-            env_dict[key] = value
+        envs, external_source_envs = self._generate_runtime_env()
+        env_dict.update(envs)
+        external_source_env_dict.update(external_source_envs)
 
         return env_dict, external_source_env_dict
 
@@ -941,12 +1290,12 @@ class RemoteRuntime(KubeResource):
     def invoke(
         self,
         path: str,
-        body: typing.Optional[typing.Union[str, bytes, dict]] = None,
-        method: typing.Optional[str] = None,
-        headers: typing.Optional[dict] = None,
+        body: typing.Union[str, bytes, dict, list] | None = None,
+        method: str | None = None,
+        headers: dict | None = None,
         force_external_address: bool = False,
         auth_info: AuthInfo = None,
-        mock: typing.Optional[bool] = None,
+        mock: bool | None = None,
         **http_client_kwargs,
     ):
         """Invoke the remote (live) function and return the results
@@ -996,7 +1345,7 @@ class RemoteRuntime(KubeResource):
         if not http_client_kwargs:
             http_client_kwargs = {}
         if body:
-            if isinstance(body, (str, bytes)):
+            if isinstance(body, str | bytes):
                 http_client_kwargs["data"] = body
             else:
                 http_client_kwargs["json"] = body
@@ -1004,6 +1353,8 @@ class RemoteRuntime(KubeResource):
             logger.debug("Invoking function", method=method, path=path)
             if not getattr(self, "_http_session", None):
                 self._http_session = requests.Session()
+            if mlconf.httpdb.http.verify is False:
+                http_client_kwargs.setdefault("verify", False)
             resp = self._http_session.request(
                 method, path, headers=headers, **http_client_kwargs
             )
@@ -1015,17 +1366,17 @@ class RemoteRuntime(KubeResource):
             raise RuntimeError(f"bad function response {resp.status_code}: {resp.text}")
 
         data = resp.content
-        if resp.headers["content-type"] == "application/json":
+        if data and resp.headers["content-type"] == "application/json":
             data = json.loads(data)
         return data
 
     def with_sidecar(
         self,
-        name: typing.Optional[str] = None,
-        image: typing.Optional[str] = None,
-        ports: typing.Optional[typing.Union[int, list[int]]] = None,
-        command: typing.Optional[str] = None,
-        args: typing.Optional[list[str]] = None,
+        name: str | None = None,
+        image: str | None = None,
+        ports: typing.Union[int, list[int]] | None = None,
+        command: str | None = None,
+        args: list[str] | None = None,
     ):
         """
         Add a sidecar container to the function pod
@@ -1070,6 +1421,20 @@ class RemoteRuntime(KubeResource):
             sidecar["resources"] = self.spec.resources
             self.spec.resources = None
 
+    def set_probe(self, *args, **kwargs):
+        """Set a Kubernetes probe configuration for the sidecar container
+
+        This method is only available for ApplicationRuntime.
+        """
+        raise ValueError("set_probe() is only supported for ApplicationRuntime. ")
+
+    def delete_probe(self, *args, **kwargs):
+        """Delete a Kubernetes probe configuration from the sidecar container
+
+        This method is only available for ApplicationRuntime.
+        """
+        raise ValueError("delete_probe() is only supported for ApplicationRuntime.")
+
     def _set_sidecar(self, name: str) -> dict:
         self.spec.config.setdefault("spec.sidecars", [])
         sidecars = self.spec.config["spec.sidecars"]
@@ -1079,6 +1444,62 @@ class RemoteRuntime(KubeResource):
 
         sidecars.append({"name": name})
         return sidecars[-1]
+
+    def _mask_trigger_config(self, trigger_name, trigger_config):
+        self._mask_rabbitmq_url(trigger=trigger_config)
+        for path in SENSITIVE_PATHS_IN_TRIGGER_CONFIG:
+            # Handle nested keys
+            nested_keys = path.split("/")
+            target = trigger_config
+            for sub_key in nested_keys[:-1]:
+                target = target.get(sub_key, {})
+
+            last_key = nested_keys[-1]
+            if last_key in target:
+                sensitive_field = target[last_key]
+                if sensitive_field.startswith(
+                    mlrun.model.Credentials.secret_reference_prefix
+                ):
+                    # already masked
+                    continue
+                target[last_key] = (
+                    f"{mlrun.model.Credentials.secret_reference_prefix}/spec/triggers/{trigger_name}/{path}"
+                )
+
+    @staticmethod
+    def _mask_rabbitmq_url(trigger):
+        """
+        Extract credentials from RabbitMQ URL and move them to attributes dict.
+        This ensures credentials are not exposed in the URL.
+        """
+
+        # supported only for nuclio higher than 1.14.15
+        if not validate_nuclio_version_compatibility("1.14.15"):
+            return
+        if not isinstance(trigger, dict):
+            return
+
+        if trigger.get("kind") != "rabbit-mq":
+            return
+
+        url = trigger.get("url")
+        if not url or not isinstance(url, str):
+            return
+
+        creds = extract_credentials_from_url(url)
+
+        # Only process if credentials are present in the URL
+        if not creds.username and not creds.password:
+            return
+
+        # Update trigger safely
+        trigger["url"] = creds.url
+        trigger.update(
+            {
+                "username": creds.username or "",
+                "password": creds.password or "",
+            }
+        )
 
     def _trigger_of_kind_exists(self, kind: str) -> bool:
         if not self.spec.config:
@@ -1254,9 +1675,10 @@ class RemoteRuntime(KubeResource):
             return url
 
         if self.status.external_invocation_urls:
-            return mlrun.utils.helpers.join_urls(
-                f"http://{self.status.external_invocation_urls[0]}", path
-            )
+            external_url = self.status.external_invocation_urls[0]
+            if "://" not in external_url:
+                external_url = f"https://{external_url}"
+            return mlrun.utils.helpers.join_urls(external_url, path)
 
         if not self.status.address:
             # if there is no address
@@ -1326,24 +1748,14 @@ class RemoteRuntime(KubeResource):
     def get_url(
         self,
         force_external_address: bool = False,
-        # leaving auth_info for BC
-        # TODO: remove in 1.12.0
-        auth_info: AuthInfo = None,
     ):
         """
         This method returns function's url.
 
         :param force_external_address:   use the external ingress URL
-        :param auth_info:                service AuthInfo
 
         :return: returns function's url
         """
-        if auth_info:
-            warnings.warn(
-                "'auth_info' is deprecated in 1.10.0 and will be removed in 1.12.0.",
-                # TODO: Remove this in 1.12.0
-                FutureWarning,
-            )
         return self._resolve_invocation_url("", force_external_address)
 
     @staticmethod
@@ -1456,7 +1868,7 @@ def get_nuclio_deploy_status(
             verbose,
             resolve_address,
             return_function_status=True,
-            auth_info=auth_info.to_nuclio_auth_info() if auth_info else None,
+            auth_info=mlrun.auth.nuclio.NuclioAuthInfo.from_auth_info(auth_info),
         )
     except requests.exceptions.ConnectionError as exc:
         mlrun.errors.raise_for_status(

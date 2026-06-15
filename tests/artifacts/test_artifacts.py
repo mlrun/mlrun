@@ -88,7 +88,7 @@ def test_extend_artifact_path():
         assert extend_artifact_path(test, "yz") == expected[i]
 
 
-def test_model_artifact_validators():
+def test_model_artifact_validators(new_project_factory):
     with pytest.raises(
         mlrun.errors.MLRunInvalidArgumentError,
         match="Arguments 'model_file' and 'model_url' cannot be"
@@ -108,7 +108,7 @@ def test_model_artifact_validators():
             body=b"dummy_model_content",
             model_url="http://localhost:8080/v2/models/mymodel/infer",
         )
-    project = mlrun.new_project("test-project", save=False)
+    project = new_project_factory("test-project", save=False)
     with pytest.raises(
         mlrun.errors.MLRunInvalidArgumentError,
         match="log_artifact of ModelArtifact does not accept arguments for both upload and model_url parameters",
@@ -432,8 +432,8 @@ def test_log_artifact_with_target_path_and_upload_options(
         ("artifact.key", does_not_raise()),
     ],
 )
-def test_log_artifact_with_invalid_key(artifact_key, expected):
-    project = mlrun.new_project("test-project")
+def test_log_artifact_with_invalid_key(artifact_key, expected, new_project_factory):
+    project = new_project_factory("test-project")
     target_path = "s3://some/path"
     artifact = mlrun.artifacts.Artifact(
         key=artifact_key, body="123", target_path=target_path
@@ -662,8 +662,8 @@ def test_resolve_body_hash_path(
         assert expected_target_path == target_path
 
 
-def test_inline_body():
-    project = mlrun.new_project("inline", save=False)
+def test_inline_body(new_project_factory):
+    project = new_project_factory("inline", save=False)
 
     # log an artifact and save the content/body in the object (inline)
     artifact = project.log_artifact(
@@ -680,9 +680,32 @@ def test_inline_body():
     assert artifact.metadata.key == "y"
 
 
-def test_register_artifacts(rundb_mock):
+def test_log_code_file_body_requires_path(new_project_factory):
+    project = new_project_factory("code-body", save=False)
+
+    # a body with no local_path/target_path cannot name its file -> rejected
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match="must provide local_path or target_path",
+    ):
+        project.log_code_file("c", body="def f(): pass")
+
+    # is_inline=True embeds the body in the record (no upload needed)
+    artifact = project.log_code_file(
+        "c",
+        body="def f(): pass",
+        local_path="c.py",
+        is_inline=True,
+        upload=False,
+        artifact_path=results_dir,
+    )
+    assert artifact.spec.get_body() == "def f(): pass"
+    assert artifact.spec._is_inline is True
+
+
+def test_register_artifacts(rundb_mock, new_project_factory):
     project_name = "my-projects"
-    project = mlrun.new_project(project_name)
+    project = new_project_factory(project_name)
     artifact_key = "my-art"
     artifact_tag = "v1"
     project.set_artifact(
@@ -699,9 +722,9 @@ def test_register_artifacts(rundb_mock):
     assert artifact.tree == expected_tree
 
 
-def test_producer_in_exported_artifact():
+def test_producer_in_exported_artifact(new_project_factory):
     project_name = "my-project"
-    project = mlrun.new_project(project_name, save=False)
+    project = new_project_factory(project_name, save=False)
 
     artifact = project.log_artifact(
         "x", body="123", is_inline=True, artifact_path=results_dir
@@ -769,3 +792,202 @@ def test_artifact_producer_parse_uri(uri, expected_parsed_result):
         deepdiff.DeepDiff(parsed_result, expected_parsed_result, ignore_order=True)
         == {}
     )
+
+
+def test_code_artifact_create_with_defaults():
+    artifact = mlrun.artifacts.CodeArtifact(key="my-code")
+    assert artifact.kind == "code"
+    assert artifact.spec.code_type == mlrun.artifacts.code.CodeArtifactCodeType.function
+    assert artifact.spec.language is None
+    assert artifact.spec.requirements is None
+
+
+def test_code_artifact_create_with_language_and_code_type():
+    artifact = mlrun.artifacts.CodeArtifact(
+        key="my-code",
+        language="python:3.11",
+        code_type="workflow",
+    )
+    assert artifact.spec.language == "python:3.11"
+    assert artifact.spec.code_type == mlrun.artifacts.code.CodeArtifactCodeType.workflow
+
+
+def test_code_artifact_create_with_enum_code_type():
+    artifact = mlrun.artifacts.CodeArtifact(
+        key="my-code",
+        code_type=mlrun.artifacts.code.CodeArtifactCodeType.workflow,
+    )
+    assert artifact.spec.code_type == mlrun.artifacts.code.CodeArtifactCodeType.workflow
+
+
+def test_code_artifact_invalid_code_type_raises():
+    with pytest.raises(ValueError):
+        mlrun.artifacts.CodeArtifact(key="bad", code_type="invalid")
+
+
+def test_code_artifact_create_with_requirements():
+    requirements = ["pandas>=2.0", "numpy", "scikit-learn"]
+    artifact = mlrun.artifacts.CodeArtifact(
+        key="my-code",
+        language="python:3.11",
+        code_type="function",
+        requirements=requirements,
+    )
+    assert artifact.spec.requirements == requirements
+
+
+@pytest.mark.parametrize(
+    "requirements",
+    [
+        "pandas>=1.0",  # ML-12563 reproducer: string passed instead of list
+        ("pandas",),  # tuple is not a list
+        123,  # not iterable
+        ["pandas", 123],  # list with non-str item
+        ["pandas", None],
+    ],
+)
+def test_code_artifact_invalid_requirements_raises(requirements):
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+        mlrun.artifacts.CodeArtifact(key="bad", requirements=requirements)
+
+
+@pytest.mark.parametrize(
+    "requirements",
+    [None, [], ["pandas"], ["pandas>=2.0", "numpy"]],
+)
+def test_code_artifact_valid_requirements_accepted(requirements):
+    artifact = mlrun.artifacts.CodeArtifact(key="ok", requirements=requirements)
+    assert artifact.spec.requirements == requirements
+
+
+@pytest.mark.parametrize(
+    "target_path,src_path,language,expected",
+    [
+        # suffix → "python"
+        ("s3://bucket/funcs/foo.py", None, None, "python"),
+        ("FOO.PY", None, None, "python"),
+        ("notebook.ipynb", None, None, "python"),
+        # archives and unknown → ""
+        ("foo.zip", None, None, ""),
+        ("foo.tar.gz", None, None, ""),
+        ("foo.bin", None, None, ""),
+        # no target_path → fall back to src_path
+        (None, "/tmp/foo.py", None, "python"),
+        # target_path takes precedence over src_path
+        ("s3://bucket/foo.zip", "/tmp/foo.py", None, ""),
+        # explicit language wins over derivation (including "")
+        ("/tmp/foo.py", None, "custom", "custom"),
+        ("/tmp/foo.py", None, "", ""),
+    ],
+)
+def test_code_artifact_language_derivation(target_path, src_path, language, expected):
+    artifact = mlrun.artifacts.CodeArtifact(
+        key="k",
+        target_path=target_path,
+        src_path=src_path,
+        language=language,
+    )
+    assert artifact.spec.language == expected
+
+
+def test_code_artifact_serialization_roundtrip():
+    requirements = ["pandas>=2.0", "numpy"]
+    artifact = mlrun.artifacts.CodeArtifact(
+        key="my-code",
+        language="python:3.11",
+        code_type="function",
+        requirements=requirements,
+    )
+    artifact_dict = artifact.to_dict()
+    assert artifact_dict["kind"] == "code"
+    assert artifact_dict["spec"]["language"] == "python:3.11"
+    assert artifact_dict["spec"]["code_type"] == "function"
+    assert artifact_dict["spec"]["requirements"] == requirements
+
+    restored = mlrun.artifacts.manager.dict_to_artifact(artifact_dict)
+    assert isinstance(restored, mlrun.artifacts.CodeArtifact)
+    assert restored.spec.language == artifact.spec.language
+    assert restored.spec.code_type == artifact.spec.code_type
+    assert restored.spec.requirements == artifact.spec.requirements
+    # Spec's code_type is strictly typed — string in JSON must be coerced
+    # back to the enum on load.
+    assert isinstance(
+        restored.spec.code_type, mlrun.artifacts.code.CodeArtifactCodeType
+    )
+
+
+def test_code_artifact_registered_in_artifact_types():
+    assert "code" in mlrun.artifacts.manager.artifact_types
+    assert (
+        mlrun.artifacts.manager.artifact_types["code"] is mlrun.artifacts.CodeArtifact
+    )
+
+
+def test_code_artifact_categorized_as_other():
+    assert (
+        mlrun.common.schemas.artifact.ArtifactCategories.from_kind("code")
+        == mlrun.common.schemas.artifact.ArtifactCategories.other
+    )
+    kinds, exclude = (
+        mlrun.common.schemas.artifact.ArtifactCategories.other.to_kinds_filter()
+    )
+    assert "code" not in kinds
+    assert exclude
+
+
+def test_log_code_file_via_project(new_project_factory):
+    requirements = ["pandas>=2.0", "numpy"]
+    project = new_project_factory("test-code-proj", save=False)
+    artifact = project.log_code_file(
+        "my-func",
+        local_path="my-func.py",
+        body="def handler(): pass",
+        language="python:3.11",
+        code_type="function",
+        requirements=requirements,
+        is_inline=True,
+        artifact_path=str(results_dir),
+    )
+    assert isinstance(artifact, mlrun.artifacts.CodeArtifact)
+    assert artifact.kind == "code"
+    assert artifact.spec.language == "python:3.11"
+    assert artifact.spec.code_type == mlrun.artifacts.code.CodeArtifactCodeType.function
+    assert artifact.spec.requirements == requirements
+
+
+def test_log_code_file_via_context(ensure_project):
+    requirements = ["requests", "boto3>=1.26"]
+    context = mlrun.get_or_create_ctx("test")
+    artifact = context.log_code_file(
+        "my-func",
+        local_path="my-func.py",
+        body="def handler(): pass",
+        language="python:3.11",
+        code_type="workflow",
+        requirements=requirements,
+        is_inline=True,
+        artifact_path=str(results_dir),
+    )
+    assert isinstance(artifact, mlrun.artifacts.CodeArtifact)
+    assert artifact.kind == "code"
+    assert artifact.spec.language == "python:3.11"
+    assert artifact.spec.code_type == mlrun.artifacts.code.CodeArtifactCodeType.workflow
+    assert artifact.spec.requirements == requirements
+
+
+def test_log_code_file_with_local_file(tmp_path, new_project_factory):
+    code_file = tmp_path / "my_func.py"
+    code_file.write_text("def handler(): return 42")
+
+    project = new_project_factory("test-code-file", save=False)
+    artifact = project.log_code_file(
+        "my-func",
+        local_path=str(code_file),
+        language="python",
+        code_type="function",
+        artifact_path=str(results_dir),
+        upload=False,
+    )
+    assert isinstance(artifact, mlrun.artifacts.CodeArtifact)
+    assert artifact.kind == "code"
+    assert artifact.spec.language == "python"

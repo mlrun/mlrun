@@ -12,12 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import typing
 
 import fastapi
 import semver
 
 import mlrun.common.schemas
+import mlrun.common.types
 import mlrun.runtimes
 import mlrun.runtimes.utils
 import mlrun.utils.helpers
@@ -103,7 +103,7 @@ def try_get_grafana_service_url(session):
         return iguazio_client.try_get_grafana_service_url(session)
 
 
-def _resolve_jobs_dashboard_url(session: str) -> typing.Optional[str]:
+def _resolve_jobs_dashboard_url(session: str) -> str | None:
     grafana_service_url = try_get_grafana_service_url(session)
     if grafana_service_url:
         # FIXME: this creates a heavy coupling between mlrun and the grafana dashboard (name and filters) + org id
@@ -115,7 +115,7 @@ def _resolve_jobs_dashboard_url(session: str) -> typing.Optional[str]:
     return None
 
 
-def _resolve_model_monitoring_dashboard_url(session: str) -> typing.Optional[str]:
+def _resolve_model_monitoring_dashboard_url(session: str) -> str | None:
     grafana_service_url = try_get_grafana_service_url(session)
     if grafana_service_url:
         return grafana_service_url + (
@@ -129,7 +129,7 @@ def _resolve_feature_flags() -> mlrun.common.schemas.FeatureFlags:
     project_membership = mlrun.common.schemas.ProjectMembershipFeatureFlag.disabled
     if mlrun.mlconf.httpdb.authorization.mode == "opa":
         project_membership = mlrun.common.schemas.ProjectMembershipFeatureFlag.enabled
-    authentication = mlrun.common.schemas.AuthenticationFeatureFlag(
+    authentication = mlrun.common.types.AuthenticationMode(
         mlrun.mlconf.httpdb.authentication.mode
     )
     nuclio_streams = mlrun.common.schemas.NuclioStreamsFeatureFlag.disabled

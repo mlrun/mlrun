@@ -15,7 +15,6 @@
 import copy
 import urllib.parse
 from http import HTTPStatus
-from typing import Optional
 
 import aiohttp
 
@@ -23,8 +22,11 @@ import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils
+import mlrun.utils.thread
 from mlrun.common.helpers import generate_api_gateway_name
 from mlrun.utils import logger
+
+import framework.utils.clients.helpers
 
 NUCLIO_API_SESSIONS_ENDPOINT = "/api/sessions/"
 NUCLIO_API_GATEWAYS_ENDPOINT_TEMPLATE = "/api/api_gateways/{api_gateway}"
@@ -38,14 +40,24 @@ NUCLIO_PROJECT_NAME_HEADER = "X-Nuclio-Project-Name"
 
 class Client:
     def __init__(self, auth_info: mlrun.common.schemas.AuthInfo):
-        self._session = None
-        login = auth_info.username
-        self._auth = aiohttp.BasicAuth(login, auth_info.session) if login else None
         self._logger = logger.get_child("nuclio-client")
         self._nuclio_dashboard_url = mlrun.mlconf.nuclio_dashboard_url
+        self._sessions = mlrun.utils.thread.ThreadLocalClient(
+            factory=self._get_new_async_session,
+            close_callback=lambda async_session: async_session.close(),
+        )
+        self._auth_headers = None
+        self._auth = None
+
+        if mlrun.mlconf.is_iguazio_v4_mode():
+            self._auth_headers = auth_info.request_headers
+        else:
+            login = auth_info.username
+            self._auth = aiohttp.BasicAuth(login, auth_info.session) if login else None
 
     async def __aenter__(self):
-        await self._ensure_async_session()
+        # triggers session creation for current thread
+        self._sessions.get()
         return self
 
     async def __aexit__(self, exc_type, exc, tb):
@@ -71,13 +83,13 @@ class Client:
             ).replace_nuclio_names_with_mlrun_names()
         return parsed_api_gateways
 
-    async def api_gateway_exists(self, name: str, project_name: Optional[str] = None):
+    async def api_gateway_exists(self, name: str, project_name: str | None = None):
         # enrich api gateway name with project prefix
         name = generate_api_gateway_name(project_name, name)
 
         return name in await self.list_api_gateways(project_name=project_name)
 
-    async def get_api_gateway(self, name: str, project_name: Optional[str] = None):
+    async def get_api_gateway(self, name: str, project_name: str | None = None):
         headers = {}
 
         # enrich api gateway name with project prefix
@@ -127,7 +139,7 @@ class Client:
             json=body,
         )
 
-    async def delete_api_gateway(self, name: str, project_name: Optional[str] = None):
+    async def delete_api_gateway(self, name: str, project_name: str | None = None):
         headers = {}
 
         # enrich api gateway name with project prefix
@@ -143,7 +155,7 @@ class Client:
             json={"metadata": {"name": name}},
         )
 
-    async def delete_function(self, name: str, project_name: Optional[str] = None):
+    async def delete_function(self, name: str, project_name: str | None = None):
         # this header allows nuclio to delete function along with its api gateways
         headers = {NUCLIO_DELETE_FUNCTIONS_WITH_API_GATEWAYS_HEADER: "true"}
 
@@ -160,8 +172,8 @@ class Client:
     async def get_v3io_shard_lags(
         self,
         project_name: str,
-        stream_path: Optional[str] = None,
-        function_name: Optional[str] = None,
+        stream_path: str | None = None,
+        function_name: str | None = None,
         consumer_group: str = "serving",
         container_name: str = "projects",
     ) -> dict:
@@ -198,28 +210,31 @@ class Client:
             "true"
         )
 
-    async def _ensure_async_session(self):
-        if not self._session:
-            self._session = mlrun.utils.AsyncClientWithRetry(
-                raise_for_status=False,
-                retry_on_exception=mlrun.mlconf.httpdb.projects.retry_leader_request_on_exception
-                == mlrun.common.schemas.HTTPSessionRetryMode.enabled.value,
-                logger=logger,
-            )
+    @staticmethod
+    def _get_new_async_session():
+        return mlrun.utils.AsyncClientWithRetry(
+            raise_for_status=False,
+            retry_on_exception=mlrun.mlconf.httpdb.projects.retry_leader_request_on_exception
+            == mlrun.common.schemas.HTTPSessionRetryMode.enabled.value,
+            logger=logger,
+        )
 
     async def _close_session(self):
-        if self._session:
-            await self._session.close()
-            self._session = None
+        """Close the thread-local session for the current thread."""
+        await self._sessions.async_close()
 
     async def _send_request_to_api(
         self, method, path="/", error_message: str = "", **kwargs
     ):
-        await self._ensure_async_session()
-        response = await self._session.request(
+        async_session = self._sessions.get()
+        self._prepare_auth_kwargs(kwargs)
+        kwargs["headers"] = framework.utils.clients.helpers.enrich_headers(
+            headers=kwargs.get("headers"),
+            path=path,
+        )
+        response = await async_session.request(
             method=method,
             url=urllib.parse.urljoin(self._nuclio_dashboard_url, path),
-            auth=self._auth,
             verify_ssl=False,
             **kwargs,
         )
@@ -269,6 +284,12 @@ class Client:
         self._logger.warning("Request to nuclio failed. Reason:", **log_kwargs)
 
         mlrun.errors.raise_for_status(response, error_message)
+
+    def _prepare_auth_kwargs(self, kwargs):
+        if self._auth:
+            kwargs.setdefault("auth", self._auth)
+        if self._auth_headers:
+            kwargs.setdefault("headers", {}).update(self._auth_headers)
 
     def _enrich_nuclio_api_gateway(
         self,

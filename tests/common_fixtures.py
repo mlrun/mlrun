@@ -11,20 +11,23 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import functools
 import inspect
 import io
 import os
 import shutil
 import sys
 import unittest
+from collections.abc import Callable
 from datetime import datetime
+from datetime import datetime as _orig_datetime
 from http import HTTPStatus
 from os import environ
 from pathlib import Path
-from typing import Callable, Optional, Union
+from typing import Union
 from unittest.mock import Mock
 
+import aiohttp
 import deepdiff
 import pytest
 import requests
@@ -53,7 +56,108 @@ from mlrun.runtimes.utils import global_context
 from mlrun.utils import update_in
 from tests.conftest import logs_path, results, root_path, rundb_path
 
+# aiohttp 3.14 added a required `stream_writer` kwarg to ClientResponse.__init__,
+# which aioresponses (<=0.7.8) doesn't pass. aiohttp only reads
+# `stream_writer.output_size`, so a Mock is sufficient. Drop once aioresponses
+# ships a fix (pnuckowski/aioresponses#289).
+_aiohttp_response_init = aiohttp.ClientResponse.__init__
+if "stream_writer" in inspect.signature(_aiohttp_response_init).parameters:
+
+    def _patched_aiohttp_response_init(self, *args, **kwargs):
+        kwargs.setdefault("stream_writer", Mock(output_size=0))
+        _aiohttp_response_init(self, *args, **kwargs)
+
+    aiohttp.ClientResponse.__init__ = _patched_aiohttp_response_init
+
 session_maker: Callable
+
+
+class FrozenDateTimeMeta(type):
+    def __instancecheck__(cls, instance):
+        """Treat anything whose MRO contains the built-in datetime.datetime
+        as a datetime, to prevent calling isinstance() on datetime and getting a recursion error."""
+        for base in type(instance).mro():
+            if base.__module__ == "datetime" and base.__name__ == "datetime":
+                return True
+
+        # Also treat our own class as datetime
+        return type(instance).__name__ == "FrozenDatetime"
+
+
+class FrozenDatetime(
+    _orig_datetime,
+    metaclass=FrozenDateTimeMeta,
+):
+    """
+    `datetime` subclass whose .now()/ .utcnow() always return `_frozen_now`.
+    Tests may mutate `FrozenDatetime._frozen_now` on-the-fly.
+    """
+
+    _frozen_now: _orig_datetime = _orig_datetime(1970, 1, 1)
+
+    @classmethod
+    def now(cls, tz=None):
+        return cls._frozen_now.replace(tzinfo=tz)
+
+    @classmethod
+    def utcnow(cls):
+        return cls._frozen_now
+
+
+def _patch_everywhere(monkey):
+    """
+    Replace *all* references to the original :class:`datetime.datetime`
+    that are already present in imported modules **and** make sure any
+    future import gets :class:`FrozenDatetime`.
+    """
+    import datetime as _dt_module
+
+    old_datetime_cls = _dt_module.datetime  # ← keep pointer
+
+    if old_datetime_cls is FrozenDatetime:
+        return
+
+    # 1. Patch canonical symbol – affects future imports
+    monkey.setattr(_dt_module, "datetime", FrozenDatetime, raising=True)
+
+    # 2. Sweep every module loaded so far and update stale aliases
+    import sys
+
+    for mod in list(sys.modules.values()):
+        if mod is None:
+            continue
+        for name, val in vars(mod).items():
+            if val is old_datetime_cls:
+                # alias still points at the *old* class → replace
+                monkey.setattr(mod, name, FrozenDatetime, raising=False)
+
+
+def freeze_datetime(target_dt: _orig_datetime):
+    """
+    Decorator that freezes *all* `datetime.now()` / `datetime.utcnow()` calls —
+    whether code did `import datetime` *or* `from datetime import datetime`.
+
+    Usage::
+
+        @freeze_datetime(datetime(2025, 1, 1))
+        def test_something(...):
+            ...
+    """
+
+    def decorator(test_func):
+        @functools.wraps(test_func)
+        def wrapper(*args, **kwargs):
+            monkey = pytest.MonkeyPatch()
+            try:
+                FrozenDatetime._frozen_now = target_dt
+                _patch_everywhere(monkey)
+                return test_func(*args, **kwargs)
+            finally:
+                monkey.undo()
+
+        return wrapper
+
+    return decorator
 
 
 @pytest.fixture(autouse=True)
@@ -248,6 +352,7 @@ class RunDBMock:
         self._api_gateways = {}
         self._get_model_endpoint_calls = 0
         self._get_background_task_calls = 1
+        self.token_provider = None
 
     def reset(self):
         self._functions = {}
@@ -257,6 +362,7 @@ class RunDBMock:
         self._artifacts = {}
         self._runs = {}
         self._api_gateways = {}
+        self.token_provider = None
 
     # Expected to return a hash-key
     def store_function(self, function, name, project="", tag=None, versioned=False):
@@ -281,22 +387,18 @@ class RunDBMock:
         labels=None,
         since=None,
         until=None,
-        iter: Optional[int] = None,
+        iter: int | None = None,
         best_iteration: bool = False,
-        kind: Optional[str] = None,
+        kind: str | None = None,
         category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
-        tree: Optional[str] = None,
-        format_: Optional[
-            mlrun.common.formatters.ArtifactFormat
-        ] = mlrun.common.formatters.ArtifactFormat.full,
-        limit: Optional[int] = None,
-        partition_by: Optional[
-            Union[mlrun.common.schemas.ArtifactPartitionByField, str]
-        ] = None,
+        tree: str | None = None,
+        format_: mlrun.common.formatters.ArtifactFormat
+        | None = mlrun.common.formatters.ArtifactFormat.full,
+        partition_by: Union[mlrun.common.schemas.ArtifactPartitionByField, str]
+        | None = None,
         rows_per_partition: int = 1,
-        partition_sort_by: Optional[
-            Union[mlrun.common.schemas.SortField, str]
-        ] = mlrun.common.schemas.SortField.updated,
+        partition_sort_by: Union[mlrun.common.schemas.SortField, str]
+        | None = mlrun.common.schemas.SortField.updated,
         partition_order: Union[
             mlrun.common.schemas.OrderType, str
         ] = mlrun.common.schemas.OrderType.desc,
@@ -317,7 +419,7 @@ class RunDBMock:
         deletion_strategy: mlrun.common.schemas.artifact.ArtifactsDeletionStrategies = (
             mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.metadata_only
         ),
-        secrets: Optional[dict] = None,
+        secrets: dict | None = None,
         iter=None,
     ):
         self._artifacts.pop((key, iter or 0), None)
@@ -347,22 +449,21 @@ class RunDBMock:
 
     def list_runs(
         self,
-        name: Optional[str] = None,
-        uid: Optional[Union[str, list[str]]] = None,
-        project: Optional[str] = None,
-        labels: Optional[Union[str, list[str]]] = None,
-        state: Optional[str] = None,
+        name: str | None = None,
+        uid: Union[str, list[str]] | None = None,
+        project: str | None = None,
+        labels: Union[str, list[str]] | None = None,
+        state: str | None = None,
         sort: bool = True,
         iter: bool = False,
-        start_time_from: Optional[datetime] = None,
-        start_time_to: Optional[datetime] = None,
-        last_update_time_from: Optional[datetime] = None,
-        last_update_time_to: Optional[datetime] = None,
-        partition_by: Optional[
-            Union[mlrun.common.schemas.RunPartitionByField, str]
-        ] = None,
+        start_time_from: datetime | None = None,
+        start_time_to: datetime | None = None,
+        last_update_time_from: datetime | None = None,
+        last_update_time_to: datetime | None = None,
+        partition_by: Union[mlrun.common.schemas.RunPartitionByField, str]
+        | None = None,
         rows_per_partition: int = 1,
-        partition_sort_by: Optional[Union[mlrun.common.schemas.SortField, str]] = None,
+        partition_sort_by: Union[mlrun.common.schemas.SortField, str] | None = None,
         partition_order: Union[
             mlrun.common.schemas.OrderType, str
         ] = mlrun.common.schemas.OrderType.desc,
@@ -425,12 +526,12 @@ class RunDBMock:
     def get_pipeline(
         self,
         run_id: str,
-        namespace: Optional[str] = None,
+        namespace: str | None = None,
         timeout: int = 30,
         format_: Union[
             str, mlrun.common.formatters.PipelineFormat
         ] = mlrun.common.formatters.PipelineFormat.summary,
-        project: Optional[str] = None,
+        project: str | None = None,
     ):
         pass
 
@@ -441,7 +542,7 @@ class RunDBMock:
         if isinstance(project, dict):
             project = mlrun.projects.MlrunProject.from_dict(project)
         self._project = project
-        self._project_name = project.name
+        self._project_name = project.metadata.name
         return self._project
 
     def get_project(self, name):
@@ -493,7 +594,7 @@ class RunDBMock:
     def deploy_nuclio_function(
         self,
         func,
-        builder_env: Optional[dict] = None,
+        builder_env: dict | None = None,
     ):
         return self.remote_builder(func, False)
 
@@ -522,7 +623,7 @@ class RunDBMock:
         self._api_gateways[key] = api_gateway
         return api_gateway
 
-    def get_api_gateway(self, name: str, project: Optional[str] = None):
+    def get_api_gateway(self, name: str, project: str | None = None):
         key = self._generate_api_gateway_key(name, project)
         api_gateway = self._api_gateways.get(key)
         if api_gateway:
@@ -652,13 +753,70 @@ class RunDBMock:
         for key, value in expected_env_dict.items():
             assert env_dict[key] == value
 
+    def assert_env_from_secret(
+        self,
+        secret_name,
+        keys,
+        function_name=None,
+        cleartext_env: dict[str, str] | None = None,
+    ):
+        """Assert that env vars are mounted from a k8s secret.
+
+        When ``keys`` is non-empty, each key should appear as an env var with
+        ``valueFrom.secretKeyRef``.  When ``keys`` is empty, the whole secret
+        should be mounted via ``envFrom.secretRef``.
+
+        When ``cleartext_env`` is provided, assert each key/value pair is present
+        as a plain ``{"name": k, "value": v}`` env var entry.
+        """
+        function = self._get_function_internal(function_name)
+        if keys:
+            env_list = function["spec"]["env"]
+            env_dict = {
+                item["name"]: item.get("valueFrom")
+                for item in env_list
+                if "valueFrom" in item
+            }
+            for key in keys:
+                assert key in env_dict, (
+                    f"Expected env var {key} from secret {secret_name}, "
+                    f"got: {list(env_dict.keys())}"
+                )
+                assert env_dict[key] == {
+                    "secretKeyRef": {"key": key, "name": secret_name}
+                }
+        else:
+            env_from = function["spec"].get("env_from", [])
+            secret_refs = [
+                item["secretRef"]["name"] for item in env_from if "secretRef" in item
+            ]
+            assert secret_name in secret_refs, (
+                f"Expected envFrom secretRef for {secret_name}, got: {secret_refs}"
+            )
+
+        if cleartext_env:
+            env_list = function["spec"]["env"]
+            plain_env = {
+                item["name"]: item.get("value")
+                for item in env_list
+                if "valueFrom" not in item and "value" in item
+            }
+            for k, v in cleartext_env.items():
+                assert k in plain_env, (
+                    f"Expected cleartext env var {k!r} in spec.env, "
+                    f"got keys: {list(plain_env.keys())}"
+                )
+                assert plain_env[k] == v, (
+                    f"Expected cleartext env var {k!r}={v!r}, got: {plain_env[k]!r}"
+                )
+
     def verify_authorization(
         self,
         authorization_verification_input: mlrun.common.schemas.AuthorizationVerificationInput,
     ):
         pass
 
-    def _get_function_internal(self, function_name: Optional[str] = None):
+    def _get_function_internal(self, function_name: str | None = None):
         if function_name:
             return self._functions[function_name]
 
@@ -697,11 +855,11 @@ class RunDBMock:
         self,
         name: str,
         project: str,
-        function_name: Optional[str] = None,
-        function_tag: Optional[str] = None,
-        endpoint_id: Optional[str] = None,
+        function_name: str | None = None,
+        function_tag: str | None = None,
+        endpoint_id: str | None = None,
         tsdb_metrics: bool = True,
-        metric_list: Optional[list[str]] = None,
+        metric_list: list[str] | None = None,
         feature_analysis: bool = False,
     ) -> mlrun.common.schemas.model_monitoring.ModelEndpoint:
         self._get_model_endpoint_calls += 1
@@ -732,24 +890,22 @@ class RunDBMock:
     def list_model_endpoints(
         self,
         project: str = "project",
-        names: Optional[Union[str, list[str]]] = None,
-        function_name: Optional[str] = None,
-        function_tag: Optional[str] = None,
-        model_name: Optional[str] = None,
-        model_tag: Optional[str] = None,
-        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
-        start: Optional[datetime] = None,
-        end: Optional[datetime] = None,
-        modes: Optional[
-            Union[
-                mlrun.common.schemas.EndpointMode,
-                list[mlrun.common.schemas.EndpointMode],
-            ]
-        ] = None,
+        names: Union[str, list[str]] | None = None,
+        function_name: str | None = None,
+        function_tag: str | None = None,
+        model_name: str | None = None,
+        model_tag: str | None = None,
+        labels: Union[str, dict[str, str | None], list[str]] | None = None,
+        start: datetime | None = None,
+        end: datetime | None = None,
+        modes: Union[
+            mlrun.common.schemas.EndpointMode, list[mlrun.common.schemas.EndpointMode]
+        ]
+        | None = None,
         tsdb_metrics: bool = False,
-        metric_list: Optional[list[str]] = None,
+        metric_list: list[str] | None = None,
         top_level: bool = False,
-        uids: Optional[list[str]] = None,
+        uids: list[str] | None = None,
         latest_only: bool = False,
     ) -> mlrun.common.schemas.ModelEndpointList:
         if isinstance(names, str):

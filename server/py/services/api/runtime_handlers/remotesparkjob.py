@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import mlrun.common.constants as mlrun_constants
+import mlrun.common.schemas
 import mlrun.runtimes
 from mlrun.runtimes.base import RuntimeClassMode
 
@@ -28,9 +29,10 @@ class RemoteSparkRuntimeHandler(KubeRuntimeHandler):
         runtime: mlrun.runtimes.RemoteSparkRuntime,
         run: mlrun.run.RunObject,
         execution: mlrun.execution.MLClientCtx,
+        auth_info: mlrun.common.schemas.AuthInfo = None,
     ):
         runtime.spec.image = runtime.spec.image or runtime.default_image
-        super().run(runtime=runtime, run=run, execution=execution)
+        super().run(runtime=runtime, run=run, execution=execution, auth_info=auth_info)
 
     @staticmethod
     def are_resources_coupled_to_run_object() -> bool:

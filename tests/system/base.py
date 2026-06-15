@@ -77,7 +77,7 @@ class TestMLRunSystem:
         cls._run_db = get_run_db()
         cls.custom_setup_class()
         cls._logger = logger.get_child(cls.__name__.lower())
-        cls.project: typing.Optional[mlrun.projects.MlrunProject] = None
+        cls.project: mlrun.projects.MlrunProject | None = None
 
         cls.mm_tsdb_profile_data = cls._get_mm_data(
             env, "mlrun_model_monitoring_tsdb_profile"
@@ -88,7 +88,7 @@ class TestMLRunSystem:
 
         cls.uploaded_code = False
 
-        if "MLRUN_IGUAZIO_API_URL" in env:
+        if "MLRUN_IGUAZIO_API_URL" in env and "V3IO_ACCESS_KEY" in env:
             cls._igz_mgmt_client = igz_mgmt.Client(
                 endpoint=env["MLRUN_IGUAZIO_API_URL"],
                 access_key=env["V3IO_ACCESS_KEY"],
@@ -102,7 +102,7 @@ class TestMLRunSystem:
     @staticmethod
     def _get_mm_data(
         env: dict[str, typing.Any], key: str
-    ) -> typing.Optional[dict[str, typing.Any]]:
+    ) -> dict[str, typing.Any] | None:
         data = env.get(key)
         if isinstance(data, str):
             data = json.loads(data)
@@ -193,7 +193,11 @@ class TestMLRunSystem:
             else cls.mandatory_env_vars
         )
         if cls._has_marker(test, cls.model_monitoring_marker_name):
-            mandatory_env_vars += cls.model_monitoring_mandatory_keys
+            # Use + (not +=) to avoid mutating the class variable in-place,
+            # which would permanently append to it across test runs in the same process.
+            mandatory_env_vars = (
+                mandatory_env_vars + cls.model_monitoring_mandatory_keys
+            )
 
         missing_env_vars = []
         try:
@@ -207,7 +211,7 @@ class TestMLRunSystem:
 
         return pytest.mark.skipif(
             len(missing_env_vars) > 0,
-            reason=f"This is a system test, add the needed environment variables {*mandatory_env_vars,} "
+            reason=f"This is a system test, add the needed environment variables {(*mandatory_env_vars,)} "
             f"in tests/system/env.yml. You are missing: {missing_env_vars}",
         )(test)
 
@@ -238,7 +242,8 @@ class TestMLRunSystem:
     @classmethod
     def _get_env_from_file(cls) -> dict:
         with cls.env_file_path.open() as f:
-            return yaml.safe_load(f)
+            env = yaml.safe_load(f)
+        return env if isinstance(env, dict) else {}
 
     @classmethod
     def _setup_env(cls, env: dict):
@@ -264,7 +269,7 @@ class TestMLRunSystem:
         # Set the environment variable
         if isinstance(value, bool):
             os.environ[key] = "true" if value else "false"
-        elif value is not None and not isinstance(value, (list, dict)):
+        elif value is not None and not isinstance(value, list | dict):
             os.environ[key] = value
 
     @classmethod
@@ -326,14 +331,14 @@ class TestMLRunSystem:
     def _verify_run_spec(
         self,
         run_spec,
-        parameters: typing.Optional[dict] = None,
-        inputs: typing.Optional[dict] = None,
-        outputs: typing.Optional[list] = None,
-        output_path: typing.Optional[str] = None,
-        function: typing.Optional[str] = None,
-        secret_sources: typing.Optional[list] = None,
-        data_stores: typing.Optional[list] = None,
-        scrape_metrics: typing.Optional[bool] = None,
+        parameters: dict | None = None,
+        inputs: dict | None = None,
+        outputs: list | None = None,
+        output_path: str | None = None,
+        function: str | None = None,
+        secret_sources: list | None = None,
+        data_stores: list | None = None,
+        scrape_metrics: bool | None = None,
     ):
         self._logger.debug("Verifying run spec", spec=run_spec)
         if parameters:
@@ -356,11 +361,11 @@ class TestMLRunSystem:
     def _verify_run_metadata(
         self,
         run_metadata,
-        uid: typing.Optional[str] = None,
-        name: typing.Optional[str] = None,
-        project: typing.Optional[str] = None,
-        labels: typing.Optional[dict] = None,
-        iteration: typing.Optional[int] = None,
+        uid: str | None = None,
+        name: str | None = None,
+        project: str | None = None,
+        labels: dict | None = None,
+        iteration: int | None = None,
     ):
         self._logger.debug("Verifying run metadata", spec=run_metadata)
         if uid:
@@ -383,11 +388,11 @@ class TestMLRunSystem:
         name: str,
         project: str,
         output_path: pathlib.Path,
-        accuracy: typing.Optional[int] = None,
-        loss: typing.Optional[int] = None,
-        best_iteration: typing.Optional[int] = None,
+        accuracy: int | None = None,
+        loss: int | None = None,
+        best_iteration: int | None = None,
         iteration_results: bool = False,
-        iteration: typing.Optional[int] = None,
+        iteration: int | None = None,
     ):
         fragment = "" if iteration is None else f"#{iteration}"
 
@@ -486,3 +491,159 @@ class TestMLRunSystem:
                 return parts[0]
 
         raise ValueError(f"Could not extract fork from git URL: {git_url}")
+
+    # =========================================================================
+    # Pod Log Collection for Test Failure Debugging
+    # =========================================================================
+
+    # System pod prefixes - these are shared pods, not project-specific
+    SYSTEM_POD_PREFIXES = ("mlrun-api-chief", "mlrun-api-worker")
+
+    # Default namespace for MLRun pods
+    DEFAULT_NAMESPACE = "default-tenant"
+
+    def _is_kube_client_available(self) -> bool:
+        """Check if kube_client is configured and available."""
+        try:
+            if not hasattr(self, "kube_client") or self.kube_client is None:
+                return False
+            # Test if it's a property that raises
+            _ = self.kube_client.api_client
+            return True
+        except AttributeError:
+            return False
+
+    def _is_project_pod(self, pod_name: str, project_name: str) -> bool:
+        """Check if pod belongs to the test project (name contains project name)."""
+        return project_name in pod_name
+
+    def _is_system_pod(self, pod_name: str) -> bool:
+        """Check if pod is a system pod (mlrun-api-*)."""
+        return pod_name.startswith(self.SYSTEM_POD_PREFIXES)
+
+    def _collect_single_pod_logs(
+        self,
+        pod_name: str,
+        namespace: str,
+        tail_lines: int,
+        since_seconds: int | None = None,
+    ) -> str | None:
+        """Collect logs from a single pod.
+
+        :param pod_name: Name of the pod
+        :param namespace: Kubernetes namespace
+        :param tail_lines: Maximum number of lines to retrieve
+        :param since_seconds: Only return logs newer than this many seconds
+        :returns: Pod logs or error message
+        """
+        try:
+            # `_preload_content=False` + manual decode avoids kubernetes-client 36.0.1
+            # handing back `str(bytes)` (the repr `"b'\x1b...'"`) instead of the decoded
+            # log - same root cause as ML-12667.
+            resp = self.kube_client.read_namespaced_pod_log(
+                name=pod_name,
+                namespace=namespace,
+                tail_lines=tail_lines,
+                since_seconds=since_seconds,
+                _preload_content=False,
+            )
+            logs = resp.data.decode("utf-8")
+            self._logger.debug(
+                f"Collected logs from {pod_name}",
+                lines=len(logs.splitlines()) if logs else 0,
+            )
+            return logs
+        except Exception as e:
+            self._logger.warning(f"Failed to collect logs from {pod_name}: {e}")
+            return f"[Failed to get logs: {e}]"
+
+    def collect_pod_logs_on_failure(
+        self,
+        test_duration_seconds: int,
+        tail_lines: int = 1000,
+        time_buffer_seconds: int = 60,
+        namespace: str = DEFAULT_NAMESPACE,
+    ) -> dict[str, str]:
+        """Collect logs from relevant pods for debugging test failures.
+
+        Collects logs from:
+        - Project pods (name contains project_name): full logs (tail_lines)
+        - System pods (mlrun-api-*): time-bounded logs (since_seconds)
+
+        :param test_duration_seconds: How long the test ran (for since_seconds calc)
+        :param tail_lines: Maximum lines per pod (default 1000)
+        :param time_buffer_seconds: Extra seconds to add to since_seconds (default 60)
+        :param namespace: Kubernetes namespace (default: default-tenant)
+        :returns: Dictionary mapping pod names to their logs
+        """
+        if not self._is_kube_client_available():
+            self._logger.info(
+                "kube_client not available, skipping pod log collection. "
+                "Set MLRUN_SYSTEM_TEST_KUBECONFIG_PATH or MLRUN_SYSTEM_TEST_KUBECONFIG."
+            )
+            return {}
+
+        project_name = self.project_name
+        since_seconds = test_duration_seconds + time_buffer_seconds
+        collected_logs = {}
+
+        try:
+            pods = self.kube_client.list_namespaced_pod(namespace)
+        except Exception as e:
+            # EKS exec tokens (aws eks get-token / aws-iam-authenticator) are short lived (~15 minutes).
+            # The kube client can hold a token loaded earlier in the test run, and long running tests can fail
+            # after it expires, causing 401 Unauthorized on log collection. If we detect 401, refresh kubeconfig
+            # (re-run exec) and retry once.
+            status = getattr(e, "status", None)
+            if status == 401 or "Unauthorized" in str(e) or "(401)" in str(e):
+                self._logger.info(
+                    f"Unauthorized listing pods in {namespace}, refreshing kube client and retrying once"
+                )
+                try:
+                    type(self)._setup_k8s_client()
+                    pods = self.kube_client.list_namespaced_pod(namespace)
+                except Exception as e2:
+                    self._logger.warning(f"Failed to list pods in {namespace}: {e2}")
+                    return {}
+            else:
+                self._logger.warning(f"Failed to list pods in {namespace}: {e}")
+                return {}
+
+        for pod in pods.items:
+            pod_name = pod.metadata.name
+
+            if self._is_project_pod(pod_name, project_name):
+                if logs := self._collect_single_pod_logs(
+                    pod_name, namespace, tail_lines, since_seconds=None
+                ):
+                    collected_logs[pod_name] = logs
+
+            elif self._is_system_pod(pod_name):
+                if logs := self._collect_single_pod_logs(
+                    pod_name, namespace, tail_lines, since_seconds=since_seconds
+                ):
+                    collected_logs[f"{pod_name} (last {since_seconds}s)"] = logs
+
+        return collected_logs
+
+    def print_pod_logs(self, logs: dict[str, str]) -> None:
+        """Print collected pod logs for CI visibility.
+
+        :param logs: Dictionary mapping pod names to their logs
+        """
+        if not logs:
+            self._logger.info("No pod logs collected")
+            return
+
+        self._logger.info("=" * 60)
+        self._logger.info("POD LOGS FOR DEBUGGING TEST FAILURE")
+        self._logger.info("=" * 60)
+
+        for pod_name, pod_logs in logs.items():
+            self._logger.info(f"\n--- {pod_name} ---")
+            # Print directly to ensure it appears in CI output
+            print(pod_logs)
+
+        self._logger.info("=" * 60)
+        self._logger.info("END OF POD LOGS")
+        self._logger.info("=" * 60)

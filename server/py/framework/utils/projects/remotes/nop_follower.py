@@ -12,7 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import typing
+
+import datetime
+import uuid
 
 import mergedeep
 import sqlalchemy.orm
@@ -21,6 +23,7 @@ import mlrun.common.formatters
 import mlrun.common.schemas
 import mlrun.errors
 
+import framework.utils.project_formats
 import framework.utils.projects.remotes.follower as project_follower
 
 
@@ -30,7 +33,10 @@ class Member(project_follower.Member):
         self._projects: dict[str, mlrun.common.schemas.Project] = {}
 
     def create_project(
-        self, session: sqlalchemy.orm.Session, project: mlrun.common.schemas.Project
+        self,
+        session: sqlalchemy.orm.Session,
+        project: mlrun.common.schemas.Project,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ):
         if project.metadata.name in self._projects:
             raise mlrun.errors.MLRunConflictError("Project already exists")
@@ -42,6 +48,7 @@ class Member(project_follower.Member):
         session: sqlalchemy.orm.Session,
         name: str,
         project: mlrun.common.schemas.Project,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ):
         # deep copy so we won't accidentally get changes from tests
         self._projects[name] = project.copy(deep=True)
@@ -52,6 +59,7 @@ class Member(project_follower.Member):
         name: str,
         project: dict,
         patch_mode: mlrun.common.schemas.PatchMode = mlrun.common.schemas.PatchMode.replace,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ):
         existing_project_dict = self._projects[name].dict()
         strategy = patch_mode.to_mergedeep_strategy()
@@ -69,7 +77,10 @@ class Member(project_follower.Member):
             del self._projects[name]
 
     def get_project(
-        self, session: sqlalchemy.orm.Session, name: str
+        self,
+        session: sqlalchemy.orm.Session,
+        name: str,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ) -> mlrun.common.schemas.Project:
         if name not in self._projects:
             raise mlrun.errors.MLRunNotFoundError(f"Project {name} does not exist")
@@ -79,15 +90,17 @@ class Member(project_follower.Member):
     def list_projects(
         self,
         session: sqlalchemy.orm.Session,
-        owner: typing.Optional[str] = None,
-        format_: mlrun.common.formatters.ProjectFormat = mlrun.common.formatters.ProjectFormat.full,
-        labels: typing.Optional[list[str]] = None,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
+        owner: str | None = None,
+        format_: framework.utils.project_formats.ProjectFormatType = mlrun.common.formatters.ProjectFormat.full,
+        labels: list[str] | None = None,
         state: mlrun.common.schemas.ProjectState = None,
-        names: typing.Optional[list[str]] = None,
+        names: list[str] | None = None,
+        updated_after: datetime.datetime | None = None,
     ) -> mlrun.common.schemas.ProjectsOutput:
-        if owner or labels or state:
+        if owner or labels or state or updated_after:
             raise NotImplementedError(
-                "Filtering by owner, labels or state is not supported"
+                "Filtering by owner, labels, state or updated_after is not supported"
             )
         projects = list(self._projects.values())
         # deep copy so we won't accidentally get changes from tests
@@ -98,6 +111,13 @@ class Member(project_follower.Member):
                 for project_name, project in self._projects.items()
                 if project_name in names
             ]
+
+        # Custom column selection returns full projects as-is (no formatting needed)
+        # since nop_follower holds in-memory objects, not DB records
+        if isinstance(
+            format_, framework.utils.project_formats.ProjectFormatCustomSelection
+        ):
+            return mlrun.common.schemas.ProjectsOutput(projects=projects)
 
         return mlrun.common.schemas.ProjectsOutput(
             projects=[
@@ -113,14 +133,54 @@ class Member(project_follower.Member):
     def list_project_summaries(
         self,
         session: sqlalchemy.orm.Session,
-        owner: typing.Optional[str] = None,
-        labels: typing.Optional[list[str]] = None,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
+        owner: str | None = None,
+        labels: list[str] | None = None,
         state: mlrun.common.schemas.ProjectState = None,
-        names: typing.Optional[list[str]] = None,
+        names: list[str] | None = None,
     ) -> mlrun.common.schemas.ProjectSummariesOutput:
         raise NotImplementedError("Listing project summaries is not supported")
 
     def get_project_summary(
-        self, session: sqlalchemy.orm.Session, name: str
+        self,
+        session: sqlalchemy.orm.Session,
+        name: str,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ) -> mlrun.common.schemas.ProjectSummary:
         raise NotImplementedError("Get project summary is not supported")
+
+    def prepare_create_project(
+        self,
+        project: mlrun.common.schemas.Project,
+        op_id: uuid.UUID,
+    ) -> None:
+        raise NotImplementedError
+
+    def commit_create_project(
+        self,
+        name: str,
+        op_id: uuid.UUID,
+    ) -> None:
+        raise NotImplementedError
+
+    def prepare_delete_project(
+        self,
+        name: str,
+        op_id: uuid.UUID,
+    ) -> None:
+        raise NotImplementedError
+
+    def commit_delete_project(
+        self,
+        name: str,
+        op_id: uuid.UUID,
+    ) -> None:
+        raise NotImplementedError
+
+    def update_project_follower(
+        self,
+        name: str,
+        project: mlrun.common.schemas.Project,
+        op_id: uuid.UUID,
+    ) -> None:
+        raise NotImplementedError

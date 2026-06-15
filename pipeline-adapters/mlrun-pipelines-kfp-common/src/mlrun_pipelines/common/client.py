@@ -14,7 +14,7 @@
 #
 import typing
 from abc import ABC, abstractmethod
-from typing import Any, Optional
+from typing import Any
 
 
 class AbstractClient(ABC):
@@ -40,8 +40,8 @@ class AbstractClient(ABC):
     def create_experiment(
         self,
         name: str,
-        description: Optional[str] = None,
-        namespace: Optional[str] = None,
+        description: str | None = None,
+        namespace: str | None = None,
     ):
         """
         Create a new experiment if it does not already exist.
@@ -60,9 +60,9 @@ class AbstractClient(ABC):
     @abstractmethod
     def get_experiment(
         self,
-        experiment_id: Optional[str] = None,
-        experiment_name: Optional[str] = None,
-        namespace: Optional[str] = None,
+        experiment_id: str | None = None,
+        experiment_name: str | None = None,
+        namespace: str | None = None,
     ):
         """
         Retrieve an experiment by ID or name.
@@ -84,13 +84,13 @@ class AbstractClient(ABC):
         self,
         experiment_id: str,
         job_name: str,
-        pipeline_package_path: Optional[str] = None,
-        params: Optional[dict[str, Any]] = None,
-        pipeline_id: Optional[str] = None,
-        version_id: Optional[str] = None,
-        pipeline_root: Optional[str] = None,
-        should_enable_caching: Optional[bool] = None,
-        service_account: Optional[str] = None,
+        pipeline_package_path: str | None = None,
+        params: dict[str, Any] | None = None,
+        pipeline_id: str | None = None,
+        version_id: str | None = None,
+        pipeline_root: str | None = None,
+        should_enable_caching: bool | None = None,
+        service_account: str | None = None,
     ):
         """
         Run a pipeline within a specified experiment.
@@ -117,9 +117,9 @@ class AbstractClient(ABC):
         page_token: str = "",
         page_size: int = 10,
         sort_by: str = "",
-        experiment_id: Optional[str] = None,
-        namespace: Optional[str] = None,
-        filter_: Optional[str] = None,
+        experiment_id: str | None = None,
+        namespace: str | None = None,
+        filter_: str | None = None,
     ):
         """
         List pipeline runs with optional filters.
@@ -172,8 +172,8 @@ class AbstractClient(ABC):
     def upload_pipeline(
         self,
         pipeline_package_path: str,
-        pipeline_name: Optional[str] = None,
-        description: Optional[str] = None,
+        pipeline_name: str | None = None,
+        description: str | None = None,
     ):
         """
         Upload a pipeline package file to Kubeflow Pipelines.

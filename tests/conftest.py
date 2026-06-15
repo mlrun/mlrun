@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import logging
+import os
 import traceback
 import typing
 from datetime import datetime
@@ -21,8 +22,15 @@ from pathlib import Path
 from subprocess import run
 from sys import executable, platform, stderr
 from time import monotonic, sleep
-from urllib.request import URLError, urlopen
+from urllib.error import URLError
+from urllib.request import urlopen
 
+import pytest
+import pytest_mock_resources
+import sqlalchemy
+import sqlalchemy.orm
+
+import mlrun.common.db.dialects
 import mlrun.utils
 
 tests_root_directory = Path(__file__).absolute().parent
@@ -58,7 +66,9 @@ in_docker = check_docker()
 
 # This must be *after* environment changes above
 from mlrun import RunObject, RunTemplate  # noqa
-from mlrun.utils import FormatterKinds, logger, resolve_formatter_by_kind  # noqa
+from mlrun.utils import FormatterKinds, create_test_logger, resolve_formatter_by_kind  # noqa
+
+logger = create_test_logger()
 
 logger.get_handler("default").setFormatter(
     resolve_formatter_by_kind(FormatterKinds.HUMAN_EXTENDED)()
@@ -155,3 +165,94 @@ class MockSpecificCalls:
             return self.original_function(*args, **kwargs)
         else:
             return self.return_value
+
+
+# Determine which backend is under test
+TEST_DB = os.getenv("MLRUN_TEST_DB", mlrun.common.db.dialects.Dialects.MYSQL)
+
+MYSQL_ONLY_TEST = pytest.mark.skipif(
+    not mlrun.common.db.dialects.Dialects.MYSQL.startswith(TEST_DB),
+    reason="MySQL-only test",
+)
+PG_ONLY_TEST = pytest.mark.skipif(
+    not mlrun.common.db.dialects.Dialects.POSTGRESQL.startswith(TEST_DB),
+    reason="Postgres-only test",
+)
+
+_mysql_engine = pytest_mock_resources.create_mysql_fixture(
+    scope="session",
+)
+
+_postgres_engine = pytest_mock_resources.create_postgres_fixture(
+    scope="session",
+)
+
+
+@pytest.fixture(scope="session")
+def pmr_mysql_config() -> pytest_mock_resources.MysqlConfig:
+    return pytest_mock_resources.MysqlConfig(
+        image="mysql:8.4",
+        port=3306,
+        username="root",
+        password="pass",
+        root_database="mlrun",
+    )
+
+
+@pytest.fixture(scope="session")
+def pmr_postgres_config() -> pytest_mock_resources.PostgresConfig:
+    return pytest_mock_resources.PostgresConfig(
+        image=os.getenv("MLRUN_POSTGRES_IMAGE", "gcr.io/iguazio/postgres:17"),
+        port=5432,
+        username="root",
+        password="pass",
+        root_database="mlrun",
+        drivername="postgresql+psycopg2",
+    )
+
+
+def _wipe_database(
+    engine: sqlalchemy.engine.Engine,
+) -> None:
+    """Truncate all user tables & reset sequences."""
+    insp = sqlalchemy.inspect(engine)
+    with engine.begin() as conn:
+        if engine.dialect.name.startswith(mlrun.common.db.dialects.Dialects.POSTGRESQL):
+            tables = insp.get_table_names(schema="public")
+            if tables:
+                conn.execute(
+                    sqlalchemy.text(
+                        "DROP TABLE " + ", ".join(f'"{t}"' for t in tables) + " CASCADE"
+                    )
+                )
+        elif engine.dialect.name.startswith(mlrun.common.db.dialects.Dialects.MYSQL):
+            conn.execute(sqlalchemy.text("SET FOREIGN_KEY_CHECKS = 0"))
+            for t in insp.get_table_names():
+                conn.execute(sqlalchemy.text(f"DROP TABLE `{t}`"))
+            conn.execute(sqlalchemy.text("SET FOREIGN_KEY_CHECKS = 1"))
+        elif engine.dialect.name.startswith(mlrun.common.db.dialects.Dialects.SQLITE):
+            tables = insp.get_table_names()
+            if tables:
+                for table in tables:
+                    conn.execute(sqlalchemy.text(f"DROP TABLE IF EXISTS `{table}`"))
+        else:
+            raise ValueError(f"Unsupported database dialect: {engine.dialect.name}")
+
+
+@pytest.fixture
+def db_engine(
+    request: pytest.FixtureRequest,
+) -> typing.Generator[sqlalchemy.engine.Engine, None, None]:
+    db_type = os.getenv("MLRUN_TEST_DB", "mysql").lower()
+    logger.info("Starting database engine", db_type=db_type)
+
+    engine: sqlalchemy.engine.Engine = request.getfixturevalue(
+        "_postgres_engine" if db_type == "postgres" else "_mysql_engine"
+    )
+
+    logger.info("Started database engine", db_type=db_type)
+    os.environ["MLRUN_HTTPDB__DSN"] = engine.url.render_as_string(hide_password=False)
+    mlrun.mlconf.reload()
+    logger.info("Wiping database", db_type=db_type)
+    _wipe_database(engine)
+    yield engine

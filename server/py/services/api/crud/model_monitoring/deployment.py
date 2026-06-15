@@ -46,6 +46,7 @@ import mlrun.model_monitoring.controller
 import mlrun.model_monitoring.stream_processing
 import mlrun.model_monitoring.writer
 import mlrun.serving.states
+import mlrun.utils.helpers
 import mlrun.utils.v3io_clients
 from mlrun import feature_store as fstore
 from mlrun.common.model_monitoring.helpers import parse_model_endpoint_store_prefix
@@ -56,6 +57,7 @@ from mlrun.model_monitoring.db._schedules import (
 )
 from mlrun.model_monitoring.writer import ModelMonitoringWriter, WriterGraphFactory
 from mlrun.platforms.iguazio import split_path
+from mlrun.runtimes.nuclio.function import AsyncSpec
 from mlrun.utils import logger
 
 import framework.api.utils
@@ -77,16 +79,44 @@ _HISTOGRAM_DATA_DRIFT_APP_PATH = str(
 )
 BASE_PERIOD_LOOKUP_TABLE = {1: 1, 2: 2, 20: 3, 60: 5, 120: 10, float("inf"): 20}
 
+# Fallback for ``DatastoreProfileKafkaStream.group`` when the profile has
+# no group set (``None``). Matches the pydantic default on that field so
+# an explicit-None profile behaves the same as the default one, and so
+# the legacy migration source group is well-defined.
+_LEGACY_KAFKA_GROUP = "serving"
+
+
+def _kafka_base_group(
+    kafka_profile: "mlrun.datastore.datastore_profile.DatastoreProfileKafkaStream",
+) -> str:
+    """Resolve the profile's base consumer group, falling back to the
+    legacy default when the profile has ``group=None``."""
+    return kafka_profile.group or _LEGACY_KAFKA_GROUP
+
+
+def _mm_kafka_consumer_group(base_group: str, topic: str) -> str:
+    """Derive the per-function Kafka consumer group for model monitoring.
+
+    Each MM function (stream/writer/controller/apps) must be in its own
+    consumer group so that a rebalance in one function (e.g. when the
+    stream HPA scales) does not pause the others. The base group is taken
+    from the user-supplied ``DatastoreProfileKafkaStream.group`` so that
+    custom configurations (e.g. ``"prod"``) are preserved as a namespace
+    prefix rather than silently discarded.
+    """
+    return f"{base_group}_{topic}"
+
 
 class MonitoringDeployment:
     def __init__(
         self,
         project: str,
-        auth_info: typing.Optional[mlrun.common.schemas.AuthInfo] = None,
-        db_session: typing.Optional[sqlalchemy.orm.Session] = None,
-        model_monitoring_access_key: typing.Optional[str] = None,
+        auth_info: mlrun.common.schemas.AuthInfo | None = None,
+        db_session: sqlalchemy.orm.Session | None = None,
+        model_monitoring_access_key: str | None = None,
         parquet_batching_max_events: int = mlrun.mlconf.model_endpoint_monitoring.parquet_batching_max_events,
         max_parquet_save_interval: int = mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs,
+        auth_token_name: str | None = None,
     ) -> None:
         """
         Initialize a MonitoringDeployment object, which handles the deployment & scheduling of:
@@ -103,6 +133,8 @@ class MonitoringDeployment:
         :param max_parquet_save_interval:   Maximum number of seconds to hold events before they are written to the
                                             monitoring parquet target. Note that this value will be used to handle the
                                             offset by the scheduled batch job.
+        :param auth_token_name:             The auth token name to use for deployed functions
+                                            (set by mlrun.RuntimeConfigurationContext).
         """
         self.project = project
         self.auth_info = auth_info
@@ -110,6 +142,7 @@ class MonitoringDeployment:
         self.model_monitoring_access_key = model_monitoring_access_key
         self._parquet_batching_max_events = parquet_batching_max_events
         self._max_parquet_save_interval = max_parquet_save_interval
+        self._auth_token_name = auth_token_name
         self._secret_provider = services.api.crud.secrets.get_project_secret_provider(
             project=project
         )
@@ -135,9 +168,11 @@ class MonitoringDeployment:
     def deploy_monitoring_functions(
         self,
         base_period: int = 10,
-        image: str = "mlrun/mlrun",
+        image: str | None = None,
         deploy_histogram_data_drift_app: bool = True,
-        fetch_credentials_from_sys_config: bool = False,
+        lag_threshold: int | None = None,
+        lag_event_cooldown: int | None = None,
+        otlp_enabled: bool = False,
     ) -> None:
         """
         Deploy model monitoring application controller, writer and stream functions.
@@ -146,13 +181,28 @@ class MonitoringDeployment:
                                                   function triggers. By default, the base period is 10 minutes.
         :param image:                             The image of the model monitoring controller, writer & monitoring
                                                   stream functions, which are real time nuclio function.
-                                                  By default, the image is mlrun/mlrun.
+                                                  Defaults to ``mlrun.mlconf.function_defaults.image_by_kind.nuclio``.
         :param deploy_histogram_data_drift_app:   If true, deploy the default histogram-based data drift application.
-        :param fetch_credentials_from_sys_config: If true, fetch the credentials from the system configuration.
+        :param lag_threshold:                     Lag threshold in minutes for writer lag detection.
+        :param lag_event_cooldown:                Cooldown in minutes between consecutive lag events per worker.
+        :param otlp_enabled:                      If true, persist OTel export opt-in to the project spec.
         """
-        # check if credentials should be fetched from the system configuration or if they are already been set.
-        if fetch_credentials_from_sys_config:
-            self.set_credentials()
+        if image is None:
+            image = mlrun.mlconf.function_defaults.image_by_kind.nuclio
+
+        if otlp_enabled:
+            if not mlrun.mlconf.telemetry.enabled:
+                raise mlrun.errors.MLRunBadRequestError(
+                    "Cannot enable model monitoring OTel export: operator has "
+                    "disabled telemetry (mlconf.telemetry.enabled is not true)."
+                )
+            if not mlrun.mlconf.telemetry.otlp_endpoint:
+                raise mlrun.errors.MLRunBadRequestError(
+                    "Cannot enable model monitoring OTel export: operator has "
+                    "not configured an OTLP endpoint "
+                    "(mlconf.telemetry.otlp_endpoint is blank)."
+                )
+
         # reject the request if controller and/or writer pods are already deployed.
         # stream-pod is not checked since by default it is not deleted by disable_model_monitoring.
         if deployed_functions := [
@@ -170,21 +220,73 @@ class MonitoringDeployment:
             )
         self.check_if_credentials_are_set()
 
+        # Validate lag_threshold against the server's configured minimum
+        if lag_threshold is not None:
+            min_threshold = int(
+                config.model_endpoint_monitoring.lag_detection.min_lag_threshold_minutes
+            )
+            if lag_threshold < min_threshold:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"lag_threshold must be at least {min_threshold} minutes"
+                )
+
         self.deploy_model_monitoring_controller(
             controller_image=image, base_period=base_period
         )
         self.deploy_model_monitoring_writer_application(
             writer_image=image,
+            lag_threshold=lag_threshold,
+            lag_event_cooldown=lag_event_cooldown,
+            base_period=base_period,
         )
         self.deploy_model_monitoring_stream_processing(
             stream_image=image,
         )
         ModelMonitoringSchedulesFileChief(project=self.project).get_or_create()
         if deploy_histogram_data_drift_app:
-            self.deploy_histogram_data_drift_app(image=image)
+            self.deploy_histogram_data_drift_app(image=image, otlp_enabled=otlp_enabled)
+
+        self._persist_model_monitoring_spec(enabled=True, otlp_enabled=otlp_enabled)
+
+    def _persist_model_monitoring_spec(
+        self,
+        *,
+        enabled: bool | None = None,
+        otlp_enabled: bool | None = None,
+        stream_type: mm_constants.StreamTarget | None = None,
+        tsdb_type: mm_constants.TSDBTarget | None = None,
+    ) -> None:
+        """Patch ``project.spec.model_monitoring`` with the current MM state.
+
+        Each field is optional: only fields whose value is non-None are included
+        in the patch, so callers update one concern at a time:
+          - ``deploy_monitoring_functions``: enabled=True, otlp_enabled=<param>
+          - ``disable_model_monitoring``: enabled=False, otlp_enabled=False
+          - ``set_credentials``: stream_type=<derived>, tsdb_type=<derived>
+
+        Uses additive patch so other fields are preserved.
+        """
+        fields: dict = {}
+        if enabled is not None:
+            fields["enabled"] = bool(enabled)
+        if otlp_enabled is not None:
+            fields["otlp_enabled"] = bool(otlp_enabled)
+        if stream_type is not None:
+            fields["stream_type"] = stream_type.value
+        if tsdb_type is not None:
+            fields["tsdb_type"] = tsdb_type.value
+        if not fields:
+            return
+
+        services.api.crud.Projects().patch_project(
+            session=self.db_session,
+            name=self.project,
+            project={"spec": {"model_monitoring": fields}},
+            patch_mode=mlrun.common.schemas.PatchMode.additive,
+        )
 
     def deploy_model_monitoring_stream_processing(
-        self, stream_image: str = "mlrun/mlrun", overwrite: bool = False
+        self, stream_image: str | None = None, overwrite: bool = False
     ) -> None:
         """
         Deploying model monitoring stream real time nuclio function. The goal of this real time function is
@@ -192,9 +294,11 @@ class MonitoringDeployment:
         It processes the new events into statistics that are then written to statistics databases.
 
         :param stream_image:                The image of the model monitoring stream function.
-                                            By default, the image is mlrun/mlrun.
+                                            Defaults to ``mlrun.mlconf.function_defaults.image_by_kind.nuclio``.
         :param overwrite:                   If true, overwrite the existing model monitoring stream. Default is False.
         """
+        if stream_image is None:
+            stream_image = mlrun.mlconf.function_defaults.image_by_kind.nuclio
 
         if overwrite or self._should_deploy_function(
             function_name=mm_constants.MonitoringFunctionNames.STREAM
@@ -213,6 +317,7 @@ class MonitoringDeployment:
             fn = self._initial_model_monitoring_stream_processing_function(
                 stream_image=stream_image, parquet_target=parquet_target
             )
+            mlrun.utils.helpers.set_auth_token_name(fn.spec, self._auth_token_name)
             fn = services.api.api.endpoints.nuclio._deploy_function(
                 db_session=self.db_session,
                 auth_info=self.auth_info,
@@ -231,7 +336,7 @@ class MonitoringDeployment:
     def deploy_model_monitoring_controller(
         self,
         base_period: int,
-        controller_image: str = "mlrun/mlrun",
+        controller_image: str | None = None,
         overwrite: bool = False,
     ) -> None:
         """
@@ -242,10 +347,12 @@ class MonitoringDeployment:
         :param base_period:                 The time period in minutes in which the model monitoring controller function
                                             triggers. By default, the base period is 10 minutes.
         :param controller_image:            The image of the model monitoring controller function.
-                                            By default, the image is mlrun/mlrun.
+                                            Defaults to ``mlrun.mlconf.function_defaults.image_by_kind.nuclio``.
         :param overwrite:                   If true, overwrite the existing model monitoring controller.
                                             By default, False.
         """
+        if controller_image is None:
+            controller_image = mlrun.mlconf.function_defaults.image_by_kind.nuclio
         if overwrite or self._should_deploy_function(
             function_name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER
         ):
@@ -256,6 +363,7 @@ class MonitoringDeployment:
             fn = self._get_model_monitoring_controller_function(
                 image=controller_image, ignore_stream_already_exists_failure=overwrite
             )
+
             minutes = base_period
             hours = days = 0
             batch_dict = {
@@ -274,6 +382,7 @@ class MonitoringDeployment:
                     interval=f"{self._get_trigger_frequency(base_period)}m"
                 ),
             )
+            mlrun.utils.helpers.set_auth_token_name(fn.spec, self._auth_token_name)
             fn = services.api.api.endpoints.nuclio._deploy_function(
                 db_session=self.db_session,
                 auth_info=self.auth_info,
@@ -290,7 +399,12 @@ class MonitoringDeployment:
             )
 
     def deploy_model_monitoring_writer_application(
-        self, writer_image: str = "mlrun/mlrun", overwrite: bool = False
+        self,
+        writer_image: str | None = None,
+        overwrite: bool = False,
+        lag_threshold: int | None = None,
+        lag_event_cooldown: int | None = None,
+        base_period: int = 10,
     ) -> None:
         """
         Deploying model monitoring writer real time nuclio function. The goal of this real time function is
@@ -298,9 +412,15 @@ class MonitoringDeployment:
         It processes and writes the result to the databases.
 
         :param writer_image:                The image of the model monitoring writer function.
-                                            By default, the image is mlrun/mlrun.
+                                            Defaults to ``mlrun.mlconf.function_defaults.image_by_kind.nuclio``.
         :param overwrite:                   If true, overwrite the existing model monitoring writer. Default is False.
+        :param lag_threshold:               Lag threshold in minutes for writer lag detection.
+        :param lag_event_cooldown:          Cooldown in minutes between consecutive lag events per worker.
+        :param base_period:                 The monitoring controller base period in minutes, used to
+                                            compute default lag values.
         """
+        if writer_image is None:
+            writer_image = mlrun.mlconf.function_defaults.image_by_kind.nuclio
 
         if overwrite or self._should_deploy_function(
             function_name=mm_constants.MonitoringFunctionNames.WRITER
@@ -310,8 +430,12 @@ class MonitoringDeployment:
                 project=self.project,
             )
             fn = self._initial_model_monitoring_writer_function(
-                writer_image=writer_image
+                writer_image=writer_image,
+                lag_threshold=lag_threshold,
+                lag_event_cooldown=lag_event_cooldown,
+                base_period=base_period,
             )
+            mlrun.utils.helpers.set_auth_token_name(fn.spec, self._auth_token_name)
             fn = services.api.api.endpoints.nuclio._deploy_function(
                 db_session=self.db_session,
                 auth_info=self.auth_info,
@@ -380,7 +504,7 @@ class MonitoringDeployment:
                 reason="Unexpected stream profile",
             )
 
-        if not mlrun.mlconf.is_ce_mode():
+        if mlrun.mlconf.is_using_v3io():
             function = self._apply_access_key_and_mount_function(
                 function=function, function_name=function_name
             )
@@ -403,11 +527,17 @@ class MonitoringDeployment:
         topic = mlrun.common.model_monitoring.helpers.get_kafka_topic(
             project=self.project, function_name=function_name
         )
+        # Per-function consumer group to isolate rebalances between MM
+        # functions (stream/writer/controller/apps). The base group is
+        # taken from the user's profile and the topic is appended to
+        # scope the group per project+function.
+        base_group = _kafka_base_group(kafka_profile)
+        consumer_group = _mm_kafka_consumer_group(base_group, topic)
         profile_attributes = kafka_profile.attributes()
         stream_source = mlrun.datastore.sources.KafkaSource(
             brokers=kafka_profile.brokers,
             topics=[topic],
-            group=kafka_profile.group,
+            group=consumer_group,
             initial_offset=kafka_profile.initial_offset,
             partitions=kafka_profile.partitions,
             attributes={
@@ -428,15 +558,30 @@ class MonitoringDeployment:
                 num_partitions=num_partitions, replication_factor=replication_factor
             )
         except kafka.errors.TopicAlreadyExistsError as exc:
-            if ignore_stream_already_exists_failure:
-                logger.info(
-                    "Kafka topic of model monitoring stream already exists. "
-                    "Skipping topic creation and using `earliest` offset",
-                    project=self.project,
-                    error_message=mlrun.errors.err_to_str(exc),
-                )
-            else:
+            if not ignore_stream_already_exists_failure:
                 raise exc
+            logger.info(
+                "Kafka topic of model monitoring stream already exists. "
+                "Skipping topic creation",
+                project=self.project,
+                topic=topic,
+                error_message=mlrun.errors.err_to_str(exc),
+            )
+            # When upgrading from the legacy shared consumer group (e.g.
+            # "serving"), copy committed offsets into the per-function
+            # group so the consumer resumes where it left off instead of
+            # replaying from `initial_offset`. The helper self-detects
+            # whether migration is needed (new group has offsets → no-op;
+            # old group has no offsets for this topic → nothing to
+            # migrate), so no operator flag is required.
+            # TODO: Remove in 1.14.0 — one-time upgrade path from the
+            # legacy shared consumer group. See DEPRECATION.md.
+            self._migrate_kafka_consumer_group_offsets(
+                kafka_profile=kafka_profile,
+                old_group=base_group,
+                new_group=consumer_group,
+                topic=topic,
+            )
 
         function = stream_source.add_nuclio_trigger(function)
         if nuclio_annotations := profile_attributes.get("nuclio_annotations"):
@@ -448,6 +593,97 @@ class MonitoringDeployment:
             function.with_annotations(nuclio_annotations)
         function.spec.min_replicas = stream_args.kafka.min_replicas
         function.spec.max_replicas = stream_args.kafka.max_replicas
+        self._set_scaling_metric_specs(function, stream_args.kafka)
+
+    # TODO: Remove in 1.14.0 — one-time upgrade path from the legacy
+    # shared consumer group to per-function groups. See DEPRECATION.md.
+    def _migrate_kafka_consumer_group_offsets(
+        self,
+        *,
+        kafka_profile: mlrun.datastore.datastore_profile.DatastoreProfileKafkaStream,
+        old_group: str,
+        new_group: str,
+        topic: str,
+    ) -> None:
+        """One-time migration of committed offsets from *old_group* to *new_group*.
+
+        Idempotent: if *new_group* already has any offset for *topic*, returns
+        immediately. If *old_group* has no offsets for *topic*, returns
+        without committing anything.
+
+        Raises on Kafka failure; callers MUST NOT silently swallow the error
+        because a failed migration means the new consumer group will start
+        from ``initial_offset`` (``earliest``) and replay the topic from the
+        beginning, duplicating every already-processed event.
+        """
+        from kafka import KafkaConsumer, TopicPartition
+        from kafka.admin import KafkaAdminClient
+        from kafka.structs import OffsetAndMetadata
+
+        profile_attributes = kafka_profile.attributes()
+        kafka_params = mlrun.datastore.utils.KafkaParameters(profile_attributes)
+        admin = KafkaAdminClient(
+            bootstrap_servers=kafka_profile.brokers, **kafka_params.admin()
+        )
+        try:
+            new_offsets = admin.list_consumer_group_offsets(new_group)
+            if any(tp.topic == topic for tp in new_offsets):
+                logger.info(
+                    "Per-function consumer group already has offsets for topic, "
+                    "migration already applied",
+                    project=self.project,
+                    new_group=new_group,
+                    topic=topic,
+                )
+                return
+
+            old_offsets = admin.list_consumer_group_offsets(old_group)
+            topic_offsets = {
+                tp: offset for tp, offset in old_offsets.items() if tp.topic == topic
+            }
+            if not topic_offsets:
+                logger.info(
+                    "Legacy consumer group has no offsets for topic, "
+                    "nothing to migrate",
+                    project=self.project,
+                    old_group=old_group,
+                    topic=topic,
+                )
+                return
+        finally:
+            admin.close()
+
+        # kafka-python's admin client has no offset-commit API, so we use
+        # a temporary consumer bound to the new group to commit the offsets.
+        consumer = KafkaConsumer(
+            bootstrap_servers=kafka_profile.brokers,
+            group_id=new_group,
+            enable_auto_commit=False,
+            **kafka_params.consumer(),
+        )
+        try:
+            partitions = [
+                TopicPartition(tp.topic, tp.partition) for tp in topic_offsets
+            ]
+            consumer.assign(partitions)
+            consumer.commit(
+                {
+                    TopicPartition(tp.topic, tp.partition): OffsetAndMetadata(
+                        offset.offset, offset.metadata, offset.leader_epoch
+                    )
+                    for tp, offset in topic_offsets.items()
+                }
+            )
+            logger.info(
+                "Migrated consumer group offsets to per-function group",
+                project=self.project,
+                old_group=old_group,
+                new_group=new_group,
+                topic=topic,
+                partitions=len(topic_offsets),
+            )
+        finally:
+            consumer.close()
 
     @staticmethod
     def create_model_monitoring_stream(
@@ -455,7 +691,7 @@ class MonitoringDeployment:
         stream_path: str,
         shard_count: int,
         retention_period_hours: int,
-        access_key: typing.Optional[str] = None,
+        access_key: str | None = None,
     ):
         if stream_path.startswith("v3io://"):
             import v3io.dataplane
@@ -531,6 +767,32 @@ class MonitoringDeployment:
         function.spec.min_replicas = stream_args.v3io.min_replicas
         function.spec.max_replicas = stream_args.v3io.max_replicas
 
+    @staticmethod
+    def _set_scaling_metric_specs(
+        function: mlrun.runtimes.ServingRuntime,
+        stream_config: mlrun.config.Config,
+    ) -> None:
+        """Set absolute CPU HPA target on the function if configured.
+
+        When ``target_cpu`` is set (e.g. ``"400m"``), the Nuclio HPA is
+        configured with an absolute ``AverageValue`` metric instead of the
+        default percentage-based ``Utilization``.  This avoids spurious
+        autoscaling caused by brief CPU spikes on low-request pods.
+        """
+        if getattr(stream_config, "target_cpu", ""):
+            function.spec.custom_scaling_metric_specs = [
+                {
+                    "type": "Resource",
+                    "resource": {
+                        "name": "cpu",
+                        "target": {
+                            "type": "AverageValue",
+                            "averageValue": stream_config.target_cpu,
+                        },
+                    },
+                }
+            ]
+
     def _initial_model_monitoring_stream_processing_function(
         self,
         stream_image: str,
@@ -581,9 +843,15 @@ class MonitoringDeployment:
             secret_provider=self._secret_provider,
         )
 
+        monitoring_stream_uri = mlrun.model_monitoring.get_stream_path(
+            project=self.project,
+            function_name=mm_constants.MonitoringFunctionNames.STREAM,
+            secret_provider=self._secret_provider,
+        )
+
         # Create monitoring serving graph
         stream_processor.apply_monitoring_serving_graph(
-            function, self._tsdb_connector, controller_stream_uri
+            function, self._tsdb_connector, controller_stream_uri, monitoring_stream_uri
         )
 
         # Set the project to the serving function
@@ -596,6 +864,10 @@ class MonitoringDeployment:
             stream_args=config.model_endpoint_monitoring.serving_stream,
             ignore_stream_already_exists_failure=True,
         )
+
+        # Add an explicit HTTP trigger so the stream pod is reachable via HTTP.
+        # async mode: stream processing is I/O bound and benefits from async + many connections.
+        function.with_http(async_spec=AsyncSpec(enabled=True))
 
         # Apply feature store run configurations on the serving function
         run_config = fstore.RunConfig(function=function, local=False)
@@ -657,7 +929,7 @@ class MonitoringDeployment:
         function: typing.Union[
             mlrun.runtimes.KubejobRuntime, mlrun.runtimes.ServingRuntime
         ],
-        function_name: typing.Optional[str] = None,
+        function_name: str | None = None,
     ) -> typing.Union[mlrun.runtimes.KubejobRuntime, mlrun.runtimes.ServingRuntime]:
         """Applying model monitoring access key on the provided function when using V3IO path. In addition, this method
         mount the V3IO path for the provided function to configure the access to the system files.
@@ -670,7 +942,7 @@ class MonitoringDeployment:
 
         if (
             function_name in mm_constants.MonitoringFunctionNames.list()
-            and not mlrun.mlconf.is_ce_mode()
+            and mlrun.mlconf.is_using_v3io()
         ):
             # Set model monitoring access key for managing permissions
             function.set_env_from_secret(
@@ -691,16 +963,43 @@ class MonitoringDeployment:
             framework.api.utils.ensure_function_has_auth_set(function, self.auth_info)
         return function
 
-    def _initial_model_monitoring_writer_function(self, writer_image: str):
+    def _initial_model_monitoring_writer_function(
+        self,
+        writer_image: str,
+        lag_threshold: int | None = None,
+        lag_event_cooldown: int | None = None,
+        base_period: int = 10,
+    ):
         """
         Initialize model monitoring writer function.
 
         :param writer_image:                The image of the model monitoring writer function.
+        :param lag_threshold:               Lag threshold in minutes for writer lag detection.
+                                            If None, computed from config defaults and base_period.
+        :param lag_event_cooldown:          Cooldown in minutes between consecutive lag events per worker.
+                                            If None, computed from config defaults and base_period.
+        :param base_period:                 The monitoring controller base period in minutes.
 
         :return:                            A function object from a mlrun runtime class
         """
 
-        # Create a new serving function for the streaming process
+        # Compute lag detection defaults from config and base_period
+        if lag_threshold is None:
+            lag_threshold = min(
+                int(
+                    config.model_endpoint_monitoring.lag_detection.default_lag_threshold_minutes
+                ),
+                base_period,
+            )
+        if lag_event_cooldown is None:
+            lag_event_cooldown = min(
+                int(
+                    config.model_endpoint_monitoring.lag_detection.default_lag_event_cooldown_minutes
+                ),
+                base_period // 2,
+            )
+
+        # Create a new serving function for the writer process
         function = typing.cast(
             mlrun.runtimes.ServingRuntime,
             mlrun.code_to_function(
@@ -738,6 +1037,8 @@ class MonitoringDeployment:
             )
             writer_factory = WriterGraphFactory(
                 parquet_path=parquet_target,
+                lag_threshold_minutes=lag_threshold,
+                lag_event_cooldown_minutes=lag_event_cooldown,
             )
             writer_factory.apply_writer_graph(
                 fn=function,
@@ -761,7 +1062,7 @@ class MonitoringDeployment:
 
         return function
 
-    def _get_function_state(self, function_name: str) -> typing.Optional[str]:
+    def _get_function_state(self, function_name: str) -> str | None:
         """
         :param function_name: The name of the function to check.
         :return:              Function state if deployed, else None.
@@ -800,13 +1101,21 @@ class MonitoringDeployment:
         )
 
     def deploy_histogram_data_drift_app(
-        self, image: str, overwrite: bool = False
+        self,
+        image: str,
+        overwrite: bool = False,
+        otlp_enabled: bool = False,
     ) -> None:
         """
         Deploy the histogram data drift application.
 
-        :param image:       The image on with the function will run.
-        :param overwrite:   If True, the function will be overwritten.
+        :param image:        The image on with the function will run.
+        :param overwrite:    If True, the function will be overwritten.
+        :param otlp_enabled: If True, append the OTel branch
+                             (``_PrepareOTelEvent`` → ``OTelMetricsExporter``)
+                             and set ``func.spec.mount_otlp_secret`` so the
+                             runtime injector mounts the OTLP headers secret
+                             onto the function pod.
         """
         if overwrite or self._should_deploy_function(
             function_name=mm_constants.HistogramDataDriftApplicationConstants.NAME
@@ -818,9 +1127,10 @@ class MonitoringDeployment:
                 name=mm_constants.HistogramDataDriftApplicationConstants.NAME,
                 application_class="HistogramDataDriftApplication",
                 image=image,
+                otlp_enabled=otlp_enabled,
             )
 
-            if not mlrun.mlconf.is_ce_mode():
+            if mlrun.mlconf.is_using_v3io():
                 logger.info(
                     "Setting the access key for the histogram data drift function"
                 )
@@ -833,6 +1143,7 @@ class MonitoringDeployment:
                 mm_constants.ModelMonitoringAppLabel.VAL,
             )
 
+            mlrun.utils.helpers.set_auth_token_name(func.spec, self._auth_token_name)
             fn = services.api.api.endpoints.nuclio._deploy_function(
                 db_session=self.db_session,
                 auth_info=self.auth_info,
@@ -864,7 +1175,7 @@ class MonitoringDeployment:
 
     def list_model_monitoring_functions(
         self,
-        labels: typing.Optional[list[str]] = None,
+        labels: list[str] | None = None,
         format_: str = mlrun.common.formatters.FunctionFormat.full,
         function_type: mm_functions.FunctionsType = mm_functions.FunctionsType.APPLICATION,
     ) -> list[dict]:
@@ -896,10 +1207,10 @@ class MonitoringDeployment:
 
     async def function_summaries(
         self,
-        start: typing.Optional[datetime] = None,
-        end: typing.Optional[datetime] = None,
-        names: typing.Optional[list[str]] = None,
-        labels: typing.Optional[list[str]] = None,
+        start: datetime | None = None,
+        end: datetime | None = None,
+        names: list[str] | None = None,
+        labels: list[str] | None = None,
         include_stats: bool = True,
         include_infra: bool = True,
         include_processed_model_endpoints: bool = False,
@@ -968,8 +1279,8 @@ class MonitoringDeployment:
     async def function_summary(
         self,
         name: str,
-        start: typing.Optional[datetime] = None,
-        end: typing.Optional[datetime] = None,
+        start: datetime | None = None,
+        end: datetime | None = None,
         include_latest_metrics: bool = False,
     ) -> mlrun.common.schemas.model_monitoring.FunctionSummary:
         """
@@ -1005,12 +1316,17 @@ class MonitoringDeployment:
 
         if include_latest_metrics:
             # Enrich the function summary with latest metrics
-            function_summary[0].stats["metrics"] = await run_in_threadpool(
+            latest_metrics = await run_in_threadpool(
                 self._tsdb_connector.calculate_latest_metrics,
                 start=start,
                 end=end,
                 application_names=[name],
             )
+            # Map the 'kind' to its string representation
+            for metric in latest_metrics:
+                if metric.type == "result":
+                    metric.kind = metric.kind.name
+            function_summary[0].stats["metrics"] = latest_metrics
 
         return function_summary[0]
 
@@ -1069,9 +1385,8 @@ class MonitoringDeployment:
 
     async def _enrich_with_stream_stats(
         self,
-        function_summaries: typing.Optional[
-            list[mlrun.common.schemas.model_monitoring.FunctionSummary]
-        ],
+        function_summaries: list[mlrun.common.schemas.model_monitoring.FunctionSummary]
+        | None,
         agg_stats: bool = True,
     ) -> None:
         """
@@ -1103,9 +1418,11 @@ class MonitoringDeployment:
             self.auth_info
         ) as client:
             for function in function_summaries:
+                normalized_function_name = mlrun.utils.normalize_name(function.name)
+
                 stream_path = mlrun.model_monitoring.get_stream_path(
                     project=self.project,
-                    function_name=function.name,
+                    function_name=normalized_function_name,
                     secret_provider=self._secret_provider,
                     profile=self.__stream_profile,
                 )
@@ -1118,7 +1435,7 @@ class MonitoringDeployment:
 
                 stream_stats = await client.get_v3io_shard_lags(
                     project_name=self.project,
-                    function_name=function.name,
+                    function_name=normalized_function_name,
                     stream_path=stream_path,
                     container_name=container,
                 )
@@ -1150,20 +1467,24 @@ class MonitoringDeployment:
     ):
         import kafka
 
-        consumer = kafka.KafkaConsumer(
-            bootstrap_servers=self.__stream_profile.brokers,
-            group_id=self.__stream_profile.group,
-        )
+        base_group = _kafka_base_group(self.__stream_profile)
         # Iterate over each function and get the stream stats
         for function in function_summaries:
+            normalized_function_name = mlrun.utils.normalize_name(function.name)
             topic = mlrun.common.model_monitoring.helpers.get_kafka_topic(
-                project=self.project, function_name=function.name
+                project=self.project, function_name=normalized_function_name
+            )
+            # Use the per-function consumer group so the reported
+            # committed/lag reflects what the MM function actually consumed.
+            consumer = kafka.KafkaConsumer(
+                bootstrap_servers=self.__stream_profile.brokers,
+                group_id=_mm_kafka_consumer_group(base_group, topic),
             )
             try:
                 partitions = consumer.partitions_for_topic(topic)
                 if not partitions:
                     logger.warning(
-                        f"No partitions found for topic {topic} in function {function.name}"
+                        f"No partitions found for topic {topic} in function {normalized_function_name}"
                     )
                     continue
 
@@ -1200,18 +1521,20 @@ class MonitoringDeployment:
                 logger.warning(
                     "Failed to get topic stats",
                     project=self.project,
-                    function_name=function.name,
+                    function_name=normalized_function_name,
                     topic=topic,
                     error_message=mlrun.errors.err_to_str(exc),
                 )
+            finally:
+                consumer.close()
 
     async def _get_function_summary_applications(
         self,
-        base_period: typing.Optional[float] = None,
-        start: typing.Optional[datetime] = None,
-        end: typing.Optional[datetime] = None,
-        names: typing.Optional[list[str]] = None,
-        labels: typing.Optional[list[str]] = None,
+        base_period: float | None = None,
+        start: datetime | None = None,
+        end: datetime | None = None,
+        names: list[str] | None = None,
+        labels: list[str] | None = None,
         include_stats: bool = True,
         include_processed_model_endpoints: bool = False,
     ) -> list[mlrun.common.schemas.model_monitoring.FunctionSummary]:
@@ -1227,8 +1550,9 @@ class MonitoringDeployment:
             logger.info("No model monitoring applications found")
             return []
         if names:
-            # generate a list of lowercase names for filtering
-            lower_names = [name.lower() for name in names]
+            # generate a list of normalized lowercase names for filtering
+            lower_names = [mlrun.utils.normalize_name(name.lower()) for name in names]
+
             mm_functions_list = [
                 fn for fn in mm_functions_list if fn["metadata"]["name"] in lower_names
             ]
@@ -1307,7 +1631,7 @@ class MonitoringDeployment:
         delete_stream_function: bool = False,
         delete_histogram_data_drift_app: bool = True,
         delete_user_applications: bool = False,
-        user_application_list: typing.Optional[list[str]] = None,
+        user_application_list: list[str] | None = None,
         background_tasks: fastapi.BackgroundTasks = None,
     ) -> mlrun.common.schemas.BackgroundTaskList:
         """
@@ -1359,13 +1683,19 @@ class MonitoringDeployment:
                 )
                 tasks.append(task)
 
+        await run_in_threadpool(
+            self._persist_model_monitoring_spec,
+            enabled=False,
+            otlp_enabled=False,
+        )
+
         return mlrun.common.schemas.BackgroundTaskList(background_tasks=tasks)
 
     def _get_monitoring_application_to_delete(
         self,
         delete_histogram_data_drift_app: bool = True,
         delete_user_applications: bool = False,
-        user_application_list: typing.Optional[list[str]] = None,
+        user_application_list: list[str] | None = None,
     ):
         application_to_delete = []
 
@@ -1488,9 +1818,8 @@ class MonitoringDeployment:
     def _delete_model_monitoring_stream_resources(
         self,
         function_names: list[str],
-        stream_profile: typing.Optional[
-            mlrun.datastore.datastore_profile.DatastoreProfile
-        ] = None,
+        stream_profile: mlrun.datastore.datastore_profile.DatastoreProfile
+        | None = None,
     ) -> None:
         """
         :param function_names: A list of functions that their resources should be deleted.
@@ -1675,25 +2004,24 @@ class MonitoringDeployment:
         if isinstance(
             tsdb_profile, mlrun.datastore.datastore_profile.DatastoreProfileV3io
         ):
-            if mlrun.mlconf.is_ce_mode():
+            if not mlrun.mlconf.is_using_v3io():
                 raise mlrun.errors.MLRunInvalidMMStoreTypeError(
-                    "MLRun CE supports only TDEngine and TimescaleDB TSDB, received a V3IO profile for the TSDB"
+                    "V3IO TSDB profile is not supported, use TimescaleDB instead."
                 )
         elif not isinstance(
             tsdb_profile,
-            (
-                mlrun.datastore.datastore_profile.DatastoreProfileTDEngine,
-                mlrun.datastore.datastore_profile.DatastoreProfilePostgreSQL,
-            ),
+            mlrun.datastore.datastore_profile.DatastoreProfilePostgreSQL,
         ):
             raise mlrun.errors.MLRunInvalidMMStoreTypeError(
                 f"The model monitoring TSDB profile is of an unexpected type: '{type(tsdb_profile)}'\n"
-                "Expects `DatastoreProfileV3io`, `DatastoreProfileTDEngine`, or `DatastoreProfilePostgreSQL`."
+                "Expects `DatastoreProfileV3io` or `DatastoreProfilePostgreSQL`."
             )
 
         return tsdb_profile
 
-    def _validate_stream_profile(self, stream_profile_name: str) -> None:
+    def _validate_stream_profile(
+        self, stream_profile_name: str
+    ) -> mlrun.datastore.datastore_profile.DatastoreProfile:
         try:
             stream_profile = mlrun.datastore.datastore_profile.datastore_profile_read(
                 url=f"ds://{stream_profile_name}",
@@ -1720,6 +2048,37 @@ class MonitoringDeployment:
                 f"The model monitoring stream profile is of an unexpected type: '{type(stream_profile)}'\n"
                 "Expects `DatastoreProfileV3io` or `DatastoreProfileKafkaStream`."
             )
+        return stream_profile
+
+    @staticmethod
+    def _resolve_stream_target(
+        stream_profile: mlrun.datastore.datastore_profile.DatastoreProfile,
+    ) -> mm_constants.StreamTarget | None:
+        if isinstance(
+            stream_profile,
+            mlrun.datastore.datastore_profile.DatastoreProfileKafkaStream,
+        ):
+            return mm_constants.StreamTarget.KAFKA
+        if isinstance(
+            stream_profile, mlrun.datastore.datastore_profile.DatastoreProfileV3io
+        ):
+            return mm_constants.StreamTarget.V3IO
+        return None
+
+    @staticmethod
+    def _resolve_tsdb_target(
+        tsdb_profile: mlrun.datastore.datastore_profile.DatastoreProfile,
+    ) -> mm_constants.TSDBTarget | None:
+        if isinstance(
+            tsdb_profile,
+            mlrun.datastore.datastore_profile.DatastoreProfilePostgreSQL,
+        ):
+            return mm_constants.TSDBTarget.TimescaleDB
+        if isinstance(
+            tsdb_profile, mlrun.datastore.datastore_profile.DatastoreProfileV3io
+        ):
+            return mm_constants.TSDBTarget.V3IO_TSDB
+        return None
 
     def _validate_kafka_stream(
         self,
@@ -1762,9 +2121,9 @@ class MonitoringDeployment:
         self,
         v3io_profile: mlrun.datastore.datastore_profile.DatastoreProfileV3io,
     ) -> None:
-        if mlrun.mlconf.is_ce_mode():
+        if not mlrun.mlconf.is_using_v3io():
             raise mlrun.errors.MLRunInvalidMMStoreTypeError(
-                "MLRun CE supports only Kafka streams, received a V3IO profile for the stream"
+                "V3IO stream profile is not supported, use Kafka streams instead."
             )
         self._verify_v3io_access(v3io_profile)
 
@@ -1795,15 +2154,15 @@ class MonitoringDeployment:
     def set_credentials(
         self,
         *,
-        tsdb_profile_name: typing.Optional[str] = None,
-        stream_profile_name: typing.Optional[str] = None,
+        tsdb_profile_name: str | None = None,
+        stream_profile_name: str | None = None,
         replace_creds: bool = False,
     ) -> None:
         """
         Set the model monitoring credentials for the project. The credentials are stored in the project secrets.
 
         :param tsdb_profile_name:         The TSDB profile name to be used in the project's model monitoring framework.
-                                          Either V3IO or TDEngine profile.
+                                          Either V3IO or TimescaleDB (PostgreSQL) profile.
         :param stream_profile_name:       The stream profile name to be used in the project's model monitoring
                                           framework. Either V3IO or KafkaSource profile.
         :param replace_creds:             If True, the credentials will be set even if they are already set.
@@ -1817,9 +2176,17 @@ class MonitoringDeployment:
                 self.check_if_credentials_are_set()
                 if self._is_the_same_cred(stream_profile_name, tsdb_profile_name):
                     logger.debug(
-                        "The same credentials are already set for the project - aborting with no error",
+                        "The same credentials are already set for the project - ensuring TSDB tables exist",
                         project=self.project,
                     )
+                    # Even if credentials match, ensure TSDB tables exist (ML-11807).
+                    # This handles cases where tables were deleted or don't exist yet.
+                    # The create_tables() call is idempotent for all TSDB connectors.
+                    if tsdb_profile_name:
+                        tsdb_profile = self._validate_and_get_tsdb_profile(
+                            tsdb_profile_name
+                        )
+                        self._create_tsdb_tables(tsdb_profile)
                     return
                 raise mlrun.errors.MLRunConflictError(
                     f"For {self.project} the credentials are already set, if you want to set new credentials, "
@@ -1832,11 +2199,14 @@ class MonitoringDeployment:
         secrets_dict = {}
         old_secrets_dict = self._get_monitoring_mandatory_project_secrets()
 
+        stream_profile = None
+        tsdb_profile = None
+
         stream_profile_name = stream_profile_name or old_secrets_dict.get(
             mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PROFILE_NAME
         )
         if stream_profile_name:
-            self._validate_stream_profile(stream_profile_name)
+            stream_profile = self._validate_stream_profile(stream_profile_name)
             secrets_dict[
                 mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PROFILE_NAME
             ] = stream_profile_name
@@ -1870,10 +2240,15 @@ class MonitoringDeployment:
             ),
         )
 
+        self._persist_model_monitoring_spec(
+            stream_type=self._resolve_stream_target(stream_profile),
+            tsdb_type=self._resolve_tsdb_target(tsdb_profile),
+        )
+
     def _is_the_same_cred(
         self,
-        stream_profile_name: typing.Optional[str],
-        tsdb_profile_name: typing.Optional[str],
+        stream_profile_name: str | None,
+        tsdb_profile_name: str | None,
     ) -> bool:
         credentials_dict = {
             key: mlrun.get_secret_or_env(key, self._secret_provider)
@@ -1970,8 +2345,11 @@ class MonitoringDeployment:
         delete_background_task: fastapi.BackgroundTasks,
     ):
         async with semaphore:
-            result = await framework.db.session.run_async_function_with_new_db_session(
-                func=services.api.crud.ModelEndpoints().create_model_endpoints,
+            # Use run_in_threadpool to avoid blocking the event loop
+            # while performing synchronous DB operations
+            result = await run_in_threadpool(
+                framework.db.session.run_function_with_new_db_session,
+                services.api.crud.ModelEndpoints().create_model_endpoints,
                 model_endpoints_instructions=model_endpoints_instructions,
                 project=project,
                 function_name=function_name,
@@ -2059,6 +2437,109 @@ class MonitoringDeployment:
         function.spec.graph = graph
         return model_endpoints_instructions, function.to_dict()
 
+    async def _create_model_endpoints_instructions_for_nuclio_app(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        function: dict,
+        function_name: str,
+        function_tag: str,
+        project: str,
+    ) -> tuple[
+        list[
+            tuple[
+                mlrun.common.schemas.ModelEndpoint,
+                mm_constants.ModelEndpointCreationStrategy,
+            ]
+        ],
+        str | None,
+        dict,
+    ]:
+        """
+        Build (ModelEndpoint, strategy) pairs from spec.model_endpoint_instructions
+        for nuclio/application runtimes.
+
+        Validates instruction types, confirms the model monitoring stream is ready,
+        and resolves its HTTP URL.
+
+        :raises MLRunInvalidArgumentError: if an instruction has an invalid type.
+        :raises MLRunNotFoundError: if the model monitoring stream is not deployed.
+        :raises MLRunPreconditionFailedError: if the model monitoring stream is not ready.
+        :return: Tuple of (instructions, stream_url, function_dict).
+        """
+        import mlrun.common.schemas.model_monitoring.model_endpoints as mm_endpoints
+
+        import services.api.crud.model_monitoring.helpers as mm_crud_helpers
+
+        raw_instructions = (function.get("spec") or {}).get(
+            "model_endpoints_instructions"
+        ) or []
+
+        # Validate and normalize instructions
+        instructions: list[mm_endpoints.ModelEndpointInstruction] = []
+        for idx, item in enumerate(raw_instructions):
+            if isinstance(item, mm_endpoints.ModelEndpointInstruction):
+                instructions.append(item)
+            elif isinstance(item, dict):
+                instructions.append(
+                    mm_endpoints.ModelEndpointInstruction.from_dict(item)
+                )
+            else:
+                framework.api.utils.log_and_raise(
+                    HTTPStatus.BAD_REQUEST.value,
+                    reason=(
+                        f"model_endpoint_instructions[{idx}] must be a dict or "
+                        f"ModelEndpointInstruction, got {type(item).__name__!r}"
+                    ),
+                )
+
+        stream_url = await mm_crud_helpers.get_stream_url(
+            db_session=db_session, project=project
+        )
+        if stream_url is None:
+            logger.warning(
+                "Model monitoring stream has no HTTP trigger — MODEL_MONITORING_URL will "
+                "not be injected. HTTP trigger support was added in 1.12.0; the stream "
+                "pod may have been deployed with an older version.",
+                project=project,
+            )
+
+        model_endpoints_dict: dict[str, str] = await run_in_threadpool(
+            framework.utils.singletons.db.get_db().list_model_endpoints,
+            project=project,
+            function_name=function_name,
+            function_tag=function_tag,
+            latest_only=True,
+            session=db_session,
+            as_dict=True,
+        )
+
+        model_endpoints_instructions = []
+        for instruction in instructions:
+            uid = self._get_or_create_uid(
+                project=project,
+                function_name=function_name,
+                function_tag=function_tag,
+                model_endpoints_dict=model_endpoints_dict,
+                creation_strategy=instruction.creation_strategy,
+                endpoint_name=instruction.name,
+            )
+            model_endpoint = self._model_endpoint_draft(
+                name=instruction.name,
+                endpoint_type=mm_constants.EndpointType.USER_EP,
+                model_class=None,
+                function_name=function_name,
+                function_tag=function_tag,
+                track_models=True,
+                uid=uid,
+                label_names=instruction.output_schema,
+                feature_names=instruction.input_schema,
+            )
+            model_endpoints_instructions.append(
+                (model_endpoint, instruction.creation_strategy)
+            )
+
+        return model_endpoints_instructions, stream_url, function
+
     def _extract_model_endpoints_from_function_graph(
         self,
         function_name: str,
@@ -2070,8 +2551,8 @@ class MonitoringDeployment:
         sampling_percentage: float,
         model_endpoints_dict: dict[str, str],
         project: str,
-        override_type: typing.Optional[mm_constants.EndpointType] = None,
-        user_function_name: typing.Optional[str] = None,
+        override_type: mm_constants.EndpointType | None = None,
+        user_function_name: str | None = None,
     ) -> tuple[
         list[
             tuple[
@@ -2122,8 +2603,8 @@ class MonitoringDeployment:
         sampling_percentage: float,
         model_endpoints_dict: dict[str, str],
         project: str,
-        override_type: typing.Optional[mm_constants.EndpointType] = None,
-        user_function_name: typing.Optional[str] = None,
+        override_type: mm_constants.EndpointType | None = None,
+        user_function_name: str | None = None,
     ) -> list[
         tuple[
             mlrun.common.schemas.ModelEndpoint,
@@ -2227,8 +2708,8 @@ class MonitoringDeployment:
         sampling_percentage: float,
         model_endpoints_dict: dict[str, str],
         project: str,
-        override_type: typing.Optional[mm_constants.EndpointType] = None,
-        user_function_name: typing.Optional[str] = None,
+        override_type: mm_constants.EndpointType | None = None,
+        user_function_name: str | None = None,
     ) -> list[
         tuple[
             mlrun.common.schemas.ModelEndpoint,
@@ -2326,6 +2807,149 @@ class MonitoringDeployment:
         )
         return uid
 
+    @staticmethod
+    def inject_monitoring_env_vars(
+        function: dict,
+        env_updates: dict[str, str],
+    ) -> dict:
+        """
+        Inject monitoring-related environment variables into a function spec dict.
+
+        Existing env vars whose names appear in *env_updates* are replaced;
+        new ones are appended.  The function dict is mutated in-place and returned.
+
+        :param function:    Nuclio / application function dict (top-level, with "spec" key).
+        :param env_updates: Mapping of env var name → value to inject.
+        :return: The mutated function dict.
+        """
+        spec = function.setdefault("spec", {})
+        existing_env: list = spec.get("env") or []
+        inject_names = set(env_updates)
+        spec["env"] = [
+            e
+            for e in existing_env
+            if (e.get("name") if isinstance(e, dict) else getattr(e, "name", None))
+            not in inject_names
+        ] + [{"name": k, "value": v} for k, v in env_updates.items()]
+        return function
+
+    def _build_and_inject_monitoring_env_vars(
+        self,
+        function: dict,
+        model_endpoints_instructions: list[
+            tuple[
+                mlrun.common.schemas.ModelEndpoint,
+                mm_constants.ModelEndpointCreationStrategy,
+            ]
+        ],
+        stream_url: str | None,
+    ) -> dict:
+        """
+        Build monitoring env vars from *model_endpoints_instructions* and *stream_url*
+        and inject them into the function spec dict.
+
+        Injected variables:
+        - MODEL_MONITORING_URL  — HTTP URL of the stream pod (when available).
+        - MODEL_ENDPOINT_UID    — UID of the first (primary) model endpoint.
+        - MODEL_ENDPOINTS_MAP   — JSON ``{name: uid}`` map (only when >1 endpoint).
+
+        :return: The updated function dict.
+        """
+        if not model_endpoints_instructions:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "_build_and_inject_monitoring_env_vars called with empty or malformed model_endpoints_instructions"
+            )
+        env_updates: dict[str, str] = {}
+        if stream_url:
+            env_updates[mm_constants.NuclioMonitoringEnvVars.MODEL_MONITORING_URL] = (
+                stream_url
+            )
+        first_uid, first_name = (
+            (
+                model_endpoints_instructions[0][0].metadata.uid,
+                model_endpoints_instructions[0][0].metadata.name,
+            )
+            if len(model_endpoints_instructions[0]) > 1
+            else ("", "")
+        )
+        env_updates[mm_constants.NuclioMonitoringEnvVars.MODEL_ENDPOINT_UID] = first_uid
+        env_updates[mm_constants.NuclioMonitoringEnvVars.MODEL_ENDPOINT_NAME] = (
+            first_name
+        )
+        if len(model_endpoints_instructions) > 1:
+            env_updates[mm_constants.NuclioMonitoringEnvVars.MODEL_ENDPOINTS_MAP] = (
+                json.dumps(
+                    {
+                        me.metadata.name: me.metadata.uid
+                        for (me, _) in model_endpoints_instructions
+                    }
+                )
+            )
+        return self.inject_monitoring_env_vars(function, env_updates)
+
+    async def _create_nuclio_app_model_endpoint_background_task(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        background_tasks: BackgroundTasks,
+        function: dict,
+        function_name: str,
+        function_tag: str,
+        project: str,
+    ) -> tuple[
+        list[
+            tuple[
+                mlrun.common.schemas.ModelEndpoint,
+                mm_constants.ModelEndpointCreationStrategy,
+            ]
+        ],
+        dict,
+    ]:
+        """
+        Full model-endpoint creation flow for nuclio/application runtimes.
+
+        1. Builds (ModelEndpoint, strategy) pairs from spec.model_endpoint_instructions.
+        2. Injects MODEL_MONITORING_URL, MODEL_ENDPOINT_UID, MODEL_ENDPOINTS_MAP env vars.
+        3. Registers a background task that persists the endpoints to the DB.
+
+        :return: Tuple of (model_endpoints_instructions, updated_function_dict).
+        """
+        (
+            model_endpoints_instructions,
+            stream_url,
+            function,
+        ) = await self._create_model_endpoints_instructions_for_nuclio_app(
+            db_session=db_session,
+            function=function,
+            function_name=function_name,
+            function_tag=function_tag,
+            project=project,
+        )
+
+        if not model_endpoints_instructions:
+            return model_endpoints_instructions, function
+
+        function = self._build_and_inject_monitoring_env_vars(
+            function=function,
+            model_endpoints_instructions=model_endpoints_instructions,
+            stream_url=stream_url,
+        )
+
+        logger.info(
+            "Creating background task for model endpoints creation",
+            project=project,
+            function=function_name,
+        )
+        self._create_model_endpoint_background_task(
+            db_session=db_session,
+            background_tasks=background_tasks,
+            project_name=project,
+            function_name=function_name,
+            function_tag=(function.get("metadata") or {}).get("tag") or "latest",
+            model_endpoints_instructions=model_endpoints_instructions,
+        )
+
+        return model_endpoints_instructions, function
+
     def _model_endpoint_draft(
         self,
         name: str,
@@ -2334,13 +2958,13 @@ class MonitoringDeployment:
         function_name: str,
         function_tag: str,
         track_models: bool,
-        uid: typing.Optional[str] = None,
-        children_names: typing.Optional[list[str]] = None,
-        children_uids: typing.Optional[list[str]] = None,
-        sampling_percentage: typing.Optional[float] = None,
-        label_names: typing.Optional[list[str]] = None,
-        model_path: typing.Optional[str] = None,
-        feature_names: typing.Optional[list[str]] = None,
+        uid: str | None = None,
+        children_names: list[str] | None = None,
+        children_uids: list[str] | None = None,
+        sampling_percentage: float | None = None,
+        label_names: list[str] | None = None,
+        model_path: str | None = None,
+        feature_names: list[str] | None = None,
     ) -> mlrun.common.schemas.ModelEndpoint:
         function_tag = function_tag or "latest"
         feature_names = (
@@ -2435,8 +3059,8 @@ class MonitoringDeployment:
         sampling_percentage: float,
         model_endpoints_dict: dict[str, str],
         project: str,
-        override_type: typing.Optional[mm_constants.EndpointType] = None,
-        user_function_name: typing.Optional[str] = None,
+        override_type: mm_constants.EndpointType | None = None,
+        user_function_name: str | None = None,
     ) -> list[
         tuple[
             mlrun.common.schemas.ModelEndpoint,
@@ -2505,8 +3129,8 @@ class MonitoringDeployment:
                 )
         return model_endpoints_instructions
 
-    async def _delete_app_from_schedules_files(
-        self, application_name: str, endpoint_ids: typing.Optional[list[str]] = None
+    def _delete_app_from_schedules_files(
+        self, application_name: str, endpoint_ids: list[str] | None = None
     ) -> None:
         """
         Delete the application from the schedules file.
@@ -2519,7 +3143,7 @@ class MonitoringDeployment:
             endpoint_id_list = endpoint_ids
         else:
             endpoints_data = (
-                await services.api.crud.ModelEndpoints().list_model_endpoints(
+                framework.utils.singletons.db.get_db().list_model_endpoints(
                     project=self.project,
                     uids=endpoint_ids,
                     db_session=self.db_session,
@@ -2539,8 +3163,8 @@ class MonitoringDeployment:
             ) as schedules_file:
                 schedules_file.delete_application_time(application=application_name)
 
-    async def delete_application_records(
-        self, application_name: str, endpoint_ids: typing.Optional[list[str]] = None
+    def delete_application_records(
+        self, application_name: str, endpoint_ids: list[str] | None = None
     ) -> None:
         """
         Deletes the application records from the model monitoring database.
@@ -2561,7 +3185,7 @@ class MonitoringDeployment:
 
         if not application_name.endswith(mlrun_constants.RESERVED_BATCH_JOB_SUFFIX):
             # The schedules file of "batch" applications is handled on the user side
-            await self._delete_app_from_schedules_files(
+            self._delete_app_from_schedules_files(
                 application_name=application_name, endpoint_ids=endpoint_ids
             )
 
@@ -2585,8 +3209,8 @@ class MonitoringDeployment:
 
 def get_endpoint_features(
     feature_names: list[str],
-    feature_stats: typing.Optional[dict] = None,
-    current_stats: typing.Optional[dict] = None,
+    feature_stats: dict | None = None,
+    current_stats: dict | None = None,
 ) -> list[mlrun.common.schemas.Features]:
     """
     Getting a new list of features that exist in feature_names along with their expected (feature_stats) and

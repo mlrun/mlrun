@@ -19,7 +19,6 @@ import os
 import re
 from io import StringIO
 from sys import stderr
-from typing import Optional
 
 import pandas as pd
 
@@ -448,31 +447,126 @@ def enrich_function_from_dict(function, function_dict):
     return function
 
 
+def enrich_function_from_code_artifact(function, project: str) -> bool:
+    """Resolve store:// code artifact and enrich the function build spec.
+
+    Validates artifact kind, merges ``spec.requirements`` into
+    ``function.spec.build.requirements`` (user reqs win), and defaults
+    ``load_source_on_run`` to True when unset. Called from both client SDK
+    (pre-auto_build) and API server (run/build enrichment).
+
+    :param function: The function object to enrich
+    :param project:  Project name for artifact resolution
+    :returns: True if the artifact carried requirements (applied to the build
+              spec); callers in build-decision paths should then re-run
+              ``prepare_image_for_deploy`` to shift image -> base_image.
+    """
+    source = function.spec.build.source or getattr(
+        function.status, "application_source", None
+    )
+    if not source or not mlrun.utils.is_store_uri(source):
+        return False
+
+    try:
+        artifact = mlrun.datastore.get_store_resource(source, project=project)
+    except mlrun.errors.MLRunBaseError:
+        raise
+    except Exception as exc:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"Cannot resolve code artifact {source}: {err_to_str(exc)}"
+        ) from exc
+
+    allowed_kinds = {"code"}
+    if function.kind == mlrun.runtimes.RuntimeKinds.application:
+        allowed_kinds.add("artifact")
+    if artifact.kind not in allowed_kinds:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"Source {source} resolves to a {artifact.kind!r} artifact; "
+            "expected a code artifact (kind='code')."
+        )
+
+    applied_artifact_requirements = False
+    artifact_requirements = getattr(artifact.spec, "requirements", None)
+    if artifact_requirements:
+        function.spec.build.requirements = mlrun.utils.merge_requirements(
+            reqs_priority=function.spec.build.requirements or [],
+            reqs_secondary=artifact_requirements,
+        )
+        applied_artifact_requirements = True
+
+    if function.spec.build.load_source_on_run is None:
+        logger.debug(
+            "Defaulting load_source_on_run=True for store:// source",
+            source=source,
+        )
+        function.spec.build.load_source_on_run = True
+
+    return applied_artifact_requirements
+
+
 def resolve_owner(
     labels: dict,
-    owner_to_enrich: Optional[str] = None,
+    owner_to_enrich: str | None = None,
 ):
     """
-    Resolve the owner label value
+    Resolve the owner label value.
+
+    Resolution order:
+    1. For workflow runners: use owner_to_enrich if provided
+    2. V3IO_USERNAME environment variable (IG3 environments)
+    3. Authenticated username from IG4 JWT token (if available)
+    4. Local system user (getpass.getuser())
+
     :param labels: The run labels dict
-    :param auth_username: The authenticated username
+    :param owner_to_enrich: Optional owner to use for workflow runners
     :return: The resolved owner label value
     """
-
     if owner_to_enrich and (
         labels.get("job-type") == mlrun.common.constants.JOB_TYPE_WORKFLOW_RUNNER
         or labels.get("job-type")
         == mlrun.common.constants.JOB_TYPE_RERUN_WORKFLOW_RUNNER
     ):
         return owner_to_enrich
-    else:
-        return os.environ.get("V3IO_USERNAME") or getpass.getuser()
+
+    # Check V3IO_USERNAME first (IG3 environments)
+    if v3io_username := os.environ.get("V3IO_USERNAME"):
+        return v3io_username
+
+    # Try to get authenticated username from IG4 token provider
+    authenticated_username = _resolve_authenticated_username_from_token_provider()
+    if authenticated_username:
+        return authenticated_username
+
+    # Fall back to local system user
+    return getpass.getuser()
+
+
+def _resolve_authenticated_username_from_token_provider() -> str | None:
+    """
+    Attempt to resolve the authenticated username from the IG4 token provider.
+
+    This is used for local runs in IG4 environments where the JWT access token
+    contains the 'preferred_username' claim.
+
+    :return: The authenticated username, or None if not available.
+    """
+    try:
+        db = mlrun.get_run_db()
+        if db and hasattr(db, "token_provider") and db.token_provider:
+            token_provider = db.token_provider
+            # Check if this is an IG4 token provider with authenticated_username
+            if hasattr(token_provider, "authenticated_username"):
+                return token_provider.authenticated_username
+    except Exception:
+        # If we can't get the DB or token provider, silently fall back
+        pass
+    return None
 
 
 def enrich_run_labels(
     labels: dict,
-    labels_to_enrich: Optional[list[mlrun_constants.MLRunInternalLabels]] = None,
-    owner_to_enrich: Optional[str] = None,
+    labels_to_enrich: list[mlrun_constants.MLRunInternalLabels] | None = None,
+    owner_to_enrich: str | None = None,
 ):
     """
     Enrich the run labels with the internal labels and the labels enrichment extension.
@@ -501,6 +595,19 @@ def enrich_run_labels(
         if label not in labels and enrichment:
             labels[label] = enrichment
     return labels
+
+
+def resolve_run_user_template(output_path: str, owner: str) -> str:
+    """
+    Replace {{run.user}} template in output path with actual owner value.
+
+    :param output_path: The output path that may contain {{run.user}} template.
+    :param owner: The owner/username to substitute.
+    :return: The resolved output path, or original if no substitution needed.
+    """
+    if not output_path or not owner:
+        return output_path
+    return output_path.replace("{{run.user}}", owner)
 
 
 def resolve_node_selectors(

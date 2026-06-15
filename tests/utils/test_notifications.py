@@ -14,17 +14,28 @@
 
 import asyncio
 import builtins
+import contextlib
+import os
+import ssl
+import tempfile
+import threading
 import unittest.mock
+from collections.abc import Callable
 from contextlib import nullcontext as does_not_raise
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from functools import partial
-from typing import Any, Callable, Optional
+from typing import Any
 
 import aiohttp
 import pytest
 import tabulate
+from aiohttp import web
 from aiohttp.typedefs import StrOrURL
+from cryptography import x509
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.x509.oid import NameOID
 
 import mlrun.common.runtimes.constants as runtimes_constants
 import mlrun.common.schemas
@@ -874,6 +885,62 @@ async def test_webhook_notification(monkeypatch, test_method):
 
 
 @pytest.mark.parametrize(
+    "verify_ssl,expected_status",
+    [
+        # Against a real self-signed HTTPS endpoint, validation must reject the
+        # certificate (notification -> error) unless explicitly disabled.
+        (True, mlrun.common.schemas.notification.NotificationStatus.ERROR),
+        (None, mlrun.common.schemas.notification.NotificationStatus.ERROR),
+        (False, mlrun.common.schemas.notification.NotificationStatus.SENT),
+    ],
+)
+def test_webhook_notification_verify_ssl_status(verify_ssl, expected_status):
+    with _self_signed_https_server() as url:
+        run = mlrun.model.RunObject.from_dict(
+            {"status": {"state": runtimes_constants.RunStates.error}}
+        )
+        run.spec.notifications = [
+            mlrun.model.Notification.from_dict(
+                {
+                    "kind": mlrun.common.schemas.notification.NotificationKind.webhook,
+                    "status": mlrun.common.schemas.notification.NotificationStatus.PENDING,
+                    "message": "test-message",
+                    "when": [runtimes_constants.RunStates.error],
+                    "params": {
+                        "url": url,
+                        "method": "GET",
+                        "verify_ssl": verify_ssl,
+                    },
+                }
+            ),
+        ]
+
+        db = mlrun.get_run_db()
+        db.store_run_notifications = unittest.mock.MagicMock()
+
+        notification_pusher = (
+            mlrun.utils.notifications.notification_pusher.NotificationPusher([run])
+        )
+        # tuple is (concrete_notification, run, notification_object); the model
+        # notification object (index 2) is the one whose status gets updated.
+        notification_object = notification_pusher._async_notifications[0][2]
+
+        notification_pusher.push()
+
+        assert notification_object.status == expected_status
+        if (
+            expected_status
+            == mlrun.common.schemas.notification.NotificationStatus.ERROR
+        ):
+            # make sure the failure is the SSL rejection we expect, not an
+            # unrelated error (port in use, connection refused, thread crash, ...).
+            reason = (notification_object.reason or "").lower()
+            assert "ssl" in reason or "certificate" in reason, (
+                notification_object.reason
+            )
+
+
+@pytest.mark.parametrize(
     "ipython_active,expected_console_call_amount,expected_ipython_call_amount",
     [
         (True, 0, 1),
@@ -909,6 +976,157 @@ def test_inverse_dependencies(
 
     assert mock_console_push.call_count == expected_console_call_amount
     assert mock_ipython_push.call_count == expected_ipython_call_amount
+
+
+def test_generate_start_message_workflow_url_when_pipeline_id(monkeypatch):
+    # Env vars feed into the commit_id fallback, so clear them for exact output.
+    monkeypatch.delenv("GITHUB_SHA", raising=False)
+    monkeypatch.delenv("CI_COMMIT_SHA", raising=False)
+
+    pusher = mlrun.utils.notifications.CustomNotificationPusher(
+        [mlrun.utils.notifications.NotificationTypes.console]
+    )
+    mock_workflow_url = unittest.mock.MagicMock(
+        return_value="http://example.com/workflow/pipeline-123"
+    )
+    mock_runs_url = unittest.mock.MagicMock(return_value="http://example.com/runs")
+    monkeypatch.setattr(mlrun.utils.helpers, "get_workflow_url", mock_workflow_url)
+    monkeypatch.setattr(mlrun.utils.helpers, "get_runs_url", mock_runs_url)
+
+    html, message = pusher.generate_start_message(
+        pipeline_id="pipeline-123", project="my-project"
+    )
+
+    mock_workflow_url.assert_called_once_with("my-project", "pipeline-123")
+    mock_runs_url.assert_not_called()
+    assert message == (
+        "Workflow started in project my-project id=pipeline-123, "
+        "check progress in http://example.com/workflow/pipeline-123"
+    )
+    assert html == (
+        "Workflow started in project my-project id=pipeline-123"
+        '<div><a href="http://example.com/workflow/pipeline-123" target="_blank">'
+        "click here to view progress</a></div>"
+    )
+
+
+def test_generate_start_message_runs_url_when_no_pipeline_id(monkeypatch):
+    monkeypatch.delenv("GITHUB_SHA", raising=False)
+    monkeypatch.delenv("CI_COMMIT_SHA", raising=False)
+
+    pusher = mlrun.utils.notifications.CustomNotificationPusher(
+        [mlrun.utils.notifications.NotificationTypes.console]
+    )
+    mock_workflow_url = unittest.mock.MagicMock(
+        return_value="http://example.com/workflow"
+    )
+    mock_runs_url = unittest.mock.MagicMock(return_value="http://example.com/runs")
+    monkeypatch.setattr(mlrun.utils.helpers, "get_workflow_url", mock_workflow_url)
+    monkeypatch.setattr(mlrun.utils.helpers, "get_runs_url", mock_runs_url)
+
+    html, message = pusher.generate_start_message(project="my-project")
+
+    mock_runs_url.assert_called_once_with("my-project")
+    mock_workflow_url.assert_not_called()
+    assert message == (
+        "Workflow started in project my-project, "
+        "check progress in http://example.com/runs"
+    )
+    assert html == (
+        "Workflow started in project my-project"
+        '<div><a href="http://example.com/runs" target="_blank">'
+        "click here to view progress</a></div>"
+    )
+
+
+def test_generate_start_message_no_url_when_helpers_return_empty(monkeypatch):
+    monkeypatch.delenv("GITHUB_SHA", raising=False)
+    monkeypatch.delenv("CI_COMMIT_SHA", raising=False)
+
+    pusher = mlrun.utils.notifications.CustomNotificationPusher(
+        [mlrun.utils.notifications.NotificationTypes.console]
+    )
+    monkeypatch.setattr(
+        mlrun.utils.helpers,
+        "get_workflow_url",
+        unittest.mock.MagicMock(return_value=""),
+    )
+    monkeypatch.setattr(
+        mlrun.utils.helpers,
+        "get_runs_url",
+        unittest.mock.MagicMock(return_value=""),
+    )
+
+    html, message = pusher.generate_start_message(
+        pipeline_id="pipeline-123", project="my-project"
+    )
+
+    assert html == ""
+    assert message == "Workflow started in project my-project id=pipeline-123"
+
+
+def test_push_pipeline_start_message_from_client_uses_workflow_url(monkeypatch):
+    monkeypatch.delenv("GITHUB_SHA", raising=False)
+    monkeypatch.delenv("CI_COMMIT_SHA", raising=False)
+
+    pusher = mlrun.utils.notifications.CustomNotificationPusher(
+        [mlrun.utils.notifications.NotificationTypes.console]
+    )
+    monkeypatch.setattr(
+        mlrun.utils.helpers,
+        "get_workflow_url",
+        unittest.mock.MagicMock(return_value="http://example.com/workflow/abc"),
+    )
+    mock_push = unittest.mock.MagicMock()
+    monkeypatch.setattr(pusher, "push", mock_push)
+
+    pusher.push_pipeline_start_message_from_client(
+        project="my-project", pipeline_id="abc"
+    )
+
+    expected_message = (
+        "Workflow started in project my-project id=abc, "
+        "check progress in http://example.com/workflow/abc"
+    )
+    expected_html = (
+        "Workflow started in project my-project id=abc"
+        '<div><a href="http://example.com/workflow/abc" target="_blank">'
+        "click here to view progress</a></div>"
+    )
+    mock_push.assert_called_once_with(
+        expected_message, "info", custom_html=expected_html
+    )
+
+
+def test_push_pipeline_start_message_from_client_falls_back_to_runs_url(monkeypatch):
+    monkeypatch.delenv("GITHUB_SHA", raising=False)
+    monkeypatch.delenv("CI_COMMIT_SHA", raising=False)
+
+    pusher = mlrun.utils.notifications.CustomNotificationPusher(
+        [mlrun.utils.notifications.NotificationTypes.console]
+    )
+    monkeypatch.setattr(
+        mlrun.utils.helpers,
+        "get_runs_url",
+        unittest.mock.MagicMock(return_value="http://example.com/runs"),
+    )
+    mock_push = unittest.mock.MagicMock()
+    monkeypatch.setattr(pusher, "push", mock_push)
+
+    pusher.push_pipeline_start_message_from_client(project="my-project")
+
+    expected_message = (
+        "Workflow started in project my-project, "
+        "check progress in http://example.com/runs"
+    )
+    expected_html = (
+        "Workflow started in project my-project"
+        '<div><a href="http://example.com/runs" target="_blank">'
+        "click here to view progress</a></div>"
+    )
+    mock_push.assert_called_once_with(
+        expected_message, "info", custom_html=expected_html
+    )
 
 
 NOTIFICATION_VALIDATION_PARMETRIZE = [
@@ -1014,9 +1232,9 @@ def test_notification_validation_defaults(monkeypatch):
 
     for notification_field, expected_value in notification_fields.items():
         value = getattr(notification, notification_field)
-        assert (
-            value == expected_value
-        ), f"{notification_field} field value is {value}, expected {expected_value}"
+        assert value == expected_value, (
+            f"{notification_field} field value is {value}, expected {expected_value}"
+        )
 
 
 @pytest.mark.parametrize(
@@ -1390,8 +1608,96 @@ def _mock_async_response(monkeypatch, method, result):
     return requests_mock
 
 
+def _generate_self_signed_cert(directory: str) -> tuple[str, str]:
+    """Write a throwaway self-signed cert/key PEM pair into ``directory``.
+
+    The certificate is intentionally untrusted so SSL validation rejects it. No
+    SAN/validity tuning is needed: ``verify_ssl=True`` fails at the trust chain
+    (self-signed) before any hostname check, and ``verify_ssl=False`` skips all
+    checks.
+
+    :return: a ``(cert_file, key_file)`` tuple of PEM file paths.
+    """
+    key = ec.generate_private_key(ec.SECP256R1())
+    subject = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "localhost")])
+    now = datetime.now(tz=UTC)
+    cert = (
+        x509.CertificateBuilder()
+        .subject_name(subject)
+        .issuer_name(subject)
+        .public_key(key.public_key())
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(now)
+        .not_valid_after(now + timedelta(hours=1))
+        .sign(key, hashes.SHA256())
+    )
+
+    cert_file = os.path.join(directory, "cert.pem")
+    key_file = os.path.join(directory, "key.pem")
+    with open(cert_file, "wb") as f:
+        f.write(cert.public_bytes(serialization.Encoding.PEM))
+    with open(key_file, "wb") as f:
+        f.write(
+            key.private_bytes(
+                serialization.Encoding.PEM,
+                serialization.PrivateFormat.PKCS8,
+                serialization.NoEncryption(),
+            )
+        )
+    return cert_file, key_file
+
+
+@contextlib.contextmanager
+def _self_signed_https_server():
+    """Run a local HTTPS server with a self-signed certificate.
+
+    The server listens on an ephemeral localhost port and returns 200 for any
+    request. It runs in a background thread with its own event loop so the
+    (synchronous) caller can drive a notification push against it. Yields the
+    server base url.
+    """
+
+    async def _handler(request):
+        return web.Response(text="ok")
+
+    loop = asyncio.new_event_loop()
+    server_state = {}
+    started = threading.Event()
+
+    def _serve():
+        asyncio.set_event_loop(loop)
+        app = web.Application()
+        app.router.add_route("*", "/{tail:.*}", _handler)
+        runner = web.AppRunner(app)
+        loop.run_until_complete(runner.setup())
+        ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        ssl_context.load_cert_chain(cert_file, key_file)
+        site = web.TCPSite(runner, "127.0.0.1", 0, ssl_context=ssl_context)
+        loop.run_until_complete(site.start())
+        server_state["runner"] = runner
+        server_state["port"] = runner.addresses[0][1]
+        started.set()
+        loop.run_forever()
+
+    with tempfile.TemporaryDirectory() as directory:
+        cert_file, key_file = _generate_self_signed_cert(directory)
+        thread = threading.Thread(target=_serve, daemon=True)
+        thread.start()
+        if not started.wait(timeout=10):
+            raise RuntimeError("Local HTTPS test server failed to start")
+        try:
+            yield f"https://127.0.0.1:{server_state['port']}/"
+        finally:
+            asyncio.run_coroutine_threadsafe(
+                server_state["runner"].cleanup(), loop
+            ).result(timeout=10)
+            loop.call_soon_threadsafe(loop.stop)
+            thread.join(timeout=10)
+            loop.close()
+
+
 def _generate_run_result(
-    state: str, error: Optional[str] = None, results: Optional[dict] = None
+    state: str, error: str | None = None, results: dict | None = None
 ):
     run_example = {
         "status": {
@@ -1578,6 +1884,51 @@ class TestMailNotification:
                     match="Parameter 'use_tls' must be a boolean for MailNotification",
                 ),
             ),
+            (  # missing username and password should pass validation - no auth case
+                {
+                    "server_host": "smtp.gmail.com",
+                    "server_port": 587,
+                    "sender_address": "sender@example.com",
+                    "username": "",
+                    "password": "",
+                    "email_addresses": "a@example.com",
+                    "use_tls": True,
+                    "validate_certs": True,
+                    "start_tls": False,
+                },
+                does_not_raise(),
+            ),
+            (  # missing password should pass validation - some servers allow username only auth
+                {
+                    "server_host": "smtp.gmail.com",
+                    "server_port": 587,
+                    "sender_address": "sender@example.com",
+                    "username": "user",
+                    "password": "",
+                    "email_addresses": "a@example.com",
+                    "use_tls": True,
+                    "validate_certs": True,
+                    "start_tls": False,
+                },
+                does_not_raise(),
+            ),
+            (  # missing username and password provided should fail validation
+                {
+                    "server_host": "smtp.gmail.com",
+                    "server_port": 587,
+                    "sender_address": "sender@example.com",
+                    "username": "",
+                    "password": "pass",
+                    "email_addresses": "a@example.com",
+                    "use_tls": True,
+                    "validate_certs": True,
+                    "start_tls": False,
+                },
+                pytest.raises(
+                    ValueError,
+                    match="Parameter 'username' is required when 'password' is provided for MailNotification",
+                ),
+            ),
         ],
     )
     def test_validate_mail_params(self, params, expectation):
@@ -1628,6 +1979,19 @@ class TestMailNotification:
         ["name", "params", "message", "severity", "expected"],
         [
             (
+                "no_username_or_password",
+                {},
+                "test-message",
+                "info",
+                {
+                    "subject": "[info] test-message",
+                    "body": MOCKED_HTML,
+                    # commented out to reflect the fact that username and password are not required
+                    # "username": None,
+                    # "password": None,
+                },
+            ),
+            (
                 "empty_params",
                 {},
                 "test-message",
@@ -1635,6 +1999,8 @@ class TestMailNotification:
                 {
                     "subject": "[info] test-message",
                     "body": MOCKED_HTML,
+                    "username": None,
+                    "password": None,
                 },
             ),
             (
@@ -1645,18 +2011,111 @@ class TestMailNotification:
                 {
                     "subject": "[warning] test-message",
                     "body": f"runs: {MOCKED_HTML}",
+                    "username": None,
+                    "password": None,
+                },
+            ),
+            (
+                "empty_auth_params",
+                {"username": "", "password": ""},
+                "test-message",
+                "info",
+                {
+                    "subject": "[info] test-message",
+                    "body": MOCKED_HTML,
+                    "username": None,
+                    "password": None,
+                },
+            ),
+            (
+                "with_auth_params",
+                {"username": "user", "password": "pass"},
+                "test-message",
+                "info",
+                {
+                    "subject": "[info] test-message",
+                    "body": MOCKED_HTML,
+                    "username": "user",
+                    "password": "pass",
+                },
+            ),
+            (
+                # The Subject should take only the first line of the message
+                "multiline_message",
+                {},
+                "Run failed\nRetries attempted: 3\nRetry limit reached",
+                "info",
+                {
+                    "subject": "[info] Run failed",
+                    "body": MOCKED_HTML,
+                    "username": None,
+                    "password": None,
                 },
             ),
         ],
     )
     async def test_push(self, name, params, message, severity, expected):
-        mlrun.utils.logger.debug(f"Testing {name}")
+        params.update(
+            {
+                "sender_address": "test@example.com",
+                "server_host": "smtp.example.com",
+            }
+        )
         notification = mail.MailNotification(params=params)
-        notification._send_email = unittest.mock.AsyncMock()
         notification._get_html = unittest.mock.MagicMock(return_value=self.MOCKED_HTML)
-        await notification.push(message, severity, [])
+
+        with unittest.mock.patch(
+            "aiosmtplib.send", new_callable=unittest.mock.AsyncMock
+        ):
+            await notification.push(message, severity, [])
         assert notification.params["subject"] == expected["subject"]
         assert notification.params["body"] == expected["body"]
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ["username", "password", "expected_auth_kwargs"],
+        [
+            ("", "", {}),
+            (None, None, {}),
+            ("user", None, {"username": "user"}),
+            ("user", "pass", {"username": "user", "password": "pass"}),
+        ],
+    )
+    async def test_send_email_auth_handling(
+        self, username, password, expected_auth_kwargs, monkeypatch: pytest.MonkeyPatch
+    ):
+        send_mock = unittest.mock.AsyncMock()
+        monkeypatch.setattr(mail.aiosmtplib, "send", send_mock)
+
+        await mail.MailNotification(
+            params={
+                "server_host": "smtp.example.com",
+                "server_port": 25,
+                "sender_address": "",
+                "username": username,
+                "password": password,
+                "use_tls": False,
+                "validate_certs": True,
+                "start_tls": False,
+            }
+        ).push(
+            message="Test Message",
+            severity="info",
+        )
+
+        assert send_mock.await_count == 1
+        assert send_mock.await_args.kwargs["hostname"] == "smtp.example.com"
+        assert send_mock.await_args.kwargs["port"] == 25
+        assert send_mock.await_args.kwargs["use_tls"] is False
+        assert send_mock.await_args.kwargs["start_tls"] is False
+        assert send_mock.await_args.kwargs["validate_certs"] is True
+
+        for key, value in expected_auth_kwargs.items():
+            assert send_mock.await_args.kwargs.get(key) == value
+
+        for key in ("username", "password"):
+            if key not in expected_auth_kwargs:
+                assert key not in send_mock.await_args.kwargs
 
 
 class DummyResponse:
@@ -1669,15 +2128,15 @@ class DummyResponse:
 
 class DummySession:
     def __init__(self, json_serialize: Callable) -> None:
-        self.request_args: Optional[dict[str, Any]] = None
+        self.request_args: dict[str, Any] | None = None
         self._json_serialize = json_serialize
 
     async def post(
         self,
         url: str,
-        headers: Optional[dict[str, str]] = None,
+        headers: dict[str, str] | None = None,
         json: Any = None,
-        ssl: Optional[bool] = None,
+        ssl: bool | None = None,
     ) -> DummyResponse:
         await self._request(
             "post",
@@ -1691,9 +2150,9 @@ class DummySession:
     async def put(
         self,
         url: str,
-        headers: Optional[dict[str, str]] = None,
+        headers: dict[str, str] | None = None,
         json: Any = None,
-        ssl: Optional[bool] = None,
+        ssl: bool | None = None,
     ) -> DummyResponse:
         await self._request(
             "put",
@@ -1759,10 +2218,10 @@ def client_session(monkeypatch: pytest.MonkeyPatch) -> None:
 class DummyRun:
     project: str = "proj"
     name: str = "run1"
-    host: Optional[str] = None
+    host: str | None = None
     state: str = "s"
-    error: Optional[str] = None
-    results: Optional[list[Any]] = None
+    error: str | None = None
+    results: list[Any] | None = None
     metadata: dict[str, Any] = field(init=False)
     status: dict[str, Any] = field(init=False)
 
@@ -1785,7 +2244,7 @@ class DummyAlert:
     name: str
     project: str
     severity: str
-    summary: Optional[str] = None
+    summary: str | None = None
 
 
 @dataclass
@@ -1887,7 +2346,7 @@ async def test_override_list_passthrough(client_session: Any) -> None:
 async def test_override_values(
     client_session: Any,
     override_body: dict[str, Any],
-    runs: Optional[list[Any]],
+    runs: list[Any] | None,
     key: str,
     expected: Any,
 ) -> None:
@@ -1906,16 +2365,23 @@ async def test_override_values(
 @pytest.mark.parametrize(
     "url, verify_ssl, expected_ssl",
     [
+        # On HTTPS urls only an explicit verify_ssl=False maps to ssl=False (skip
+        # validation); verify_ssl=True is normalized to ssl=None (aiohttp default,
+        # validation on), same as not setting it at all.
         ("https://example.com", None, None),
+        ("https://example.com", True, None),
         ("https://example.com", False, False),
+        # On non-HTTPS urls verify_ssl is irrelevant and ssl is always None.
+        ("http://example.com", None, None),
         ("http://example.com", True, None),
+        ("http://example.com", False, None),
     ],
 )
 async def test_ssl_logic(
     client_session: Any,
     url: str,
-    verify_ssl: Optional[bool],
-    expected_ssl: Optional[bool],
+    verify_ssl: bool | None,
+    expected_ssl: bool | None,
 ) -> None:
     params: dict[str, Any] = {"url": url}
     if verify_ssl is not None:

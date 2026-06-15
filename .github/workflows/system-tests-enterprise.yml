@@ -16,6 +16,15 @@ name: System Tests Enterprise
 
 permissions:
   contents: read
+  id-token: write   # This is required for requesting the AWS OIDC JWT
+
+
+env:
+  MLRUN_PYTHON_PACKAGE_INSTALLER: uv
+  # AWS Configuration
+  AWS_REGION: us-east-1
+  AWS_DEFAULT_REGION: us-east-1
+  AWS_ROLE_ARN: arn:aws:iam::939152069779:role/MLRun-S3-Read
 
 on:
   push:
@@ -31,7 +40,7 @@ on:
   workflow_dispatch:
     inputs:
       docker_registry:
-        description: 'Docker registry to pull images from (default: ghcr.io/, use registry.hub.docker.com/ for docker hub)'
+        description: 'Docker registry to pull images from (e.g ghcr.io/, or registry.hub.docker.com/ for docker hub).'
         required: true
         default: 'ghcr.io/'
       clean_resources_in_teardown:
@@ -59,7 +68,8 @@ jobs:
     if: github.repository == 'mlrun/mlrun' || github.event_name == 'workflow_dispatch'
 
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
+
     - name: Install dependencies
       run: |
         apt-get update -qqy && apt-get install -y sshpass
@@ -82,11 +92,29 @@ jobs:
           automation/system_test/cleanup.py \
           ${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_USERNAME }}@${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }}:/home/iguazio/cleanup.py
 
+        # cleanup.py needs aiohttp and click
         sshpass \
           -p "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }}" \
-          scp \
-          automation/system_test/dev_utilities.py \
-          ${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_USERNAME }}@${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }}:/home/iguazio/dev_utilities.py
+          ssh \
+          -o StrictHostKeyChecking=no \
+          -o ServerAliveInterval=180 \
+          -o ServerAliveCountMax=3 \
+          ${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_USERNAME }}@${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }} \
+          /bin/python3 -m pip install --user -q aiohttp click
+
+        sshpass \
+          -p "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }}" \
+          ssh \
+          -o StrictHostKeyChecking=no \
+          -o ServerAliveInterval=180 \
+          -o ServerAliveCountMax=3 \
+          ${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_USERNAME }}@${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }} \
+            LC_ALL=en_US.utf8 LANG=en_US.utf8 /bin/python3 \
+              /home/iguazio/cleanup.py \
+              docker-images \
+              http://localhost:8009 \
+              igz0.docker_registry.0 \
+              "ghcr.io/mlrun/mlrun-api,ghcr.io/mlrun/mlrun-ui,ghcr.io/mlrun/mlrun,ghcr.io/mlrun/mlrun-kfp,ghcr.io/mlrun/log-collector"
 
   prepare-system-tests-enterprise-ci:
     # When increasing the timeout make sure it's not larger than the schedule cron interval
@@ -94,32 +122,60 @@ jobs:
     name: Prepare System Tests Enterprise
     runs-on: [ self-hosted, Linux, mlrun-igz-ci ]
     container:
-      image: gcr.io/iguazio/python:3.9
+      image: gcr.io/iguazio/python:3.11
     needs: [system-test-cleanup]
     # let's not run this on every fork, change to your fork when developing
     if: github.repository == 'mlrun/mlrun' || github.event_name == 'workflow_dispatch'
 
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
     - name: Install dependencies
       run: |
         apt-get update -qqy && apt-get install -y sshpass jq curl gnupg nodejs
     - uses: actions/setup-node@v6
       with:
         node-version: 18
-    - name: Copy state branch file from remote
+    - name: Configure AWS credentials
+      id: creds
+      uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b
+      with:
+        role-to-assume: ${{ env.AWS_ROLE_ARN }}
+        role-session-name: mlrun-system-tests-${{ github.run_id }}
+        aws-region: ${{ env.AWS_REGION }}
+        output-credentials: true
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # 8.2.0
+      with:
+        enable-cache: true
+        python-version: 3.11
+        cache-dependency-glob: "**/*requirements*.txt"
+
+    - name: Ensure persistent CI dir exists on data node
       run: |
         sshpass \
           -p "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }}" \
+          ssh \
+          -o StrictHostKeyChecking=no \
+          ${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_USERNAME }}@${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }} \
+          mkdir -p /home/iguazio/ci
+
+    - name: Copy state branch file from remote
+      run: |
+        if ! sshpass \
+          -p "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }}" \
           scp \
           -o StrictHostKeyChecking=no \
-          ${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_USERNAME }}@${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }}:/tmp/system-tests-branches-list.txt \
-          system-tests-branches-list.txt
+          ${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_USERNAME }}@${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }}:/home/iguazio/ci/system-tests-branches-list.txt \
+          system-tests-branches-list.txt 2>/dev/null; then
+          echo "remote branch list not found - seeding from repo default automation/system_test/system-tests-branches-list.txt"
+          cp automation/system_test/system-tests-branches-list.txt system-tests-branches-list.txt
+        fi
 
     - name: Resolve Branch To Run System Tests
       id: current-branch
       shell: bash
-      # we store a file named /tmp/system-tests-branches-list.txt which contains a list of branches to run system tests
+      # we store a file named /home/iguazio/ci/system-tests-branches-list.txt which contains a list of branches to run system tests
       # on the branches are separated with commas, so each run we pop the first branch in the list and append it to the
       # end of the list.
       # This mechanism allows us to run on multiple branches without the need to modify the file or secrets each time
@@ -162,16 +218,18 @@ jobs:
           -p "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }}" \
           scp \
           -o StrictHostKeyChecking=no system-tests-branches-list.txt \
-          ${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_USERNAME }}@${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }}:/tmp/
+          ${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_USERNAME }}@${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }}:/home/iguazio/ci/
 
-      # checking out to base branch and not the target(resolved) branch, to be able to run the changed preparation code
-      # before merging the changes to upstream.
+    # checking out to base branch and not the target(resolved) branch, to be able to run the changed preparation code
+    # before merging the changes to upstream.
     - name: Checkout base branch
-      uses: actions/checkout@v5
+      uses: actions/checkout@v6
 
     - name: Install automation scripts dependencies
       run: |
-        python -m pip install -r automation/requirements.txt
+        uv venv venv --seed --clear
+        . venv/bin/activate
+        make install-automation-requirements
 
     - name: Extract git hashes from upstream and latest version
       id: git_upstream_info
@@ -215,13 +273,14 @@ jobs:
         echo "mlrun_docker_tag=$(echo ${{ steps.git_upstream_info.outputs.unstable_version_prefix }}-$mlrun_hash)" >> $GITHUB_OUTPUT
         echo "mlrun_ui_version=${{ steps.git_upstream_info.outputs.unstable_version_prefix }}-$ui_hash" >> $GITHUB_OUTPUT
         echo "mlrun_docker_registry=$( \
-          input_docker_registry=$INPUT_DOCKER_REGISTRY && \
-          echo ${input_docker_registry:-ghcr.io/})" >> $GITHUB_OUTPUT
+          effective_docker_registry="${INPUT_DOCKER_REGISTRY:-$SECRET_DOCKER_REGISTRY}" && \
+          echo "${effective_docker_registry:-ghcr.io/}")" >> $GITHUB_OUTPUT
         echo "mlrun_system_tests_clean_resources=$( \
           input_system_tests_clean_resources=$INPUT_CLEAN_RESOURCES_IN_TEARDOWN && \
           echo ${input_system_tests_clean_resources:-true})" >> $GITHUB_OUTPUT
         echo "override_iguazio_version=$INPUT_OVERRIDE_IGUAZIO_VERSION" >> $GITHUB_OUTPUT
       env:
+        SECRET_DOCKER_REGISTRY: ${{ secrets.SYSTEM_TESTS_ENTERPRISE_DOCKER_REGISTRY }}
         INPUT_DOCKER_REGISTRY: ${{ github.event.inputs.docker_registry }}
         INPUT_OVERRIDE_IGUAZIO_VERSION: ${{ github.event.inputs.override_iguazio_version }}
         INPUT_CLEAN_RESOURCES_IN_TEARDOWN: ${{ github.event.inputs.clean_resources_in_teardown }}
@@ -229,26 +288,40 @@ jobs:
     - name: Prepare System Test Environment and Install MLRun
       env:
         IP_ADDR_PREFIX: ${{ secrets.IP_ADDR_PREFIX }}
+
+      # AWS credentials are automatically available from configure-aws-credentials action
       timeout-minutes: 50
       run: |
+        . venv/bin/activate
         python automation/system_test/prepare.py run \
           --data-cluster-ip "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }}" \
           --data-cluster-ssh-username "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_USERNAME }}" \
           --data-cluster-ssh-password "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }}" \
           --provctl-download-url "${{ secrets.LATEST_SYSTEM_TEST_PROVCTL_DOWNLOAD_PATH }}" \
-          --provctl-download-s3-access-key "${{ secrets.LATEST_SYSTEM_TEST_PROVCTL_DOWNLOAD_URL_S3_ACCESS_KEY }}" \
-          --provctl-download-s3-key-id "${{ secrets.LATEST_SYSTEM_TEST_PROVCTL_DOWNLOAD_URL_S3_KEY_ID }}" \
           --username "${{ secrets.LATEST_SYSTEM_TEST_USERNAME }}" \
           --access-key "${{ secrets.LATEST_SYSTEM_TEST_ACCESS_KEY }}" \
+          --aws-access-key-id "${{ steps.creds.outputs.aws-access-key-id }}" \
+          --aws-secret-access-key "${{ steps.creds.outputs.aws-secret-access-key }}" \
+          --aws-oidc-access-token "${{ steps.creds.outputs.aws-session-token }}" \
           --iguazio-version "${{ steps.computed_params.outputs.iguazio_version }}" \
           --mlrun-version "${{ steps.computed_params.outputs.mlrun_version }}" \
           --mlrun-ui-version "${{ steps.computed_params.outputs.mlrun_ui_version }}" \
           --mlrun-commit "${{ steps.computed_params.outputs.mlrun_hash }}" \
           --override-image-registry "${{ steps.computed_params.outputs.mlrun_docker_registry }}"
 
+    - name: Generate GitHub App Token
+      id: github-app-token
+      uses: actions/create-github-app-token@v3
+      with:
+        app-id: ${{ secrets.GH_APP_ID }}
+        private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+        owner: ${{ github.repository_owner }}
+        repositories: mlrun,private-system-tests
+
     - name: Prepare System Test env.yml and MLRun installation from current branch
       timeout-minutes: 5
       run: |
+        . venv/bin/activate
         python automation/system_test/prepare.py env \
           --data-cluster-ip "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }}" \
           --data-cluster-ssh-username "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_USERNAME }}" \
@@ -257,7 +330,7 @@ jobs:
           --access-key "${{ secrets.LATEST_SYSTEM_TEST_ACCESS_KEY }}" \
           --slack-webhook-url "${{ secrets.LATEST_SYSTEM_TEST_SLACK_WEBHOOK_URL }}" \
           --branch "${{ needs.prepare-system-tests-enterprise-ci.outputs.mlrunBranch }}" \
-          --github-access-token "${{ secrets.SYSTEM_TEST_GITHUB_ACCESS_TOKEN }}" \
+          --github-access-token "${{ steps.github-app-token.outputs.token }}" \
           --openai-base-url "${{ secrets.OPENAI_BASE_URL }}" \
           --openai-api-key "${{ secrets.OPENAI_API_KEY }}" \
           --save-to-path "$GITHUB_WORKSPACE/env.yml" \
@@ -277,7 +350,7 @@ jobs:
         GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
 
     - name: Upload env file
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v7
       with:
         name: env
         path: "${{ steps.encrypt_file.outputs.env_file_path }}"
@@ -296,7 +369,7 @@ jobs:
     needs: [prepare-system-tests-enterprise-ci]
     runs-on: [ self-hosted, Linux, mlrun-igz-ci ]
     container:
-      image: gcr.io/iguazio/python:3.9
+      image: gcr.io/iguazio/python:3.11
     # let's not run this on every fork, change to your fork when developing
     if: github.repository == 'mlrun/mlrun' || github.event_name == 'workflow_dispatch'
     strategy:
@@ -322,27 +395,60 @@ jobs:
         # graphviz      for generating graphs (feature store tests)
         # git-core      for cloning repos and etc, required by many suites
         # gcc, make     for installing python packages
+        # jq, openssl   for github-app-token.sh (token refresh daemon)
         apt-get update -qqy && \
           apt-get install -y \
+            curl \
             gnupg \
             nodejs \
             graphviz \
             git-core \
             gcc \
-            make
+            make \
+            jq \
+            openssl
+
+    - name: Install aws-iam-authenticator
+      # Required when kubeconfig uses exec auth with `command: aws-iam-authenticator`
+      run: |
+        set -euo pipefail
+        export PATH="/usr/local/bin:$PATH"
+        curl -fsSL \
+          -o /usr/local/bin/aws-iam-authenticator \
+          https://amazon-eks.s3-us-west-2.amazonaws.com/1.34.2/2025-11-13/bin/linux/amd64/aws-iam-authenticator
+        chmod +x /usr/local/bin/aws-iam-authenticator
+        command -v aws-iam-authenticator
+        aws-iam-authenticator version
 
     - uses: actions/setup-node@v6
       with:
         node-version: 18
 
-    - uses: actions/checkout@v5
+    # Configure AWS credentials in the test job as well, so the kubeconfig can use exec-based auth
+    # (aws eks get-token) and refresh tokens throughout long test runs. This prevents 401s during
+    # pod-log collection on failures.
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b
+      with:
+        role-to-assume: ${{ env.AWS_ROLE_ARN }}
+        role-session-name: mlrun-system-tests-${{ github.run_id }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - uses: actions/checkout@v6
       # checking out to the resolved branch to run system tests on, as now we run the actual tests, we don't want to run
       # the system tests of the branch that triggered the system tests as it might be in a different version
       # than the mlrun version we deployed on the previous job (can have features that the resolved branch doesn't have)
       with:
         ref: ${{ needs.prepare-system-tests-enterprise-ci.outputs.mlrunBranch }}
 
-    - uses: actions/download-artifact@v6
+    - name: Install uv
+      uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # 8.2.0
+      with:
+        enable-cache: true
+        python-version: 3.11
+        cache-dependency-glob: "**/*requirements*.txt"
+
+    - uses: actions/download-artifact@v8
       with:
         name: env
         path: /tmp
@@ -360,6 +466,23 @@ jobs:
       env:
         GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
 
+    - name: Start GitHub App token refresh daemon
+      shell: bash
+      env:
+        GH_APP_ID: ${{ secrets.GH_APP_ID }}
+        GH_APP_PRIVATE_KEY: ${{ secrets.GH_APP_PRIVATE_KEY }}
+      run: |
+        source .github/scripts/github-app-token.sh
+        DAEMON_PID=$(start_token_refresh_daemon \
+          "/tmp/.github-app-token" \
+          "$GITHUB_WORKSPACE/tests/system/env.yml" \
+          "MLRUN_SYSTEM_TESTS_GIT_TOKEN" \
+          "3300" \
+          "${{ github.repository_owner }}" \
+          "mlrun,private-system-tests")
+        echo "Token refresh daemon started (PID: ${DAEMON_PID})"
+        echo "TOKEN_REFRESH_PID=${DAEMON_PID}" >> $GITHUB_ENV
+
     - name: Pre Tests Requirements
       run: |
 
@@ -367,11 +490,14 @@ jobs:
         # https://github.com/git/git/commit/8959555cee7ec045958f9b6dd62e541affb7e7d9
         # ensure mlrun git is safe to use
         git config --global --add safe.directory "$GITHUB_WORKSPACE"
+        uv venv venv --seed --clear
+        . venv/bin/activate
         MLRUN_VERSION="${{ needs.prepare-system-tests-enterprise-ci.outputs.mlrunVersion }}" \
-          make install-requirements install-complete-kfp-requirements update-version-file
+          make install-requirements install-complete-requirements update-version-file
 
     - name: Run System Tests
       run: |
+        . venv/bin/activate
         MLRUN_SYSTEM_TESTS_GITHUB_RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
         MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES="${{ needs.prepare-system-tests-enterprise-ci.outputs.mlrunSystemTestsCleanResources }}" \
         MLRUN_VERSION="${{ needs.prepare-system-tests-enterprise-ci.outputs.mlrunVersion }}" \

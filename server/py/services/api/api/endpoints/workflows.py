@@ -15,9 +15,7 @@
 import collections.abc
 import copy
 import traceback
-import typing
 from http import HTTPStatus
-from typing import Optional
 
 import fastapi
 from fastapi.concurrency import run_in_threadpool
@@ -56,10 +54,10 @@ async def submit_workflow(
         framework.api.deps.authenticate_request
     ),
     db_session: Session = fastapi.Depends(framework.api.deps.get_db_session),
-    client_version: Optional[str] = fastapi.Header(
+    client_version: str | None = fastapi.Header(
         None, alias=mlrun.common.schemas.HeaderNames.client_version
     ),
-    client_python_version: Optional[str] = fastapi.Header(
+    client_python_version: str | None = fastapi.Header(
         None, alias=mlrun.common.schemas.HeaderNames.python_version
     ),
 ):
@@ -92,8 +90,15 @@ async def submit_workflow(
         framework.utils.singletons.project_member.get_project_member().get_project,
         db_session=db_session,
         name=project,
-        leader_session=auth_info.session,
+        auth_info=auth_info,
     )
+
+    # If the requesting user is the project owner, populate the OPA owner
+    # cache so the permission checks below short-circuit. This mitigates the
+    # OPA manifest propagation race on multi-pod deployments.
+    verifier = framework.utils.auth.verifier.AuthVerifier()
+    if verifier.is_project_owner(auth_info, project):
+        verifier.add_allowed_project_for_owner(project.metadata.name, auth_info)
 
     # check permission CREATE run
     await (
@@ -276,7 +281,7 @@ def _is_requested_schedule(
 
 def _get_workflow_by_name(
     project: mlrun.common.schemas.ProjectOut, name: str
-) -> typing.Optional[dict]:
+) -> dict | None:
     """
     Getting workflow from project by name.
 

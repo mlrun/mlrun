@@ -22,13 +22,14 @@ from collections import OrderedDict
 from copy import copy, deepcopy
 from datetime import datetime
 from os import environ
-from typing import Any, Optional, Union
+from typing import Any, Union
 
 import pydantic.v1.error_wrappers
 
 import mlrun
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas.notification
+import mlrun.common.secrets
 import mlrun.utils.regex
 
 from .utils import (
@@ -75,8 +76,8 @@ class ModelObj:
     @mlrun.utils.filter_warnings("ignore", FutureWarning)
     def to_dict(
         self,
-        fields: Optional[list] = None,
-        exclude: Optional[list] = None,
+        fields: list | None = None,
+        exclude: list | None = None,
         strip: bool = False,
     ) -> dict:
         """
@@ -146,7 +147,7 @@ class ModelObj:
         self._apply_enrichment_before_to_dict_completion(struct, strip=strip)
         return struct
 
-    def _resolve_initial_to_dict_fields(self, fields: Optional[list] = None) -> list:
+    def _resolve_initial_to_dict_fields(self, fields: list | None = None) -> list:
         """
         Resolve fields to be used in to_dict method.
         If fields is None, use `_dict_fields` attribute of the object.
@@ -189,7 +190,7 @@ class ModelObj:
         self,
         struct: dict,
         method: typing.Callable,
-        fields: Optional[typing.Union[list, set]] = None,
+        fields: typing.Union[list, set] | None = None,
         strip: bool = False,
     ) -> dict:
         for field_name in fields:
@@ -201,14 +202,14 @@ class ModelObj:
         return struct
 
     def _serialize_field(
-        self, struct: dict, field_name: Optional[str] = None, strip: bool = False
+        self, struct: dict, field_name: str | None = None, strip: bool = False
     ) -> typing.Any:
         # We pull the field from self and not from struct because it was excluded from the struct when looping over
         # the fields to save.
         return getattr(self, field_name, None)
 
     def _enrich_field(
-        self, struct: dict, field_name: Optional[str] = None, strip: bool = False
+        self, struct: dict, field_name: str | None = None, strip: bool = False
     ) -> typing.Any:
         # We first try to pull from struct because the field might have been already serialized and if not,
         # we pull from self
@@ -224,7 +225,7 @@ class ModelObj:
         cls,
         struct=None,
         fields=None,
-        deprecated_fields: Optional[dict] = None,
+        deprecated_fields: dict | None = None,
         init_with_params: bool = False,
     ):
         """create an object from a python dictionary"""
@@ -235,7 +236,9 @@ class ModelObj:
             fields = list(inspect.signature(cls.__init__).parameters.keys())
 
         if init_with_params:
-            kwargs = {field: struct.pop(field, None) for field in fields}
+            kwargs = {
+                field: struct.pop(field, None) for field in fields if field in struct
+            }
             kwargs.pop("self", None)
             new_obj = cls(**kwargs)
         else:
@@ -461,7 +464,7 @@ class Credentials(ModelObj):
 
     def __init__(
         self,
-        access_key: Optional[str] = None,
+        access_key: str | None = None,
     ):
         self.access_key = access_key
 
@@ -534,7 +537,7 @@ class ImageBuilder(ModelObj):
         origin_filename=None,
         with_mlrun=None,
         auto_build=None,
-        requirements: Optional[list] = None,
+        requirements: list | None = None,
         extra_args=None,
         builder_env=None,
         source_code_target_dir=None,
@@ -568,13 +571,15 @@ class ImageBuilder(ModelObj):
     def source(self, source):
         if source and not (
             source.startswith("git://")
+            # Allow store artifact URIs for single-file sources
+            or mlrun.datastore.is_store_uri(source)
             # lenient check for file extension because we support many file types locally and remotely
             or pathlib.Path(source).suffix
             or source in [".", "./"]
         ):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"source ({source}) must be a compressed (tar.gz / zip) file, a git repo, "
-                f"a file path or in the project's context (.)"
+                f"a file path, a store URI, or in the project's context (.)"
             )
 
         self._source = source
@@ -583,7 +588,7 @@ class ImageBuilder(ModelObj):
         self,
         image="",
         base_image=None,
-        commands: Optional[list] = None,
+        commands: list | None = None,
         secret=None,
         source=None,
         extra=None,
@@ -653,7 +658,7 @@ class ImageBuilder(ModelObj):
 
     def with_requirements(
         self,
-        requirements: Optional[list[str]] = None,
+        requirements: list[str] | None = None,
         requirements_file: str = "",
         overwrite: bool = False,
     ):
@@ -905,7 +910,7 @@ class HyperParamOptions(ModelObj):
     def __init__(
         self,
         param_file=None,
-        strategy: typing.Optional[HyperParamStrategies] = None,
+        strategy: HyperParamStrategies | None = None,
         selector=None,
         stop_condition=None,
         parallel_runs=None,
@@ -938,7 +943,7 @@ class HyperParamOptions(ModelObj):
 class RetryBackoff(ModelObj):
     """Backoff strategy for retries."""
 
-    def __init__(self, base_delay: Optional[str] = None):
+    def __init__(self, base_delay: str | None = None):
         # The base_delay time string must conform to timelength python package standards and be at least
         # mlrun.mlconf.function.spec.retry.backoff.min_base_delay (e.g. 1000s, 1 hour 30m, 1h etc.).
         self.base_delay = (
@@ -959,7 +964,7 @@ class Retry(ModelObj):
         self.backoff = backoff
 
     @property
-    def backoff(self) -> Optional[RetryBackoff]:
+    def backoff(self) -> RetryBackoff | None:
         if not self.count:
             # Retry is not configured, return None
             return None
@@ -977,6 +982,7 @@ class RunSpec(ModelObj):
         "handler",
         "affinity",
         "tolerations",
+        "returns",
     ]
 
     def __init__(
@@ -1007,6 +1013,7 @@ class RunSpec(ModelObj):
         tolerations=None,
         affinity=None,
         retry=None,
+        auth=None,
     ):
         # A dictionary of parsing configurations that will be read from the inputs the user set. The keys are the inputs
         # keys (parameter names) and the values are the type hint given in the input keys after the colon.
@@ -1048,14 +1055,26 @@ class RunSpec(ModelObj):
         self.tolerations = tolerations or {}
         self.affinity = affinity or {}
         self.retry = retry or {}
+        self.auth = auth or {}
 
     def _serialize_field(
-        self, struct: dict, field_name: Optional[str] = None, strip: bool = False
-    ) -> Optional[str]:
+        self, struct: dict, field_name: str | None = None, strip: bool = False
+    ) -> str | list | None:
         # We pull the field from self and not from struct because it was excluded from the struct
         if field_name == "handler":
             if self.handler and isinstance(self.handler, str):
                 return self.handler
+            return None
+
+        if field_name == "returns":
+            if self.returns:
+                from mlrun.package.log_hint import LogHint
+
+                # TODO: Change to `model_dump` once Pydantic v2 is supported.
+                return [
+                    log_hint.dict() if isinstance(log_hint, LogHint) else log_hint
+                    for log_hint in self.returns
+                ]
             return None
 
         # Properly serialize known K8s objects
@@ -1072,26 +1091,42 @@ class RunSpec(ModelObj):
         return param_file or self.hyperparams
 
     @property
-    def inputs(self) -> dict[str, str]:
+    def inputs(self) -> dict[str, str | list | dict]:
         """
-        Get the inputs dictionary. A dictionary of parameter names as keys and paths as values.
+        Get the inputs dictionary. A dictionary of parameter names as keys and paths as values. A path can also include
+        an inner collection of inputs, meaning an input can be given as a list or a dictionary of paths as well.
 
         :return: The inputs dictionary.
         """
         return self._inputs
 
     @inputs.setter
-    def inputs(self, inputs: dict[str, str]):
+    def inputs(self, inputs: dict[str, str | list | dict]):
         """
-        Set the given inputs in the spec. Inputs can include a type hint string in their keys following a colon, meaning
-        following this structure: "<input key : type hint>".
+        Set the given inputs in the spec. Inputs can include lists and dicts of inputs. For parsing with MLRun Package,
+        (in case the code doesn't have type hints) the inputs can include a type hint string in their keys following a
+        colon, meaning following this structure: "<input key : type hint>".
 
-        :exmaple:
+        For example, assuming the handler itself has no type hints, let's review all possible scenario::
 
-        >>> run_spec.inputs = {
-        ...     "my_input": "...",
-        ...     "my_hinted_input : pandas.DataFrame": "...",
-        ... }
+            run_spec.inputs = {
+                # Yield a `DataItem` (unless `auto_unpack` is True):
+                "my_input": "...",
+                # Yield a `pandas.DataFrame`:
+                "my_hinted_input : pandas.DataFrame": "...",
+                # Yield a list of `DataItem`s (unless `auto_unpack` is True):
+                "my_input_collection": ["...", "..."],
+                # Yield an `OrderedDict` of `numpy.array`s:
+                "my_hinted_input_collection : collections.OrderedDict[str, numpy.array]": {
+                    "input1": "...",
+                    "input2": "...",
+                },
+                # Yield an `OrderedDict` of `DataItem`s (unless `auto_unpack` is True):
+                "my_other_hinted_input_collection : collections.OrderedDict": {
+                    "my_dataframe": "...",
+                    "my_array": "...",
+                },
+            }
 
         :param inputs: The inputs to set.
         """
@@ -1134,7 +1169,7 @@ class RunSpec(ModelObj):
         return self._returns
 
     @returns.setter
-    def returns(self, returns: list[Union[str, dict[str, str]]]):
+    def returns(self, returns: "list[str | mlrun.LogHint]"):
         """
         Set the returns list to log the returning values at the end of a run.
 
@@ -1142,17 +1177,21 @@ class RunSpec(ModelObj):
 
         :raise MLRunInvalidArgumentError: In case one of the values in the list is invalid.
         """
-        # This import is located in the method due to circular imports error.
-        from mlrun.package.utils import LogHintUtils
-
         if returns is None:
             self._returns = None
             return
         self._verify_list(returns, "returns")
 
+        # Import LogHint locally to avoid circular import:
+        from mlrun.package.log_hint import LogHint
+
         # Validate:
         for log_hint in returns:
-            LogHintUtils.parse_log_hint(log_hint=log_hint)
+            if not isinstance(log_hint, LogHint):
+                # TODO: Remove the dict support in MLRun 1.13
+                LogHint.parse_obj(
+                    obj=log_hint.copy() if isinstance(log_hint, dict) else log_hint
+                )
 
         # Store the results:
         self._returns = returns
@@ -1293,7 +1332,7 @@ class RunSpec(ModelObj):
 
     @staticmethod
     def join_outputs_and_returns(
-        outputs: list[str], returns: list[Union[str, dict[str, str]]]
+        outputs: list[str], returns: "list[str | mlrun.LogHint]"
     ) -> list[str]:
         """
         Get the outputs set in the spec. The outputs are constructed from both the 'outputs' and 'returns' properties
@@ -1304,20 +1343,19 @@ class RunSpec(ModelObj):
 
         :return: The joined 'outputs' and 'returns' list.
         """
+        # Import LogHint locally to avoid circular import:
+        from mlrun.package.log_hint import LogHint
+
         # Collect the 'returns' property keys:
         cleared_returns = []
         if returns:
-            for return_value in returns:
-                # Check if the return entry is a configuration dictionary or a key-type structure string (otherwise its
-                # just a key string):
-                if isinstance(return_value, dict):
-                    # Set it to the artifact key:
-                    return_value = return_value["key"]
-                elif ":" in return_value:
-                    # Take only the key name (returns values pattern is validated when set in the spec):
-                    return_value = return_value.replace(" ", "").split(":")[0]
-                # Collect it:
-                cleared_returns.append(return_value)
+            for log_hint in returns:
+                if not isinstance(log_hint, LogHint):
+                    # TODO: Remove the dict support in MLRun 1.13
+                    log_hint = LogHint.parse_obj(
+                        obj=log_hint.copy() if isinstance(log_hint, dict) else log_hint
+                    )
+                cleared_returns.append(log_hint.key)
 
         # Use `set` join to combine the two lists without duplicates:
         outputs = list(set(outputs if outputs else []) | set(cleared_returns))
@@ -1371,11 +1409,11 @@ class RunStatus(ModelObj):
         last_update=None,
         iterations=None,
         ui_url=None,
-        reason: Optional[str] = None,
-        notifications: Optional[dict[str, Notification]] = None,
-        artifact_uris: Optional[dict[str, str]] = None,
-        retry_count: Optional[int] = None,
-        retries: Optional[list[dict]] = None,
+        reason: str | None = None,
+        notifications: dict[str, Notification] | None = None,
+        artifact_uris: dict[str, str] | None = None,
+        retry_count: int | None = None,
+        retries: list[dict] | None = None,
     ):
         self.state = state or "created"
         self.status_text = status_text
@@ -1397,9 +1435,7 @@ class RunStatus(ModelObj):
         self._retries = retries or []
 
     @classmethod
-    def from_dict(
-        cls, struct=None, fields=None, deprecated_fields: Optional[dict] = None
-    ):
+    def from_dict(cls, struct=None, fields=None, deprecated_fields: dict | None = None):
         deprecated_fields = {
             # Set artifacts as deprecated for lazy loading
             "artifacts": "artifact_uris"
@@ -1449,7 +1485,7 @@ class RunStatus(ModelObj):
         self._artifact_uris = resolved_artifact_uris
 
     @property
-    def retry_count(self) -> Optional[int]:
+    def retry_count(self) -> int | None:
         """
         The number of retries that were made for this run.
         """
@@ -1476,7 +1512,7 @@ class RunStatus(ModelObj):
         """
         self._retries = retries
 
-    def is_failed(self) -> Optional[bool]:
+    def is_failed(self) -> bool | None:
         """
         This method returns whether a run has failed.
         Returns none if state has yet to be defined. callee is responsible for handling None.
@@ -1616,7 +1652,12 @@ class RunTemplate(ModelObj):
 
         :returns: The RunTemplate object
         """
-
+        if kind == "azure_vault" and isinstance(source, dict):
+            candidate_secret_name = (source.get("k8s_secret") or "").strip()
+            if candidate_secret_name:
+                mlrun.common.secrets.validate_not_forbidden_secret(
+                    candidate_secret_name
+                )
         if kind == "vault" and isinstance(source, list):
             source = {"project": self.metadata.project, "secrets": source}
 
@@ -2056,7 +2097,7 @@ class EntrypointParam(ModelObj):
         default=None,
         doc="",
         required=None,
-        choices: Optional[list] = None,
+        choices: list | None = None,
     ):
         self.name = name
         self.type = type
@@ -2132,13 +2173,15 @@ def new_task(
                             run (as artifacts or results). The list's length must be equal to the amount of returning
                             objects. A log hint may be given as:
 
-                            * A string of the key to use to log the returning value as result or as an artifact. To
-                              specify The artifact type, it is possible to pass a string in the following structure:
-                              "<key> : <type>". Available artifact types can be seen in `mlrun.ArtifactType`. If no
-                              artifact type is specified, the object's default artifact type will be used.
-                            * A dictionary of configurations to use when logging. Further info per object type and
-                              artifact type can be given there. The artifact key must appear in the dictionary as
-                              "key": "the_key".
+                            * A ``LogHint`` object with the key and extra configurations.
+                            * A "shortcut" string of the key to use to log the returning value as result or as an
+                              artifact. To specify The artifact type, it is possible to pass a string in the following
+                              structure: "<key> : <type>". Available artifact types can be seen in `mlrun.ArtifactType`.
+                              If no artifact type is specified, the object's default artifact type will be used.
+                              Itemization can also be specified before the key using the following structure:
+                              "<unbundle-level> * <key>". If unbundle level is not specified, the default is full
+                              unbundling.
+
     :param retry:           Retry configuration for the run, can be a dict or an instance of mlrun.model.Retry.
     """
 
@@ -2253,14 +2296,14 @@ class DataSource(ModelObj):
 
     def __init__(
         self,
-        name: Optional[str] = None,
-        path: Optional[str] = None,
-        attributes: Optional[dict[str, object]] = None,
-        key_field: Optional[str] = None,
-        time_field: Optional[str] = None,
-        schedule: Optional[str] = None,
-        start_time: Optional[Union[datetime, str]] = None,
-        end_time: Optional[Union[datetime, str]] = None,
+        name: str | None = None,
+        path: str | None = None,
+        attributes: dict[str, object] | None = None,
+        key_field: str | None = None,
+        time_field: str | None = None,
+        schedule: str | None = None,
+        start_time: Union[datetime, str] | None = None,
+        end_time: Union[datetime, str] | None = None,
     ):
         self.name = name
         self.path = str(path) if path is not None else None
@@ -2280,7 +2323,7 @@ class DataSource(ModelObj):
         self._secrets = secrets
 
     def _serialize_field(
-        self, struct: dict, field_name: Optional[str] = None, strip: bool = False
+        self, struct: dict, field_name: str | None = None, strip: bool = False
     ) -> typing.Any:
         value = super()._serialize_field(struct, field_name, strip)
         # We pull the field from self and not from struct because it was excluded from the struct when looping over
@@ -2311,9 +2354,7 @@ class DataTargetBase(ModelObj):
     ]
 
     @classmethod
-    def from_dict(
-        cls, struct=None, fields=None, deprecated_fields: Optional[dict] = None
-    ):
+    def from_dict(cls, struct=None, fields=None, deprecated_fields: dict | None = None):
         return super().from_dict(struct, fields=fields)
 
     def get_path(self):
@@ -2329,19 +2370,19 @@ class DataTargetBase(ModelObj):
 
     def __init__(
         self,
-        kind: Optional[str] = None,
+        kind: str | None = None,
         name: str = "",
         path=None,
-        attributes: Optional[dict[str, str]] = None,
+        attributes: dict[str, str] | None = None,
         after_step=None,
         partitioned: bool = False,
-        key_bucketing_number: Optional[int] = None,
-        partition_cols: Optional[list[str]] = None,
-        time_partitioning_granularity: Optional[str] = None,
-        max_events: Optional[int] = None,
-        flush_after_seconds: Optional[int] = None,
-        storage_options: Optional[dict[str, str]] = None,
-        schema: Optional[dict[str, Any]] = None,
+        key_bucketing_number: int | None = None,
+        partition_cols: list[str] | None = None,
+        time_partitioning_granularity: str | None = None,
+        max_events: int | None = None,
+        flush_after_seconds: int | None = None,
+        storage_options: dict[str, str] | None = None,
+        schema: dict[str, Any] | None = None,
     ):
         self.name = name
         self.kind: str = kind
@@ -2394,7 +2435,7 @@ class DataTarget(DataTargetBase):
 
     def __init__(
         self,
-        kind: Optional[str] = None,
+        kind: str | None = None,
         name: str = "",
         path=None,
         online=None,
@@ -2423,12 +2464,12 @@ class DataTarget(DataTargetBase):
 class VersionedObjMetadata(ModelObj):
     def __init__(
         self,
-        name: Optional[str] = None,
-        tag: Optional[str] = None,
-        uid: Optional[str] = None,
-        project: Optional[str] = None,
-        labels: Optional[dict[str, str]] = None,
-        annotations: Optional[dict[str, str]] = None,
+        name: str | None = None,
+        tag: str | None = None,
+        uid: str | None = None,
+        project: str | None = None,
+        labels: dict[str, str] | None = None,
+        annotations: dict[str, str] | None = None,
         updated=None,
     ):
         self.name = name

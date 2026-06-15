@@ -12,13 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional
 
 import psycopg
 
 import mlrun.common.schemas.model_monitoring as mm_schemas
 import mlrun.errors
 import mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_schema as timescaledb_schema
+from mlrun.datastore.datastore_profile import DatastoreProfilePostgreSQL
 from mlrun.model_monitoring.db.tsdb.preaggregate import PreAggregateConfig
 from mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_connection import (
     Statement,
@@ -58,18 +58,20 @@ class TimescaleDBOperationsManager:
         self,
         project: str,
         connection: TimescaleDBConnection,
-        pre_aggregate_config: Optional[PreAggregateConfig] = None,
+        pre_aggregate_config: PreAggregateConfig | None = None,
+        profile: DatastoreProfilePostgreSQL | None = None,
     ):
         """
         Initialize operations handler with a shared connection.
 
         :param project: The project name
-        :param profile: Datastore profile for connection (used for table initialization)
         :param connection: Shared TimescaleDBConnection instance
         :param pre_aggregate_config: Optional pre-aggregation configuration
+        :param profile: Optional datastore profile for admin operations (database creation)
         """
         self.project = project
         self._pre_aggregate_config = pre_aggregate_config
+        self._profile = profile
 
         # Use the injected shared connection
         self._connection = connection
@@ -80,8 +82,69 @@ class TimescaleDBOperationsManager:
     def _init_tables(self) -> None:
         self.tables = timescaledb_schema.create_table_schemas(self.project)
 
+    def _create_db_if_not_exists(self) -> None:
+        """
+        Create the database if it does not exist.
+
+        This method connects to the default 'postgres' database to create
+        the monitoring database if it doesn't already exist. It also ensures the
+        TimescaleDB extension is enabled in the monitoring database.
+
+        Note: Requires a profile to be set during initialization.
+        """
+        if not self._profile:
+            logger.debug(
+                "No profile provided, skipping database creation",
+                project=self.project,
+            )
+            return
+
+        database_name = self._profile.database
+
+        logger.debug(
+            "Checking/creating TimescaleDB database",
+            project=self.project,
+            database=database_name,
+        )
+
+        # Connect to default postgres database to create the monitoring database
+        admin_connection = TimescaleDBConnection(
+            dsn=self._profile.admin_dsn(),
+            min_connections=1,
+            max_connections=1,
+            autocommit=True,  # DDL requires autocommit
+        )
+
+        try:
+            # Check if database exists using parameterized Statement
+            check_stmt = Statement(
+                sql="SELECT 1 FROM pg_database WHERE datname = %s",
+                parameters=(database_name,),
+            )
+            result = admin_connection.run(query=check_stmt)
+
+            if not result or not result.data:
+                # Database doesn't exist, create it
+                # Note: CREATE DATABASE cannot be parameterized, but database_name
+                # comes from our own profile, not user input
+                admin_connection.run(statements=[f'CREATE DATABASE "{database_name}"'])
+                logger.info(
+                    "Created TimescaleDB database",
+                    project=self.project,
+                    database=database_name,
+                )
+            else:
+                logger.debug(
+                    "TimescaleDB database already exists",
+                    project=self.project,
+                    database=database_name,
+                )
+        finally:
+            # Close the admin connection pool to avoid resource leak
+            admin_connection.close()
+
     def create_tables(
-        self, pre_aggregate_config: Optional[PreAggregateConfig] = None
+        self, pre_aggregate_config: PreAggregateConfig | None = None
     ) -> None:
         config = pre_aggregate_config or self._pre_aggregate_config
 
@@ -90,6 +153,10 @@ class TimescaleDBOperationsManager:
             project=self.project,
             with_pre_aggregates=config is not None,
         )
+
+        # Create database if it doesn't exist
+        self._create_db_if_not_exists()
+
         # Try to create extension, ignore if already exists
         try:
             self._connection.run(
@@ -112,6 +179,7 @@ class TimescaleDBOperationsManager:
 
             # Create indexes
             statements.extend(table._create_indexes_query())
+            statements.extend(table._create_unique_indexes_query())
 
             # Create pre-aggregate tables if config provided
             if config:
@@ -160,7 +228,7 @@ class TimescaleDBOperationsManager:
         placeholders = ", ".join(["%s"] * len(columns))
 
         insert_sql = f"""
-            INSERT INTO {table.full_name()} ({', '.join(columns)})
+            INSERT INTO {table.full_name()} ({", ".join(columns)})
             VALUES ({placeholders})
         """
 
@@ -220,7 +288,7 @@ class TimescaleDBOperationsManager:
             if include_aggregates:
                 # Always try to discover and delete aggregates, regardless of config
                 all_deletion_statements.extend(
-                    self._get_aggregate_delete_statements(endpoint_ids)
+                    self._get_aggregate_delete_statements_by_endpoints(endpoint_ids)
                 )
 
             # Execute all deletions in a single transaction
@@ -268,7 +336,7 @@ class TimescaleDBOperationsManager:
 
         return statements
 
-    def _get_aggregate_delete_statements(
+    def _get_aggregate_delete_statements_by_endpoints(
         self, endpoint_ids: list[str]
     ) -> list[Statement]:
         """
@@ -277,10 +345,14 @@ class TimescaleDBOperationsManager:
         This approach discovers all existing aggregate tables rather than relying on configuration,
         ensuring we don't miss any aggregate data.
 
-        :param endpoint_ids: List of endpoint IDs to delete
+        :param endpoint_ids: List of endpoint IDs to delete (must be non-empty)
         :return: List of Statement objects for aggregate data deletion
         """
         statements = []
+
+        # Early return for empty endpoint list - nothing to delete
+        if not endpoint_ids:
+            return statements
 
         try:
             schema_name = self.tables[mm_schemas.TimescaleDBTables.PREDICTIONS].schema
@@ -299,7 +371,8 @@ class TimescaleDBOperationsManager:
             if not base_patterns:
                 return statements
 
-            # Build query to find all aggregate tables and views
+            # Build query to find all aggregate tables and continuous aggregate views
+            # TimescaleDB continuous aggregates appear as VIEWs in information_schema
             pattern_conditions = []
             parameters = [schema_name]
 
@@ -312,30 +385,16 @@ class TimescaleDBOperationsManager:
                 )
                 parameters.extend(TimescaleDBNaming.get_all_aggregate_patterns(pattern))
 
-            # Build separate pattern conditions for materialized views
-            view_pattern_conditions = []
-            view_parameters = [schema_name]
-
-            for pattern in base_patterns:
-                view_pattern_conditions.append("matviewname LIKE %s")
-                view_parameters.append(TimescaleDBNaming.get_cagg_pattern(pattern))
-
-            # Query for both tables and materialized views
             discovery_stmt = Statement(
                 f"""
                 SELECT table_name
                 FROM information_schema.tables
                 WHERE table_schema = %s
-                AND table_type = 'BASE TABLE'
-                AND ({' OR '.join(pattern_conditions)})
-                UNION
-                SELECT matviewname as table_name
-                FROM pg_matviews
-                WHERE schemaname = %s
-                AND ({' OR '.join(view_pattern_conditions)})
+                AND table_type IN ('BASE TABLE', 'VIEW')
+                AND ({" OR ".join(pattern_conditions)})
                 ORDER BY table_name
                 """,
-                tuple([schema_name] + parameters[1:] + view_parameters[1:]),
+                tuple(parameters),
             )
 
             result = self._connection.run(query=discovery_stmt)
@@ -360,12 +419,12 @@ class TimescaleDBOperationsManager:
 
             # Create delete statements for all discovered aggregate objects
             for object_name in discovered_objects:
-                delete_sql = f"DELETE FROM {schema_name}.{object_name} WHERE "
+                delete_sql = f"DELETE FROM {schema_name}.{object_name} WHERE"
                 if len(endpoint_ids) == 1:
-                    f" {mm_schemas.WriterEvent.ENDPOINT_ID} = %s"
+                    delete_sql += f" {mm_schemas.WriterEvent.ENDPOINT_ID} = %s"
                     stmt = Statement(delete_sql, (endpoint_ids[0],))
                 else:
-                    f" {mm_schemas.WriterEvent.ENDPOINT_ID} = ANY(%s)"
+                    delete_sql += f" {mm_schemas.WriterEvent.ENDPOINT_ID} = ANY(%s)"
                     stmt = Statement(delete_sql, (endpoint_ids,))
 
                 statements.append(stmt)
@@ -421,7 +480,7 @@ class TimescaleDBOperationsManager:
                 FROM information_schema.tables
                 WHERE table_schema = %s
                 AND table_type = 'BASE TABLE'
-                AND ({' OR '.join(pattern_conditions)})
+                AND ({" OR ".join(pattern_conditions)})
                 ORDER BY table_name
                 """,
                 tuple([schema_name] + parameters[1:]),
@@ -442,7 +501,7 @@ class TimescaleDBOperationsManager:
                 SELECT view_name as table_name
                 FROM timescaledb_information.continuous_aggregates
                 WHERE view_schema = %s
-                AND ({' OR '.join(view_pattern_conditions)})
+                AND ({" OR ".join(view_pattern_conditions)})
                 ORDER BY view_name
                 """,
                 tuple(view_parameters),
@@ -562,7 +621,7 @@ class TimescaleDBOperationsManager:
             )
 
     def delete_application_records(
-        self, application_name: str, endpoint_ids: Optional[list[str]] = None
+        self, application_name: str, endpoint_ids: list[str] | None = None
     ) -> None:
         """
         Delete application records from TimescaleDB for the given model endpoints or all if endpoint_ids is None.
@@ -649,7 +708,7 @@ class TimescaleDBOperationsManager:
         )
 
     def _get_aggregate_delete_statements_by_application(
-        self, application_name: str, endpoint_ids: Optional[list[str]] = None
+        self, application_name: str, endpoint_ids: list[str] | None = None
     ) -> list[Statement]:
         """
         Get parameterized DELETE statements for aggregate tables filtered by application name.
@@ -713,7 +772,9 @@ class TimescaleDBOperationsManager:
             app_filter = f"{mm_schemas.WriterEvent.APPLICATION_NAME} = %s"
             base_parameters = [application_name]
 
-            if endpoint_ids:
+            # Note: None means "delete all for this application" (no endpoint filter)
+            # Empty list [] would delete nothing, so we treat it same as None
+            if endpoint_ids:  # Non-empty list
                 if len(endpoint_ids) == 1:
                     endpoint_filter = f" AND {mm_schemas.WriterEvent.ENDPOINT_ID} = %s"
                     parameters = base_parameters + [endpoint_ids[0]]

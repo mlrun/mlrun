@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional, Union
+from typing import Union
 
 import numpy as np
 import pandas as pd
@@ -32,7 +32,7 @@ class Estimator:
     def __init__(
         self,
         context: mlrun.MLClientCtx = None,
-        metrics: Optional[list[Metric]] = None,
+        metrics: list[Metric] | None = None,
     ):
         """
         Initialize an estimator with the given metrics. The estimator will log the calculated results using the given

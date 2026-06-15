@@ -24,9 +24,11 @@ import kubernetes.dynamic.exceptions as k8s_dynamic_exceptions
 import pytest
 import yaml
 
+import mlrun
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.runtimes
 import mlrun.common.schemas
+import mlrun.errors
 import mlrun.runtimes
 from mlrun.common.schemas import SecretEventActions
 
@@ -353,7 +355,11 @@ def test_delete_secrets(
     assert result == expected_action
 
     k8s_helper.v1api.read_namespaced_secret.assert_called_once_with(
-        "my-secret", k8s_helper.namespace
+        "my-secret",
+        k8s_helper.namespace,
+        _request_timeout=framework.utils.singletons.k8s.K8sHelper._resolve_k8s_timeout(
+            framework.utils.singletons.k8s.K8S_TIMEOUT_DEFAULT
+        ),
     )
 
     if expected_action == mlrun.common.schemas.SecretEventActions.updated:
@@ -482,17 +488,23 @@ def test_list_pod_events(k8s_helper):
 
 
 def test_store_user_token_secret_created(k8s_helper):
-    k8s_helper.read_secret = mock.MagicMock(return_value=None)
+    k8s_helper.v1api.read_namespaced_secret.side_effect = k8s_client_rest.ApiException(
+        status=404
+    )
 
-    username = "test-user"
+    user_id = "test-user-id"
+    username = "test-username"
+    auth_info = mlrun.common.schemas.AuthInfo(user_id=user_id, username=username)
     token_name = "my-token"
     token_value = "abc123"
+    issued_at = 1
     expiration = 9999
 
     result = k8s_helper.store_user_token_secret(
-        username=username,
+        auth_info=auth_info,
         token_name=token_name,
         token=token_value,
+        issued_at=issued_at,
         expiration=expiration,
         namespace="default",
     )
@@ -501,6 +513,23 @@ def test_store_user_token_secret_created(k8s_helper):
     assert result == mlrun.common.schemas.SecretEventActions.created
     k8s_helper._create_secret.assert_called_once()
     k8s_helper._update_secret.assert_not_called()
+
+    # Verify labels contain raw user_id, hashed username and hashed token_name
+    labels = k8s_helper._create_secret.call_args.kwargs["labels"]
+    assert labels[mlrun_constants.MLRunInternalLabels.auth_userid] == user_id
+    assert labels[
+        mlrun_constants.MLRunInternalLabels.auth_username
+    ] == k8s_helper._hash_label(username)
+    assert labels[
+        mlrun_constants.MLRunInternalLabels.auth_token_name
+    ] == k8s_helper._hash_label(token_name)
+
+    # Verify annotations contain raw username and token_name
+    annotations = k8s_helper._create_secret.call_args.kwargs["annotations"]
+    assert annotations[mlrun_constants.InternalAnnotations.auth_username] == username
+    assert (
+        annotations[mlrun_constants.InternalAnnotations.auth_token_name] == token_name
+    )
 
     # Verify that the secrets data passed to _create_secret is properly encoded
     secrets_data = k8s_helper._create_secret.call_args.kwargs["secrets"]
@@ -518,24 +547,175 @@ def test_store_user_token_secret_created(k8s_helper):
     decoded_expiration = int(base64.b64decode(secrets_data["tokenExpiration"]).decode())
     assert decoded_expiration == expiration
 
+    # Decode and verify tokenIssuedAt
+    decoded_issued_at = int(base64.b64decode(secrets_data["tokenIssuedAt"]).decode())
+    assert decoded_issued_at == issued_at
 
-def test_store_user_token_secret_updated(k8s_helper):
-    username = "test-user"
+
+@pytest.mark.parametrize(
+    "user_id",
+    [
+        "test-user-id",
+        "user123",
+        "my-token-user",
+    ],
+)
+def test_store_user_token_secret_stores_user_id_in_label(k8s_helper, user_id):
+    """Test that user_id is stored in label when creating token secret."""
+    k8s_helper.v1api.read_namespaced_secret.side_effect = k8s_client_rest.ApiException(
+        status=404
+    )
+
+    username = "test-username"
+    auth_info = mlrun.common.schemas.AuthInfo(user_id=user_id, username=username)
     token_name = "my-token"
     token_value = "abc123"
+    expiration = 9999
+
+    result = k8s_helper.store_user_token_secret(
+        auth_info=auth_info,
+        token_name=token_name,
+        token=token_value,
+        issued_at=1,
+        expiration=expiration,
+        namespace="default",
+    )
+
+    # Verify creation succeeded
+    assert result == mlrun.common.schemas.SecretEventActions.created
+    k8s_helper._create_secret.assert_called_once()
+
+    # Verify labels contain raw user_id and hashed token_name
+    labels = k8s_helper._create_secret.call_args.kwargs["labels"]
+    assert labels[mlrun_constants.MLRunInternalLabels.auth_userid] == user_id
+    assert labels[
+        mlrun_constants.MLRunInternalLabels.auth_token_name
+    ] == k8s_helper._hash_label(token_name)
+
+
+@pytest.mark.parametrize(
+    "username",
+    [
+        "test-user",
+        "user@example.com",
+        "user name",
+        "user!@#$%^&*()",
+        "a" * 100,
+    ],
+)
+def test_store_user_token_secret_username_annotation(k8s_helper, username):
+    """Test that the raw username is stored in the annotation and the hashed
+    username is stored in the label."""
+    import uuid
+
+    k8s_helper.v1api.read_namespaced_secret.side_effect = k8s_client_rest.ApiException(
+        status=404
+    )
+
+    user_id = str(uuid.uuid4())
+    auth_info = mlrun.common.schemas.AuthInfo(user_id=user_id, username=username)
+    token_name = "my-token"
+    token_value = "abc123"
+    issued_at = 1
+    expiration = 9999
+
+    result = k8s_helper.store_user_token_secret(
+        auth_info=auth_info,
+        token_name=token_name,
+        token=token_value,
+        issued_at=issued_at,
+        expiration=expiration,
+        namespace="default",
+    )
+
+    # Verify creation succeeded
+    assert result == mlrun.common.schemas.SecretEventActions.created
+    k8s_helper._create_secret.assert_called_once()
+
+    # Annotation stores raw username (no sanitization)
+    annotations = k8s_helper._create_secret.call_args.kwargs["annotations"]
+    assert annotations[mlrun_constants.InternalAnnotations.auth_username] == username
+
+    # Label stores hashed username (safe for k8s label constraints)
+    labels = k8s_helper._create_secret.call_args.kwargs["labels"]
+    assert labels[
+        mlrun_constants.MLRunInternalLabels.auth_username
+    ] == k8s_helper._hash_label(username)
+
+
+def test_store_user_token_secret_rejects_missing_username(k8s_helper):
+    """Token secret handling requires a username (enterprise-only)."""
+    auth_info = mlrun.common.schemas.AuthInfo(user_id="test-user-id", username=None)
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+        k8s_helper.store_user_token_secret(
+            auth_info=auth_info,
+            token_name="my-token",
+            token="abc123",
+            issued_at=1,
+            expiration=9999,
+            namespace="default",
+        )
+
+
+def test_store_user_token_secret_secret_naming(k8s_helper):
+    """Test that secret name is derived from the user_id hash."""
+    k8s_helper.v1api.read_namespaced_secret.side_effect = k8s_client_rest.ApiException(
+        status=404
+    )
+
+    user_id = "test-user-id"
+    auth_info = mlrun.common.schemas.AuthInfo(user_id=user_id, username="test-username")
+    token_name = "my-token"
+    token_value = "abc123"
+    issued_at = 1
+    expiration = 9999
+
+    result = k8s_helper.store_user_token_secret(
+        auth_info=auth_info,
+        token_name=token_name,
+        token=token_value,
+        issued_at=issued_at,
+        expiration=expiration,
+        namespace="default",
+    )
+
+    # Verify creation succeeded
+    assert result == mlrun.common.schemas.SecretEventActions.created
+    k8s_helper._create_secret.assert_called_once()
+
+    # Verify the secret name is derived from user_id + token_name hash
+    secret_name = k8s_helper._create_secret.call_args.kwargs["secret_name"]
+    expected_secret_name = k8s_helper._resolve_auth_secret_name(user_id, token_name)
+    assert secret_name == expected_secret_name
+
+
+def test_store_user_token_secret_updated(k8s_helper):
+    user_id = "test-user-id"
+    username = "test-username"
+    auth_info = mlrun.common.schemas.AuthInfo(user_id=user_id, username=username)
+    token_name = "my-token"
+    token_value = "abc123"
+    issued_at = 1
     new_expiration = 2000
-    secret_name = k8s_helper._resolve_user_token_secret_name(username, token_name)
+    secret_name = k8s_helper._resolve_auth_secret_name(user_id, token_name)
 
     # Existing secret with older expiration
     existing_secret = _make_user_token_secret(
-        secret_name, token_name=token_name, token_value=token_value, expiration=1000
+        secret_name,
+        token_name=token_name,
+        token_value=token_value,
+        issued_at=issued_at,
+        expiration=1000,
+        user_id=user_id,
+        username=username,
     )
-    k8s_helper.read_secret = mock.MagicMock(return_value=existing_secret)
+    k8s_helper.v1api.read_namespaced_secret.return_value = existing_secret
 
     result = k8s_helper.store_user_token_secret(
-        username=username,
+        auth_info=auth_info,
         token_name=token_name,
         token=token_value,
+        issued_at=issued_at,
         expiration=new_expiration,
         namespace="default",
     )
@@ -549,6 +729,7 @@ def test_store_user_token_secret_updated(k8s_helper):
     secrets_data = k8s_helper._update_secret.call_args.kwargs["secrets"]
     assert "tokensFile" in secrets_data
     assert "tokenExpiration" in secrets_data
+    assert "tokenIssuedAt" in secrets_data
 
     # Decode and verify tokensFile
     decoded_tokens_yaml = base64.b64decode(secrets_data["tokensFile"]).decode()
@@ -560,6 +741,10 @@ def test_store_user_token_secret_updated(k8s_helper):
     # Decode and verify tokenExpiration
     decoded_expiration = int(base64.b64decode(secrets_data["tokenExpiration"]).decode())
     assert decoded_expiration == new_expiration
+
+    # Decode and verify tokenIssuedAt
+    decoded_issued_at = int(base64.b64decode(secrets_data["tokenIssuedAt"]).decode())
+    assert decoded_issued_at == issued_at
 
 
 @pytest.mark.parametrize(
@@ -578,23 +763,30 @@ def test_store_user_token_secret_updated(k8s_helper):
 def test_store_user_token_secret_skipped_and_force_update(
     k8s_helper, expiration, force, expected_result, update_called, create_called
 ):
-    username = "test-user"
+    user_id = "test-user-id"
+    username = "test-username"
+    auth_info = mlrun.common.schemas.AuthInfo(user_id=user_id, username=username)
     token_name = "my-token"
     token_value = "abc123"
-    secret_name = k8s_helper._resolve_user_token_secret_name(username, token_name)
+    issued_at = 1
+    secret_name = k8s_helper._resolve_auth_secret_name(user_id, token_name)
 
     existing_secret = _make_user_token_secret(
         secret_name,
         token_name=token_name,
         token_value=token_value,
+        issued_at=issued_at,
         expiration=5000,
+        user_id=user_id,
+        username=username,
     )
-    k8s_helper.read_secret = mock.MagicMock(return_value=existing_secret)
+    k8s_helper.v1api.read_namespaced_secret.return_value = existing_secret
 
     result = k8s_helper.store_user_token_secret(
-        username=username,
+        auth_info=auth_info,
         token_name=token_name,
         token=token_value,
+        issued_at=issued_at,
         expiration=expiration,
         namespace="default",
         force=force,
@@ -613,17 +805,148 @@ def test_store_user_token_secret_skipped_and_force_update(
         k8s_helper._create_secret.assert_not_called()
 
 
+def test_store_user_token_secret_replaces_token_with_different_name(k8s_helper):
+    """Storing a new token with a different name reuses the per-user secret
+    and replaces the previous token, even if the new expiration is earlier —
+    metadata drift on the existing secret is itself a reason to update."""
+    user_id = "test-user-id"
+    username = "test-username"
+    auth_info = mlrun.common.schemas.AuthInfo(user_id=user_id, username=username)
+
+    old_token_name = "old-token"
+    new_token_name = "new-token"
+    secret_name = k8s_helper._resolve_auth_secret_name(user_id, new_token_name)
+
+    # Existing secret was created for old_token_name with a LATER expiration
+    # than the new one — without the metadata-drift check, the update would
+    # be skipped by _should_update_token_secret.
+    existing_secret = _make_user_token_secret(
+        secret_name,
+        token_name=old_token_name,
+        token_value="old-value",
+        issued_at=1,
+        expiration=9999,
+        user_id=user_id,
+        username=username,
+    )
+    k8s_helper.v1api.read_namespaced_secret.return_value = existing_secret
+
+    result = k8s_helper.store_user_token_secret(
+        auth_info=auth_info,
+        token_name=new_token_name,
+        token="new-value",
+        issued_at=1,
+        expiration=5000,
+        namespace="default",
+    )
+
+    assert result == mlrun.common.schemas.SecretEventActions.updated
+    k8s_helper._update_secret.assert_called_once()
+    k8s_helper._create_secret.assert_not_called()
+
+    # The update writes the NEW token's labels and annotations.
+    labels = k8s_helper._update_secret.call_args.kwargs["labels"]
+    annotations = k8s_helper._update_secret.call_args.kwargs["annotations"]
+    assert labels[
+        mlrun_constants.MLRunInternalLabels.auth_token_name
+    ] == k8s_helper._hash_label(new_token_name)
+    assert (
+        annotations[mlrun_constants.InternalAnnotations.auth_token_name]
+        == new_token_name
+    )
+
+
+def test_store_user_token_secret_skips_when_metadata_matches_and_expiration_older(
+    k8s_helper,
+):
+    """If the existing secret's metadata already matches what we'd write and
+    the new expiration is not later, the update should be skipped — the
+    metadata-drift branch must not trigger spurious updates."""
+    user_id = "test-user-id"
+    username = "test-username"
+    token_name = "my-token"
+    auth_info = mlrun.common.schemas.AuthInfo(user_id=user_id, username=username)
+    secret_name = k8s_helper._resolve_auth_secret_name(user_id, token_name)
+
+    existing_secret = _make_user_token_secret(
+        secret_name,
+        token_name=token_name,
+        token_value="abc123",
+        issued_at=1,
+        expiration=5000,
+        user_id=user_id,
+        username=username,
+    )
+    # Foreign labels/annotations that a controller might have added — these
+    # should NOT count as drift on the keys we manage.
+    existing_secret.metadata.labels["external/owner"] = "some-operator"
+    existing_secret.metadata.annotations["external/managed-by"] = "some-operator"
+    k8s_helper.v1api.read_namespaced_secret.return_value = existing_secret
+
+    result = k8s_helper.store_user_token_secret(
+        auth_info=auth_info,
+        token_name=token_name,
+        token="abc123",
+        issued_at=1,
+        expiration=4000,
+        namespace="default",
+    )
+
+    assert result is None
+    k8s_helper._update_secret.assert_not_called()
+    k8s_helper._create_secret.assert_not_called()
+
+
+def test_update_secret_merges_labels_and_annotations(k8s_helper):
+    """_update_secret merges (not replaces) labels/annotations so that keys
+    added by admission controllers, operators, or other tooling are preserved
+    when we rewrite our own metadata."""
+    existing = _make_k8s_secret(
+        "my-secret",
+        labels={
+            "our/key": "old-value",
+            "external/owner": "some-operator",
+        },
+        annotations={
+            "our/key": "old-annotation",
+            "external/managed-by": "some-operator",
+        },
+    )
+
+    # Invoke the real _update_secret on the class to bypass the fixture mock.
+    framework.utils.singletons.k8s.K8sHelper._update_secret(
+        k8s_helper,
+        k8s_secret=existing,
+        secret_name="my-secret",
+        secrets={"data-key": "data-value"},
+        namespace="default",
+        labels={"our/key": "new-value"},
+        annotations={"our/key": "new-annotation"},
+    )
+
+    # Our keys are updated, foreign keys are preserved.
+    assert existing.metadata.labels == {
+        "our/key": "new-value",
+        "external/owner": "some-operator",
+    }
+    assert existing.metadata.annotations == {
+        "our/key": "new-annotation",
+        "external/managed-by": "some-operator",
+    }
+    k8s_helper.v1api.replace_namespaced_secret.assert_called_once()
+
+
 def test_list_secrets_with_labels(k8s_helper):
     secret1 = _make_k8s_secret(
         "secret1",
         labels={
-            mlrun_constants.MLRunInternalLabels.user_token_secret_label_key: "test-user"
+            mlrun_constants.MLRunInternalLabels.auth_userid: "test-user-id",
         },
     )
     secret2 = _make_k8s_secret(
         "secret2",
         labels={
-            mlrun_constants.MLRunInternalLabels.user_token_secret_label_key: "test-user"
+            mlrun_constants.MLRunInternalLabels.auth_userid: "test-user-id",
         },
     )
 
@@ -636,14 +959,16 @@ def test_list_secrets_with_labels(k8s_helper):
 
     result = k8s_helper.list_secrets(
         namespace="default",
-        labels={
-            mlrun_constants.MLRunInternalLabels.user_token_secret_label_key: "test-user"
-        },
+        labels={mlrun_constants.MLRunInternalLabels.auth_userid: "test-user-id"},
     )
 
     assert result == [secret1, secret2]
     k8s_helper.v1api.list_namespaced_secret.assert_called_once_with(
-        namespace="default", label_selector="mlrun/user=test-user"
+        namespace="default",
+        label_selector="mlrun/user-id=test-user-id",
+        _request_timeout=framework.utils.singletons.k8s.K8sHelper._resolve_k8s_timeout(
+            framework.utils.singletons.k8s.K8S_TIMEOUT_LIST
+        ),
     )
 
 
@@ -662,7 +987,11 @@ def test_list_secrets_no_labels(k8s_helper):
 
     assert result == [secret]
     k8s_helper.v1api.list_namespaced_secret.assert_called_once_with(
-        namespace="default", label_selector=None
+        namespace="default",
+        label_selector=None,
+        _request_timeout=framework.utils.singletons.k8s.K8sHelper._resolve_k8s_timeout(
+            framework.utils.singletons.k8s.K8S_TIMEOUT_LIST
+        ),
     )
 
 
@@ -682,11 +1011,29 @@ def test_list_secrets_empty(k8s_helper):
 def test_list_user_token_secrets_valid(k8s_helper):
     token1_name = "token1"
     token2_name = "token2"
-    username = "test-user"
-    secret1_name = k8s_helper._resolve_user_token_secret_name(username, token1_name)
-    secret2_name = k8s_helper._resolve_user_token_secret_name(username, token2_name)
-    secret1 = _make_user_token_secret(secret1_name, expiration=1111)
-    secret2 = _make_user_token_secret(secret2_name, expiration=2222)
+    user_id = "test-user-id"
+    username = "test-username"
+    iat = 1
+    exp1 = 1111
+    exp2 = 2222
+    secret1_name = k8s_helper._resolve_auth_secret_name(user_id, token1_name)
+    secret2_name = k8s_helper._resolve_auth_secret_name(user_id, token2_name)
+    secret1 = _make_user_token_secret(
+        secret1_name,
+        token_name=token1_name,
+        issued_at=iat,
+        expiration=exp1,
+        user_id=user_id,
+        username=username,
+    )
+    secret2 = _make_user_token_secret(
+        secret2_name,
+        token_name=token2_name,
+        issued_at=iat,
+        expiration=exp2,
+        user_id=user_id,
+        username=username,
+    )
 
     k8s_helper.resolve_namespace = mock.MagicMock(return_value="default")
     k8s_helper.list_secrets = mock.MagicMock(return_value=[secret1, secret2])
@@ -695,161 +1042,340 @@ def test_list_user_token_secrets_valid(k8s_helper):
 
     assert len(result) == 2
     assert result[0].name == token1_name
-    assert result[0].expiration == 1111
+    assert int(result[0].expiration.timestamp()) == exp1
     assert result[1].name == token2_name
-    assert result[1].expiration == 2222
+    assert int(result[1].expiration.timestamp()) == exp2
 
     k8s_helper.list_secrets.assert_called_once_with(
         namespace="default",
         labels={
-            mlrun_constants.MLRunInternalLabels.user_token_secret_label_key: "test-user"
+            mlrun_constants.MLRunInternalLabels.auth_token_name: None,
+            mlrun_constants.MLRunInternalLabels.auth_username: k8s_helper._hash_label(
+                username
+            ),
         },
     )
 
 
-def test_list_user_token_secrets_unexpected_name(k8s_helper):
-    bad_secret = _make_user_token_secret("some-other-secret", expiration=1234)
-
-    k8s_helper.resolve_namespace = mock.MagicMock(return_value="default")
-    k8s_helper.list_secrets = mock.MagicMock(return_value=[bad_secret])
-
-    result = k8s_helper.list_user_token_secrets(
-        username="test-user", namespace="default"
+def test_store_user_token_secret_canonicalizes_username_to_lowercase(k8s_helper):
+    """Usernames are stored canonically (lowercase) so list lookups match regardless of
+    the case the user originally registered with — Keycloak/Iguazio are case-insensitive."""
+    k8s_helper.v1api.read_namespaced_secret.side_effect = k8s_client_rest.ApiException(
+        status=404
     )
 
-    assert result == []
+    mixed_case_username = "Mixed.Case-User"
+    auth_info = mlrun.common.schemas.AuthInfo(
+        user_id="user-id-1", username=mixed_case_username
+    )
+
+    k8s_helper.store_user_token_secret(
+        auth_info=auth_info,
+        token_name="my-token",
+        token="abc123",
+        issued_at=1,
+        expiration=9999,
+        namespace="default",
+    )
+
+    labels = k8s_helper._create_secret.call_args.kwargs["labels"]
+    annotations = k8s_helper._create_secret.call_args.kwargs["annotations"]
+    assert labels[
+        mlrun_constants.MLRunInternalLabels.auth_username
+    ] == k8s_helper._hash_label(mixed_case_username.lower())
+    assert (
+        annotations[mlrun_constants.InternalAnnotations.auth_username]
+        == mixed_case_username.lower()
+    )
+
+
+def test_list_user_token_secrets_canonicalizes_username_to_lowercase(k8s_helper):
+    """Listing with mixed-case username must hit the same hashed label that was written
+    using the canonical (lowercase) form."""
+    canonical_username = "mixed.case-user"
+    secret_name = k8s_helper._resolve_auth_secret_name("user-id-1", "token1")
+    secret = _make_user_token_secret(
+        secret_name,
+        token_name="token1",
+        issued_at=1,
+        expiration=9999,
+        user_id="user-id-1",
+        username=canonical_username,
+    )
+    k8s_helper.resolve_namespace = mock.MagicMock(return_value="default")
+    k8s_helper.list_secrets = mock.MagicMock(return_value=[secret])
+
+    result = k8s_helper.list_user_token_secrets(
+        username="Mixed.Case-User", namespace="default"
+    )
+
+    # The hash-collision post-filter compares against the canonical stored username,
+    # so the match succeeds and the token is returned.
+    assert len(result) == 1
+    assert result[0].name == "token1"
+
+    k8s_helper.list_secrets.assert_called_once_with(
+        namespace="default",
+        labels={
+            mlrun_constants.MLRunInternalLabels.auth_token_name: None,
+            mlrun_constants.MLRunInternalLabels.auth_username: k8s_helper._hash_label(
+                canonical_username
+            ),
+        },
+    )
+
+
+def test_list_user_token_secrets_wildcard_not_canonicalized(k8s_helper):
+    """The "*" sentinel must not be lowercased or hashed — it skips the username filter."""
+    k8s_helper.resolve_namespace = mock.MagicMock(return_value="default")
+    k8s_helper.list_secrets = mock.MagicMock(return_value=[])
+
+    k8s_helper.list_user_token_secrets(username="*", namespace="default")
+
+    # No auth_username label key should be present — the wildcard skips the filter
+    called_labels = k8s_helper.list_secrets.call_args.kwargs["labels"]
+    assert mlrun_constants.MLRunInternalLabels.auth_username not in called_labels
 
 
 def test_list_user_token_secrets_invalid_expiration(k8s_helper):
-    username = "test-user"
-    secret_name = k8s_helper._resolve_user_token_secret_name(username, "token1")
+    user_id = "test-user-id"
+    username = "test-username"
+    secret_name = k8s_helper._resolve_auth_secret_name(user_id, "token1")
     bad_secret = _make_user_token_secret(
-        secret_name=secret_name, expiration=b"not-a-number"
+        secret_name=secret_name,
+        issued_at=1,
+        expiration=b"not-a-number",
+        user_id=user_id,
+        username=username,
     )
     k8s_helper.resolve_namespace = mock.MagicMock(return_value="default")
-    k8s_helper.list_secrets = mock.MagicMock(return_value=[bad_secret])
+    k8s_helper.v1api.read_namespaced_secret = mock.MagicMock(return_value=bad_secret)
+
+    result = k8s_helper.list_user_token_secrets(username=username, namespace="default")
+    assert len(result) == 0
+
+
+def test_list_user_token_secrets_invalid_issued_at(k8s_helper):
+    user_id = "test-user-id"
+    username = "test-username"
+    secret_name = k8s_helper._resolve_auth_secret_name(user_id, "token1")
+    bad_secret = _make_user_token_secret(
+        secret_name=secret_name,
+        issued_at=b"not-a-number",
+        expiration=1,
+        user_id=user_id,
+        username=username,
+    )
+    k8s_helper.resolve_namespace = mock.MagicMock(return_value="default")
+    k8s_helper.v1api.read_namespaced_secret = mock.MagicMock(return_value=bad_secret)
 
     result = k8s_helper.list_user_token_secrets(username=username, namespace="default")
     assert len(result) == 0
 
 
 def test_get_user_token_secret_value_valid(k8s_helper):
-    username = "test-user"
+    user_id = "test-user-id"
     token_name = "my-token"
     token_value = "abc123"
-    secret_name = k8s_helper._resolve_user_token_secret_name(username, token_name)
+    secret_name = k8s_helper._resolve_auth_secret_name(user_id, token_name)
 
     # Create a Kubernetes secret with properly encoded tokensFile
     existing_secret = _make_user_token_secret(
         secret_name,
         token_name=token_name,
         token_value=token_value,
+        issued_at=1,
         expiration=9999,
+        user_id=user_id,
     )
 
     k8s_helper.resolve_namespace = mock.MagicMock(return_value="default")
-    k8s_helper.read_secret = mock.MagicMock(return_value=existing_secret)
+    k8s_helper.v1api.read_namespaced_secret = mock.MagicMock(
+        return_value=existing_secret
+    )
 
     token_value_from_k8s = k8s_helper.get_user_token_secret_value(
-        username=username,
+        user_id=user_id,
         token_name=token_name,
         namespace="default",
     )
 
     assert token_value_from_k8s == token_value
-    k8s_helper.read_secret.assert_called_once()
+    k8s_helper.v1api.read_namespaced_secret.assert_called_once()
+
+
+def test_get_user_token_secret_value_resolves_by_user_id_ignoring_token_name(
+    k8s_helper,
+):
+    # A single token is stored per user, so a caller that pinned an older token name
+    # (e.g. a schedule created before the user rotated their token) still resolves to
+    # the user's current token. The secret is keyed on user_id, not the token name.
+    user_id = "test-user-id"
+    stored_token_name = "token-b"  # the user's current token after rotation
+    pinned_token_name = "token-a"  # the name a schedule was created with
+    token_value = "current-token-value"
+
+    secret_name = k8s_helper._resolve_auth_secret_name(user_id, stored_token_name)
+    existing_secret = _make_user_token_secret(
+        secret_name,
+        token_name=stored_token_name,
+        token_value=token_value,
+        issued_at=1,
+        expiration=9999,
+        user_id=user_id,
+    )
+
+    k8s_helper.resolve_namespace = mock.MagicMock(return_value="default")
+    k8s_helper.v1api.read_namespaced_secret = mock.MagicMock(
+        return_value=existing_secret
+    )
+
+    token_value_from_k8s = k8s_helper.get_user_token_secret_value(
+        user_id=user_id,
+        token_name=pinned_token_name,
+        namespace="default",
+    )
+
+    assert token_value_from_k8s == token_value
+    # The secret is read by the user_id-based name regardless of the requested name.
+    assert secret_name in k8s_helper.v1api.read_namespaced_secret.call_args.args
+
+
+def test_get_user_secret_tokens_as_igz_yml_data_resolves_current_token_after_rotation(
+    k8s_helper,
+):
+    # The job/schedule mount path requests the pinned token name but receives the
+    # user's current token, so a rotated token keeps existing jobs working.
+    user_id = "test-user-id"
+    stored_token_name = "token-b"
+    pinned_token_name = "token-a"
+    token_value = "current-token-value"
+
+    secret_name = k8s_helper._resolve_auth_secret_name(user_id, stored_token_name)
+    existing_secret = _make_user_token_secret(
+        secret_name,
+        token_name=stored_token_name,
+        token_value=token_value,
+        issued_at=1,
+        expiration=9999,
+        user_id=user_id,
+    )
+
+    k8s_helper.resolve_namespace = mock.MagicMock(return_value="default")
+    k8s_helper.v1api.read_namespaced_secret = mock.MagicMock(
+        return_value=existing_secret
+    )
+
+    result = k8s_helper.get_user_secret_tokens_as_igz_yml_data(
+        user_id=user_id, token_name=pinned_token_name
+    )
+
+    assert result == [{"name": pinned_token_name, "token": token_value}]
 
 
 def test_get_user_token_secret_value_not_found(k8s_helper):
-    username = "test-user"
+    user_id = "test-user-id"
     token_name = "my-token"
 
     k8s_helper.resolve_namespace = mock.MagicMock(return_value="default")
-    k8s_helper.read_secret = mock.MagicMock(return_value=None)
+    k8s_helper.v1api.read_namespaced_secret = mock.MagicMock(
+        side_effect=k8s_client_rest.ApiException(status=404)
+    )
 
     with pytest.raises(mlrun.errors.MLRunNotFoundError):
-        k8s_helper.get_user_token_secret_value(
-            username, token_name, namespace="default"
-        )
+        k8s_helper.get_user_token_secret_value(user_id, token_name, namespace="default")
 
 
-def test_get_user_token_secret_value_token_missing(k8s_helper):
-    username = "test-user"
-    token_name = "my-token"
-    secret_name = k8s_helper._resolve_user_token_secret_name(username, token_name)
-
-    # Secret exists but tokensFile does not contain the requested token
-    secret = _make_user_token_secret(secret_name, token_name="other-token")
-    k8s_helper.resolve_namespace = mock.MagicMock(return_value="default")
-    k8s_helper.read_secret = mock.MagicMock(return_value=secret)
-
-    with pytest.raises(mlrun.errors.MLRunNotFoundError):
-        k8s_helper.get_user_token_secret_value(
-            username, token_name, namespace="default"
-        )
+@pytest.mark.parametrize("user_id", [None, ""])
+def test_get_user_token_secret_value_rejects_empty_user_id(k8s_helper, user_id):
+    with pytest.raises(mlrun.errors.MLRunBadRequestError, match="user_id is missing"):
+        k8s_helper.get_user_token_secret_value(user_id, "some-token")
 
 
 def test_get_user_token_secret_value_invalid_base64(k8s_helper):
-    username = "test-user"
+    user_id = "test-user-id"
     token_name = "my-token"
-    secret_name = k8s_helper._resolve_user_token_secret_name(username, token_name)
+    secret_name = k8s_helper._resolve_auth_secret_name(user_id, token_name)
 
     # Create a secret with an invalid base64 tokensFile
-    bad_secret = _make_k8s_secret(secret_name)
+    bad_secret = _make_k8s_secret(
+        secret_name,
+        labels={
+            mlrun_constants.MLRunInternalLabels.auth_userid: user_id,
+            mlrun_constants.MLRunInternalLabels.auth_token_name: k8s_helper._hash_label(
+                token_name
+            ),
+        },
+        annotations={
+            mlrun_constants.InternalAnnotations.auth_token_name: token_name,
+        },
+    )
     bad_secret.data["tokensFile"] = "!!!invalidbase64!!!"  # invalid base64 content
     bad_secret.data["tokenExpiration"] = base64.b64encode(b"9999").decode()
 
     k8s_helper.resolve_namespace = mock.MagicMock(return_value="default")
-    k8s_helper.read_secret = mock.MagicMock(return_value=bad_secret)
+    k8s_helper.v1api.read_namespaced_secret = mock.MagicMock(return_value=bad_secret)
 
     with pytest.raises(mlrun.errors.MLRunRuntimeError):
         k8s_helper.get_user_token_secret_value(
-            username=username,
+            user_id=user_id,
             token_name=token_name,
             namespace="default",
         )
 
 
 def test_get_user_token_secret_value_invalid_yaml(k8s_helper):
-    username = "test-user"
+    user_id = "test-user-id"
     token_name = "my-token"
-    secret_name = k8s_helper._resolve_user_token_secret_name(username, token_name)
+    secret_name = k8s_helper._resolve_auth_secret_name(user_id, token_name)
 
     # Base64 encoded string but invalid YAML
     bad_yaml = base64.b64encode(b"{invalid_yaml: ]").decode()
-    bad_secret = _make_k8s_secret(secret_name)
+    bad_secret = _make_k8s_secret(
+        secret_name,
+        labels={
+            mlrun_constants.MLRunInternalLabels.auth_userid: user_id,
+            mlrun_constants.MLRunInternalLabels.auth_token_name: k8s_helper._hash_label(
+                token_name
+            ),
+        },
+        annotations={
+            mlrun_constants.InternalAnnotations.auth_token_name: token_name,
+        },
+    )
     bad_secret.data["tokensFile"] = bad_yaml
     k8s_helper.resolve_namespace = mock.MagicMock(return_value="default")
-    k8s_helper.read_secret = mock.MagicMock(return_value=bad_secret)
+    k8s_helper.v1api.read_namespaced_secret = mock.MagicMock(return_value=bad_secret)
 
     with pytest.raises(mlrun.errors.MLRunRuntimeError):
-        k8s_helper.get_user_token_secret_value(
-            username, token_name, namespace="default"
-        )
+        k8s_helper.get_user_token_secret_value(user_id, token_name, namespace="default")
 
 
 def test_delete_user_token_secret_success(k8s_helper):
-    username = "test-user"
+    user_id = "test-user-id"
     token_name = "token1"
-    secret_name = k8s_helper._resolve_user_token_secret_name(username, token_name)
+    secret_name = k8s_helper._resolve_auth_secret_name(user_id, token_name)
 
     k8s_helper.resolve_namespace = mock.MagicMock(return_value="default")
     k8s_helper.v1api.delete_namespaced_secret = mock.MagicMock()
 
     k8s_helper.delete_user_token_secret(
-        username=username, token_name=token_name, namespace="default"
+        user_id=user_id, token_name=token_name, namespace="default"
     )
 
     k8s_helper.v1api.delete_namespaced_secret.assert_called_once_with(
         name=secret_name,
         namespace="default",
+        _request_timeout=framework.utils.singletons.k8s.K8sHelper._resolve_k8s_timeout(
+            framework.utils.singletons.k8s.K8S_TIMEOUT_DEFAULT
+        ),
     )
 
 
 def test_delete_user_token_secret_not_found(k8s_helper):
-    username = "test-user"
+    user_id = "test-user-id"
     token_name = "missing"
-    secret_name = k8s_helper._resolve_user_token_secret_name(username, token_name)
+    secret_name = k8s_helper._resolve_auth_secret_name(user_id, token_name)
 
     k8s_helper.resolve_namespace = mock.MagicMock(return_value="default")
     k8s_helper.v1api.delete_namespaced_secret = mock.MagicMock(
@@ -858,7 +1384,7 @@ def test_delete_user_token_secret_not_found(k8s_helper):
 
     with pytest.raises(mlrun.errors.MLRunNotFoundError) as exc:
         k8s_helper.delete_user_token_secret(
-            username=username, token_name=token_name, namespace="default"
+            user_id=user_id, token_name=token_name, namespace="default"
         )
 
     assert f"Secret for token '{token_name}' not found" in str(exc.value)
@@ -866,13 +1392,16 @@ def test_delete_user_token_secret_not_found(k8s_helper):
     k8s_helper.v1api.delete_namespaced_secret.assert_called_once_with(
         name=secret_name,
         namespace="default",
+        _request_timeout=framework.utils.singletons.k8s.K8sHelper._resolve_k8s_timeout(
+            framework.utils.singletons.k8s.K8S_TIMEOUT_DEFAULT
+        ),
     )
 
 
 def test_delete_user_token_secret_api_error(k8s_helper):
-    username = "test-user"
+    user_id = "test-user-id"
     token_name = "badtoken"
-    secret_name = k8s_helper._resolve_user_token_secret_name(username, token_name)
+    secret_name = k8s_helper._resolve_auth_secret_name(user_id, token_name)
 
     k8s_helper.resolve_namespace = mock.MagicMock(return_value="default")
     k8s_helper.v1api.delete_namespaced_secret = mock.MagicMock(
@@ -881,7 +1410,7 @@ def test_delete_user_token_secret_api_error(k8s_helper):
 
     with pytest.raises(mlrun.errors.MLRunRuntimeError) as exc:
         k8s_helper.delete_user_token_secret(
-            username=username, token_name=token_name, namespace="default"
+            user_id=user_id, token_name=token_name, namespace="default"
         )
 
     assert "Failed to delete secret" in str(exc.value)
@@ -889,13 +1418,16 @@ def test_delete_user_token_secret_api_error(k8s_helper):
     k8s_helper.v1api.delete_namespaced_secret.assert_called_once_with(
         name=secret_name,
         namespace="default",
+        _request_timeout=framework.utils.singletons.k8s.K8sHelper._resolve_k8s_timeout(
+            framework.utils.singletons.k8s.K8S_TIMEOUT_DEFAULT
+        ),
     )
 
 
 def test_delete_user_token_secret_unexpected_error(k8s_helper):
-    username = "test-user"
+    user_id = "test-user-id"
     token_name = "oops"
-    secret_name = k8s_helper._resolve_user_token_secret_name(username, token_name)
+    secret_name = k8s_helper._resolve_auth_secret_name(user_id, token_name)
 
     k8s_helper.resolve_namespace = mock.MagicMock(return_value="default")
     k8s_helper.v1api.delete_namespaced_secret = mock.MagicMock(
@@ -904,7 +1436,7 @@ def test_delete_user_token_secret_unexpected_error(k8s_helper):
 
     with pytest.raises(mlrun.errors.MLRunRuntimeError) as exc:
         k8s_helper.delete_user_token_secret(
-            username=username, token_name=token_name, namespace="default"
+            user_id=user_id, token_name=token_name, namespace="default"
         )
 
     assert "Unexpected error deleting secret" in str(exc.value)
@@ -912,7 +1444,219 @@ def test_delete_user_token_secret_unexpected_error(k8s_helper):
     k8s_helper.v1api.delete_namespaced_secret.assert_called_once_with(
         name=secret_name,
         namespace="default",
+        _request_timeout=framework.utils.singletons.k8s.K8sHelper._resolve_k8s_timeout(
+            framework.utils.singletons.k8s.K8S_TIMEOUT_DEFAULT
+        ),
     )
+
+
+def test_get_user_secret_tokens_as_igz_yml_data_single_token(k8s_helper):
+    """Test fetching a single token by name (strict mode)."""
+    user_id = "test-user-id"
+    token_name = "my-token"
+    token_value = "abc123"
+    secret_name = k8s_helper._resolve_auth_secret_name(user_id, token_name)
+
+    existing_secret = _make_user_token_secret(
+        secret_name,
+        token_name=token_name,
+        token_value=token_value,
+        issued_at=1,
+        expiration=9999,
+        user_id=user_id,
+    )
+    k8s_helper.v1api.read_namespaced_secret = mock.MagicMock(
+        return_value=existing_secret
+    )
+
+    result = k8s_helper.get_user_secret_tokens_as_igz_yml_data(
+        user_id=user_id, token_name=token_name
+    )
+
+    assert result == [{"name": token_name, "token": token_value}]
+
+
+def test_get_user_secret_tokens_as_igz_yml_data_single_token_not_found(k8s_helper):
+    """Test that MLRunBadRequestError is raised when requested token doesn't exist."""
+    user_id = "test-user-id"
+    token_name = "missing-token"
+
+    k8s_helper.v1api.read_namespaced_secret = mock.MagicMock(
+        side_effect=k8s_client_rest.ApiException(status=404)
+    )
+
+    with pytest.raises(mlrun.errors.MLRunBadRequestError):
+        k8s_helper.get_user_secret_tokens_as_igz_yml_data(
+            user_id=user_id, token_name=token_name
+        )
+
+
+def test_list_user_token_secret_values(k8s_helper):
+    """Test listing all token values for a user."""
+    user_id = "test-user-id"
+    token1_name = "token1"
+    token2_name = "token2"
+    token1_value = "value1"
+    token2_value = "value2"
+    secret1_name = k8s_helper._resolve_auth_secret_name(user_id, token1_name)
+    secret2_name = k8s_helper._resolve_auth_secret_name(user_id, token2_name)
+
+    secret1 = _make_user_token_secret(
+        secret1_name,
+        token_name=token1_name,
+        token_value=token1_value,
+        issued_at=1,
+        expiration=1111,
+        user_id=user_id,
+    )
+    secret2 = _make_user_token_secret(
+        secret2_name,
+        token_name=token2_name,
+        token_value=token2_value,
+        issued_at=1,
+        expiration=2222,
+        user_id=user_id,
+    )
+
+    k8s_helper.list_secrets = mock.MagicMock(return_value=[secret1, secret2])
+
+    result = k8s_helper.list_user_token_secret_values(user_id=user_id)
+
+    assert len(result) == 2
+    token_names = [t.name for t in result]
+    token_values = [t.token for t in result]
+    assert token1_name in token_names
+    assert token2_name in token_names
+    assert token1_value in token_values
+    assert token2_value in token_values
+
+
+def test_list_user_token_secret_values_partial_failure(k8s_helper):
+    """Test that partial failures are skipped when listing token values."""
+    user_id = "test-user-id"
+    token1_name = "token1"
+    token2_name = "token2"
+    token1_value = "value1"
+    secret1_name = k8s_helper._resolve_auth_secret_name(user_id, token1_name)
+    secret2_name = k8s_helper._resolve_auth_secret_name(user_id, token2_name)
+
+    # Create two secrets - one valid, one with missing tokensFile
+    secret1 = _make_user_token_secret(
+        secret1_name,
+        token_name=token1_name,
+        token_value=token1_value,
+        issued_at=1,
+        expiration=1111,
+        user_id=user_id,
+    )
+    secret2 = _make_user_token_secret(
+        secret2_name,
+        token_name=token2_name,
+        token_value="value2",
+        issued_at=1,
+        expiration=2222,
+        user_id=user_id,
+    )
+    # Remove tokensFile to simulate extraction failure
+    secret2.data.pop("tokensFile", None)
+
+    k8s_helper.list_secrets = mock.MagicMock(return_value=[secret1, secret2])
+
+    result = k8s_helper.list_user_token_secret_values(user_id=user_id)
+
+    # Only token1 should be returned (token2 failed extraction)
+    assert len(result) == 1
+    assert result[0].name == token1_name
+    assert result[0].token == token1_value
+
+
+def test_list_user_token_secret_values_empty(k8s_helper):
+    """Test that an empty list is returned when user has no tokens."""
+    user_id = "test-user-id"
+
+    k8s_helper.list_secrets = mock.MagicMock(return_value=[])
+
+    result = k8s_helper.list_user_token_secret_values(user_id=user_id)
+
+    assert result == []
+
+
+@pytest.mark.parametrize("user_id", [None, ""])
+def test_list_user_token_secret_values_rejects_empty_user_id(k8s_helper, user_id):
+    with pytest.raises(mlrun.errors.MLRunBadRequestError, match="user_id is missing"):
+        k8s_helper.list_user_token_secret_values(user_id=user_id)
+
+
+def test_get_user_secret_tokens_as_igz_yml_data_no_tokens(k8s_helper):
+    """Test that MLRunBadRequestError is raised when user has no tokens."""
+    user_id = "test-user-id"
+
+    k8s_helper.list_secrets = mock.MagicMock(return_value=[])
+
+    with pytest.raises(
+        mlrun.errors.MLRunBadRequestError,
+        match="No valid tokens found for user",
+    ):
+        k8s_helper.get_user_secret_tokens_as_igz_yml_data(
+            user_id=user_id, token_name=None
+        )
+
+
+def test_get_user_secret_tokens_as_igz_yml_data_all_fail(k8s_helper):
+    """Test MLRunBadRequestError when all token extractions fail."""
+    user_id = "test-user-id"
+    token_name = "bad-token"
+    secret_name = k8s_helper._resolve_auth_secret_name(user_id, token_name)
+
+    # Create a secret with missing tokensFile
+    bad_secret = _make_user_token_secret(
+        secret_name,
+        token_name=token_name,
+        token_value="value",
+        issued_at=1,
+        expiration=1111,
+        user_id=user_id,
+    )
+    bad_secret.data.pop("tokensFile", None)
+
+    k8s_helper.v1api.read_namespaced_secret = mock.MagicMock(return_value=bad_secret)
+
+    with pytest.raises(
+        mlrun.errors.MLRunBadRequestError,
+        match="No valid tokens found for user",
+    ):
+        k8s_helper.get_user_secret_tokens_as_igz_yml_data(
+            user_id=user_id, token_name=None
+        )
+
+
+def test_logs_decodes_raw_bytes_response(k8s_helper):
+    """logs() decodes the raw pod-log body to text (regression for ML-12667)."""
+    log_text = "\x1b[0mbuilding image\nmlrun version: 1.12.0\n"
+    k8s_helper.v1api.read_namespaced_pod_log.return_value = mock.Mock(
+        data=log_text.encode("utf-8")
+    )
+
+    result = k8s_helper.logs("build-pod")
+
+    assert result == log_text
+    k8s_helper.v1api.read_namespaced_pod_log.assert_called_once_with(
+        name="build-pod",
+        namespace=k8s_helper.resolve_namespace(),
+        _request_timeout=mock.ANY,
+        _preload_content=False,
+    )
+
+
+def test_logs_reraises_api_exception(k8s_helper):
+    """logs() re-raises ApiException unchanged so callers' error handling keeps working."""
+    api_exception = k8s_client_rest.ApiException(status=404, reason="Not Found")
+    k8s_helper.v1api.read_namespaced_pod_log.side_effect = api_exception
+
+    with pytest.raises(k8s_client_rest.ApiException) as exc_info:
+        k8s_helper.logs("missing-pod")
+
+    assert exc_info.value is api_exception
 
 
 def _make_user_token_secret(
@@ -920,12 +1664,28 @@ def _make_user_token_secret(
     token_name="my-token",
     token_value="abc123",
     expiration=None,
+    issued_at=None,
     labels=None,
+    annotations=None,
+    user_id="test-user-id",
+    username="test-username",
 ):
-    labels = labels or {
-        mlrun_constants.MLRunInternalLabels.user_token_secret_label_key: "test-user"
-    }
-    secret = _make_k8s_secret(secret_name, labels)
+    if labels is None:
+        labels = {
+            mlrun_constants.MLRunInternalLabels.auth_userid: user_id,
+            mlrun_constants.MLRunInternalLabels.auth_username: framework.utils.singletons.k8s.K8sHelper._hash_label(
+                username
+            ),
+            mlrun_constants.MLRunInternalLabels.auth_token_name: framework.utils.singletons.k8s.K8sHelper._hash_label(
+                token_name
+            ),
+        }
+    if annotations is None:
+        annotations = {
+            mlrun_constants.InternalAnnotations.auth_username: username,
+            mlrun_constants.InternalAnnotations.auth_token_name: token_name,
+        }
+    secret = _make_k8s_secret(secret_name, labels, annotations)
 
     # Add tokensFile
     token_yaml = yaml.safe_dump(
@@ -939,9 +1699,179 @@ def _make_user_token_secret(
             str(expiration).encode()
         ).decode()
 
+    # Encode tokenIssuedAt if provided
+    if issued_at is not None:
+        secret.data["tokenIssuedAt"] = base64.b64encode(
+            str(issued_at).encode()
+        ).decode()
+
     return secret
 
 
-def _make_k8s_secret(name, labels=None):
-    metadata = k8s_client.V1ObjectMeta(name=name, labels=labels or {})
+def _make_k8s_secret(name, labels=None, annotations=None):
+    metadata = k8s_client.V1ObjectMeta(
+        name=name, labels=labels or {}, annotations=annotations or {}
+    )
     return k8s_client.V1Secret(metadata=metadata, data={})
+
+
+class TestK8sTimeouts:
+    """Tests for k8s API call timeout configuration."""
+
+    @pytest.mark.parametrize(
+        "timeout_type",
+        [
+            framework.utils.singletons.k8s.K8S_TIMEOUT_DEFAULT,
+            framework.utils.singletons.k8s.K8S_TIMEOUT_LIST,
+            framework.utils.singletons.k8s.K8S_TIMEOUT_LOGS,
+        ],
+    )
+    def test_get_k8s_timeout_returns_configured_value(self, timeout_type):
+        """Test that each timeout tier returns its configured value."""
+        expected = int(getattr(mlrun.mlconf.kubernetes.timeouts, timeout_type))
+        resolved = framework.utils.singletons.k8s.K8sHelper._resolve_k8s_timeout(
+            timeout_type
+        )
+        assert resolved == expected
+
+    def test_timeout_zero_disables_timeout_on_api_call(self, k8s_helper, monkeypatch):
+        """Test that timeout=0 passes None to _request_timeout, disabling it."""
+        monkeypatch.setattr(mlrun.mlconf.kubernetes.timeouts, "default", 0)
+        k8s_helper.v1api.read_namespaced_pod.return_value = k8s_client.V1Pod()
+        k8s_helper.get_pod(name="test-pod", namespace="test-ns")
+        call_kwargs = k8s_helper.v1api.read_namespaced_pod.call_args
+        assert call_kwargs.kwargs["_request_timeout"] is None
+
+    def test_raise_for_status_code_catches_read_timeout(self):
+        """Test that raise_for_status_code catches MaxRetryError with ReadTimeoutError."""
+        import urllib3.exceptions
+
+        @framework.utils.singletons.k8s.raise_for_status_code
+        def fake_k8s_call():
+            raise urllib3.exceptions.MaxRetryError(
+                pool=None,
+                url="/api/v1/pods",
+                reason=urllib3.exceptions.ReadTimeoutError(
+                    pool=None, url="/api/v1/pods", message="Read timed out"
+                ),
+            )
+
+        with pytest.raises(mlrun.errors.MLRunRuntimeError, match="timed out"):
+            fake_k8s_call()
+
+    def test_raise_for_status_code_reraises_non_timeout_max_retry(self):
+        """Test that raise_for_status_code re-raises MaxRetryError without ReadTimeoutError."""
+        import urllib3.exceptions
+
+        @framework.utils.singletons.k8s.raise_for_status_code
+        def fake_k8s_call():
+            raise urllib3.exceptions.MaxRetryError(
+                pool=None,
+                url="/api/v1/pods",
+                reason=urllib3.exceptions.ConnectTimeoutError("Connect failed"),
+            )
+
+        with pytest.raises(urllib3.exceptions.MaxRetryError):
+            fake_k8s_call()
+
+
+# The 500 body an AKS konnectivity blip produces: the apiserver could not dial the webhook.
+_WEBHOOK_DIAL_BODY = (
+    "Internal error occurred: failed calling webhook "
+    '"mutation.azure-workload-identity.io": failed to call webhook: '
+    "proxy error from localhost:9443 while dialing 10.244.1.211:9443, code 500"
+)
+
+
+def _api_exception(status, body=""):
+    exc = k8s_client_rest.ApiException(status=status, reason="err")
+    exc.body = body
+    return exc
+
+
+@pytest.mark.parametrize(
+    "exc, expected",
+    [
+        # transient webhook *dial* failures — rejected pre-persistence, safe to retry
+        (_api_exception(500, _WEBHOOK_DIAL_BODY), True),
+        (
+            _api_exception(
+                500,
+                'failed calling webhook "x": failed to call webhook: '
+                "context deadline exceeded",
+            ),
+            True,
+        ),
+        # deterministic webhook denial — never retry
+        (_api_exception(500, 'admission webhook "x" denied the request: nope'), False),
+        # generic 500 with no webhook signature
+        (
+            _api_exception(500, "Internal error occurred: etcdserver: leader changed"),
+            False,
+        ),
+        # right body, wrong status
+        (_api_exception(400, _WEBHOOK_DIAL_BODY), False),
+    ],
+)
+def test_is_transient_admission_webhook_error(exc, expected):
+    assert (
+        framework.utils.singletons.k8s.K8sHelper._is_transient_admission_webhook_error(
+            exc
+        )
+        is expected
+    )
+
+
+@pytest.fixture
+def _no_k8s_sleep():
+    """Skip the create_pod retry backoff so tests stay fast."""
+    with mock.patch("framework.utils.singletons.k8s.time.sleep"):
+        yield
+
+
+def _pod_mock(namespace="test-namespace"):
+    pod = mock.MagicMock()
+    pod.metadata.namespace = namespace
+    return pod
+
+
+def test_create_pod_retries_transient_webhook_error_then_succeeds(
+    k8s_helper, _no_k8s_sleep
+):
+    """A transient admission-webhook 500 is retried and the next attempt succeeds."""
+    created = mock.MagicMock()
+    created.metadata.name = "created-pod"
+    created.metadata.namespace = "test-namespace"
+    k8s_helper.v1api.create_namespaced_pod.side_effect = [
+        _api_exception(500, _WEBHOOK_DIAL_BODY),
+        created,
+    ]
+
+    name, namespace = k8s_helper.create_pod(_pod_mock())
+
+    assert (name, namespace) == ("created-pod", "test-namespace")
+    assert k8s_helper.v1api.create_namespaced_pod.call_count == 2
+
+
+def test_create_pod_does_not_retry_webhook_denial(k8s_helper, _no_k8s_sleep):
+    """A deterministic webhook *denial* is raised immediately, not retried."""
+    k8s_helper.v1api.create_namespaced_pod.side_effect = _api_exception(
+        500, 'admission webhook "x" denied the request: not allowed'
+    )
+
+    with pytest.raises(mlrun.errors.MLRunHTTPError):
+        k8s_helper.create_pod(_pod_mock())
+
+    assert k8s_helper.v1api.create_namespaced_pod.call_count == 1
+
+
+def test_create_pod_does_not_retry_non_webhook_500(k8s_helper, _no_k8s_sleep):
+    """A 500 without the webhook-dial signature is raised immediately, not retried."""
+    k8s_helper.v1api.create_namespaced_pod.side_effect = _api_exception(
+        500, "Internal error occurred: etcdserver: leader changed"
+    )
+
+    with pytest.raises(mlrun.errors.MLRunHTTPError):
+        k8s_helper.create_pod(_pod_mock())
+
+    assert k8s_helper.v1api.create_namespaced_pod.call_count == 1

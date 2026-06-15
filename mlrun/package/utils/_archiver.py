@@ -19,8 +19,7 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 
 import mlrun.utils
-
-from ._supported_format import SupportedFormat
+from mlrun.package.utils._supported_format import SupportedFormat
 
 
 class _Archiver(ABC):

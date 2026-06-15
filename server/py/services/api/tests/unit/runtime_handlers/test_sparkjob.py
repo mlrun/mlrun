@@ -14,7 +14,7 @@
 
 import copy
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
@@ -213,7 +213,7 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
         recently_completed_crd_dict = self._generate_sparkjob_crd(
             self.project,
             self.run_uid,
-            self._get_completed_crd_status(datetime.now(timezone.utc).isoformat()),
+            self._get_completed_crd_status(datetime.now(UTC).isoformat()),
         )
         list_namespaced_crds_calls = [
             [recently_completed_crd_dict],
@@ -417,9 +417,9 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
             (
                 stale_job_uid,
                 stale_run_name,
-                datetime.now(timezone.utc) - timedelta(seconds=threshold_in_seconds),
+                datetime.now(UTC) - timedelta(seconds=threshold_in_seconds),
             ),
-            (new_job_uid, new_run_name, datetime.now(timezone.utc)),
+            (new_job_uid, new_run_name, datetime.now(UTC)),
         ]:
             self._store_run(
                 db,

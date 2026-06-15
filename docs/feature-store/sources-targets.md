@@ -198,22 +198,20 @@ NFS, S3, Azure blob storage, Redis, SQL, and on Iguazio DB/FS.
 | {py:meth}`~mlrun.datastore.StreamSource`     |Offline. Writes all incoming events into a V3IO stream.                   | Y      | N     | N      |
 | [NoSqlTarget](#nosql-target)                 |Online. Persists the data in V3IO table to its associated storage by key. | Y      | Y     | Y      |
 | [RedisNoSqlTarget](#redisnosql-target)       |Online. Persists the data in Redis table to its associated storage by key.| Y      | Y     | N      |
-| [SqlTarget](#sql-target)                     |Online. Persists the data in SQL table to its associated storage by key.  | Y      | N     | Y      |
-
 
 ## Kafka target
 
 ```python
-profile = DatastoreProfileKafkaTarget(
-    name="profile-name", brokers="localhost", topic="topic_name"
+profile = DatastoreProfileKafkaStream(
+    name="profile-name", brokers="localhost", topics=["topic_name"]
 )
 target = KafkaTarget(path="ds://profile-name")
 ```
 
-`DatastoreProfileKafkaTarget` class parameters:
+`DatastoreProfileKafkaStream` class parameters:
 - `name` &mdash; Name of the profile
-- `brokers` &mdash; A string representing the 'bootstrap servers' for Kafka. These are the initial contact points you use to discover the full set of servers in the Kafka cluster, typically provided in the format `host1:port1,host2:port2,...`.
-- `topic` &mdash; A string that denotes the Kafka topic to which data is sent or from which data is received.
+- `brokers` &mdash; A string or list of strings representing the 'bootstrap servers' for Kafka, typically in the format `host1:port1,host2:port2,...`.
+- `topics` &mdash; A string or list of strings denoting the Kafka topic(s) to which data is sent or from which data is received.
 - `kwargs_public` &mdash; This is a dictionary (`Dict`) meant to hold a collection of key-value pairs that could represent settings or configurations deemed public. These pairs are subsequently passed as parameters to the underlying `kafka.KafkaConsumer()` constructor. The default value for `kwargs_public` is `None`.
 - `kwargs_private` &mdash; This dictionary (`Dict`) is designed to store key-value pairs, typically representing configurations that are of a private or sensitive nature. These pairs are also passed as parameters to the underlying `kafka.KafkaConsumer()` constructor. It defaults to `None`.
 
@@ -287,7 +285,7 @@ The combination of a NoSQL target with the storey engine does not support featur
 ```{admonition} Note
 RedisNoSql target is currently in Tech Preview status.
 ```
-See also [Redis data store profile](#redisnosql-data-store-profile).
+See also [Redis datastore profile](#redisnosql-datastore-profile).
 
 The Redis online target is called, in MLRun, `RedisNoSqlTarget`. The functionality of the `RedisNoSqlTarget` is identical to the `NoSqlTarget` except for:
 - The RedisNoSqlTarget accepts the path parameter in the form: `<redis|rediss>://<host>[:port]`
@@ -307,7 +305,7 @@ To use the Redis online target store, you can either change the default to be pa
 explicitly each time with the path parameter, for example:</br>
 `RedisNoSqlTarget(path ="redis://1.2.3.4:6379")`
 
-### RedisNoSql data store profile
+### RedisNoSql datastore profile
 ```python
 profile = DatastoreProfileRedis(
     name="profile-name",
@@ -319,33 +317,3 @@ RedisNoSqlTarget(path="ds://profile-name/a/b")
 ```
 
 
-## SQL target 
-
-```{admonition} Note
-Sql target is currently in Tech Preview status.
-```
-```{admonition} Limitation
-Do not use SQL reserved words as entity names. See more details in [Keywords and Reserved Words](https://dev.mysql.com/doc/refman/8.0/en/keywords.html).
-For currently supported versions of SQLAlchemy, see [extra-requirements.txt](https://github.com/mlrun/mlrun/blob/development/extras-requirements.txt).
-See more details about [Dialects](https://docs.sqlalchemy.org/en/20/dialects/index.html).
-```
-The {py:meth}`~mlrun.datastore.SQLTarget` online target supports storey but does not support Spark. Aggregations are not supported.<br>
-To configure, pass the `db_url` or overwrite the `MLRUN_SQL__URL` env var, in this format:<br>
-`mysql+pymysql://<username>:<password>@<host>:<port>/<db_name>`
-
-You can pass the schema and the name of the table you want to create or the name of an existing table, for example:
-
-```python
-target = SQLTarget(
-    table_name="my_table",
-    schema={"id": string, "age": int, "time": pd.Timestamp},
-    create_table=True,
-    primary_key_column="id",
-    parse_dates=["time"],
-)
-feature_set = fs.FeatureSet(
-    "my_fs",
-    entities=[fs.Entity("id")],
-)
-fs.ingest(feature_set, source=df, targets=[target])
-```

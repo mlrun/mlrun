@@ -1,5 +1,3 @@
-from typing import Optional
-
 import numpy as np
 import pandas as pd
 from cloudpickle import load
@@ -9,7 +7,7 @@ from mlrun.serving import Model
 
 class MyModel(Model):
     def __init__(
-        self, *args, artifact_uri: Optional[str] = None, raise_exception=False, **kwargs
+        self, *args, artifact_uri: str | None = None, raise_exception=False, **kwargs
     ):
         super().__init__(
             *args, artifact_uri=artifact_uri, raise_exception=raise_exception, **kwargs

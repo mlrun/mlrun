@@ -7,9 +7,12 @@ One of the biggest challenge in distributed systems is handling data given the d
 ```{toctree}
 :maxdepth: 1
 
+../store/profiles
 ../store/datastore
 ../store/data-items
 ../store/artifacts
+../store/llm-artifacts
+../store/code-artifacts
 ../store/models
 ../store/log-artifacts
 ```

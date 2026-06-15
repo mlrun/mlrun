@@ -528,7 +528,9 @@ def test_redirection_from_worker_to_chief_only_if_serving_function_with_track_mo
 
 
 def test_redirection_from_worker_to_chief_deploy_serving_function_with_track_models(
-    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient, httpserver
+    db: sqlalchemy.orm.Session,
+    client: fastapi.testclient.TestClient,
+    httpserver,
 ):
     mlrun.mlconf.httpdb.clusterization.role = "worker"
     endpoint = "/build/function"
@@ -811,11 +813,7 @@ def test_build_function_masks_access_key(
     mlrun.mlconf.httpdb.authentication.mode = AuthenticationMode.IGUAZIO
     # set auto mount to ensure it doesn't override the access key
     mlrun.mlconf.storage.auto_mount_type = "v3io_credentials"
-    monkeypatch.setattr(
-        framework.utils.clients.iguazio.v3,
-        "AsyncClient",
-        lambda *args, **kwargs: unittest.mock.AsyncMock(),
-    )
+    services.api.tests.unit.api.utils.setup_iguazio_v3_async_client_mock(monkeypatch)
     services.api.tests.unit.api.utils.create_project(client, PROJECT)
     function_dict = {
         "kind": "job",
@@ -880,11 +878,7 @@ def test_build_no_access_key(
     expected_reason,
 ):
     mlrun.mlconf.httpdb.authentication.mode = AuthenticationMode.IGUAZIO
-    monkeypatch.setattr(
-        framework.utils.clients.iguazio.v3,
-        "AsyncClient",
-        lambda *args, **kwargs: unittest.mock.AsyncMock(),
-    )
+    services.api.tests.unit.api.utils.setup_iguazio_v3_async_client_mock(monkeypatch)
 
     services.api.tests.unit.api.utils.create_project(client, PROJECT)
     function_dict = {
@@ -1144,7 +1138,7 @@ def test_build_status_events_and_logs(
         unittest.mock.patch.object(
             framework.utils.singletons.k8s.get_k8s_helper().v1api,
             "read_namespaced_pod_log",
-            return_value="log",
+            return_value=unittest.mock.Mock(data=b"log"),
         ),
     ):
         response = client.get(
@@ -1163,6 +1157,80 @@ def test_build_status_events_and_logs(
             == mlrun.common.constants.DeployStatusTextKind.logs
         )
         assert response.content.decode() == "log"
+
+
+@pytest.mark.parametrize(
+    "kind,pod_phase,expected_persisted_state",
+    [
+        # ML-12689: an application's in-progress build pod must be persisted as `building` (the UI renders that as
+        # "Deploying"), not `running`.
+        ("application", "running", mlrun.common.schemas.FunctionState.building),
+        ("application", "pending", mlrun.common.schemas.FunctionState.building),
+        # other built runtimes keep surfacing the raw build-pod phase as before.
+        ("job", "running", mlrun.common.schemas.FunctionState.running),
+        ("job", "pending", mlrun.common.schemas.FunctionState.pending),
+    ],
+)
+def test_build_status_building_for_application(
+    mocked_k8s_helper,
+    db: sqlalchemy.orm.Session,
+    client: fastapi.testclient.TestClient,
+    kind,
+    pod_phase,
+    expected_persisted_state,
+):
+    services.api.tests.unit.api.utils.create_project(client, PROJECT)
+    function = {
+        "kind": kind,
+        "metadata": {"name": f"fn-{kind}", "project": PROJECT, "tag": "latest"},
+        "status": {"build_pod": "some-pod-name"},
+    }
+    response = client.post(
+        FUNCTIONS_API.format(
+            project=function["metadata"]["project"], name=function["metadata"]["name"]
+        ),
+        json=function,
+    )
+    assert response.status_code == HTTPStatus.OK.value
+
+    with (
+        unittest.mock.patch.object(
+            framework.utils.singletons.k8s.get_k8s_helper(),
+            "get_pod_phase",
+            return_value=pod_phase,
+        ),
+        unittest.mock.patch.object(
+            framework.utils.singletons.k8s.get_k8s_helper().v1api,
+            "read_namespaced_pod_log",
+            return_value=unittest.mock.Mock(data=b"log"),
+        ),
+        unittest.mock.patch.object(
+            framework.utils.singletons.k8s.get_k8s_helper(),
+            "list_object_events",
+            return_value=[],
+        ),
+    ):
+        response = client.get(
+            BUILD_STATUS_API,
+            params={
+                "project": function["metadata"]["project"],
+                "name": function["metadata"]["name"],
+                "tag": function["metadata"]["tag"],
+            },
+            headers={mlrun.common.schemas.HeaderNames.client_version: "1.12.0"},
+        )
+        assert response.status_code == HTTPStatus.OK.value
+
+    assert response.headers.get("x-mlrun-function-status") == pod_phase
+
+    # The persisted state is what the UI reads; only application is remapped.
+    stored = services.api.crud.Functions().get_function(
+        db_session=db,
+        project=PROJECT,
+        name=function["metadata"]["name"],
+        tag="latest",
+    )
+    assert stored["status"]["state"] == expected_persisted_state
 
 
 def _generate_function(

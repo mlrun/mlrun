@@ -23,7 +23,11 @@ engines for serving, and batch for training.
 feature-store-overview
 feature-sets
 sources-targets
+../data-prep/ingest-data-fs
+using-spark-engine
 transformations
 feature-vectors
+feature-store-available-steps
+retrieve-offline-data
 ./end-to-end-demo/index
 ```

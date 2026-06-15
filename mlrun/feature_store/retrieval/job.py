@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import uuid
-from typing import Optional
 
 import mlrun
 import mlrun.common.constants as mlrun_constants
@@ -33,7 +32,7 @@ def run_merge_job(
     merger: BaseMerger,
     engine: str,
     engine_args: dict,
-    spark_service: Optional[str] = None,
+    spark_service: str | None = None,
     entity_rows=None,
     entity_timestamp_column=None,
     run_config=None,
@@ -197,6 +196,16 @@ class RemoteVectorResponse:
         """return path of the results file"""
         self._is_ready()
         return self.run.output("target")["path"]
+
+    def close(self):
+        pass
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+        return False
 
 
 _default_merger_handler = """

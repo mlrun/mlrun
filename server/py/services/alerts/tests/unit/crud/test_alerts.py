@@ -16,7 +16,7 @@ import unittest
 import unittest.mock
 from contextlib import AbstractContextManager
 from contextlib import nullcontext as does_not_raise
-from datetime import timezone
+from datetime import UTC
 
 import fastapi.concurrency
 import pytest
@@ -30,13 +30,6 @@ import services.alerts.crud
 import services.alerts.tests.unit.crud.utils
 from framework.tests.unit.common_fixtures import K8sSecretsMock
 from services.alerts.tests.unit.conftest import TestAlertsBase
-
-
-@pytest.fixture
-def reset_alert_caches():
-    yield
-    services.alerts.crud.Alerts()._alert_cache.cache_clear()
-    services.alerts.crud.Alerts()._alert_state_cache.cache_clear()
 
 
 class TestAlerts(TestAlertsBase):
@@ -57,6 +50,7 @@ class TestAlerts(TestAlertsBase):
         mocked_store_alert_activation,
         db: sqlalchemy.orm.Session,
         k8s_secrets_mock: K8sSecretsMock,
+        reset_alert_caches,
     ):
         project = "project-name"
         alert_name = "my-alert"
@@ -425,7 +419,7 @@ class TestAlerts(TestAlertsBase):
             name=alert_name,
         )
         assert alert.updated is not None
-        assert alert.updated > alert.created.replace(tzinfo=timezone.utc)
+        assert alert.updated > alert.created.replace(tzinfo=UTC)
 
     @pytest.mark.asyncio
     @unittest.mock.patch.object(

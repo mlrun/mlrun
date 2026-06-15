@@ -13,12 +13,12 @@
 # limitations under the License.
 
 import urllib.parse
-from typing import Optional
 
 import semver
 
 import mlrun
 import mlrun.runtimes
+from mlrun.runtimes.nuclio.function import validate_nuclio_version_compatibility
 from mlrun.utils import logger
 
 import framework.utils.clients.nuclio
@@ -56,7 +56,7 @@ def resolve_function_http_trigger(function_spec):
 
 
 def resolve_nuclio_runtime_python_image(
-    mlrun_client_version: Optional[str] = None, python_version: Optional[str] = None
+    mlrun_client_version: str | None = None, python_version: str | None = None
 ):
     if not python_version or not mlrun_client_version:
         return mlrun.mlconf.default_nuclio_runtime
@@ -134,6 +134,9 @@ def enrich_function_with_ingress(config, mode, service_type):
             "workerAvailabilityTimeoutMilliseconds": 10000,  # 10 seconds
             "attributes": {},
         }
+        # Provide trigger mode for nuclio 1.15.3 and above.
+        if validate_nuclio_version_compatibility("1.15.3"):
+            http_trigger["mode"] = "sync"
 
     def enrich():
         http_trigger.setdefault("attributes", {}).setdefault("ingresses", {})["0"] = {
@@ -293,7 +296,7 @@ def compile_nuclio_archive_config(
             if not parsed_url.netloc:
                 source = mlrun.mlconf.v3io_api + parsed_url.path
             else:
-                source = f"http{source[len('v3io'):]}"
+                source = f"http{source[len('v3io') :]}"
             if auth_info and not v3io_access_key:
                 v3io_access_key = auth_info.data_session or auth_info.access_key
 
@@ -312,6 +315,7 @@ def compile_nuclio_archive_config(
         code_entry_attributes["s3AccessKeyId"] = get_secret("AWS_ACCESS_KEY_ID")
         code_entry_attributes["s3SecretAccessKey"] = get_secret("AWS_SECRET_ACCESS_KEY")
         code_entry_attributes["s3SessionToken"] = get_secret("AWS_SESSION_TOKEN")
+        code_entry_attributes["s3Endpoint"] = get_secret("AWS_ENDPOINT_URL_S3")
 
     # git
     if code_entry_type == "git":

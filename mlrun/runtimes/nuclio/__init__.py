@@ -12,11 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .serving import ServingRuntime, new_v2_model_server  # noqa
-from .nuclio import nuclio_init_hook  # noqa
-from .function import (
-    min_nuclio_versions,
-    multiple_port_sidecar_is_supported,
-    RemoteRuntime,
-)  # noqa
-from .api_gateway import APIGateway
+import mlrun.runtimes.nuclio.serving as nuclio_serving  # noqa
+import mlrun.runtimes.nuclio.nuclio as nuclio_nuclio  # noqa
+import mlrun.runtimes.nuclio.function as nuclio_function  # noqa
+import mlrun.runtimes.nuclio.api_gateway as nuclio_api_gateway  # noqa
+
+ServingRuntime = nuclio_serving.ServingRuntime
+new_v2_model_server = nuclio_serving.new_v2_model_server
+nuclio_init_hook = nuclio_nuclio.nuclio_init_hook
+min_nuclio_versions = nuclio_function.min_nuclio_versions
+multiple_port_sidecar_is_supported = nuclio_function.multiple_port_sidecar_is_supported
+RemoteRuntime = nuclio_function.RemoteRuntime
+APIGateway = nuclio_api_gateway.APIGateway

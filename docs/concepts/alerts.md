@@ -156,7 +156,7 @@ The {py:class}`mlrun.common.schemas.alert.ResetPolicy` specifies when to clear t
 becomes inactive, its notifications cease. When it is re-activated, notifications are renewed.
 The `ResetPolicy` options are:
 - manual &mdash; for manual reset of the alert
-- auto &mdash; if the criteria contains a time period such that the alert is reset once there are no more invocations in the relevant time window.
+- auto &mdash; the alert is reset immediately after it is triggered and its notifications are sent.
 
 ``` {Admonition} Note
 If you change the `reset-policy` of an active alert from manual to auto, the alert is immediately reset. 

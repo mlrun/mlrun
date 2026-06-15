@@ -13,8 +13,7 @@
 # limitations under the License.
 import datetime
 import http
-import typing
-from typing import Optional, Union
+from typing import Union
 
 import fastapi
 import semver
@@ -146,8 +145,8 @@ class Service(framework.service.Service):
         self,
         request: fastapi.Request,
         project: str,
-        page_size: typing.Optional[int],
-        offset: typing.Optional[int],
+        page_size: int | None,
+        offset: int | None,
         auth_info: mlrun.common.schemas.AuthInfo,
         db_session: sqlalchemy.orm.Session = None,
     ) -> dict[str, list[mlrun.common.schemas.AlertConfig]]:
@@ -448,13 +447,13 @@ class Service(framework.service.Service):
         self,
         request: fastapi.Request,
         project: str,
-        name: Optional[str],
-        since: Optional[str],
-        until: Optional[str],
-        entity: Optional[str],
-        severity: Optional[list[Union[mlrun.common.schemas.alert.AlertSeverity, str]]],
-        entity_kind: Optional[Union[mlrun.common.schemas.alert.EventEntityKind, str]],
-        event_kind: Optional[Union[mlrun.common.schemas.alert.EventKind, str]],
+        name: str | None,
+        since: str | None,
+        until: str | None,
+        entity: str | None,
+        severity: list[Union[mlrun.common.schemas.alert.AlertSeverity, str]] | None,
+        entity_kind: Union[mlrun.common.schemas.alert.EventEntityKind, str] | None,
+        event_kind: Union[mlrun.common.schemas.alert.EventKind, str] | None,
         page: int,
         page_size: int,
         page_token: str,
@@ -508,7 +507,7 @@ class Service(framework.service.Service):
         self,
         request: fastapi.Request,
         project: str,
-        name: Optional[str],
+        name: str | None,
         activation_id: int,
         auth_info: mlrun.common.schemas.AuthInfo,
         db_session: sqlalchemy.orm.Session = None,
@@ -602,6 +601,23 @@ class Service(framework.service.Service):
 
     async def _start_periodic_functions(self):
         self._start_periodic_events_generation()
+        self._start_periodic_cooldown_reset()
+
+    def _start_periodic_cooldown_reset(self):
+        interval = int(mlconf.alerts.cooldown_reset_interval)
+        if interval > 0:
+            self._logger.info("Starting periodic cooldown reset", interval=interval)
+            framework.utils.periodic.run_function_periodically(
+                interval,
+                self._reset_cooled_down_alerts.__name__,
+                False,
+                self._reset_cooled_down_alerts,
+            )
+
+    def _reset_cooled_down_alerts(self):
+        framework.db.session.run_function_with_new_db_session(
+            services.alerts.crud.Alerts().reset_cooled_down_alerts
+        )
 
     def _start_periodic_events_generation(self):
         interval = int(mlconf.alerts.events_generation_interval)
@@ -614,15 +630,14 @@ class Service(framework.service.Service):
                 self._generate_events,
             )
 
-    async def _generate_events(self):
+    def _generate_events(self):
         try:
-            await framework.utils.time_window_tracker.run_with_time_window_tracker(
+            framework.utils.time_window_tracker.run_with_time_window_tracker_sync(
                 key=framework.utils.time_window_tracker.TimeWindowTrackerKeys.events_generation,
                 max_window_size_seconds=int(
                     # TODO: This needs to be aligned with chief
                     mlconf.runtime_resources_deletion_grace_period
                 ),
-                ensure_window_update=False,
                 callback=self._generate_event_on_failed_runs,
             )
         except Exception as exc:

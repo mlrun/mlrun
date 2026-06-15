@@ -52,7 +52,7 @@ class DocumentLoaderSpec(ModelObj):
         loader_class_name: str = "langchain_community.document_loaders.TextLoader",
         src_name: str = "file_path",
         download_object: bool = True,
-        kwargs: Optional[dict] = None,
+        kwargs: dict | None = None,
     ):
         """
         Initialize the document loader.
@@ -157,10 +157,10 @@ class MLRunLoader:
         source_path: str,
         loader_spec: "DocumentLoaderSpec",
         artifact_key="%%",
-        producer: Optional[Union["MlrunProject", str, "MLClientCtx"]] = None,  # noqa: F821
+        producer: Union["MlrunProject", str, "MLClientCtx"] | None = None,  # noqa: F821
         upload: bool = False,
         tag: str = "",
-        labels: Optional[dict[str, str]] = None,
+        labels: dict[str, str] | None = None,
     ):
         # Dynamically import BaseLoader
         from langchain_community.document_loaders.base import BaseLoader
@@ -285,8 +285,8 @@ class DocumentArtifact(Artifact):
         def __init__(
             self,
             *args,
-            document_loader: Optional[DocumentLoaderSpec] = None,
-            original_source: Optional[str] = None,
+            document_loader: DocumentLoaderSpec | None = None,
+            original_source: str | None = None,
             **kwargs,
         ):
             super().__init__(*args, **kwargs)
@@ -299,7 +299,7 @@ class DocumentArtifact(Artifact):
         def __init__(
             self,
             *args,
-            collections: Optional[dict] = None,
+            collections: dict | None = None,
             **kwargs,
         ):
             super().__init__(*args, **kwargs)
@@ -317,9 +317,9 @@ class DocumentArtifact(Artifact):
 
     def __init__(
         self,
-        original_source: Optional[str] = None,
-        document_loader_spec: Optional[DocumentLoaderSpec] = None,
-        collections: Optional[dict] = None,
+        original_source: str | None = None,
+        document_loader_spec: DocumentLoaderSpec | None = None,
+        collections: dict | None = None,
         **kwargs,
     ):
         super().__init__(**kwargs)

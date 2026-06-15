@@ -77,17 +77,18 @@ class WorkflowSpec(mlrun.model.ModelObj):
 
     def __init__(
         self,
-        engine: typing.Optional[str] = None,
-        code: typing.Optional[str] = None,
-        path: typing.Optional[str] = None,
-        args: typing.Optional[dict] = None,
-        name: typing.Optional[str] = None,
-        handler: typing.Optional[str] = None,
-        args_schema: typing.Optional[dict] = None,
+        engine: str | None = None,
+        code: str | None = None,
+        path: str | None = None,
+        args: dict | None = None,
+        name: str | None = None,
+        handler: str | None = None,
+        args_schema: dict | None = None,
         schedule: typing.Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
-        cleanup_ttl: typing.Optional[int] = None,
-        image: typing.Optional[str] = None,
-        workflow_runner_node_selector: typing.Optional[dict[str, str]] = None,
+        cleanup_ttl: int | None = None,
+        image: str | None = None,
+        workflow_runner_node_selector: dict[str, str] | None = None,
+        run_setup: bool = False,
     ):
         self.engine = engine
         self.code = code
@@ -102,8 +103,29 @@ class WorkflowSpec(mlrun.model.ModelObj):
         self.schedule = schedule
         self.image = image
         self.workflow_runner_node_selector = workflow_runner_node_selector
+        self.run_setup = run_setup
 
-    def get_source_file(self, context=""):
+    def get_source_file(
+        self,
+        context: str = "",
+        project_name: str | None = None,
+        secrets: mlrun.secrets.SecretsStore | None = None,
+    ) -> str:
+        """Resolve the workflow path to a local file the runner can import.
+
+        - Inline ``self.code``: write to a temp file.
+        - ``store://`` URI: validate kind/code_type, download to
+          ``<context>/.mlrun/code/``. Each call re-downloads.
+        - Local path: join with ``context`` if relative.
+
+        :param context:      Project context directory.
+        :param project_name: Required for ``store://`` resolution.
+        :param secrets:      Forwarded to ``load_source_code`` for
+                             credential-protected stores. ``None`` is correct
+                             from the runner pod (K8s auto-mounts project
+                             secrets as env vars).
+        :returns: Local filesystem path to the workflow Python file.
+        """
         if not self.code and not self.path:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "workflow must have code or path properties"
@@ -114,16 +136,28 @@ class WorkflowSpec(mlrun.model.ModelObj):
             ) as workflow_fh:
                 workflow_fh.write(self.code)
                 self._tmp_path = workflow_path = workflow_fh.name
-        else:
-            workflow_path = self.path or ""
-            if (
-                context
-                and not workflow_path.startswith("/")
-                # since the user may provide a path the includes the context,
-                # we need to make sure we don't add it twice
-                and not workflow_path.startswith(context)
-            ):
-                workflow_path = os.path.join(context, workflow_path.lstrip("./"))
+            return workflow_path
+
+        if self.path and mlrun.datastore.is_store_uri(self.path):
+            target_dir = os.path.join(
+                context or ".", mlrun_constants.CODE_ARTIFACT_DOWNLOAD_SUBDIR
+            )
+            return _download_store_workflow_artifact(
+                workflow_path=self.path,
+                target_dir=target_dir,
+                project_name=project_name,
+                secrets=secrets,
+            )
+
+        workflow_path = self.path or ""
+        if (
+            context
+            and not workflow_path.startswith("/")
+            # since the user may provide a path the includes the context,
+            # we need to make sure we don't add it twice
+            and not workflow_path.startswith(context)
+        ):
+            workflow_path = os.path.join(context, workflow_path.lstrip("./"))
         return workflow_path
 
     def merge_args(self, extra_args):
@@ -149,6 +183,108 @@ class WorkflowSpec(mlrun.model.ModelObj):
     def clear_tmp(self):
         if self._tmp_path:
             os.remove(self._tmp_path)
+
+
+def _validate_workflow_code_artifact(artifact, workflow_path: str) -> None:
+    """Validate ``artifact`` is a code artifact with ``code_type='workflow'``.
+
+    Pure validation — no I/O. ``code_type=None`` is accepted for backward
+    compatibility; only an *explicit* non-workflow value fails. The payload
+    must be a single ``.py`` file: KFP runs Python workflows, so a non-Python
+    file (or an archive, which resolves to ``(target_dir, None)`` from
+    ``load_source_code`` with no single entry file) cannot be submitted.
+
+    :param artifact:      Resolved store-resource (or ``None``).
+    :param workflow_path: Original ``store://`` URI, used in error messages.
+    :raises MLRunNotFoundError: if ``artifact`` is ``None``.
+    :raises MLRunInvalidArgumentError: if not an Artifact, if kind /
+                                       code_type mismatch, or if the payload
+                                       is not a single ``.py`` file.
+    """
+    if artifact is None:
+        raise mlrun.errors.MLRunNotFoundError(
+            f"Workflow path {workflow_path!r} did not resolve to an artifact "
+            "(the store returned no resource; the URI may be malformed or "
+            "point at a missing link target)."
+        )
+    if not isinstance(artifact, mlrun.artifacts.Artifact):
+        # get_store_resource can also return FeatureSet / FeatureVector /
+        # DataItem for non-artifact store URIs (e.g. store://feature-sets/...).
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"Workflow path {workflow_path!r} resolves to a "
+            f"{type(artifact).__name__}; expected an Artifact (specifically, "
+            f"a code artifact)."
+        )
+    if artifact.kind != mlrun.artifacts.CodeArtifact.kind:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"Workflow path {workflow_path!r} resolves to a "
+            f"{artifact.kind!r} artifact; expected a code artifact "
+            f"(kind={mlrun.artifacts.CodeArtifact.kind!r})."
+        )
+    code_type = artifact.spec.code_type
+    if (
+        code_type is not None
+        and code_type != mlrun.artifacts.CodeArtifactCodeType.workflow
+    ):
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"Workflow path {workflow_path!r} resolves to a code artifact "
+            f"with code_type={code_type.value!r}; expected "
+            f"{mlrun.artifacts.CodeArtifactCodeType.workflow.value!r}."
+        )
+    filename = mlrun.utils.clones.resolve_artifact_filename(artifact)
+    if not filename.lower().endswith(".py"):
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"Workflow path {workflow_path!r} resolves to {filename!r}; "
+            f"workflow code artifacts must be a single Python (.py) file "
+            f"(KFP runs Python workflows)."
+        )
+
+
+def validate_remote_workflow_artifact(
+    workflow_path: str,
+    project_name: str,
+    secrets: mlrun.secrets.SecretsStore | None = None,
+    data_store_secrets: mlrun.secrets.SecretsStore | dict | None = None,
+) -> None:
+    """Resolve and validate a ``store://`` workflow artifact via the API.
+
+    Metadata-only check — ``get_store_resource`` reads from the MLRun DB, no
+    artifact content is downloaded here. All errors propagate.
+    """
+    artifact = mlrun.datastore.get_store_resource(
+        workflow_path,
+        project=project_name,
+        secrets=secrets,
+        data_store_secrets=data_store_secrets,
+    )
+    _validate_workflow_code_artifact(artifact, workflow_path)
+
+
+def _download_store_workflow_artifact(
+    workflow_path: str,
+    target_dir: str,
+    project_name: str | None,
+    secrets: mlrun.secrets.SecretsStore | None,
+) -> str:
+    """Resolve, validate, and download a ``store://`` workflow artifact.
+
+    Runner-pod authoritative path; all errors propagate.
+
+    :returns: Local filesystem path to the downloaded workflow file.
+    """
+    validate_remote_workflow_artifact(
+        workflow_path,
+        project_name,
+        secrets=secrets,
+        data_store_secrets=secrets,
+    )
+    _, file_path = mlrun.utils.clones.load_source_code(
+        source_uri=workflow_path,
+        target_dir=target_dir,
+        project=project_name,
+        secrets=secrets,
+    )
+    return file_path
 
 
 class FunctionsDict:
@@ -262,7 +398,36 @@ class _PipelineContext:
         return False
 
 
-pipeline_context = _PipelineContext()
+_legacy_pipeline_context = _PipelineContext()
+
+
+def _current_pipeline_context() -> _PipelineContext:
+    """Return the active ``Client``'s pipeline context if one is bound,
+    else the legacy module-global instance."""
+    from mlrun.client import get_active_client
+
+    client = get_active_client()
+    if client is not None:
+        return client._pipeline_context
+    return _legacy_pipeline_context
+
+
+class _PipelineContextProxy:
+    """Delegates every attribute read/write to the per-session
+    ``_PipelineContext`` returned by ``_current_pipeline_context()``.
+
+    Inside a ``client.session()`` that's the active client's own instance;
+    outside, the module-global legacy singleton (BWC).
+    """
+
+    def __getattr__(self, name):
+        return getattr(_current_pipeline_context(), name)
+
+    def __setattr__(self, name, value):
+        setattr(_current_pipeline_context(), name, value)
+
+
+pipeline_context = _PipelineContextProxy()
 
 
 def _set_function_attribute_on_kfp_pod(
@@ -322,7 +487,7 @@ def get_db_function(project, key) -> mlrun.runtimes.BaseRuntime:
 def enrich_function_object(
     project: mlrun.common.schemas.Project,
     function: mlrun.runtimes.BaseRuntime,
-    decorator: typing.Optional[typing.Callable] = None,
+    decorator: typing.Callable | None = None,
     copy_function: bool = True,
     try_auto_mount: bool = True,
 ) -> mlrun.runtimes.BaseRuntime:
@@ -385,7 +550,7 @@ class _PipelineRunStatus:
         project: "mlrun.projects.MlrunProject",
         workflow: WorkflowSpec = None,
         state: mlrun_pipelines.common.models.RunStatuses = "",
-        exc: typing.Optional[Exception] = None,
+        exc: Exception | None = None,
     ):
         """
         :param run_id:      unique id of the pipeline run
@@ -476,8 +641,8 @@ class _PipelineRunner(abc.ABC):
         artifact_path=None,
         namespace=None,
         source=None,
-        notifications: typing.Optional[list[mlrun.model.Notification]] = None,
-        context: typing.Optional[mlrun.execution.MLClientCtx] = None,
+        notifications: list[mlrun.model.Notification] | None = None,
+        context: mlrun.execution.MLClientCtx | None = None,
     ) -> _PipelineRunStatus:
         pass
 
@@ -486,8 +651,8 @@ class _PipelineRunner(abc.ABC):
     def wait_for_completion(
         run: "_PipelineRunStatus",
         project: typing.Optional["mlrun.projects.MlrunProject"] = None,
-        timeout: typing.Optional[int] = None,
-        expected_statuses: typing.Optional[list[str]] = None,
+        timeout: int | None = None,
+        expected_statuses: list[str] | None = None,
     ):
         pass
 
@@ -542,7 +707,11 @@ class _PipelineRunner(abc.ABC):
     @staticmethod
     def _get_handler(workflow_handler, workflow_spec, project, secrets):
         if not (workflow_handler and callable(workflow_handler)):
-            workflow_file = workflow_spec.get_source_file(project.spec.get_code_path())
+            workflow_file = workflow_spec.get_source_file(
+                project.spec.get_code_path(),
+                project_name=project.metadata.name,
+                secrets=secrets,
+            )
             workflow_handler = create_pipeline(
                 project,
                 workflow_file,
@@ -572,7 +741,11 @@ class _KFPRunner(_PipelineRunner):
     @classmethod
     def save(cls, project, workflow_spec: WorkflowSpec, target, artifact_path=None):
         pipeline_context.set(project, workflow_spec)
-        workflow_file = workflow_spec.get_source_file(project.spec.get_code_path())
+        workflow_file = workflow_spec.get_source_file(
+            project.spec.get_code_path(),
+            project_name=project.metadata.name,
+            secrets=project._secrets,
+        )
         functions = FunctionsDict(project)
         pipeline = create_pipeline(
             project,
@@ -602,8 +775,8 @@ class _KFPRunner(_PipelineRunner):
         artifact_path=None,
         namespace=None,
         source=None,
-        notifications: typing.Optional[list[mlrun.model.Notification]] = None,
-        context: typing.Optional[mlrun.execution.MLClientCtx] = None,
+        notifications: list[mlrun.model.Notification] | None = None,
+        context: mlrun.execution.MLClientCtx | None = None,
     ) -> _PipelineRunStatus:
         pipeline_context.set(project, workflow_spec)
         workflow_handler = _PipelineRunner._get_handler(
@@ -641,7 +814,8 @@ class _KFPRunner(_PipelineRunner):
             workflow_handler,
             project=project.metadata.name,
             arguments=workflow_spec.args,
-            experiment=name or workflow_spec.name,
+            experiment=None,
+            run=name or workflow_spec.name,
             namespace=namespace,
             artifact_path=artifact_path,
             cleanup_ttl=workflow_spec.cleanup_ttl,
@@ -724,8 +898,8 @@ class _KFPRunner(_PipelineRunner):
     def wait_for_completion(
         run: "_PipelineRunStatus",
         project: typing.Optional["mlrun.projects.MlrunProject"] = None,
-        timeout: typing.Optional[int] = None,
-        expected_statuses: typing.Optional[list[str]] = None,
+        timeout: int | None = None,
+        expected_statuses: list[str] | None = None,
     ):
         project_name = project.metadata.name if project else ""
         logger.info(
@@ -770,8 +944,8 @@ class _LocalRunner(_PipelineRunner):
         artifact_path=None,
         namespace=None,
         source=None,
-        notifications: typing.Optional[list[mlrun.model.Notification]] = None,
-        context: typing.Optional[mlrun.execution.MLClientCtx] = None,
+        notifications: list[mlrun.model.Notification] | None = None,
+        context: mlrun.execution.MLClientCtx | None = None,
     ) -> _PipelineRunStatus:
         pipeline_context.set(project, workflow_spec)
         workflow_handler = _PipelineRunner._get_handler(
@@ -844,20 +1018,48 @@ class _RemoteRunner(_PipelineRunner):
 
     engine = "remote"
 
+    @staticmethod
+    def resolve_relative_workflow_path(workflow_path: str, code_path: str) -> str:
+        """Resolve ``workflow_path`` to a ``./``-prefixed form relative to
+        ``code_path`` if it lives under it.
+
+        The runner pod mounts the project context at ``code_path``, so absolute
+        client-side paths must be made relative before being shipped.
+
+        Pass-through (returned unchanged): empty/``None`` ``workflow_path`` or
+        ``code_path``, URL paths (``store://``, ``s3://``, ``git://``, ...),
+        and paths that don't start with ``code_path``.
+
+        :param workflow_path: The workflow path to convert.
+        :param code_path:     The project code-path prefix to strip.
+        :returns: The relative path, or the original if no conversion applies.
+        """
+        if not workflow_path or "://" in workflow_path:
+            return workflow_path
+        if not code_path:
+            # str.startswith("") is True for every path, so guard explicitly
+            # to avoid prefixing every input with "./".
+            return workflow_path
+        if not workflow_path.startswith(code_path):
+            return workflow_path
+        relative = workflow_path.removeprefix(code_path)
+        prefix = "." if relative.startswith("/") else "./"
+        return f"{prefix}{relative}"
+
     @classmethod
     def run(
         cls,
         project: "mlrun.projects.MlrunProject",
         workflow_spec: WorkflowSpec,
-        name: typing.Optional[str] = None,
-        workflow_handler: typing.Optional[typing.Union[str, typing.Callable]] = None,
+        name: str | None = None,
+        workflow_handler: typing.Union[str, typing.Callable] | None = None,
         secrets: mlrun.secrets.SecretsStore = None,
-        artifact_path: typing.Optional[str] = None,
-        namespace: typing.Optional[str] = None,
-        source: typing.Optional[str] = None,
-        notifications: typing.Optional[list[mlrun.model.Notification]] = None,
-        context: typing.Optional[mlrun.execution.MLClientCtx] = None,
-    ) -> typing.Optional[_PipelineRunStatus]:
+        artifact_path: str | None = None,
+        namespace: str | None = None,
+        source: str | None = None,
+        notifications: list[mlrun.model.Notification] | None = None,
+        context: mlrun.execution.MLClientCtx | None = None,
+    ) -> _PipelineRunStatus | None:
         workflow_name = normalize_workflow_name(name=name, project_name=project.name)
         workflow_id = None
 
@@ -874,20 +1076,9 @@ class _RemoteRunner(_PipelineRunner):
                 project_name=project.name,
             )
 
-            # set it relative to project path
-            # as the runner pod will mount and use `load_and_run` which will use the project context
-            # to load the workflow file to.
-            # e.g.
-            # /path/to/project/workflow.py -> ./workflow.py
-            # /path/to/project/subdir/workflow.py -> ./workflow.py
-            if workflow_spec.path:
-                prefix = project.spec.get_code_path()
-                if workflow_spec.path.startswith(prefix):
-                    workflow_spec.path = workflow_spec.path.removeprefix(prefix)
-                    relative_prefix = "."
-                    if not workflow_spec.path.startswith("/"):
-                        relative_prefix += "/"
-                    workflow_spec.path = f"{relative_prefix}{workflow_spec.path}"
+            workflow_spec.path = cls.resolve_relative_workflow_path(
+                workflow_spec.path, project.spec.get_code_path()
+            )
 
             workflow_response = run_db.submit_workflow(
                 project=project.name,
@@ -977,7 +1168,7 @@ class _RemoteRunner(_PipelineRunner):
         timeout=None,
         expected_statuses=None,
         notifiers: mlrun.utils.notifications.CustomNotificationPusher = None,
-        inner_engine: typing.Optional[type[_PipelineRunner]] = None,
+        inner_engine: type[_PipelineRunner] | None = None,
     ):
         inner_engine = inner_engine or _KFPRunner
         if inner_engine.engine == _KFPRunner.engine:
@@ -1167,25 +1358,26 @@ def load_and_run(context, *args, **kwargs):
 
 def load_and_run_workflow(
     context: mlrun.execution.MLClientCtx,
-    url: typing.Optional[str] = None,
+    url: str | None = None,
     project_name: str = "",
-    init_git: typing.Optional[bool] = None,
-    subpath: typing.Optional[str] = None,
+    init_git: bool | None = None,
+    subpath: str | None = None,
     clone: bool = False,
-    workflow_name: typing.Optional[str] = None,
-    workflow_path: typing.Optional[str] = None,
-    workflow_arguments: typing.Optional[dict[str, typing.Any]] = None,
-    artifact_path: typing.Optional[str] = None,
-    workflow_handler: typing.Optional[typing.Union[str, typing.Callable]] = None,
-    namespace: typing.Optional[str] = None,
+    workflow_name: str | None = None,
+    workflow_path: str | None = None,
+    workflow_arguments: dict[str, typing.Any] | None = None,
+    artifact_path: str | None = None,
+    workflow_handler: typing.Union[str, typing.Callable] | None = None,
+    namespace: str | None = None,
     sync: bool = False,
     dirty: bool = False,
-    engine: typing.Optional[str] = None,
-    local: typing.Optional[bool] = None,
+    engine: str | None = None,
+    local: bool | None = None,
     schedule: typing.Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
-    cleanup_ttl: typing.Optional[int] = None,
+    cleanup_ttl: int | None = None,
     wait_for_completion: bool = False,
-    project_context: typing.Optional[str] = None,
+    project_context: str | None = None,
+    run_setup: bool = False,
 ):
     """
     Auxiliary function that the RemoteRunner run once or run every schedule.
@@ -1214,6 +1406,7 @@ def load_and_run_workflow(
                                 workflow and all its resources are deleted)
     :param wait_for_completion: wait for workflow completion before returning
     :param project_context:     project context path (used for loading the project)
+    :param run_setup:           whether the setup script should be run (default False)
     """
     project_context = project_context or f"./{project_name}"
 
@@ -1228,6 +1421,7 @@ def load_and_run_workflow(
         clone=clone,
         schedule=schedule,
         workflow_name=workflow_name,
+        run_setup=run_setup,
     )
 
     # Retrieve the project object:
@@ -1237,6 +1431,7 @@ def load_and_run_workflow(
         context=project_context or f"./{project_name}",
         name=project_name,
         allow_cross_project=True,
+        run_setup=run_setup,
     )
 
     # extract "start" notification if exists
@@ -1255,22 +1450,27 @@ def load_and_run_workflow(
     context.logger.info(
         "Running workflow from remote", workflow_log_message=workflow_log_message
     )
-    run = project.run(
-        name=workflow_name,
-        workflow_path=workflow_path,
-        arguments=workflow_arguments,
-        artifact_path=artifact_path,
-        workflow_handler=workflow_handler,
-        namespace=namespace,
-        sync=sync,
-        watch=False,  # Required for fetching the workflow_id
-        dirty=dirty,
-        cleanup_ttl=cleanup_ttl,
-        engine=engine,
-        local=local,
-        notifications=start_notifications,
-        context=context,
-    )
+    # Read auth token name from config (set via MLRUN_AUTH_WITH_OAUTH_TOKEN__TOKEN_NAME env var
+    # by the server on workflow-runner pods) and propagate it via context manager.
+    # This ensures the token is used during pipeline compilation for all steps.
+    auth_token_name = mlrun.mlconf.auth_with_oauth_token.token_name or None
+    with mlrun.RuntimeConfigurationContext(auth_token_name=auth_token_name):
+        run = project.run(
+            name=workflow_name,
+            workflow_path=workflow_path,
+            arguments=workflow_arguments,
+            artifact_path=artifact_path,
+            workflow_handler=workflow_handler,
+            namespace=namespace,
+            sync=sync,
+            watch=False,  # Required for fetching the workflow_id
+            dirty=dirty,
+            cleanup_ttl=cleanup_ttl,
+            engine=engine,
+            local=local,
+            notifications=start_notifications,
+            context=context,
+        )
     # Patch the current run object (the workflow-runner) with the workflow-id label
     context.logger.info(
         "Associating workflow-runner with workflow ID", run_id=run.run_id
@@ -1298,13 +1498,12 @@ def pull_remote_project_files(
     project_context: str,
     url: str,
     project_name: str,
-    init_git: typing.Optional[bool],
-    subpath: typing.Optional[str],
+    init_git: bool | None,
+    subpath: str | None,
     clone: bool,
-    schedule: typing.Optional[
-        typing.Union[str, mlrun.common.schemas.ScheduleCronTrigger]
-    ],
-    workflow_name: typing.Optional[str],
+    schedule: typing.Union[str, mlrun.common.schemas.ScheduleCronTrigger] | None,
+    workflow_name: str | None,
+    run_setup: bool = True,
 ) -> None:
     """
     Load the project to clone remote files if they exist.
@@ -1319,6 +1518,7 @@ def pull_remote_project_files(
     :param clone:          Whether to clone the repository.
     :param schedule:       Schedule for running the workflow.
     :param workflow_name:  Name of the workflow to run.
+    :param run_setup:      whether the setup script should be run (default True)
     """
     try:
         # Load the project to clone remote files if they exist.
@@ -1332,6 +1532,7 @@ def pull_remote_project_files(
             clone=clone,
             save=False,
             allow_cross_project=True,
+            run_setup=run_setup,
         )
     except Exception as error:
         notify_scheduled_workflow_failure(
@@ -1406,13 +1607,13 @@ def handle_workflow_completion(
 
 def import_remote_project(
     context: mlrun.execution.MLClientCtx,
-    url: typing.Optional[str] = None,
+    url: str | None = None,
     project_name: str = "",
-    init_git: typing.Optional[bool] = None,
-    subpath: typing.Optional[str] = None,
+    init_git: bool | None = None,
+    subpath: str | None = None,
     clone: bool = False,
     save: bool = True,
-    project_context: typing.Optional[str] = None,
+    project_context: str | None = None,
 ):
     """
     This function loads a project from a given remote source.

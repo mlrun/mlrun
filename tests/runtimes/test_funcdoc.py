@@ -207,9 +207,9 @@ def test_ast_compound():
     for i, param in enumerate(info["params"]):
         if i in (4, 8):
             continue
-        assert (
-            param["type"] == param_types[i]
-        ), f"param at index {i} has a bad type value. param: {param}"
+        assert param["type"] == param_types[i], (
+            f"param at index {i} has a bad type value. param: {param}"
+        )
 
 
 underscore_code = """

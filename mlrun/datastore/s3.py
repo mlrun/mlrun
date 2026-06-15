@@ -13,46 +13,25 @@
 # limitations under the License.
 
 import time
-import warnings
-from typing import Optional
 from urllib.parse import urlparse
 
 import boto3
+import botocore.exceptions
 from boto3.s3.transfer import TransferConfig
 from fsspec.registry import get_filesystem_class
 
 import mlrun.errors
 
 from .base import DataStore, FileStats, make_datastore_schema_sanitizer
+from .utils import parse_s3_bucket_and_key
+
+__all__ = ["parse_s3_bucket_and_key"]
 
 
 class S3Store(DataStore):
     using_bucket = True
 
-    # TODO: Remove this in 1.12.0
-    def _get_endpoint_url_with_deprecation_warning(self):
-        """Get S3 endpoint URL with backward compatibility for deprecated S3_ENDPOINT_URL"""
-        # First try the new environment variable
-        endpoint_url = self._get_secret_or_env("AWS_ENDPOINT_URL_S3")
-        if endpoint_url:
-            return endpoint_url
-
-        # Check for deprecated environment variable
-        deprecated_endpoint_url = self._get_secret_or_env("S3_ENDPOINT_URL")
-        if deprecated_endpoint_url:
-            warnings.warn(
-                "S3_ENDPOINT_URL is deprecated in 1.10.0 and will be removed in 1.12.0, "
-                "use AWS_ENDPOINT_URL_S3 instead.",
-                # TODO: Remove this in 1.12.0
-                FutureWarning,
-            )
-            return deprecated_endpoint_url
-
-        return None
-
-    def __init__(
-        self, parent, schema, name, endpoint="", secrets: Optional[dict] = None
-    ):
+    def __init__(self, parent, schema, name, endpoint="", secrets: dict | None = None):
         super().__init__(parent, name, schema, endpoint, secrets)
         # will be used in case user asks to assume a role and work through fsspec
         self._temp_credentials = None
@@ -63,7 +42,7 @@ class S3Store(DataStore):
         access_key_id = self._get_secret_or_env("AWS_ACCESS_KEY_ID")
         secret_key = self._get_secret_or_env("AWS_SECRET_ACCESS_KEY")
         token_file = self._get_secret_or_env("AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE")
-        endpoint_url = self._get_endpoint_url_with_deprecation_warning()
+        endpoint_url = self._get_secret_or_env("AWS_ENDPOINT_URL_S3")
         force_non_anonymous = self._get_secret_or_env("S3_NON_ANONYMOUS")
         profile_name = self._get_secret_or_env("AWS_PROFILE")
         assume_role_arn = self._get_secret_or_env("MLRUN_AWS_ROLE_ARN")
@@ -117,19 +96,34 @@ class S3Store(DataStore):
                 endpoint_url=endpoint_url,
             )
         else:
-            # from env variables
+            # No explicit credentials provided. Let boto3 use the default
+            # credential chain (env vars, instance profile, IRSA, etc.).
             self.s3 = boto3.resource(
                 "s3", region_name=region, endpoint_url=endpoint_url
             )
-            if not token_file:
-                # If not using credentials, boto will still attempt to sign the requests, and will fail any operations
-                # due to no credentials found. These commands disable signing and allow anonymous mode (same as
-                # anon in the storage_options when working with fsspec).
+            if not token_file and not self._has_default_credentials():
+                # No credentials available through any provider — fall back to
+                # anonymous (unsigned) access for public buckets.
                 from botocore.handlers import disable_signing
 
                 self.s3.meta.client.meta.events.register(
                     "choose-signer.s3.*", disable_signing
                 )
+
+    @staticmethod
+    def _has_default_credentials() -> bool:
+        """Check if the AWS default credential chain can provide credentials.
+
+        Returns True if credentials are available through any provider
+        (environment variables, instance profile, IRSA, config files, etc.).
+        This avoids falling back to anonymous access when IAM roles or other
+        implicit credential sources are available (e.g., on EKS).
+        """
+        try:
+            credentials = boto3.Session().get_credentials()
+            return credentials is not None and credentials.access_key is not None
+        except Exception:
+            return False
 
     @staticmethod
     def get_range(size, offset):
@@ -181,7 +175,7 @@ class S3Store(DataStore):
     def get_storage_options(self):
         force_non_anonymous = self._get_secret_or_env("S3_NON_ANONYMOUS")
         profile = self._get_secret_or_env("AWS_PROFILE")
-        endpoint_url = self._get_endpoint_url_with_deprecation_warning()
+        endpoint_url = self._get_secret_or_env("AWS_ENDPOINT_URL_S3")
         access_key_id = self._get_secret_or_env("AWS_ACCESS_KEY_ID")
         secret = self._get_secret_or_env("AWS_SECRET_ACCESS_KEY")
         token_file = self._get_secret_or_env("AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE")
@@ -225,9 +219,17 @@ class S3Store(DataStore):
     def get(self, key, size=None, offset=0):
         bucket, key = self.get_bucket_and_key(key)
         obj = self.s3.Object(bucket, key)
-        if size or offset:
-            return obj.get(Range=S3Store.get_range(size, offset))["Body"].read()
-        return obj.get()["Body"].read()
+        try:
+            if size or offset:
+                return obj.get(Range=S3Store.get_range(size, offset))["Body"].read()
+            return obj.get()["Body"].read()
+
+        except botocore.exceptions.ClientError as exc:
+            if exc.response["Error"]["Code"] == "NoSuchKey":
+                # "NoSuchKey" errors codes - equivalent to `FileNotFoundError`
+                raise FileNotFoundError(f"s3://{bucket}/{key}") from exc
+            # Other errors are raised as-is
+            raise
 
     def put(self, key, data, append=False):
         data, _ = self._prepare_put_data(data, append)
@@ -259,16 +261,3 @@ class S3Store(DataStore):
         #  In order to raise an error if there is connection error, ML-7056.
         self.filesystem.exists(path=path)
         self.filesystem.rm(path=path, recursive=recursive, maxdepth=maxdepth)
-
-
-def parse_s3_bucket_and_key(s3_path):
-    try:
-        path_parts = s3_path.replace("s3://", "").split("/")
-        bucket = path_parts.pop(0)
-        key = "/".join(path_parts)
-    except Exception as exc:
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            "failed to parse s3 bucket and key"
-        ) from exc
-
-    return bucket, key

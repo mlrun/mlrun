@@ -16,13 +16,12 @@ import inspect
 import shutil
 import tempfile
 import typing
-from typing import Union
 
 import pytest
 
 import mlrun
-from mlrun.package import ArtifactType, LogHintKey, PackagersManager
-from mlrun.package.utils import LogHintUtils
+from mlrun.package import ArtifactType, PackagersManager
+from mlrun.package.log_hint import LogHint
 from mlrun.runtimes import KubejobRuntime
 
 from .packager_tester import PackagerTester, PackTest, PackToUnpackTest, UnpackTest
@@ -79,7 +78,7 @@ _PACKAGERS_TESTERS = [
 
 
 def _get_tests_tuples(
-    test_type: Union[type[PackTest], type[UnpackTest], type[PackToUnpackTest]],
+    test_type: type[PackTest] | type[UnpackTest] | type[PackToUnpackTest],
 ) -> list[tuple[type[PackagerTester], PackTest]]:
     return [
         (tester, test)
@@ -91,11 +90,11 @@ def _get_tests_tuples(
 
 def _setup_test(
     tester: type[PackagerTester],
-    test: Union[PackTest, UnpackTest, PackToUnpackTest],
+    test: PackTest | UnpackTest | PackToUnpackTest,
     test_directory: str,
 ) -> KubejobRuntime:
     # Enabled logging tuples only if the tuple test is about to be setup:
-    if isinstance(test, (PackTest, PackToUnpackTest)) and tester is TuplePackagerTester:
+    if isinstance(test, PackTest | PackToUnpackTest) and tester is TuplePackagerTester:
         mlrun.mlconf.packagers.pack_tuples = True
 
     # Create a project for this tester:
@@ -112,25 +111,22 @@ def _setup_test(
     )
 
 
-def _get_key_and_artifact_type(
-    tester: type[PackagerTester], test: Union[PackTest, PackToUnpackTest]
-) -> tuple[str, str]:
+def _get_log_hint(
+    tester: type[PackagerTester], test: PackTest | PackToUnpackTest
+) -> LogHint:
     # Parse the log hint (in case it is a string):
-    log_hint = LogHintUtils.parse_log_hint(log_hint=test.log_hint)
-
-    # Extract the key:
-    key = log_hint[LogHintKey.KEY]
+    log_hint = LogHint.parse_obj(obj=test.log_hint)
 
     # Get the artifact type (either from the log hint or from the packager - the default artifact type):
-    artifact_type = (
-        log_hint[LogHintKey.ARTIFACT_TYPE]
-        if LogHintKey.ARTIFACT_TYPE in log_hint
+    log_hint.artifact_type = (
+        log_hint.artifact_type
+        if log_hint.artifact_type
         else tester.PACKAGER_IN_TEST.get_default_packing_artifact_type(
             obj=test.default_artifact_type_object
         )
     )
 
-    return key, artifact_type
+    return log_hint
 
 
 @pytest.mark.parametrize(
@@ -158,22 +154,29 @@ def test_packager_pack(rundb_mock, tester: type[PackagerTester], test: PackTest)
             handler=test.pack_handler,
             params=test.pack_parameters,
             returns=[test.log_hint],
-            artifact_path=test_directory.name,
+            output_path=test_directory.name,
             local=True,
         )
 
         # Verify the packaged output:
-        key, artifact_type = _get_key_and_artifact_type(tester=tester, test=test)
-        if artifact_type == ArtifactType.RESULT:
-            assert key in pack_run.status.results
-            assert test.validation_function(
-                pack_run.status.results[key], **test.validation_parameters
-            )
-        else:
-            assert key in pack_run.outputs
-            assert test.validation_function(
-                pack_run._artifact(key=key), **test.validation_parameters
-            )
+        log_hint = _get_log_hint(tester=tester, test=test)
+
+        # If bundling was performed, check each element from the bundle accordingly (they will be sent to the validation
+        # function as well):
+        unbundled_artifacts = {}
+        if log_hint.itemized:
+            unbundled_artifacts = {
+                k: pack_run.outputs[k]
+                for k in pack_run.outputs
+                if k.startswith(log_hint.key) and k != log_hint.key
+            }
+            assert unbundled_artifacts
+
+        # Verify the output:
+        assert log_hint.key in pack_run.outputs
+        assert test.validation_function(
+            pack_run.outputs[log_hint.key], **test.validation_parameters
+        )
     except Exception as exception:
         # An error was raised, check if the test failed or should have failed:
         if test.exception is None:
@@ -213,7 +216,7 @@ def test_packager_unpack(rundb_mock, tester: type[PackagerTester], test: UnpackT
             handler=test.unpack_handler,
             inputs={"obj": input_path},
             params=test.unpack_parameters,
-            artifact_path=test_directory.name,
+            output_path=test_directory.name,
             local=True,
         )
     except Exception as exception:
@@ -256,52 +259,88 @@ def test_packager_pack_to_unpack(
             handler=test.pack_handler,
             params=test.pack_parameters,
             returns=[test.log_hint],
-            artifact_path=test_directory.name,
+            output_path=test_directory.name,
             local=True,
         )
 
         # Verify the outputs are logged (artifact type as "result" will stop the test here as it cannot be unpacked):
-        key, artifact_type = _get_key_and_artifact_type(tester=tester, test=test)
-        if artifact_type == ArtifactType.RESULT:
-            assert key in pack_run.status.results
+        log_hint = _get_log_hint(tester=tester, test=test)
+
+        # Verify result:
+        if log_hint.artifact_type == ArtifactType.RESULT:
+            if log_hint.itemized:
+                # For unbundling results, just verify results exist with the prefix
+                unbundled_results = {
+                    k: v
+                    for k, v in pack_run.status.results.items()
+                    if k.startswith(log_hint.key)
+                }
+                assert len(unbundled_results) > 0
+            else:
+                assert log_hint.key in pack_run.status.results
             return
-        assert key in pack_run.outputs
 
-        # Validate the packager manager notes and packager instructions:
-        unpackaging_instructions = pack_run._artifact(key=key)["spec"][
-            "unpackaging_instructions"
-        ]
-        assert (
-            unpackaging_instructions["packager_name"]
-            == tester.PACKAGER_IN_TEST.__class__.__name__
-        )
-        if tester.PACKAGER_IN_TEST.PACKABLE_OBJECT_TYPE is not ...:
-            # Check the object name noted match the packager handled type (at least subclass of it):
-            packable_object_type_name = PackagersManager._get_type_name(
-                typ=tester.PACKAGER_IN_TEST.PACKABLE_OBJECT_TYPE
-                if tester.PACKAGER_IN_TEST.PACKABLE_OBJECT_TYPE.__module__ != "typing"
-                else typing.get_origin(tester.PACKAGER_IN_TEST.PACKABLE_OBJECT_TYPE)
+        # Verify artifact (Notice: for bundles we do not check the instructions as the packager in test did only the
+        # bundling and unbundling, not the packing - so there are no instructions):
+        if log_hint.itemized:
+            # For unbundling artifacts, collect all outputs that start with the unbundle prefix:
+            unbundled_outputs = {
+                k: pack_run.outputs[k]
+                for k in pack_run.outputs
+                if k.startswith(log_hint.key)
+            }
+            assert (
+                len(unbundled_outputs) > 2
+            )  # The bundle result + at least one artifact from the bundle.
+            # Run unpack handler with bundled input
+            mlrun_function.run(
+                name="unpack",
+                handler=test.unpack_handler,
+                inputs={"obj": pack_run.outputs[log_hint.key]},
+                params=test.unpack_parameters,
+                output_path=test_directory.name,
+                local=True,
             )
-            assert unpackaging_instructions[
-                "object_type"
-            ] == packable_object_type_name or issubclass(
-                PackagersManager._get_type_from_name(
-                    type_name=unpackaging_instructions["object_type"]
-                ),
-                tester.PACKAGER_IN_TEST.PACKABLE_OBJECT_TYPE,
+        else:
+            # Regular single artifact unpacking:
+            assert log_hint.key in pack_run.outputs
+            # Validate the packager manager notes and packager instructions:
+            unpackaging_instructions = pack_run._artifact(key=log_hint.key)["spec"][
+                "unpackaging_instructions"
+            ]
+            assert (
+                unpackaging_instructions["packager_name"]
+                == tester.PACKAGER_IN_TEST.__class__.__name__
             )
-        assert unpackaging_instructions["artifact_type"] == artifact_type
-        assert unpackaging_instructions["instructions"] == test.expected_instructions
-
-        # Run the unpacking handler:
-        mlrun_function.run(
-            name="unpack",
-            handler=test.unpack_handler,
-            inputs={"obj": pack_run.outputs[key]},
-            params=test.unpack_parameters,
-            artifact_path=test_directory.name,
-            local=True,
-        )
+            if tester.PACKAGER_IN_TEST.PACKABLE_OBJECT_TYPE is not ...:
+                # Check the object name noted match the packager handled type (at least subclass of it):
+                packable_object_type_name = PackagersManager._get_type_name(
+                    typ=tester.PACKAGER_IN_TEST.PACKABLE_OBJECT_TYPE
+                    if tester.PACKAGER_IN_TEST.PACKABLE_OBJECT_TYPE.__module__
+                    != "typing"
+                    else typing.get_origin(tester.PACKAGER_IN_TEST.PACKABLE_OBJECT_TYPE)
+                )
+                assert unpackaging_instructions[
+                    "object_type"
+                ] == packable_object_type_name or issubclass(
+                    PackagersManager._get_type_from_name(
+                        type_name=unpackaging_instructions["object_type"]
+                    ),
+                    tester.PACKAGER_IN_TEST.PACKABLE_OBJECT_TYPE,
+                )
+            assert unpackaging_instructions["artifact_type"] == log_hint.artifact_type
+            assert (
+                unpackaging_instructions["instructions"] == test.expected_instructions
+            )
+            # Run the unpacking handler:
+            mlrun_function.run(
+                name="unpack",
+                handler=test.unpack_handler,
+                inputs={"obj": pack_run.outputs[log_hint.key]},
+                params=test.unpack_parameters,
+                output_path=test_directory.name,
+                local=True,
+            )
     except Exception as exception:
         # An error was raised, check if the test failed or should have failed:
         if test.exception is None:

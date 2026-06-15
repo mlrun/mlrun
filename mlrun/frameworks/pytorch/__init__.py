@@ -34,23 +34,23 @@ def train(
     loss_function: Module,
     optimizer: Optimizer,
     validation_set: DataLoader = None,
-    metric_functions: Optional[list[PyTorchTypes.MetricFunctionType]] = None,
+    metric_functions: list[PyTorchTypes.MetricFunctionType] | None = None,
     scheduler=None,
     scheduler_step_frequency: Union[int, float, str] = "epoch",
     epochs: int = 1,
-    training_iterations: Optional[int] = None,
-    validation_iterations: Optional[int] = None,
-    callbacks_list: Optional[list[Callback]] = None,
+    training_iterations: int | None = None,
+    validation_iterations: int | None = None,
+    callbacks_list: list[Callback] | None = None,
     use_cuda: bool = True,
-    use_horovod: Optional[bool] = None,
+    use_horovod: bool | None = None,
     auto_log: bool = True,
-    model_name: Optional[str] = None,
-    modules_map: Optional[Union[dict[str, Union[None, str, list[str]]], str]] = None,
-    custom_objects_map: Optional[Union[dict[str, Union[str, list[str]]], str]] = None,
-    custom_objects_directory: Optional[str] = None,
-    tensorboard_directory: Optional[str] = None,
-    mlrun_callback_kwargs: Optional[dict[str, Any]] = None,
-    tensorboard_callback_kwargs: Optional[dict[str, Any]] = None,
+    model_name: str | None = None,
+    modules_map: Union[dict[str, Union[None, str, list[str]]], str] | None = None,
+    custom_objects_map: Union[dict[str, Union[str, list[str]]], str] | None = None,
+    custom_objects_directory: str | None = None,
+    tensorboard_directory: str | None = None,
+    mlrun_callback_kwargs: dict[str, Any] | None = None,
+    tensorboard_callback_kwargs: dict[str, Any] | None = None,
     context: mlrun.MLClientCtx = None,
 ) -> PyTorchModelHandler:
     """
@@ -95,7 +95,10 @@ def train(
 
                                             {
                                                 "module1": None,  # import module1
-                                                "module2": ["func1", "func2"],  # from module2 import func1, func2
+                                                "module2": [
+                                                    "func1",
+                                                    "func2",
+                                                ],  # from module2 import func1, func2
                                                 "module3.sub_module": "func3",  # from module3.sub_module import func3
                                             }
 
@@ -111,7 +114,10 @@ def train(
 
                                             {
                                                 "/.../custom_optimizer.py": "optimizer",
-                                                "/.../custom_layers.py": ["layer1", "layer2"],
+                                                "/.../custom_layers.py": [
+                                                    "layer1",
+                                                    "layer2",
+                                                ],
                                             }
 
                                         All the paths will be accessed from the given 'custom_objects_directory',
@@ -204,17 +210,17 @@ def evaluate(
     dataset: DataLoader,
     model: Module = None,
     loss_function: Module = None,
-    metric_functions: Optional[list[PyTorchTypes.MetricFunctionType]] = None,
-    iterations: Optional[int] = None,
-    callbacks_list: Optional[list[Callback]] = None,
+    metric_functions: list[PyTorchTypes.MetricFunctionType] | None = None,
+    iterations: int | None = None,
+    callbacks_list: list[Callback] | None = None,
     use_cuda: bool = True,
     use_horovod: bool = False,
     auto_log: bool = True,
-    model_name: Optional[str] = None,
-    modules_map: Optional[Union[dict[str, Union[None, str, list[str]]], str]] = None,
-    custom_objects_map: Optional[Union[dict[str, Union[str, list[str]]], str]] = None,
-    custom_objects_directory: Optional[str] = None,
-    mlrun_callback_kwargs: Optional[dict[str, Any]] = None,
+    model_name: str | None = None,
+    modules_map: Union[dict[str, Union[None, str, list[str]]], str] | None = None,
+    custom_objects_map: Union[dict[str, Union[str, list[str]]], str] | None = None,
+    custom_objects_directory: str | None = None,
+    mlrun_callback_kwargs: dict[str, Any] | None = None,
     context: mlrun.MLClientCtx = None,
 ) -> tuple[PyTorchModelHandler, list[PyTorchTypes.MetricValueType]]:
     """
@@ -248,7 +254,10 @@ def evaluate(
 
                                          {
                                              "module1": None,  # import module1
-                                             "module2": ["func1", "func2"],  # from module2 import func1, func2
+                                             "module2": [
+                                                 "func1",
+                                                 "func2",
+                                             ],  # from module2 import func1, func2
                                              "module3.sub_module": "func3",  # from module3.sub_module import func3
                                          }
 
@@ -263,7 +272,10 @@ def evaluate(
 
                                          {
                                              "/.../custom_optimizer.py": "optimizer",
-                                             "/.../custom_layers.py": ["layer1", "layer2"],
+                                             "/.../custom_layers.py": [
+                                                 "layer1",
+                                                 "layer2",
+                                             ],
                                          }
 
                                      All the paths will be accessed from the given 'custom_objects_directory', meaning

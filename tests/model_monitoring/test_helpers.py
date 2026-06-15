@@ -14,7 +14,7 @@
 
 import datetime
 from collections.abc import Iterator
-from typing import NamedTuple, Optional, Union
+from typing import NamedTuple, Union
 from unittest.mock import patch
 
 import nuclio
@@ -25,9 +25,11 @@ import pytest
 import mlrun
 from mlrun.common.model_monitoring.helpers import (
     _MAX_FLOAT,
+    TIMESCALEDB_DEFAULT_DB_PREFIX,
     FeatureStats,
     Histogram,
     get_kafka_topic,
+    get_tsdb_database_name,
     pad_features_hist,
     pad_hist,
 )
@@ -36,7 +38,6 @@ from mlrun.common.schemas.model_monitoring.constants import EventFieldType
 from mlrun.datastore import KafkaOutputStream, OutputStream
 from mlrun.datastore.datastore_profile import (
     DatastoreProfile,
-    DatastoreProfileKafkaSource,
     DatastoreProfileKafkaStream,
     DatastoreProfileS3,
     DatastoreProfileV3io,
@@ -216,9 +217,7 @@ class TestBatchInterval:
         ):
             return marker.args[0]
         return int(
-            datetime.datetime(
-                2021, 1, 1, 12, 0, 0, tzinfo=datetime.timezone.utc
-            ).timestamp()
+            datetime.datetime(2021, 1, 1, 12, 0, 0, tzinfo=datetime.UTC).timestamp()
         )
 
     @staticmethod
@@ -229,9 +228,7 @@ class TestBatchInterval:
         ):
             return marker.args[0]
         return int(
-            datetime.datetime(
-                2021, 1, 1, 13, 1, 0, tzinfo=datetime.timezone.utc
-            ).timestamp()
+            datetime.datetime(2021, 1, 1, 13, 1, 0, tzinfo=datetime.UTC).timestamp()
         )
 
     @staticmethod
@@ -276,9 +273,7 @@ class TestBatchInterval:
     @pytest.fixture
     def expected_intervals() -> list[_Interval]:
         def dt(hour: int, minute: int) -> datetime.datetime:
-            return datetime.datetime(
-                2021, 1, 1, hour, minute, tzinfo=datetime.timezone.utc
-            )
+            return datetime.datetime(2021, 1, 1, hour, minute, tzinfo=datetime.UTC)
 
         def interval(start: tuple[int, int], end: tuple[int, int]) -> _Interval:
             return _Interval(dt(*start), dt(*end))
@@ -300,17 +295,17 @@ class TestBatchInterval:
     def test_touching_intervals(intervals: list[_Interval]) -> None:
         assert len(intervals) > 1, "There should be more than one interval"
         for prev, curr in zip(intervals[:-1], intervals[1:]):
-            assert prev[1] == curr[0] - datetime.timedelta(
-                microseconds=1
-            ), "The intervals should be touching"
+            assert prev[1] == curr[0] - datetime.timedelta(microseconds=1), (
+                "The intervals should be touching"
+            )
 
     @staticmethod
     def test_intervals(
         intervals: list[_Interval], expected_intervals: list[_Interval]
     ) -> None:
-        assert len(intervals) == len(
-            expected_intervals
-        ), "The number of intervals is not as expected"
+        assert len(intervals) == len(expected_intervals), (
+            "The number of intervals is not as expected"
+        )
         assert intervals == [
             _Interval(interval.start, interval.end - datetime.timedelta(microseconds=1))
             for interval in expected_intervals
@@ -320,9 +315,9 @@ class TestBatchInterval:
     def test_last_interval_does_not_overflow(
         intervals: list[_Interval], last_updated: int
     ) -> None:
-        assert (
-            intervals[-1][1].timestamp() <= last_updated
-        ), "The last interval should be after last_updated"
+        assert intervals[-1][1].timestamp() <= last_updated, (
+            "The last interval should be after last_updated"
+        )
 
     @staticmethod
     @pytest.mark.parametrize(
@@ -360,18 +355,10 @@ class TestBatchInterval:
     @staticmethod
     @pytest.mark.timedelta_seconds(int(datetime.timedelta(days=6).total_seconds()))
     @pytest.mark.first_request(
-        int(
-            datetime.datetime(
-                2020, 12, 25, 23, 0, 0, tzinfo=datetime.timezone.utc
-            ).timestamp()
-        )
+        int(datetime.datetime(2020, 12, 25, 23, 0, 0, tzinfo=datetime.UTC).timestamp())
     )
     @pytest.mark.last_updated(
-        int(
-            datetime.datetime(
-                2021, 1, 1, 3, 1, 0, tzinfo=datetime.timezone.utc
-            ).timestamp()
-        )
+        int(datetime.datetime(2021, 1, 1, 3, 1, 0, tzinfo=datetime.UTC).timestamp())
     )
     def test_large_base_period(
         timedelta_seconds: int, intervals: list[_Interval]
@@ -397,9 +384,9 @@ class TestBatchWindowGenerator:
             not_old_batch_endpoint=True,
         )
         assert last_updated
-        assert (
-            last_updated < last_request.timestamp()
-        ), "The last updated time should be before the last request"
+        assert last_updated < last_request.timestamp(), (
+            "The last updated time should be before the last request"
+        )
 
         last_updated = _BatchWindowGenerator._get_last_updated_time(
             last_request=last_request,
@@ -408,9 +395,9 @@ class TestBatchWindowGenerator:
         )
 
         assert last_updated
-        assert (
-            last_updated == last_request.timestamp()
-        ), "The last updated time should similar to the last request time for batch endpoints"
+        assert last_updated == last_request.timestamp(), (
+            "The last updated time should similar to the last request time for batch endpoints"
+        )
 
 
 class TestBumpModelEndpointLastRequest:
@@ -569,7 +556,7 @@ def test_filter_results_by_regex():
 )
 def test_get_kafka_topic(
     project: str,
-    function_name: Optional[str],
+    function_name: str | None,
     expected_topic: str,
 ) -> None:
     assert (
@@ -582,17 +569,6 @@ def test_get_kafka_topic(
     [
         (
             DatastoreProfileKafkaStream(
-                name="test-kafka-profile",
-                brokers=["localhost"],
-                topics=[],
-                sasl_user="user1",
-                sasl_pass="1234",
-                kwargs_public={"api_version": (3, 9)},
-            ),
-            KafkaOutputStream,
-        ),
-        (
-            DatastoreProfileKafkaSource(
                 name="test-kafka-profile",
                 brokers=["localhost"],
                 topics=[],
@@ -619,9 +595,9 @@ def test_get_output_stream(
         monkeypatch.setenv("V3IO_API", mlrun.mlconf.v3io_api)
 
     output_stream = get_output_stream(profile=profile, project="test-proj", mock=True)
-    assert isinstance(
-        output_stream, expected_output_stream_type
-    ), "The output stream is of an unexpected type"
+    assert isinstance(output_stream, expected_output_stream_type), (
+        "The output stream is of an unexpected type"
+    )
 
     output_stream.push(2 * [{"k1": 0, "jump": "high"}])
     output_stream.push([{"k1": 1, "jump": "mid"}])
@@ -693,3 +669,82 @@ def test_get_start_end():
             start=now + datetime.timedelta(seconds=10),
             end=now,
         )
+
+
+class TestGetTsdbDatabaseName:
+    """Tests for get_tsdb_database_name() function."""
+
+    @staticmethod
+    def test_auto_create_disabled_returns_profile_database(
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        profile_database = "my_custom_database"
+        monkeypatch.setattr(
+            mlrun.mlconf.model_endpoint_monitoring.tsdb,
+            "auto_create_database",
+            False,
+        )
+
+        result = get_tsdb_database_name(profile_database)
+
+        assert result == profile_database
+
+    @staticmethod
+    def test_auto_create_enabled_with_system_id_returns_generated_name(
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        profile_database = "postgres"
+        system_id = "abc123"
+        monkeypatch.setattr(
+            mlrun.mlconf.model_endpoint_monitoring.tsdb,
+            "auto_create_database",
+            True,
+        )
+        monkeypatch.setattr(mlrun.mlconf, "system_id", system_id)
+
+        result = get_tsdb_database_name(profile_database)
+
+        assert result == f"{TIMESCALEDB_DEFAULT_DB_PREFIX}_{system_id}"
+
+    @staticmethod
+    def test_auto_create_enabled_without_system_id_raises_error(
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(
+            mlrun.mlconf.model_endpoint_monitoring.tsdb,
+            "auto_create_database",
+            True,
+        )
+        monkeypatch.setattr(mlrun.mlconf, "system_id", "")
+
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError,
+            match="system_id is not set in mlrun.mlconf",
+        ):
+            get_tsdb_database_name("postgres")
+
+    @staticmethod
+    @pytest.mark.parametrize(
+        ("profile_database", "system_id"),
+        [
+            ("postgres", "xyz789"),
+            ("mydb", "test_system"),
+            ("production", "prod_123"),
+        ],
+    )
+    def test_auto_create_generates_consistent_name(
+        monkeypatch: pytest.MonkeyPatch,
+        profile_database: str,
+        system_id: str,
+    ) -> None:
+        monkeypatch.setattr(
+            mlrun.mlconf.model_endpoint_monitoring.tsdb,
+            "auto_create_database",
+            True,
+        )
+        monkeypatch.setattr(mlrun.mlconf, "system_id", system_id)
+
+        result = get_tsdb_database_name(profile_database)
+
+        expected = f"{TIMESCALEDB_DEFAULT_DB_PREFIX}_{system_id}"
+        assert result == expected

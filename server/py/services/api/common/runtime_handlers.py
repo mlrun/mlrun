@@ -12,9 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import copy
-
 import mlrun.common.constants as mlrun_constants
+import mlrun.utils.helpers
 from mlrun import mlconf
 
 
@@ -29,7 +28,10 @@ def get_resource_labels(function, run=None, scrape_metrics=None):
         run_project = run.metadata.project
         run_owner = run.metadata.labels.get(mlrun_constants.MLRunInternalLabels.owner)
         run_attempt = run.metadata.labels.get(mlrun_constants.MLRunInternalLabels.retry)
-    labels = copy.deepcopy(function.metadata.labels)
+    labels = mlrun.utils.helpers.merge_dicts_with_precedence(
+        mlconf.get_default_function_pod_labels(),
+        function.metadata.labels,
+    )
     labels[mlrun_constants.MLRunInternalLabels.mlrun_class] = function.kind
     labels[mlrun_constants.MLRunInternalLabels.project] = (
         run_project or function.metadata.project

@@ -1,0 +1,224 @@
+# Copyright 2023 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Private Release
+run-name: Privately ( artifactory only ) releasing ${{ inputs.version }} (${{ github.ref_name }})
+
+permissions:
+  # Write repository contents (needed to push tags)
+  contents: write
+  packages: write
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'The version to release, without prefix v (e.g. 1.1.0-rc10). if not provided, will be calculated from the current version and bump_version_mode'
+        default: ''
+        type: string
+      bump_version_mode:
+        description: 'The version bump mode. Whether to bump rc version or set stable version'
+        default: 'bump-rc'
+        type: choice
+        options: [ 'bump-rc', 'stable' ]
+      artifactory_docker_repo:
+        description: 'Artifactory docker repository name'
+        required: false
+        default: 'mlrun-staging'
+        type: string
+      artifactory_pypi_repo:
+        description: 'Artifactory PyPI repository name'
+        required: false
+        default: 'private-mlrun-py'
+        type: string
+      ui_ref:
+        description: 'The UI reference (branch / tag name) to use for the UI image, (development, 1.3.3, etc)'
+        required: false
+        default: ''
+
+jobs:
+  approval-gate:
+    name: Approval gate for private release
+    runs-on: ubuntu-latest
+    environment: prod-release
+    steps:
+      - name: Manual approval checkpoint
+        run: echo "✅ Private release approved, proceeding with build and publish..."
+
+  prepare-inputs:
+    name: Prepare inputs
+    runs-on: ubuntu-latest
+    needs: approval-gate
+    outputs:
+      is_stable_version: ${{ steps.resolve.outputs.is_stable_version }}
+      is_feature_branch: ${{ steps.resolve.outputs.is_feature_branch }}
+      version: ${{ steps.resolve.outputs.version }}
+      previous_version: ${{ steps.resolve.outputs.previous_version }}
+      ui_ref: ${{ steps.resolve.outputs.ui_ref }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+
+          # Fetch all history for all tags and branches
+          fetch-depth: 0
+      - name: Resolve inputs
+        id: resolve
+        run: |
+
+          # map the input to the actual mode
+          declare -A bump_version_mode=(["bump-rc"]="rc" ["stable"]="rc-grad")
+          NEXT_VERSION_MODE=${bump_version_mode[$BUMP_VERSION_MODE_INPUT]}
+          version=$(python ./automation/version/version_file.py next-version --mode $NEXT_VERSION_MODE)
+          echo "Calculated version: $version"
+          if [[ -n "$VERSION_INPUT" ]]; then \
+            version=$VERSION_INPUT; \
+            echo "Using version from input: $version"; \
+          fi
+
+          echo "is_stable_version=$(python ./automation/version/version_file.py is-stable $version)" >> $GITHUB_OUTPUT
+          echo "is_feature_branch=$(python ./automation/version/version_file.py is-feature-branch)" >> $GITHUB_OUTPUT
+          echo "version=$version" >> $GITHUB_OUTPUT
+          echo "previous_version=$(python ./automation/version/version_file.py current-version)" >> $GITHUB_OUTPUT
+          echo "ui_ref=${UI_REF_INPUT:-`echo ${{ github.ref_name }}`}" >> $GITHUB_OUTPUT
+          cat $GITHUB_OUTPUT
+        env:
+          BUMP_VERSION_MODE_INPUT: ${{ github.event.inputs.bump_version_mode }}
+          VERSION_INPUT: ${{ github.event.inputs.version }}
+          ARTIFACTORY_PYPI_REPO: ${{ github.event.inputs.artifactory_pypi_repo }}
+          ARTIFACTORY_URL: ${{ secrets.ARTIFACTORY_URL }}
+          ARTIFACTORY_DOCKER_REPO: ${{ github.event.inputs.artifactory_docker_repo }}
+          UI_REF_INPUT: ${{ github.event.inputs.ui_ref }}
+
+      - name: Display calculated version
+        run: |
+          echo "## 🚀 Private Release" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** \`${{ steps.resolve.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch:** \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Previous Version:** \`${{ steps.resolve.outputs.previous_version }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Is Stable:** \`${{ steps.resolve.outputs.is_stable_version }}\`" >> $GITHUB_STEP_SUMMARY
+
+
+  trigger-and-wait-for-mlrun-image-building:
+    name: Build and push images to Artifactory
+    needs: prepare-inputs
+    uses: ./.github/workflows/build-internal.yaml
+    with:
+      version: ${{ needs.prepare-inputs.outputs.version }}
+      runner: 'mlrun-release'
+      docker_repo: ${{ inputs.artifactory_docker_repo }}/mlrun
+      is_private_release: true
+      # On the fork the caches needs to be disabled because ghcr is hardcoded and used for caches. 
+      # Having to use mlrun ( due to some product limitations) causes permission issues on forks only, we could set this to true once merged.
+      build_from_cache: false
+      build_to_cache: false
+    secrets: inherit
+
+  trigger-and-wait-for-ui-image-building:
+    name: Build and push UI image to Artifactory
+    needs: prepare-inputs
+    uses: mlrun/ui/.github/workflows/build.yaml@fix/reusable-workflow-call
+    with:
+      artifactory_docker_repo: ${{ inputs.artifactory_docker_repo }}
+      version: ${{ needs.prepare-inputs.outputs.version }}
+      runner: mlrun-release
+      ref: ${{ needs.prepare-inputs.outputs.ui_ref }}
+    secrets: inherit
+
+  publish-to-artifactory:
+    name: Publish package to Artifactory PyPI
+    runs-on: mlrun-release
+    env:
+      PYPI_REPO_URL: "https://${{ secrets.ARTIFACTORY_URL }}/artifactory/api/pypi/${{ inputs.artifactory_pypi_repo }}"
+
+    # skip releasing to pypi for feature branches
+    # pypi do not allow local version identifier (https://peps.python.org/pep-0440/#local-version-identifiers)
+    if: needs.prepare-inputs.outputs.is_feature_branch == 'false'
+
+    # publishing to artifactory after images are built successfully
+    needs: [ prepare-inputs ]
+    steps:
+      - name: Cleanup build artifacts from previous runs
+        if: true
+        run: |
+          # Remove any root-owned build artifacts from previous runs using Docker
+          # This works even when files are owned by root
+          if [ -d "$GITHUB_WORKSPACE/server" ]; then
+            docker run --rm -v "$GITHUB_WORKSPACE:/workspace" alpine sh -c "rm -rf /workspace/server/common/proto/build /workspace/server/go/proto/build" || true
+          fi      
+      - uses: actions/checkout@v6
+      - name: Set up uv
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # 8.2.0
+      - name: Build & push to Artifactory PyPI
+        env:
+          MLRUN_VERSION: ${{ needs.prepare-inputs.outputs.version }}
+          UV_PUBLISH_URL: ${{ env.PYPI_REPO_URL }}
+          UV_PUBLISH_USERNAME: ${{ secrets.ARTIFACTORY_USERNAME }}
+          UV_PUBLISH_PASSWORD: ${{ secrets.ARTIFACTORY_PASSWORD }}
+        run: uv run --no-project --with packaging~=25.0 make publish-package
+
+  create-tag:
+    name: Create tag
+    runs-on: ubuntu-latest
+    needs: [prepare-inputs, trigger-and-wait-for-ui-image-building, trigger-and-wait-for-mlrun-image-building, publish-to-artifactory]
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Create git tag for mlrun version
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "v${{ needs.prepare-inputs.outputs.version }}" -m "Release v${{ needs.prepare-inputs.outputs.version }}"
+          git push origin "v${{ needs.prepare-inputs.outputs.version }}"
+          echo "✅ Created and pushed tag: v${{ needs.prepare-inputs.outputs.version }}"
+
+      - name: Generate GitHub App Token for ui repo
+        id: ui-app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ secrets.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ui
+
+      - name: Create git tag for UI repo
+        env:
+          GH_TOKEN: ${{ steps.ui-app-token.outputs.token }}
+        run: |
+          VERSION="v${{ needs.prepare-inputs.outputs.version }}"
+          UI_REF="${{ needs.prepare-inputs.outputs.ui_ref }}"
+          UI_REPO="${{ github.repository_owner }}/ui"
+          
+          # Get the SHA of the ui_ref (try as branch first, then as tag)
+          SHA=$(gh api "repos/${UI_REPO}/git/ref/heads/${UI_REF}" --jq '.object.sha' 2>/dev/null || \
+                gh api "repos/${UI_REPO}/git/ref/tags/${UI_REF}" --jq '.object.sha')
+          
+          echo "Creating tag ${VERSION} on UI repo at SHA ${SHA} (from ref: ${UI_REF})"
+          
+          # Create annotated tag object
+          TAG_SHA=$(gh api "repos/${UI_REPO}/git/tags" \
+            -X POST \
+            -f tag="${VERSION}" \
+            -f message="Release ${VERSION}" \
+            -f object="${SHA}" \
+            -f type="commit" \
+            --jq '.sha')
+          
+          # Create tag reference
+          gh api "repos/${UI_REPO}/git/refs" \
+            -X POST \
+            -f ref="refs/tags/${VERSION}" \
+            -f sha="${TAG_SHA}"
+          
+          echo "✅ Created and pushed tag: ${VERSION} on UI repo"        

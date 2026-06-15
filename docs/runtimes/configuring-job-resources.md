@@ -1,7 +1,7 @@
 (configuring-job-resources)=
 # Configuring runs and functions
 
-MLRun orchestrates serverless functions over Kubernetes: you can specify the resource requirements (CPU, memory, GPUs), preferences, and pod priorities in the logical function ßobject. You can also configure how MLRun prevents stuck pods.
+MLRun orchestrates serverless functions over Kubernetes: you can specify the resource requirements (CPU, memory, GPUs), preferences, and pod priorities in the logical function object. You can also configure how MLRun prevents stuck pods.
 All of these are used during the function deployment.
 
 Configuring runs and functions is relevant for all supported cloud platforms.
@@ -19,6 +19,7 @@ Configuring runs and functions is relevant for all supported cloud platforms.
 - [Mounting persistent storage](#mounting-persistent-storage)
 - [Preventing stuck pods](#preventing-stuck-pods)
 - [Setting the log level](#setting-the-log-level)
+- [Custom logs](#custom-logs)
 
 ## Environment variables
 
@@ -39,7 +40,9 @@ fn.set_envs(file_path="env.txt")
 
 Some runtimes can scale horizontally, configured either as a number of replicas:
 ```python
-training_function = mlrun.set_function(
+project = mlrun.get_or_create_project("myproj")
+
+training_function = project.set_function(
     "training.py",
     name="training",
     handler="train",
@@ -79,7 +82,9 @@ See more details in the [Kubernetes documentation: Resource Management for Pods 
 Examples of {py:meth}`~mlrun.runtimes.KubeResource.with_requests` and  {py:meth}`~mlrun.runtimes.KubeResource.with_limits`:
 
 ```python
-training_function = mlrun.set_function(
+project = mlrun.get_or_create_project("myproj")
+
+training_function = project.set_function(
     "training.py",
     name="training",
     handler="train",
@@ -106,12 +111,31 @@ that the number of GPUs is equal to the number of workers (or manage the GPU con
 You can change the number of workers after you create the trigger (function object), then you need to 
 redeploy the function. Examples of changing the number of workers:
 
-using {py:meth}`mlrun.runtimes.RemoteRuntime.with_http`:</br>
-`serve.with_http(workers=8, worker_timeout=10)`
+- Using {py:meth}`~mlrun.runtimes.RemoteRuntime.with_http`:
+```python
+serve.with_http(workers=8, worker_timeout=10)
+```
 
-using {py:meth}`mlrun.runtimes.RemoteRuntime.add_v3io_stream_trigger`:</br>
-`serve.add_v3io_stream_trigger(stream_path='v3io:///projects/myproj/stream1', maxWorkers=3,name='stream', group='serving', seek_to='earliest', shards=1) `
-
+- Using {py:meth}`~mlrun.runtimes.RemoteRuntime.add_v3io_stream_trigger`:
+```python
+serve.add_v3io_stream_trigger(
+    stream_path="v3io:///projects/myproj/stream1",
+    maxWorkers=3,
+    name="stream",
+    group="serving",
+    seek_to="earliest",
+    shards=1,
+)
+```
+- Using {py:meth}`~mlrun.runtimes.RemoteRuntime.add_rabbitmq_trigger`
+```python
+serve.add_rabbitmq_trigger(
+    url="amqp://rabbitmq-host:5672",
+    exchange_name="my-exchange",
+    queue_name="my-queue",
+    num_workers=4,
+)
+```
 ## Volumes
 
 When you create a pod in an MLRun job or Nuclio function, the pod by default has access to a file-system which is ephemeral, and gets 
@@ -136,7 +160,7 @@ Configure volumes attached to a function by using the `apply` function modifier 
 
 For example, using v3io storage:
 ```
-# import the training function from the Function Hub (hub://)
+# import the training function from the MLRun Hub (hub://)
 train = mlrun.import_function('hub://sklearn_classifier')# Import the function:
 open_archive_function = mlrun.import_function("hub://open_archive")
 
@@ -238,8 +262,9 @@ And another function that can only be scheduled on preemptible nodes:
 ```
 import mlrun
 import os
+project = mlrun.get_or_create_project("myproj")
 
-train_fn = mlrun.set_function('training', 
+train_fn = project.set_function('training', 
                             kind='job', 
                             handler='my_training_function') 
 train_fn.with_preemption_mode(mode="constrain") 
@@ -253,7 +278,9 @@ the pod/function runs only on non-preemptible (on-demand) nodes:
 ```
 import mlrun
 import os
-train_fn = mlrun.set_function('training', 
+project = mlrun.get_or_create_project("myproj")
+
+train_fn = project.set_function('training', 
                             kind='job', 
                             handler='my_training_function') 
 train_fn.with_priority_class(name="default-priority")
@@ -287,7 +314,9 @@ For example:
 ```
 import mlrun
 import os
-train_fn = mlrun.set_function('training', 
+project = mlrun.get_or_create_project("myproj")
+
+train_fn = project.set_function('training', 
                             kind='job', 
                             handler='my_training_function') 
 train_fn.with_priority_class(name={value})
@@ -485,7 +514,7 @@ The four states and their default thresholds are:
 'pending_scheduled': '1h', #Scheduled and pending and therefore consumes resources
 'pending_not_scheduled': '-1', #Scheduled but not pending, can continue to wait for resources
 'image_pull_backoff': '1h', #Container running in a pod fails to pull the required image from a container registry
-'running': '24h' #Job is running  
+'executing': '24h' #Job is running  
 ```
 
 The thresholds are time strings constructed of value and scale pairs (e.g. "30 minutes 5h 1day"). 
@@ -521,3 +550,20 @@ Valid values:
 - info
 - debug
 
+## Custom logs
+```{admonition} Note
+Custom logs are supported only for remote runs.
+```
+
+First set the logger format. The `format_logger` must include {timestamp}, {level}, {message}, {more}. You can add additional supported labels. This example adds {module}:
+```
+format_logger = "> {timestamp} [{level}] Running module: {module} {message} {more}"
+```
+Then, in the context of your project add the custom logger:
+```
+import mlrun
+project = mlrun.get_or_create_project("my-project")
+func = project.set_function(func="func.py",name="func",handler="func",image="mlrun/mlrun",kind="job")
+func.set_env("MLRUN_LOG_FORMAT_OVERRIDE",format_logger)
+func.set_env("MLRUN_LOG_FORMATTER","custom")
+```

@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import typing
 
 import mlrun.common.schemas
 import mlrun.db
@@ -74,7 +73,7 @@ class KubejobRuntime(KubeResource):
         self,
         image="",
         base_image=None,
-        commands: typing.Optional[list] = None,
+        commands: list | None = None,
         secret=None,
         source=None,
         extra=None,
@@ -136,11 +135,11 @@ class KubejobRuntime(KubeResource):
     def deploy(
         self,
         watch: bool = True,
-        with_mlrun: typing.Optional[bool] = None,
+        with_mlrun: bool | None = None,
         skip_deployed: bool = False,
         is_kfp: bool = False,
-        mlrun_version_specifier: typing.Optional[bool] = None,
-        builder_env: typing.Optional[dict] = None,
+        mlrun_version_specifier: bool | None = None,
+        builder_env: dict | None = None,
         show_on_failure: bool = False,
         force_build: bool = False,
     ) -> bool:
@@ -182,7 +181,7 @@ class KubejobRuntime(KubeResource):
         self,
         image=None,
         base_image=None,
-        commands: typing.Optional[list] = None,
+        commands: list | None = None,
         secret_name="",
         with_mlrun=True,
         skip_deployed=False,

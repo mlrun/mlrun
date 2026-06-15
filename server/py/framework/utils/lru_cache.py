@@ -15,7 +15,6 @@
 import collections
 import hashlib
 from copy import deepcopy
-from typing import Optional
 
 
 class LRUCache:
@@ -40,7 +39,7 @@ class LRUCache:
             self.currsize = 0
 
     def __init__(
-        self, func, maxsize: int = 128, ignore_args_for_hash: Optional[list[int]] = None
+        self, func, maxsize: int = 128, ignore_args_for_hash: list[int] | None = None
     ):
         """
         Initialize an lru cache instance

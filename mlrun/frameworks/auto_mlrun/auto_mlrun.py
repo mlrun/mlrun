@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Callable, Optional, Union
+from collections.abc import Callable
+from typing import Union
 
 import mlrun
 from mlrun.artifacts import get_model
@@ -58,7 +59,7 @@ def get_framework_by_instance(model: CommonTypes.ModelType) -> str:
 
         from mlrun.frameworks.xgboost import XGBoostModelHandler
 
-        if isinstance(model, (XGBModel, Booster)):
+        if isinstance(model, XGBModel | Booster):
             return XGBoostModelHandler.FRAMEWORK_NAME
     except ModuleNotFoundError:
         pass
@@ -69,7 +70,7 @@ def get_framework_by_instance(model: CommonTypes.ModelType) -> str:
 
         from mlrun.frameworks.lgbm import LGBMModelHandler
 
-        if isinstance(model, (LGBMModel, Booster)):
+        if isinstance(model, LGBMModel | Booster):
             return LGBMModelHandler.FRAMEWORK_NAME
     except ModuleNotFoundError:
         pass
@@ -260,7 +261,7 @@ class AutoMLRun:
 
     @staticmethod
     def _get_framework(
-        model: CommonTypes.ModelType = None, model_path: Optional[str] = None
+        model: CommonTypes.ModelType = None, model_path: str | None = None
     ) -> Union[tuple[str, dict]]:
         """
         Try to get the framework from the model or model path provided. The framework can be read from the model path
@@ -319,16 +320,12 @@ class AutoMLRun:
     @staticmethod
     def load_model(
         model_path: str,
-        model_name: Optional[str] = None,
+        model_name: str | None = None,
         context: mlrun.MLClientCtx = None,
-        modules_map: Optional[
-            Union[dict[str, Union[None, str, list[str]]], str]
-        ] = None,
-        custom_objects_map: Optional[
-            Union[dict[str, Union[str, list[str]]], str]
-        ] = None,
-        custom_objects_directory: Optional[str] = None,
-        framework: Optional[str] = None,
+        modules_map: Union[dict[str, Union[None, str, list[str]]], str] | None = None,
+        custom_objects_map: Union[dict[str, Union[str, list[str]]], str] | None = None,
+        custom_objects_directory: str | None = None,
+        framework: str | None = None,
         **kwargs,
     ) -> ModelHandler:
         """
@@ -350,7 +347,10 @@ class AutoMLRun:
 
                                              {
                                                  "module1": None,  # import module1
-                                                 "module2": ["func1", "func2"],  # from module2 import func1, func2
+                                                 "module2": [
+                                                     "func1",
+                                                     "func2",
+                                                 ],  # from module2 import func1, func2
                                                  "module3.sub_module": "func3",  # from module3.sub_module import func3
                                              }
 
@@ -366,7 +366,10 @@ class AutoMLRun:
 
                                              {
                                                  "/.../custom_model.py": "MyModel",
-                                                 "/.../custom_objects.py": ["object1", "object2"],
+                                                 "/.../custom_objects.py": [
+                                                     "object1",
+                                                     "object2",
+                                                 ],
                                              }
 
                                          All the paths will be accessed from the given 'custom_objects_directory',
@@ -420,18 +423,14 @@ class AutoMLRun:
     @staticmethod
     def apply_mlrun(
         model: CommonTypes.ModelType = None,
-        model_name: Optional[str] = None,
+        model_name: str | None = None,
         tag: str = "",
-        model_path: Optional[str] = None,
-        modules_map: Optional[
-            Union[dict[str, Union[None, str, list[str]]], str]
-        ] = None,
-        custom_objects_map: Optional[
-            Union[dict[str, Union[str, list[str]]], str]
-        ] = None,
-        custom_objects_directory: Optional[str] = None,
+        model_path: str | None = None,
+        modules_map: Union[dict[str, Union[None, str, list[str]]], str] | None = None,
+        custom_objects_map: Union[dict[str, Union[str, list[str]]], str] | None = None,
+        custom_objects_directory: str | None = None,
         context: mlrun.MLClientCtx = None,
-        framework: Optional[str] = None,
+        framework: str | None = None,
         auto_log: bool = True,
         **kwargs,
     ) -> ModelHandler:
@@ -455,7 +454,10 @@ class AutoMLRun:
 
                                              {
                                                  "module1": None,  # import module1
-                                                 "module2": ["func1", "func2"],  # from module2 import func1, func2
+                                                 "module2": [
+                                                     "func1",
+                                                     "func2",
+                                                 ],  # from module2 import func1, func2
                                                  "module3.sub_module": "func3",  # from module3.sub_module import func3
                                              }
 
@@ -471,7 +473,10 @@ class AutoMLRun:
 
                                              {
                                                  "/.../custom_model.py": "MyModel",
-                                                 "/.../custom_objects.py": ["object1", "object2"],
+                                                 "/.../custom_objects.py": [
+                                                     "object1",
+                                                     "object2",
+                                                 ],
                                              }
 
                                          All the paths will be accessed from the given 'custom_objects_directory',

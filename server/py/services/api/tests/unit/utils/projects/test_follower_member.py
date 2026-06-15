@@ -431,7 +431,7 @@ async def test_list_project_summaries(
 
     # cannot compare exact datetime objects, so assert that the difference from now is less than 10 seconds
     # and then remove the updated field for comparison.
-    assert datetime.datetime.now(tz=datetime.timezone.utc) - db_project_summary[
+    assert datetime.datetime.now(tz=datetime.UTC) - db_project_summary[
         "updated"
     ] < datetime.timedelta(seconds=10)
     db_project_summary["updated"] = None
@@ -503,7 +503,9 @@ def test_list_project_leader_format(
     projects = projects_follower.list_projects(
         db,
         format_=mlrun.common.formatters.ProjectFormat.leader,
-        projects_role=mlrun.common.schemas.ProjectsRole.nop,
+        auth_info=mlrun.common.schemas.AuthInfo(
+            projects_role=mlrun.common.schemas.ProjectsRole.nop
+        ),
     )
     assert (
         deepdiff.DeepDiff(
@@ -549,7 +551,7 @@ def _generate_project(
     description="some description",
     desired_state=mlrun.common.schemas.ProjectDesiredState.online,
     state=mlrun.common.schemas.ProjectState.online,
-    labels: typing.Optional[dict] = None,
+    labels: dict | None = None,
     owner="some-owner",
 ):
     return mlrun.common.schemas.Project(

@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from datetime import datetime
-from typing import Optional, Union
+from typing import Union
 
 import pandas as pd
 
@@ -37,10 +37,10 @@ class TimescaleDBMetricsQueries:
 
     def __init__(
         self,
-        project: Optional[str] = None,
+        project: str | None = None,
         connection=None,
         pre_aggregate_manager=None,
-        tables: Optional[dict] = None,
+        tables: dict | None = None,
     ):
         """
         Initialize TimescaleDB metrics query handler.
@@ -61,8 +61,8 @@ class TimescaleDBMetricsQueries:
         metrics: list[str],
         start: str,
         end: str,
-        interval: Optional[str] = None,
-        agg_function: Optional[str] = None,
+        interval: str | None = None,
+        agg_function: str | None = None,
     ) -> dict[str, list[tuple[str, float]]]:
         """Get real-time metrics with optional pre-aggregate optimization."""
 
@@ -154,24 +154,35 @@ class TimescaleDBMetricsQueries:
     def read_metrics_data_impl(
         self,
         *,
-        endpoint_id: str,
+        endpoint_id: str | None = None,
         start: datetime,
         end: datetime,
-        metrics: list[mm_schemas.ModelEndpointMonitoringMetric],
+        metrics: list[mm_schemas.ModelEndpointMonitoringMetric] | None = None,
+        timestamp_column: str | None = None,
     ) -> pd.DataFrame:
-        """Read metrics data from TimescaleDB (metrics table only) - returns DataFrame."""
+        """Read metrics data from TimescaleDB (metrics table only) - returns DataFrame.
+
+        :param endpoint_id: Endpoint ID to filter by, or None to get all endpoints
+        :param start: Start time
+        :param end: End time
+        :param metrics: List of metrics to filter by, or None to get all metrics
+        :param timestamp_column: Optional timestamp column to use for time filtering
+        :return: DataFrame with metrics data
+        """
 
         table_schema = self.tables[mm_schemas.TimescaleDBTables.METRICS]
         name_column = mm_schemas.MetricData.METRIC_NAME
         value_column = mm_schemas.MetricData.METRIC_VALUE
         columns = [
             table_schema.time_column,
+            mm_schemas.WriterEvent.START_INFER_TIME,
+            mm_schemas.WriterEvent.ENDPOINT_ID,
             mm_schemas.WriterEvent.APPLICATION_NAME,
             name_column,
             value_column,
         ]
 
-        # Build metrics condition using query builder utilities
+        # Build metrics condition using query builder utilities (accepts None)
         metrics_condition = TimescaleDBQueryBuilder.build_metrics_filter(metrics)
         endpoint_filter = TimescaleDBQueryBuilder.build_endpoint_filter(endpoint_id)
 
@@ -191,6 +202,7 @@ class TimescaleDBMetricsQueries:
             name_column=name_column,
             value_column=value_column,
             debug_name="read_metrics_data",
+            timestamp_column=timestamp_column,
         )
 
         if not df.empty:
@@ -202,9 +214,9 @@ class TimescaleDBMetricsQueries:
     def get_metrics_metadata(
         self,
         endpoint_id: Union[str, list[str]],
-        start: Optional[datetime] = None,
-        end: Optional[datetime] = None,
-        interval: Optional[str] = None,
+        start: datetime | None = None,
+        end: datetime | None = None,
+        interval: str | None = None,
     ) -> pd.DataFrame:
         """Get metrics metadata with optional pre-aggregate optimization."""
 
@@ -272,9 +284,9 @@ class TimescaleDBMetricsQueries:
 
     def calculate_latest_metrics(
         self,
-        start: Optional[datetime] = None,
-        end: Optional[datetime] = None,
-        application_names: Optional[list[str]] = None,
+        start: datetime | None = None,
+        end: datetime | None = None,
+        application_names: list[str] | None = None,
     ) -> list[
         Union[mm_schemas.ApplicationResultRecord, mm_schemas.ApplicationMetricRecord]
     ]:

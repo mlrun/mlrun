@@ -4,8 +4,8 @@ requires = [
 ]
 
 [tool.ruff]
-target-version = "py39"
-required-version = ">=0.8.0"
+target-version = "py311"
+required-version = ">=0.15.2"
 
 [tool.ruff.lint]
 extend-select = [
@@ -19,6 +19,9 @@ extend-select = [
     "B006", # mutable default arguments
     "RUF013",  # forbid implicit `Optional` type hints
 ]
+# Ignoring UP007 for now. See ticket ML-11573 for investigating runtime-safety of converting certain type
+# annotations to PEP 604 (`X | Y`) syntax.
+ignore = ["UP007"]
 explicit-preview-rules = true
 
 [tool.ruff.lint.isort]
@@ -40,26 +43,30 @@ author = "Iguazio"
 docstring-code-format = true
 
 [tool.uv]
-required-version = ">=0.7.14"
+required-version = ">=0.10.9"
 
 [tool.uv.pip]
-python-version = "3.9"  # TODO: change to 3.11 when 3.9 is no longer supported
+python-version = "3.11"
 generate-hashes = true
 universal = true
 
-[tool.pytest.ini_options]
-addopts = "-v -rf --disable-warnings"
-pythonpath = "./server/py" # This allows running server side tests from the project root directory
+[tool.pytest]
+addopts = ["-v", "-rf", "--disable-warnings", "--import-mode=importlib"]
+pythonpath = [".", "./server/py"] # This allows running server side tests from the project root directory
 python_files = [
     "tests/*/test_*.py",
     "tests/test_*.py",
     "server/py/*/tests/unit/test_*.py",
     "server/py/*/tests/unit/*/test_*.py",
 ]
-timeout = 1800  # 30 minutes per test
+timeout = "1800"  # 30 minutes per test
 log_cli = true
 log_level = "DEBUG"
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+markers = [
+    "collect_pod_logs: collect pod logs on test failure for debugging",
+]
 
 [tool.importlinter]
 root_packages = [
@@ -164,6 +171,7 @@ ignore_imports = [
     "server.py.framework.utils.notifications -> services",
     "server.py.framework.tests.unit.common_fixtures -> services",
     "server.py.framework.tests.unit.db.common_fixtures -> services",
+    "server.py.framework.tests.integration.db.* -> services",
 ]
 
 [tool.coverage.run]
@@ -177,4 +185,7 @@ omit = [
     "server/py/schemas/proto/*"
     ]
 
+parallel = true
+sigterm = true
 relative_files = true
+disable_warnings = ["already-imported"]

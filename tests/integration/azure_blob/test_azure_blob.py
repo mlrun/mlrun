@@ -454,7 +454,12 @@ class TestAzureBlob:
 
 
 class TestAnonymousAccessAzureBlob:
-    account_name = "pandemicdatalake"
+    account_name = "azureopendatastorage"
+    # NYC Taxi dataset parquet file for anonymous access testing
+    parquet_path = (
+        "yellow/puYear=2018/puMonth=1/"
+        "part-00000-tid-8898858832658823408-a1de80bd-eed3-4d11-b9d4-fa74bfbd47bc-426339-114.c000.snappy.parquet"
+    )
 
     @pytest.fixture(autouse=True)
     def setup_before_each_test(self):
@@ -467,18 +472,18 @@ class TestAnonymousAccessAzureBlob:
         pop_env()
 
     def test_load_object_into_dask_dataframe(self):
-        # Load a parquet file from Azure Open Datasets
+        # Load a parquet file from Azure Open Datasets (NYC Taxi data)
 
         data_item = mlrun.datastore.store_manager.object(
-            "az://public/curated/covid-19/ecdc_cases/latest/ecdc_cases.parquet"
+            f"az://nyctlc/{self.parquet_path}"
         )
         ddf = data_item.as_df(df_module=dd)
         assert isinstance(ddf, dd.DataFrame)
 
     def test_load_object_into_dask_dataframe_using_wasbs_url(self):
-        # Load a parquet file from Azure Open Datasets
+        # Load a parquet file from Azure Open Datasets (NYC Taxi data)
         data_item = mlrun.run.get_dataitem(
-            "wasbs://public@dummyaccount/curated/covid-19/ecdc_cases/latest/ecdc_cases.parquet"
+            f"wasbs://nyctlc@dummyaccount/{self.parquet_path}"
         )
         ddf = data_item.as_df(df_module=dd)
         assert isinstance(ddf, dd.DataFrame)

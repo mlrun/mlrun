@@ -28,9 +28,10 @@ Each of the following tutorials is a dedicated Jupyter notebook. You can downloa
 ```{toctree}
 :maxdepth: 1
 :hidden:
-genai_01_basic_tutorial
+genai-01-basic-tutorial
 genai-02-model-monitor-llm
 genai-03-vector-db
+genai-04-llm-prompt-artifact
 ml-index
 demos
 /cheat-sheet
@@ -45,7 +46,7 @@ demos
 :gutter: 2
 
 ```{grid-item-card} Deploy LLM using MLRun
-:link: ./genai_01_basic_tutorial.html
+:link: ./genai-01-basic-tutorial.html
 How to copy a dataset into your cluster, deploy an LLM in the cluster, and run your function.
 ```
 ```{grid-item-card} Model monitoring using LLM

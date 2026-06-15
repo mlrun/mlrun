@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import typing
 
 import mlrun.common.constants as mlrun_constants
 import mlrun_pipelines.common.models
+from mlrun.common.types import StrEnum
 
 
 class PodPhases:
@@ -77,7 +77,7 @@ class ThresholdStates:
         ]
 
     @staticmethod
-    def from_pod_phase(pod_phase: str, pod: dict) -> typing.Optional[str]:
+    def from_pod_phase(pod_phase: str, pod: dict) -> str | None:
         if pod_phase == PodPhases.pending:
             if ThresholdStates.is_pod_in_image_pull_backoff(pod):
                 return ThresholdStates.image_pull_backoff
@@ -365,3 +365,37 @@ class NuclioIngressAddTemplatedIngressModes:
 class FunctionEnvironmentVariables:
     _env_prefix = "MLRUN_"
     auth_session = f"{_env_prefix}AUTH_SESSION"
+
+
+# Kubernetes probe types
+class ProbeType(StrEnum):
+    READINESS = "readiness"
+    LIVENESS = "liveness"
+    STARTUP = "startup"
+
+    @property
+    def key(self):
+        return f"{self.value}Probe"
+
+    @classmethod
+    def is_valid(cls, value: str, raise_on_error: bool = False) -> bool:
+        valid_value = value in cls._value2member_map_
+        if not valid_value and raise_on_error:
+            raise ValueError(
+                f"Invalid probe type: {value}. Must be one of: {[p.value for p in ProbeType]}"
+            )
+        return valid_value
+
+    @classmethod
+    def all(cls) -> list[str]:
+        return [pt.key for pt in cls]
+
+
+HEALTH_CHECK_KEYS = ["httpGet", "exec", "tcpSocket", "grpc"]
+
+
+class ProbeTimeConfig(StrEnum):
+    INITIAL_DELAY_SECONDS = "initialDelaySeconds"
+    PERIOD_SECONDS = "periodSeconds"
+    TIMEOUT_SECONDS = "timeoutSeconds"
+    FAILURE_THRESHOLD = "failureThreshold"

@@ -60,6 +60,13 @@ default_config = {
             "list_pods_limit": 200,
             "list_crd_objects_limit": 200,
         },
+        "timeouts": {
+            # per-request timeouts (in seconds) for k8s API calls
+            # 0 disables timeout for the given tier
+            "default": 30,  # single-resource ops (get, create, delete, update)
+            "list": 60,  # list operations (may return large result sets)
+            "logs": 120,  # pod log retrieval
+        },
     },
     "dbpath": "",  # db/api url
     # url to nuclio dashboard api (can be with user & token, e.g. https://username:password@dashboard-url.com)
@@ -67,7 +74,6 @@ default_config = {
     "nuclio_version": "",
     "default_nuclio_runtime": "python:3.11",
     "nest_asyncio_enabled": "",  # enable import of nest_asyncio for corner cases with old jupyter, set "1"
-    "ui_url": "",  # remote/external mlrun UI url (for hyperlinks) (This is deprecated in favor of the ui block)
     "remote_host": "",
     "api_base_version": "v1",
     "version": "",  # will be set to current version
@@ -83,10 +89,14 @@ default_config = {
     "images_to_enrich_registry": "^mlrun/*,^python:3.(9|11)$",
     "kfp_url": "",
     "kfp_ttl": "14400",  # KFP ttl in sec, after that completed PODs will be deleted
+    "kfp_default_workflow_timeout": "86400",  # server-side default for KFP workflow timeout in sec (24h)
+    # set to 0 to disable
     "kfp_image": "mlrun/mlrun-kfp",  # image to use for KFP runner
     "dask_kfp_image": "mlrun/mlrun",  # image to use for dask KFP runner
     "igz_version": "",  # the version of the iguazio system the API is running on
-    "iguazio_api_url": "",  # the url to iguazio api
+    "iguazio_api_url": "",  # the url to iguazio api (internal / external access with priority to internal)
+    "iguazio_api_url_ingress": "",  # the url to iguazio api ingress (for external access)
+    "iguazio_api_ssl_verify": True,  # verify ssl certificate of iguazio api
     "spark_app_image": "",  # image to use for spark operator app runtime
     "spark_app_image_tag": "",  # image tag to use for spark operator app runtime
     "spark_history_server_path": "",  # spark logs directory for spark history server
@@ -122,6 +132,11 @@ default_config = {
             # k8s resource by default the interval will be - (monitoring.runs.interval * 2 ), if set will override the
             # default
             "missing_runtime_resources_debouncing_interval": None,
+            # Grace period (seconds) for which monitoring defers marking a run "completed" after its
+            # runtime resource reports completion while the run still has no results - used by
+            # self-reporting runtimes (e.g. mpijob) to avoid completing before results are committed;
+            # past the grace the run completes regardless.
+            "result_settle_grace_seconds": 90,
             # max number of parallel abort run jobs in runs monitoring
             "concurrent_abort_stale_runs_workers": 10,
             "list_runs_time_period_in_days": 7,  # days
@@ -136,7 +151,7 @@ default_config = {
         },
         "projects": {
             "summaries": {
-                "cache_interval": "30",
+                "cache_interval": "60",
             },
         },
     },
@@ -199,10 +214,16 @@ default_config = {
     "v3io_framesd": "http://framesd:8080",
     "model_providers": {
         "openai_default_model": "gpt-4o",
+        "openai_batch_max_concurrent": 10,
         "huggingface_default_model": "microsoft/Phi-3-mini-4k-instruct",
+        "huggingface_default_batch_size": 8,
     },
     # default node selector to be applied to all functions - json string base64 encoded format
     "default_function_node_selector": "e30=",
+    # default pod labels to be applied to all functions - json string base64 encoded format.
+    # service-level defaults are the lowest precedence layer: they're overridden by
+    # function.metadata.labels and by system-assigned mlrun/* labels.
+    "default_function_pod_labels": "e30=",
     # default priority class to be applied to functions running on k8s cluster
     "default_function_priority_class_name": "",
     # valid options for priority classes - separated by a comma
@@ -279,7 +300,10 @@ default_config = {
                     "kfp_pod_user_unix_id": 5,
                 },
             },
-            "service_account": {"default": None},
+            "service_account": {
+                "default": None,
+                "forbidden_service_accounts": "",
+            },
             "state_thresholds": {
                 "default": {
                     "pending_scheduled": "1h",
@@ -305,7 +329,7 @@ default_config = {
         "application": {
             "default_sidecar_internal_port": 8050,
             "default_authentication_mode": mlrun.common.schemas.APIGatewayAuthenticationMode.none,
-            "default_worker_number": 10000,
+            "default_worker_number": 100,
         },
     },
     # TODO: function defaults should be moved to the function spec config above
@@ -342,6 +366,7 @@ default_config = {
                     "start_logs": "enabled",
                     "stop_logs": "enabled",
                     "retry_jobs": "enabled",
+                    "project_sync_2pc": "disabled",
                 },
             },
             "worker": {
@@ -349,6 +374,9 @@ default_config = {
                     # enabled / disabled
                     "mode": "enabled",
                     "interval": 15,  # seconds
+                    # when set to True, the worker will allow to run even if the chief version is different
+                    # this is useful for development purposes
+                    "allow_version_mismatch": False,
                 },
                 "request_timeout": 45,  # seconds
             },
@@ -428,6 +456,16 @@ default_config = {
             "bearer": {"token": ""},
             "iguazio": {
                 "session_verification_endpoint": "data_sessions/verifications/app_service",
+                "authentication_endpoint": "api/v1/authentication/refresh-access-token",
+                "token_cache": {
+                    "max_size": 128,
+                    "ttl_seconds": 30,
+                },
+            },
+            "service_account": {
+                # the following are the default values for k8s service accounts, but may be changed per deployment
+                "token_expiration_seconds": 600,
+                "token_path": "/var/run/secrets/kubernetes.io/serviceaccount/token",
             },
         },
         "nuclio": {
@@ -482,6 +520,10 @@ default_config = {
         },
         "authorization": {
             "mode": "none",  # one of none, opa
+            "namespaces": {
+                "resources": "",
+                "mgmt": "mgmt",
+            },
             "opa": {
                 "address": "",
                 "request_timeout": 10,
@@ -516,9 +558,12 @@ default_config = {
             "nuclio_project_deletion_verification_interval": "5 seconds",
             "summaries": {
                 # Number of days back to include when calculating the project pipeline summary.
-                "list_pipelines_time_period_in_days": 7,
+                "list_pipelines_time_period_in_days": 2,
             },
             "resource_deletion_batch_size": 10000,
+            "stale_resource_ttl_create": "2 minutes",
+            "stale_resource_ttl_update": "2 minutes",
+            "stale_resource_ttl_delete": "10 minutes",
         },
         # The API needs to know what is its k8s svc url so it could enrich it in the jobs it creates
         "api_url": "",
@@ -544,6 +589,10 @@ default_config = {
             "kaniko_init_container_image": "alpine:3.20",
             # image for kaniko init container when docker registry is ECR
             "kaniko_aws_cli_image": "amazon/aws-cli:2.17.16",
+            # init container image that runs ``python -m mlrun load-source`` for sources
+            # kaniko cannot resolve natively (az://, wasb(s)://, ds://, oss://). Empty
+            # derives from the mlrun image; override must have python and the mlrun package.
+            "kaniko_source_fetch_init_container_image": "",
             # kaniko sometimes fails to get filesystem from image, this is a workaround to retry the process
             # a known issue in Kaniko - https://github.com/GoogleContainerTools/kaniko/issues/1717
             "kaniko_image_fs_extraction_retries": "3",
@@ -551,13 +600,18 @@ default_config = {
             "kaniko_image_push_retry": "3",
             # additional docker build args in json encoded base64 format
             "build_args": "",
+            # labels to be applied to builder pods - json string base64 encoded format.
+            # used (for example) to attach the azure.workload.identity/use label so the Azure
+            # workload-identity webhook injects credentials into the builder pod for pushing to ACR.
+            # system-assigned mlrun/* labels take precedence over these.
+            "pod_labels": "e30=",
             "pip_ca_secret_name": "",
             "pip_ca_secret_key": "",
             "pip_ca_path": "/etc/ssl/certs/mlrun/pip-ca-certificates.crt",
             # template for the prefix that the function target image will be enforced to have (as long as it's targeted
             # to be in the configured registry). Supported template values are: {project} {name}
             "function_target_image_name_prefix_template": "func-{project}-{name}",
-            "pip_version": "~=23.0",
+            "pip_version": "~=26.0",
         },
         "v3io_api": "",
         "v3io_framesd": "",
@@ -600,6 +654,7 @@ default_config = {
                 "num_workers": 2,
                 "min_replicas": 1,
                 "max_replicas": 4,
+                "target_cpu": "400m",
             },
         },
         "application_stream_args": {
@@ -654,9 +709,18 @@ default_config = {
         "writer_graph": {
             "max_events": 1000,
             "flush_after_seconds": 30,
-            "writer_version": "v1",  # v1 is the sync version while v2 is async
+            "writer_version": "v2",  # v1 is the sync version while v2 is async
             "parquet_batching_max_events": 10,
             "parquet_batching_timeout_secs": 30,
+        },
+        "stream_graph": {
+            "max_events": 1000,
+            "flush_after_seconds": 30,
+        },
+        "lag_detection": {
+            "min_lag_threshold_minutes": 5,
+            "default_lag_threshold_minutes": 60,
+            "default_lag_event_cooldown_minutes": 30,
         },
         # Store prefixes are used to handle model monitoring storing policies based on project and kind, such as events,
         # stream, and endpoints.
@@ -669,8 +733,17 @@ default_config = {
         # storage such as the parquet file which is generated from the monitoring stream function for the drift analysis
         "offline_storage_path": "model-endpoints/{kind}",
         "parquet_batching_max_events": 10_000,
-        "parquet_batching_timeout_secs": timedelta(minutes=1).total_seconds(),
+        "parquet_batching_timeout_secs": 30,
         "model_endpoint_creation_check_period": 15,
+        # TSDB (TimescaleDB) configuration
+        "tsdb": {
+            # When True, automatically create/generate database name using system_id if not explicitly
+            # specified in the connection string. When False, use the database from connection string as-is.
+            "auto_create_database": True,
+            # Connection pool timeout in seconds. This is the maximum time to wait for a connection
+            # from the pool before raising an error.
+            "connection_pool_timeout": 120,
+        },
     },
     "secret_stores": {
         # Use only in testing scenarios (such as integration tests) to avoid using k8s for secrets (will use in-memory
@@ -699,9 +772,9 @@ default_config = {
             "auto_add_project_secrets": True,
             "project_secret_name": "mlrun-project-secrets-{project}",
             "auth_secret_name": "mlrun-auth-secrets.{hashed_access_key}",
-            "user_token_secret_name": "mlrun-auth-{username}-{token_name}",
             "env_variable_prefix": "",
             "global_function_env_secret_name": None,
+            "concurrent_token_deletions": 10,
         },
     },
     "feature_store": {
@@ -727,13 +800,14 @@ default_config = {
             # Set false to avoid creating a global source (for example in a dark site)
             "create": True,
             "name": "default",
-            "description": "MLRun global function hub",
+            "description": "MLRun hub",
             "url": "https://mlrun.github.io/marketplace",
             "channel": "master",
         },
     },
     "storage": {
-        # What type of auto-mount to use for functions. One of: none, auto, v3io_credentials, v3io_fuse, pvc, s3, env.
+        # What type of auto-mount to use for functions.
+        # One of: none, auto, v3io_credentials, v3io_fuse, pvc, s3, env, secret_env.
         # Default is auto - which is v3io_credentials when running on Iguazio. If not Iguazio: pvc if the
         # MLRUN_PVC_MOUNT env is configured or auto_mount_params contain "pvc_name". Otherwise will do nothing (none).
         "auto_mount_type": "auto",
@@ -825,13 +899,23 @@ default_config = {
         # Whether to enable packagers. True will wrap each run in the `mlrun.package.handler` decorator to log and parse
         # using packagers.
         "enabled": True,
+        # Whether to automatically unpack inputs with no type hints instead of leaving them as `mlrun.DataItem` objects.
+        # If True, all inputs without type hints that were originally logged via `mlrun.package` will be unpacked
+        # automatically. Default is False.
+        "auto_unpack_inputs": False,
+        # Whether to automatically pack outputs, even if not log hints were provided by the user running the function.
+        # If True, returned objects will be packed with their default packager and their artifact key will be equal to
+        # the following name template: "<context_name>-<auto_pack_key>-<i>" where "i" is enumerated. If
+        # False, the returned objects will simply be ignored. Default is False.
+        "auto_pack_outputs": False,
+        "auto_pack_key": "artifact",
         # Whether to treat returned tuples from functions as a tuple and not as multiple returned items. If True, all
         # returned values will be packaged together as the tuple they are returned in. Default is False to enable
         # logging multiple returned items.
         "pack_tuples": False,
         # In multi-workers run, only the logging worker will pack the outputs and log the results and artifacts.
         # Otherwise, the workers will log the results and artifacts using the same keys, overriding them. It is common
-        # that only the main worker (usualy rank 0) will log, so this is the default value.
+        # that only the main worker (usually rank 0) will log, so this is the default value.
         "logging_worker": 0,
         # TODO: Consider adding support for logging from all workers (ignoring the `logging_worker`) and add the worker
         #       number to the artifact / result key (like "<key>-rank<#>". Results can have reduce operation in the
@@ -846,6 +930,13 @@ default_config = {
         "verbose": False,
         # used for igz client when emitting events
         "access_key": "",
+        "db_connection": {
+            # Per-process throttle: at most one Platform.MLRun.DB.Connection.Failed
+            # event every N seconds. Iguazio's event service has its own
+            # throttling; this is a local cap so a sustained outage doesn't emit
+            # one event per failed query.
+            "min_emit_interval_seconds": 60,
+        },
     },
     "grafana_url": "",
     "alerts": {
@@ -865,6 +956,8 @@ default_config = {
         "max_allowed_cache_size": 20000,
         # default limit for listing alert configs
         "default_list_alert_configs_limit": 2000,
+        # interval between periodic scans for alerts whose cooldown period has expired
+        "cooldown_reset_interval": 15,  # seconds
     },
     "auth_with_client_id": {
         "enabled": False,
@@ -874,9 +967,20 @@ default_config = {
         "enabled": False,
         "request_timeout": 5,
         "refresh_threshold": 0.75,
-        "token_file": "~/.igz.yml",
+        # Default is empty. automatically set based on configuration (end client vs jupyter vs runtime, etc)
+        # can be set manually set using envvars
+        "token_file": "",
+        # Default is empty because if set, searches for the specific token name in the file, if empty, it will look
+        # for a token named "default", if "default" does not exist, it will use the first token in the file
         "token_name": "",
+        # Timeout in seconds for token refresh retries when running inside an MLRun runtime.
+        # This allows time for Kubelet to propagate updated tokens from secrets to mounted files.
+        # Set to 0 to disable runtime-specific retry behavior.
+        "runtime_token_refresh_timeout": 120,
+        # Backoff interval in seconds between token refresh retry attempts when running in a runtime.
+        "runtime_token_refresh_backoff": 10,
     },
+    # a runtime computed value. Do not set it manually.
     "auth_token_endpoint": "",
     "services": {
         # The running service name. One of: "api", "alerts"
@@ -895,7 +999,32 @@ default_config = {
             "refresh_interval": "30",
         }
     },
+    "telemetry": {
+        # Master kill-switch for all OTel telemetry features. When "false", no telemetry is exported.
+        "enabled": False,
+        # Shared OTLP endpoint (gRPC or HTTP) used by every telemetry feature below.
+        # Blank = telemetry disabled regardless of `enabled`.
+        "otlp_endpoint": "",
+        # gRPC without TLS.
+        "insecure": True,
+        # Name of the K8s secret holding OTLP auth headers (one key per header,
+        # e.g. Authorization, X-Scope-OrgID). Blank = no auth headers.
+        "headers_secret_name": "",
+        "system_counters": {
+            # PeriodicExportingMetricReader interval for inventory gauges, expressed
+            # as a multiple of ``monitoring.projects.summaries.cache_interval`` so
+            # the exporter samples a freshly-refreshed gauge every Nth cache cycle.
+            # Default 1 × 60s = 60s = emit on every cache cycle. Must be >= 1.
+            "export_interval_multiplier": 1,
+        },
+        # ML-12344 — model monitoring application Results/Metrics OTel export.
+        "model_monitoring": {
+            # 0 = manual flush per do() (ManualMetricReader); >0 = PeriodicExportingMetricReader interval (seconds).
+            "interval": 60,
+        },
+    },
     "system_id": "",
+    "system_id_len": 12,
 }
 _is_running_as_api = None
 
@@ -956,11 +1085,11 @@ class Config:
 
     def keys(self):
         if isinstance(self._cfg, Mapping):
-            return iter(self.data.keys())
+            return iter(self._cfg.keys())
 
     def values(self):
         if isinstance(self._cfg, Mapping):
-            return iter(self.data.values())
+            return iter(self._cfg.values())
 
     def update(self, cfg, skip_errors=False):
         for key, value in cfg.items():
@@ -975,7 +1104,7 @@ class Config:
                     try:
                         config_value.update(value)
                     except AttributeError as exc:
-                        if not isinstance(config_value, (dict, Config)):
+                        if not isinstance(config_value, dict | Config):
                             raise ValueError(
                                 f"Can not update `{key}` config. "
                                 f"Expected a configuration but received {type(value)}"
@@ -1064,6 +1193,16 @@ class Config:
             "default_function_node_selector", dict
         )
 
+    def get_default_function_pod_labels(self) -> dict:
+        return self.decode_base64_config_and_load_to_object(
+            "default_function_pod_labels", dict
+        )
+
+    def get_builder_pod_labels(self) -> dict:
+        return self.decode_base64_config_and_load_to_object(
+            "httpdb.builder.pod_labels", dict
+        )
+
     def get_preemptible_node_selector(self) -> dict:
         return self.decode_base64_config_and_load_to_object(
             "preemptible_nodes.node_selector", dict
@@ -1120,7 +1259,7 @@ class Config:
         return enrichment_group_id
 
     @staticmethod
-    def get_parsed_igz_version() -> typing.Optional[semver.VersionInfo]:
+    def get_parsed_igz_version() -> semver.VersionInfo | None:
         if not config.igz_version:
             return None
         try:
@@ -1278,8 +1417,8 @@ class Config:
         return copy.deepcopy(self._cfg)
 
     @staticmethod
-    def reload():
-        _populate()
+    def reload(skip_env_file=False):
+        _populate(skip_env_file=skip_env_file)
 
     @property
     def version(self):
@@ -1290,10 +1429,7 @@ class Config:
 
     @staticmethod
     def resolve_ui_url():
-        # ui_url is deprecated in favor of the ui.url (we created the ui block)
-        # since the config class is used in a "recursive" way, we can't use property like we used in other places
-        # since the property will need to be url, which exists in other structs as well
-        return config.ui.url or config.ui_url
+        return config.ui.url
 
     def is_api_running_on_k8s(self):
         # determine if the API service is attached to K8s cluster
@@ -1311,7 +1447,7 @@ class Config:
             mock_nuclio = not mlrun.mlconf.is_nuclio_detected()
         return True if mock_nuclio and force_mock is None else force_mock
 
-    def get_v3io_access_key(self) -> typing.Optional[str]:
+    def get_v3io_access_key(self) -> str | None:
         # Get v3io access key from the environment
         return os.getenv("V3IO_ACCESS_KEY")
 
@@ -1320,8 +1456,8 @@ class Config:
         project: str,
         kind: str,
         target: typing.Literal["online", "offline"] = "online",
-        artifact_path: typing.Optional[str] = None,
-        function_name: typing.Optional[str] = None,
+        artifact_path: str | None = None,
+        function_name: str | None = None,
         **kwargs,
     ) -> str:
         """Get the full path from the configuration based on the provided project and kind.
@@ -1425,6 +1561,9 @@ class Config:
             == mlrun.common.types.AuthenticationMode.IGUAZIO_V4
         )
 
+    def is_using_v3io(self) -> bool:
+        return not self.is_iguazio_v4_mode() and not self.is_ce_mode()
+
     def is_explicit_ack_enabled(self) -> bool:
         return self.httpdb.nuclio.explicit_ack == "enabled" and (
             not self.nuclio_version
@@ -1432,12 +1571,24 @@ class Config:
             >= semver.VersionInfo.parse("1.12.10")
         )
 
+    def default_forbidden_service_accounts(self):
+        forbidden_service_accounts_str = (
+            self.function.spec.service_account.forbidden_service_accounts
+        )
+        if forbidden_service_accounts_str:
+            return [
+                service_account.strip()
+                for service_account in forbidden_service_accounts_str.split(",")
+            ]
+
+        return []
+
 
 # Global configuration
 config = Config.from_dict(default_config)
 
 
-def _populate(skip_errors=False):
+def _populate(skip_errors=False, skip_env_file=False):
     """Populate configuration from config file (if exists in environment) and
     from environment variables.
 
@@ -1446,13 +1597,15 @@ def _populate(skip_errors=False):
     global _loaded
 
     with _load_lock:
-        _do_populate(skip_errors=skip_errors)
+        _do_populate(skip_errors=skip_errors, skip_env_file=skip_env_file)
 
 
-def _do_populate(env=None, skip_errors=False):
+def _do_populate(env=None, skip_errors=False, skip_env_file=False):
     global config
 
-    if not os.environ.get("MLRUN_IGNORE_ENV_FILE"):
+    # we get into this block when we want to load the defaults from the env file.
+    # other use cases, like set_env_from_file / running api - skip this block.
+    if not skip_env_file and not os.environ.get("MLRUN_IGNORE_ENV_FILE"):
         if "MLRUN_ENV_FILE" in os.environ:
             env_file = os.path.expanduser(os.environ["MLRUN_ENV_FILE"])
             dotenv.load_dotenv(env_file, override=True)
@@ -1502,10 +1655,15 @@ def _validate_config(config):
 
     config.verify_security_context_enrichment_mode_is_allowed()
     config.validate_object_retentions()
+    # Fail-fast on malformed base64/JSON in default_function_pod_labels so the
+    # API pod doesn't start with config that would crash every function deploy.
+    config.get_default_function_pod_labels()
+    # Fail-fast on malformed base64/JSON in the builder pod labels for the same reason.
+    config.get_builder_pod_labels()
 
 
 def _verify_gpu_requests_and_limits(
-    requests_gpu: typing.Optional[str] = None, limits_gpu: typing.Optional[str] = None
+    requests_gpu: str | None = None, limits_gpu: str | None = None
 ):
     # https://kubernetes.io/docs/tasks/manage-gpus/scheduling-gpus/
     if requests_gpu and not limits_gpu:
@@ -1519,7 +1677,7 @@ def _verify_gpu_requests_and_limits(
         )
 
 
-def _convert_resources_to_str(config: typing.Optional[dict] = None):
+def _convert_resources_to_str(config: dict | None = None):
     resources_types = ["cpu", "memory", "gpu"]
     resource_requirements = ["requests", "limits"]
     if not config.get("default_function_pod_resources"):
@@ -1592,7 +1750,6 @@ def read_env(env=None, prefix=env_prefix):
             "https://mlrun-api.", "https://framesd."
         )
 
-    uisvc = env.get("MLRUN_UI_SERVICE_HOST")
     igz_domain = env.get("IGZ_NAMESPACE_DOMAIN")
 
     # workaround to try and detect IGZ domain
@@ -1617,10 +1774,6 @@ def read_env(env=None, prefix=env_prefix):
     # effort" to try and determine the URL, we want this "best effort" so overriding the "disabled" value
     if config.get("nuclio_dashboard_url") == "disabled":
         config["nuclio_dashboard_url"] = ""
-
-    if uisvc and not config.get("ui_url"):
-        if igz_domain:
-            config["ui_url"] = f"https://mlrun-ui.{igz_domain}"
 
     if log_level := config.get("log_level"):
         import mlrun.utils.logger

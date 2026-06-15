@@ -4,6 +4,7 @@ __pycache__/
 
 # Python virtual environments and environment files
 *venv*
+uv.lock
 
 # Jupyter Notebook checkpoints
 .ipynb_checkpoints/
@@ -15,14 +16,15 @@ __pycache__/
 
 # Test results and temporary test files
 tests/test_results/
+tests/render_test_outputs/
 tests/temp*
 tests/*.pkl
 tests/project.yaml
 tests/system/env.yml
-server/py/services/api/db/mlrun.db
+server/py/services/api/db
 migration_tests.log
 # Coverage reports
-*.coverage
+**/*.coverage
 
 # Editors and operating system files
 # Visual Studio Code settings
@@ -85,7 +87,12 @@ docs/contributing.md
 # Local development and configuration files
 # Project configuration and environment files
 project.yaml
-automation/patch_igz/patch[_-]env.yml
+automation/patch_igz/patch[_-]env*.yml
+!automation/patch_igz/patch[_-]env_template.yml
+
+
+# Claude Code configuration files
+.claude/*
 
 # Local playground dir
 playground
@@ -107,7 +114,11 @@ server/py/schemas/proto/*pb2*.py
 # <= 1.7.x legacy project structure
 # on >= 1.8.0, server/api has been moved to server/py/services/api
 server/api
-tests/coverage_reports/*.xml
-tests/coverage_reports/*.html
+**/coverage_reports/*
+!**/coverage_reports/.gitkeep
 **/test-openai.yml
 **/test-huggingface.yml
+
+mlrun.env
+**/mlrun.env
+tests/system/mlrun.env

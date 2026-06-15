@@ -12,8 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import typing
-from typing import Optional, Union
+from typing import Union
 
 import semver
 from kubernetes.client.rest import ApiException
@@ -55,6 +54,7 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
         runtime: mlrun.runtimes.BaseRuntime,
         run: mlrun.run.RunObject,
         execution: mlrun.execution.MLClientCtx,
+        auth_info: mlrun.common.schemas.AuthInfo = None,
     ):
         raise NotImplementedError(
             "Execution of dask jobs is done locally by the dask client"
@@ -64,7 +64,7 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
     # It means that monitoring runtime resources state doesn't say anything about the run state.
     # Therefore, dask run monitoring is done completely by the SDK, so overriding the monitoring method with no logic
     def monitor_runs(
-        self, db: DBInterface, db_session: Session, leader_session: Optional[str] = None
+        self, db: DBInterface, db_session: Session, leader_session: str | None = None
     ) -> list[dict]:
         return []
 
@@ -75,7 +75,7 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
     @staticmethod
     def resolve_object_id(
         run: dict,
-    ) -> typing.Optional[str]:
+    ) -> str | None:
         """
         Resolves the object ID from the run object.
         In dask runtime, the object ID is the function name.
@@ -100,10 +100,8 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
             mlrun.common.schemas.GroupedByProjectRuntimeResourcesOutput,
         ],
         namespace: str,
-        label_selector: Optional[str] = None,
-        group_by: Optional[
-            mlrun.common.schemas.ListRuntimeResourcesGroupByField
-        ] = None,
+        label_selector: str | None = None,
+        group_by: mlrun.common.schemas.ListRuntimeResourcesGroupByField | None = None,
     ) -> Union[
         mlrun.common.schemas.RuntimeResources,
         mlrun.common.schemas.GroupedByJobRuntimeResourcesOutput,
@@ -115,7 +113,7 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
         enrich_needed = self._validate_if_enrich_is_needed_by_group_by(group_by)
         if not enrich_needed:
             return response
-        _services = framework.utils.singletons.k8s.get_k8s_helper().v1api.list_namespaced_service(
+        _services = framework.utils.singletons.k8s.get_k8s_helper().list_services(
             namespace, label_selector=label_selector
         )
         service_resources = []
@@ -137,9 +135,7 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
             mlrun.common.schemas.GroupedByProjectRuntimeResourcesOutput,
         ],
         runtime_resources_list: list[mlrun.common.schemas.RuntimeResources],
-        group_by: Optional[
-            mlrun.common.schemas.ListRuntimeResourcesGroupByField
-        ] = None,
+        group_by: mlrun.common.schemas.ListRuntimeResourcesGroupByField | None = None,
     ):
         enrich_needed = self._validate_if_enrich_is_needed_by_group_by(group_by)
         if not enrich_needed:
@@ -154,9 +150,7 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
 
     def _validate_if_enrich_is_needed_by_group_by(
         self,
-        group_by: Optional[
-            mlrun.common.schemas.ListRuntimeResourcesGroupByField
-        ] = None,
+        group_by: mlrun.common.schemas.ListRuntimeResourcesGroupByField | None = None,
     ) -> bool:
         # Dask runtime resources are per function (and not per job) therefore, when grouping by job we're simply
         # omitting the dask runtime resources
@@ -178,9 +172,7 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
             mlrun.common.schemas.GroupedByProjectRuntimeResourcesOutput,
         ],
         service_resources: list[mlrun.common.schemas.RuntimeResource],
-        group_by: Optional[
-            mlrun.common.schemas.ListRuntimeResourcesGroupByField
-        ] = None,
+        group_by: mlrun.common.schemas.ListRuntimeResourcesGroupByField | None = None,
     ):
         if group_by == mlrun.common.schemas.ListRuntimeResourcesGroupByField.project:
             for service_resource in service_resources:
@@ -197,10 +189,10 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
         db_session: Session,
         namespace: str,
         deleted_resources: list[dict],
-        label_selector: Optional[str] = None,
+        label_selector: str | None = None,
         force: bool = False,
-        grace_period: Optional[int] = None,
-        resource_deletion_grace_period: typing.Optional[int] = None,
+        grace_period: int | None = None,
+        resource_deletion_grace_period: int | None = None,
     ):
         """
         Handling services deletion
@@ -220,29 +212,29 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
             if dask_component == "scheduler" and cluster_name:
                 service_names.append(cluster_name)
 
-        _services = framework.utils.singletons.k8s.get_k8s_helper().v1api.list_namespaced_service(
+        _services = framework.utils.singletons.k8s.get_k8s_helper().list_services(
             namespace, label_selector=label_selector
         )
         for service in _services.items:
             try:
                 if force or service.metadata.name in service_names:
-                    framework.utils.singletons.k8s.get_k8s_helper().v1api.delete_namespaced_service(
+                    framework.utils.singletons.k8s.get_k8s_helper().delete_service(
                         service.metadata.name,
                         namespace,
                         grace_period_seconds=resource_deletion_grace_period,
                     )
                     logger.info(f"Deleted service: {service.metadata.name}")
-            except ApiException as exc:
+            except (ApiException, mlrun.errors.MLRunNotFoundError) as exc:
                 # ignore error if service is already removed
-                if exc.status != 404:
+                if isinstance(exc, ApiException) and exc.status != 404:
                     raise
 
 
 def deploy_function(
     function: mlrun.runtimes.DaskCluster,
     secrets=None,
-    client_version: Optional[str] = None,
-    client_python_version: Optional[str] = None,
+    client_version: str | None = None,
+    client_python_version: str | None = None,
 ):
     _validate_dask_related_libraries_installed()
 
@@ -306,8 +298,8 @@ def initialize_dask_cluster(scheduler_pod, worker_pod, function, namespace):
 def enrich_dask_cluster(
     function,
     secrets,
-    client_version: Optional[str] = None,
-    client_python_version: Optional[str] = None,
+    client_version: str | None = None,
+    client_python_version: str | None = None,
 ):
     from dask.distributed import Client, default_client  # noqa: F401
     from dask_kubernetes import KubeCluster, make_pod_spec  # noqa: F401
@@ -327,7 +319,7 @@ def enrich_dask_cluster(
     image = function.full_image_path(
         client_version=client_version, client_python_version=client_python_version
     )
-    env = function.generate_runtime_k8s_env()
+    env = function._generate_k8s_runtime_env()
 
     # filter any spec.env that already exists in env
     # in other words, dont let spec.env override env (or not even duplicate it)
@@ -340,14 +332,16 @@ def enrich_dask_cluster(
 
     env.extend(
         filter(
-            lambda spec_env: not any(
-                [
-                    True
-                    for _env in env
-                    # spec_env might be V1EnvVar or a dict
-                    # _env is just a dict
-                    if get_env_name(spec_env) == get_env_name(_env)
-                ]
+            lambda spec_env: (
+                not any(
+                    [
+                        True
+                        for _env in env
+                        # spec_env might be V1EnvVar or a dict
+                        # _env is just a dict
+                        if get_env_name(spec_env) == get_env_name(_env)
+                    ]
+                )
             ),
             spec.env,
         )
@@ -389,6 +383,7 @@ def enrich_dask_cluster(
         "name": "base",
         "image": image,
         "env": env,
+        "env_from": spec.env_from or [],
         "image_pull_policy": spec.image_pull_policy,
         "volume_mounts": spec.volume_mounts,
     }

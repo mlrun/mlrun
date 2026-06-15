@@ -15,7 +15,6 @@
 import pathlib
 import tempfile
 from random import randint, random
-from typing import Optional
 
 import lightgbm as lgb
 import mlflow
@@ -201,7 +200,7 @@ def test_track_run_with_experiment_name(rundb_mock, handler):
         trainer_run = func.run(
             local=True,
             handler=handler,
-            artifact_path=test_directory,
+            output_path=test_directory,
         )
 
         _validate_run(
@@ -247,7 +246,7 @@ def test_track_run_with_control_run(rundb_mock, handler):
         trainer_run = func.run(
             local=True,
             handler=handler,
-            artifact_path=test_directory,
+            output_path=test_directory,
         )
 
         _validate_run(
@@ -290,7 +289,7 @@ def test_track_run_with_match_experiment_to_runtime(rundb_mock, handler):
         trainer_run = func.run(
             local=True,
             handler=handler,
-            artifact_path=test_directory,
+            output_path=test_directory,
         )
 
         _validate_run(
@@ -335,7 +334,7 @@ def test_track_run_no_handler(rundb_mock, run_name):
         trainer_run = func.run(
             name=f"{run_name}_no_handler",
             project=project.name,
-            artifact_path=test_directory,
+            output_path=test_directory,
             params={"tracking_uri": test_directory},
             local=True,
         )
@@ -394,7 +393,7 @@ def test_track_interrupted_run(monkeypatch, rundb_mock, handler):
         trainer_run = func.run(
             local=True,
             handler=handler,
-            artifact_path=test_directory,
+            output_path=test_directory,
             watch=False,
         )
 
@@ -476,7 +475,13 @@ def test_import_model(rundb_mock, handler):
 
         # Access model's uri through mlflow's last run
         mlflow_run = mlflow.last_active_run()
-        model_uri = f"{mlflow_run.info.artifact_uri}/model"
+
+        logged_models = mlflow.search_logged_models(
+            filter_string=f"source_run_id = '{mlflow_run.info.run_id}'",
+            output_format="list",
+        )
+
+        model_uri = logged_models[0].artifact_location
 
         key = "test_model"
         MLFlowTracker().import_model(
@@ -538,7 +543,7 @@ def test_import_artifact(rundb_mock, handler):
     mlflow.environment_variables.MLFLOW_EXPERIMENT_NAME.unset()
 
 
-def _validate_run(run: mlrun.run, run_id: Optional[str] = None):
+def _validate_run(run: mlrun.run, run_id: str | None = None):
     # in order to tell mlflow where to look for logged run for comparison
     client = mlflow.MlflowClient()
     if run_id:
@@ -557,5 +562,11 @@ def _validate_run(run: mlrun.run, run_id: Optional[str] = None):
         assert run_to_comp.data.metrics[metric] == run.status.results[metric]
     assert len(run_to_comp.data.params) == len(run.spec.parameters)
     # check the number of artifacts corresponds
-    num_artifacts = len(client.list_artifacts(run_to_comp.info.run_id))
+    logged_models = mlflow.search_logged_models(
+        filter_string=f"source_run_id = '{run_to_comp.info.run_id}'",
+        output_format="list",
+    )
+    num_artifacts = len(client.list_artifacts(run_to_comp.info.run_id)) + len(
+        logged_models
+    )
     assert num_artifacts == len(run.status.artifacts), "Wrong number of artifacts"

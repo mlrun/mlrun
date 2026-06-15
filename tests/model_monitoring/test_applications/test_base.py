@@ -15,9 +15,9 @@
 from collections.abc import Iterator
 from contextlib import AbstractContextManager
 from contextlib import nullcontext as does_not_raise
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Optional, Union
+from typing import Union
 from unittest.mock import Mock, patch
 
 import pandas as pd
@@ -181,9 +181,9 @@ class TestEvaluate:
             not in captured.out
         ), "The captured error was not expected"
 
-        assert (
-            "Read the sample data" in captured.out
-        ), "The expected log message was not found in the captured output"
+        assert "Read the sample data" in captured.out, (
+            "The expected log message was not found in the captured output"
+        )
 
     @staticmethod
     @pytest.mark.parametrize(
@@ -224,9 +224,9 @@ class TestEvaluate:
         ],
     )
     def test_invalid_params(
-        endpoints: Optional[list[tuple[str, str]]],
-        start: Optional[datetime],
-        end: Optional[datetime],
+        endpoints: list[tuple[str, str]] | None,
+        start: datetime | None,
+        end: datetime | None,
         run_local: bool,
         write_output: bool,
         error_msg: str,
@@ -338,14 +338,14 @@ def non_empty_sample_df_context_mock() -> Iterator[MonitoringApplicationContext]
     [
         (None, None, None, does_not_raise()),
         (
-            datetime(2008, 9, 1, 10, 2, 1, tzinfo=timezone.utc).isoformat(),
-            datetime(2008, 9, 2, 10, 2, 1, tzinfo=timezone.utc).isoformat(),
+            datetime(2008, 9, 1, 10, 2, 1, tzinfo=UTC).isoformat(),
+            datetime(2008, 9, 2, 10, 2, 1, tzinfo=UTC).isoformat(),
             None,
             does_not_raise(),
         ),
         (
-            datetime(2008, 9, 1, 10, 2, 1, tzinfo=timezone.utc).isoformat(),
-            datetime(2008, 9, 2, 10, 2, 1, tzinfo=timezone.utc).isoformat(),
+            datetime(2008, 9, 1, 10, 2, 1, tzinfo=UTC).isoformat(),
+            datetime(2008, 9, 2, 10, 2, 1, tzinfo=UTC).isoformat(),
             0,
             pytest.raises(
                 mlrun.errors.MLRunValueError,
@@ -354,7 +354,7 @@ def non_empty_sample_df_context_mock() -> Iterator[MonitoringApplicationContext]
         ),
         (
             datetime(2008, 9, 1, 10, 2, 1).isoformat(),
-            datetime(2008, 9, 2, 10, 2, 1, tzinfo=timezone.utc).isoformat(),
+            datetime(2008, 9, 2, 10, 2, 1, tzinfo=UTC).isoformat(),
             None,
             pytest.raises(
                 mlrun.errors.MLRunValueError,
@@ -365,9 +365,9 @@ def non_empty_sample_df_context_mock() -> Iterator[MonitoringApplicationContext]
 )
 @pytest.mark.usefixtures("non_empty_sample_df_context_mock")
 def test_window_generator_validation(
-    start: Optional[str],
-    end: Optional[str],
-    base_period: Optional[int],
+    start: str | None,
+    end: str | None,
+    base_period: int | None,
     expectation: AbstractContextManager,
 ) -> None:
     with expectation:
@@ -392,13 +392,13 @@ def test_window_generator_validation(
     ("start", "end", "base_period", "expected_windows"),
     [
         (
-            datetime(2008, 9, 1, 10, 2, 1, tzinfo=timezone.utc),
-            datetime(2008, 9, 2, 10, 2, 1, tzinfo=timezone.utc),
+            datetime(2008, 9, 1, 10, 2, 1, tzinfo=UTC),
+            datetime(2008, 9, 2, 10, 2, 1, tzinfo=UTC),
             None,
             [
                 (
-                    datetime(2008, 9, 1, 10, 2, 1, tzinfo=timezone.utc),
-                    datetime(2008, 9, 2, 10, 2, 1, tzinfo=timezone.utc),
+                    datetime(2008, 9, 1, 10, 2, 1, tzinfo=UTC),
+                    datetime(2008, 9, 2, 10, 2, 1, tzinfo=UTC),
                 ),
             ],
         ),
@@ -408,35 +408,35 @@ def test_window_generator_validation(
             600,
             [
                 (
-                    datetime(2008, 9, 1, 10, 2, 1, tzinfo=timezone.utc),
-                    datetime(2008, 9, 1, 20, 2, 1, tzinfo=timezone.utc),
+                    datetime(2008, 9, 1, 10, 2, 1, tzinfo=UTC),
+                    datetime(2008, 9, 1, 20, 2, 1, tzinfo=UTC),
                 ),
                 (
-                    datetime(2008, 9, 1, 20, 2, 1, tzinfo=timezone.utc),
-                    datetime(2008, 9, 2, 6, 2, 1, tzinfo=timezone.utc),
+                    datetime(2008, 9, 1, 20, 2, 1, tzinfo=UTC),
+                    datetime(2008, 9, 2, 6, 2, 1, tzinfo=UTC),
                 ),
             ],
         ),
         (
-            datetime(2024, 12, 26, 14, 0, 0, tzinfo=timezone.utc),
-            datetime(2024, 12, 26, 14, 4, 0, tzinfo=timezone.utc),
+            datetime(2024, 12, 26, 14, 0, 0, tzinfo=UTC),
+            datetime(2024, 12, 26, 14, 4, 0, tzinfo=UTC),
             1,
             [
                 (
-                    datetime(2024, 12, 26, 14, 0, 0, tzinfo=timezone.utc),
-                    datetime(2024, 12, 26, 14, 1, 0, tzinfo=timezone.utc),
+                    datetime(2024, 12, 26, 14, 0, 0, tzinfo=UTC),
+                    datetime(2024, 12, 26, 14, 1, 0, tzinfo=UTC),
                 ),
                 (
-                    datetime(2024, 12, 26, 14, 1, 0, tzinfo=timezone.utc),
-                    datetime(2024, 12, 26, 14, 2, 0, tzinfo=timezone.utc),
+                    datetime(2024, 12, 26, 14, 1, 0, tzinfo=UTC),
+                    datetime(2024, 12, 26, 14, 2, 0, tzinfo=UTC),
                 ),
                 (
-                    datetime(2024, 12, 26, 14, 2, 0, tzinfo=timezone.utc),
-                    datetime(2024, 12, 26, 14, 3, 0, tzinfo=timezone.utc),
+                    datetime(2024, 12, 26, 14, 2, 0, tzinfo=UTC),
+                    datetime(2024, 12, 26, 14, 3, 0, tzinfo=UTC),
                 ),
                 (
-                    datetime(2024, 12, 26, 14, 3, 0, tzinfo=timezone.utc),
-                    datetime(2024, 12, 26, 14, 4, 0, tzinfo=timezone.utc),
+                    datetime(2024, 12, 26, 14, 3, 0, tzinfo=UTC),
+                    datetime(2024, 12, 26, 14, 4, 0, tzinfo=UTC),
                 ),
             ],
         ),
@@ -446,7 +446,7 @@ def test_window_generator_validation(
 def test_windows(
     start: datetime,
     end: datetime,
-    base_period: Optional[int],
+    base_period: int | None,
     expected_windows: list[tuple[datetime, datetime]],
 ) -> None:
     windows = [
@@ -465,9 +465,9 @@ def test_windows(
             sample_data=None,
         )
     ]
-    assert (
-        windows == expected_windows
-    ), "The generated windows are different than expected"
+    assert windows == expected_windows, (
+        "The generated windows are different than expected"
+    )
 
 
 @pytest.mark.parametrize(
@@ -475,8 +475,8 @@ def test_windows(
     [
         (
             600,
-            datetime(2008, 9, 1, 10, 2, 1, tzinfo=timezone.utc),
-            datetime(2008, 9, 2, 10, 2, 1, tzinfo=timezone.utc),
+            datetime(2008, 9, 1, 10, 2, 1, tzinfo=UTC),
+            datetime(2008, 9, 2, 10, 2, 1, tzinfo=UTC),
             pytest.raises(
                 mlrun.errors.MLRunValueError,
                 match="The difference between `end` and `start` must be a multiple of "
@@ -485,14 +485,14 @@ def test_windows(
         ),
         (
             10,
-            datetime(2025, 7, 1, 0, 0, 0, tzinfo=timezone.utc),
-            datetime(2025, 7, 1, 0, 10, 0, tzinfo=timezone.utc),
+            datetime(2025, 7, 1, 0, 0, 0, tzinfo=UTC),
+            datetime(2025, 7, 1, 0, 10, 0, tzinfo=UTC),
             does_not_raise(),
         ),
         (
             15,
-            datetime(2025, 7, 1, 0, 0, 0, tzinfo=timezone.utc),
-            datetime(2025, 7, 1, 0, 10, 0, tzinfo=timezone.utc),
+            datetime(2025, 7, 1, 0, 0, 0, tzinfo=UTC),
+            datetime(2025, 7, 1, 0, 10, 0, tzinfo=UTC),
             pytest.raises(
                 mlrun.errors.MLRunValueError,
                 match="The difference between `end` and `start` must be a multiple of "
@@ -511,9 +511,9 @@ def test_validate_and_get_window_length(
         window_length = ModelMonitoringApplicationBase._validate_and_get_window_length(
             base_period=base_period, start_dt=start_dt, end_dt=end_dt
         )
-        assert window_length == timedelta(
-            minutes=base_period
-        ), "The window length is different than expected"
+        assert window_length == timedelta(minutes=base_period), (
+            "The window length is different than expected"
+        )
 
 
 def test_job_handler() -> None:
@@ -748,8 +748,8 @@ def test_normalize_and_validate_endpoints_error(
 def test_determine_job_name(
     logger: Mock,
     class_name: str,
-    func_name: Optional[str],
-    class_handler: Optional[str],
+    func_name: str | None,
+    class_handler: str | None,
     handler_to_class: str,
     expectation: AbstractContextManager,
     expected_log: bool,

@@ -12,19 +12,52 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import unittest.mock
 import uuid
 from http import HTTPStatus
-from typing import Optional
 
 import httpx
 from fastapi.testclient import TestClient
 
-import mlrun.artifacts.dataset
-import mlrun.artifacts.model
 import mlrun.common.schemas
-import mlrun.errors
+
+import framework.utils.clients.iguazio.v3
 
 PROJECT = "project-name"
+
+
+def setup_iguazio_v3_async_client_mock(
+    monkeypatch, username="username", session="session", data_session="data_session"
+):
+    """
+    Set up a properly configured mock for Iguazio v3 AsyncClient
+
+    The mock's verify_request_session method returns a proper AuthInfo object instead of
+    a mock, which prevents pickling errors when the project object is serialized.
+
+    Args:
+        monkeypatch: pytest monkeypatch fixture
+        username: Username to return in AuthInfo (default: "username")
+        session: Session to return in AuthInfo (default: "session")
+        data_session: Data session to return in AuthInfo (default: "data_session")
+
+    Returns:
+        The configured mock client
+    """
+    mock_client = unittest.mock.AsyncMock()
+    mock_client.verify_request_session = unittest.mock.AsyncMock(
+        return_value=mlrun.common.schemas.auth.AuthInfo(
+            username=username,
+            session=session,
+            data_session=data_session,
+        )
+    )
+    monkeypatch.setattr(
+        framework.utils.clients.iguazio.v3,
+        "AsyncClient",
+        lambda *args, **kwargs: mock_client,
+    )
+    return mock_client
 
 
 def create_project(
@@ -48,7 +81,7 @@ def create_project(
     return resp
 
 
-def compile_schedule(schedule_name: Optional[str] = None, to_json: bool = True):
+def compile_schedule(schedule_name: str | None = None, to_json: bool = True):
     if not schedule_name:
         schedule_name = f"schedule-name-{str(uuid.uuid4())}"
     schedule = mlrun.common.schemas.ScheduleInput(
@@ -88,26 +121,28 @@ def assert_pagination_info(
     entity_name: str,
     entity_identifier_name: str,
 ):
-    assert response.status_code == HTTPStatus.OK.value
+    assert response.status_code == HTTPStatus.OK.value, (
+        f"Unexpected status code: {response.status_code}, response: {response.text}"
+    )
 
     pagination = response.json().get("pagination")
-    assert (
-        pagination.get("page") == expected_page
-    ), f"Expected page {expected_page}, got {pagination.get('page')}"
-    assert (
-        pagination.get("page-size") == expected_page_size
-    ), f"Expected page size {expected_page_size}, got {pagination.get('page-size')}"
+    assert pagination.get("page") == expected_page, (
+        f"Expected page {expected_page}, got {pagination.get('page')}"
+    )
+    assert pagination.get("page-size") == expected_page_size, (
+        f"Expected page size {expected_page_size}, got {pagination.get('page-size')}"
+    )
 
     results = response.json().get(entity_name, [])
-    assert (
-        len(results) == expected_results_count
-    ), f"Expected {expected_results_count} results, got {len(results)}"
+    assert len(results) == expected_results_count, (
+        f"Expected {expected_results_count} results, got {len(results)}"
+    )
 
     if results:
         first_result_identifier = results[0]["metadata"].get(entity_identifier_name)
-        assert (
-            first_result_identifier == expected_first_result_name
-        ), f"Expected first result identifier '{expected_first_result_name}', got '{first_result_identifier}'"
+        assert first_result_identifier == expected_first_result_name, (
+            f"Expected first result identifier '{expected_first_result_name}', got '{first_result_identifier}'"
+        )
 
 
 def _create_project_obj(

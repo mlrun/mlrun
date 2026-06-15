@@ -25,7 +25,6 @@ from mlrun.datastore.datastore_profile import (
     DatastoreProfile,
     DatastoreProfile2Json,
     DatastoreProfileKafkaStream,
-    DatastoreProfileKafkaTarget,
     DatastoreProfilePostgreSQL,
     DatastoreProfileRedis,
     DatastoreProfileV3io,
@@ -33,15 +32,6 @@ from mlrun.datastore.datastore_profile import (
     register_temporary_client_datastore_profile,
     remove_temporary_client_datastore_profile,
 )
-
-
-def test_kafka_target_datastore():
-    profile = DatastoreProfileKafkaTarget(
-        name="my_target", topic="my-topic", brokers="localhost:9092"
-    )
-    assert profile.name == "my_target"
-    assert profile.topic == "my-topic"
-    assert profile.brokers == "localhost:9092"
 
 
 def test_kafka_stream_datastore() -> None:
@@ -60,20 +50,16 @@ def test_kafka_stream_datastore() -> None:
         ({}, "field required"),
     ],
 )
-@pytest.mark.parametrize(
-    "profile_class", [DatastoreProfileKafkaTarget, DatastoreProfileKafkaStream]
-)
-def test_kafka_target_datastore_no_brokers(
-    brokers_kwargs: dict, expected_err_msg: str, profile_class: type
+def test_kafka_stream_datastore_no_brokers(
+    brokers_kwargs: dict, expected_err_msg: str
 ) -> None:
     with pytest.raises(
         pydantic.error_wrappers.ValidationError,
         match=expected_err_msg,
     ):
-        if isinstance(profile_class, DatastoreProfileKafkaStream):
-            profile_class(name="my_stream", topics=["my-topic"], **brokers_kwargs)
-        else:
-            profile_class(name="my_target", topic="my-topic", **brokers_kwargs)
+        DatastoreProfileKafkaStream(
+            name="my_stream", topics=["my-topic"], **brokers_kwargs
+        )
 
 
 @pytest.fixture

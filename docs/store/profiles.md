@@ -84,5 +84,3 @@ target = KafkaSource(path="ds://profile-name")
 ```
 See also
 - {py:class}`~mlrun.datastore.datastore_profile.DatastoreProfileKafkaStream`
-- {py:class}`~mlrun.datastore.datastore_profile.DatastoreProfileKafkaSource`
-- {py:class}`~mlrun.datastore.datastore_profile.DatastoreProfileKafkaTarget`

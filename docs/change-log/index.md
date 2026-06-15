@@ -1605,11 +1605,8 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | v1.12.0| v1.10.0 |`artifact_path` in `MlrunProject.run_function`| `output path`|
 | v1.12.0| v1.10.0 |`artifact_path` in `mlrun.projects.operations.run_function`| `output path`|
 | v1.12.0| v1.10.0 |`artifact_path` and `out_path` in `BaseRuntime.run`| `output path`|
-| v1.12.0| v1.10.0 |`auth_info` in `RemoteRuntime.get_url`|NA|
 | v1.12.0| v1.10.0 |When using underscores as a name, the code no longer replaces them with dashes. |Use dashes|
 | v1.12.0| v1.10.0 |`any `mlrun.api.schemas.*`  import |`mlrun.common.schemas.*`| 
-| v1.12.0| v1.10.0 |key name `S3_ENDPOINT_URL`                                             |`AWS_ENDPOINT_URL_S3`|
-| v1.12.0| v1.10.0 |Datastore class: `DatastoreProfileKafkaSource`, `DatastoreProfileKafkaTarget`    |`DatastoreProfileKafkaStream`|
 | v1.12.0| v1.10.0 |processing old batch model endpoint in `mlrun.model_monitoring.controller `  |NA|
 | v1.12.0| v1.10.0 |`fetch_credentials_from_sys_config`                                       |NA|
 
@@ -1619,6 +1616,12 @@ with a drill-down to view the steps and their details. [Tech Preview]
 
 | Version|API                                                    |Use instead                                                                  |
 |---------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------|
+| v1.12.0|`auth_info` param in `RemoteRuntime.get_url`|NA|
+| v1.12.0|`S3_ENDPOINT_URL` env var in S3 datastore and `mount_s3`|`AWS_ENDPOINT_URL_S3`|
+| v1.12.0|Datastore classes `DatastoreProfileKafkaSource`, `DatastoreProfileKafkaTarget`|`DatastoreProfileKafkaStream`|
+| v1.12.0 (deprecated v1.10.0)|`get_or_create_model_endpoint` in `mlrun.model_monitoring.api`|deploy a monitored serving function or use `project.list_model_endpoints()`|
+| v1.12.0 (deprecated v1.10.0)|`record_results` in `mlrun.model_monitoring.api`|run a monitored serving function as a job|
+| v1.12.0 (deprecated v1.10.0)|`GET /projects/{project}/model-endpoints/metrics`|`GET /projects/{project}/model-monitoring/metrics`|
 | v1.11.0|TDEngine support is removed in v1.11.0. Data is not migrated.|MLRun supports TimescaleDB instead.|
 | v1.11.0|`get_cached_artifact` of MLClientCtx                                              |`get_artifact`|
 | v1.11.0|`remove_function` of MLrunProject                            |`delete_function`|
@@ -1637,8 +1640,6 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | v1.11.0|`mlrun.platforms.v3io_cred`                                            |`.mounts.v3io_cred
 | v1.10.0 |Class: `MLModelServer`                                        |`V2ModelServer` class|
 | v1.10.0 |`tracking_policy` in GraphServer and `ServingSpec` classes.   |NA|
-| v1.10.0 |Function: `get_or_create_model_endpoint()` in `mlrun.model_monitoring.api` |To create a new model endpoint, either deploy a monitored serving function as a real-time service or run it as an offline job.|
-| v1.10.0 |Function: `record_results()`                             |Serving as a job for offline model endpoints.|
 | v1.10.0|`labels` in`get_or_create_ctx` |`spec` |
 | v1.10.0|`overwrite_build_params` in `MlrunProject.build_function` |Default value changed to `True` |
 | v1.10.0|`overwrite_build_params` in `MlrunProject.build_config` |Default value changed to `True` |
@@ -1652,8 +1653,6 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | v1.10.0|`schema` in `mlrun.datastore.sources.SnowflakeSource`                   |`db_schema`|
 | v1.10.0|`credentials_prefix` in `mlrun.datastore.targets.BaseStoreTarget`       |Use datastore profiles for managing credentials|
 | v1.10.0|`kafka_bootstrap_servers` in `get_kafka_brokers_from_dict()`          |`kafka_brokers`|
-| v1.10.0|`drift_threshold`, `possible_drift_threshold` and `trigger_monitoring_job` in `mlrun.model_monitoring.api.record_results`|Enable the default histogram data drift application with `project.enable_model_monitoring()`|
-| v1.10.0|`artifacts_tag`, `default_batch_image` in `mlrun.model_monitoring.api.record_results`  |NA|
 | v1.10.0|`mlrun.model_monitoring.tracking_policy.TrackingPolicy`                          |NA| 
 | v1.10.0|`default_controller_image` in `MlrunProject.enable_model_monitoring()`            |`image`|
 | v1.10.0|`MlrunProject.remove_model_monitoring_function()`                               |`MlrunProject.delete_model_monitoring_function()`|
@@ -1669,7 +1668,6 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | v1.10.0|Parameter: `mlrun.db.httpdb.HTTPRunDB.list_runs` `state`                       |`states`      |
 | v1.10.0|Class: `mlrun.common.runtimes.constants.RunLabels`                             |`RunLabels.owner` => `MlrunInternalLabels.owner` <br><br> `RunLabels.v3io_user` => `MlrunInternalLabels.v3io_user`   |
 | v1.10.0|Parameter: `mlrun.runtimes.base.mlrun_op` `rundb`                              |MLRUN_DBPATH environment variable |
-| v1.10.0|`bootstrap_servers` in `mlrun.datastore.datastore_profile.DatastoreProfileKafkaTarget` |brokers|
 | v1.10.0|`FunctionSpec.clone_target_dir`                                                |`ImageBuilder.source_code_target_dir`|
 | v1.8.0 |`--watch` parameter of `mlrun logs`                                                        |NA|
 | v1.8.0 |datastore `get_filesystem`                                                                 |`filesystem` property|

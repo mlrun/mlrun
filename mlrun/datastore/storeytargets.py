@@ -22,7 +22,6 @@ import mlrun.common.model_monitoring.helpers
 from mlrun.datastore.base import DataStore
 from mlrun.datastore.datastore_profile import (
     DatastoreProfileKafkaStream,
-    DatastoreProfileKafkaTarget,
     DatastoreProfilePostgreSQL,
     datastore_profile_read,
 )
@@ -143,7 +142,7 @@ class KafkaStoreyTarget(storey.KafkaTarget):
             datastore_profile = datastore_profile_read(path)
             if not isinstance(
                 datastore_profile,
-                DatastoreProfileKafkaStream | DatastoreProfileKafkaTarget,
+                DatastoreProfileKafkaStream,
             ):
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     f"Unsupported datastore profile type: {type(datastore_profile)}"

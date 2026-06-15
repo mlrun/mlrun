@@ -101,6 +101,139 @@ def test_plot_monitoring_serving_graph(
     print(graph)
 
 
+def _find_step_call(graph_mock: unittest.mock.Mock, step_name: str):
+    for call in graph_mock.add_step.call_args_list:
+        if call.kwargs.get("name") == step_name:
+            return call
+    raise AssertionError(
+        f"graph.add_step was not called with name={step_name!r}; "
+        f"calls were: {graph_mock.add_step.call_args_list}"
+    )
+
+
+def _make_timescaledb_connector(monkeypatch: pytest.MonkeyPatch, project_name: str):
+    monkeypatch.setattr(mlrun.mlconf, "system_id", "123456")
+    return mlrun.model_monitoring.get_tsdb_connector(
+        project=project_name,
+        profile=DatastoreProfilePostgreSQL(
+            name="postgresql-tsdb-test",
+            user="testuser",
+            password="testpass",
+            host="localhost",
+            port=5432,
+            database="postgres",
+        ),
+    )
+
+
+def test_timescaledb_stream_steps_read_max_events_and_flush_from_config(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """TimescaleDB predictions target picks up mlconf values when no kwargs."""
+    monkeypatch.setattr(
+        mlrun.mlconf.model_endpoint_monitoring.stream_graph, "max_events", 4242
+    )
+    monkeypatch.setattr(
+        mlrun.mlconf.model_endpoint_monitoring.stream_graph,
+        "flush_after_seconds",
+        77,
+    )
+
+    tsdb_connector = _make_timescaledb_connector(
+        monkeypatch, project_name="test-stream-config-read"
+    )
+    graph = unittest.mock.Mock()
+
+    tsdb_connector.apply_monitoring_stream_steps(graph)
+
+    call = _find_step_call(graph, "TimescaleDBTarget")
+    assert call.kwargs["max_events"] == 4242
+    assert call.kwargs["flush_after_seconds"] == 77
+
+
+def test_timescaledb_stream_steps_kwargs_override_config(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Explicit kwargs override mlconf values for the predictions target."""
+    monkeypatch.setattr(
+        mlrun.mlconf.model_endpoint_monitoring.stream_graph, "max_events", 4242
+    )
+    monkeypatch.setattr(
+        mlrun.mlconf.model_endpoint_monitoring.stream_graph,
+        "flush_after_seconds",
+        77,
+    )
+
+    tsdb_connector = _make_timescaledb_connector(
+        monkeypatch, project_name="test-stream-kwargs-override"
+    )
+    graph = unittest.mock.Mock()
+
+    tsdb_connector.apply_monitoring_stream_steps(
+        graph,
+        tsdb_batching_max_events=11,
+        tsdb_batching_timeout_secs=22,
+    )
+
+    call = _find_step_call(graph, "TimescaleDBTarget")
+    assert call.kwargs["max_events"] == 11
+    assert call.kwargs["flush_after_seconds"] == 22
+
+
+def test_timescaledb_handle_model_error_reads_from_config(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """TimescaleDB errors target picks up mlconf values when no kwargs."""
+    monkeypatch.setattr(
+        mlrun.mlconf.model_endpoint_monitoring.stream_graph, "max_events", 555
+    )
+    monkeypatch.setattr(
+        mlrun.mlconf.model_endpoint_monitoring.stream_graph,
+        "flush_after_seconds",
+        66,
+    )
+
+    tsdb_connector = _make_timescaledb_connector(
+        monkeypatch, project_name="test-errors-config-read"
+    )
+    graph = unittest.mock.Mock()
+
+    tsdb_connector.handle_model_error(graph)
+
+    call = _find_step_call(graph, "timescaledb_error")
+    assert call.kwargs["max_events"] == 555
+    assert call.kwargs["flush_after_seconds"] == 66
+
+
+def test_timescaledb_handle_model_error_kwargs_override_config(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Explicit kwargs override mlconf values for the errors target."""
+    monkeypatch.setattr(
+        mlrun.mlconf.model_endpoint_monitoring.stream_graph, "max_events", 555
+    )
+    monkeypatch.setattr(
+        mlrun.mlconf.model_endpoint_monitoring.stream_graph,
+        "flush_after_seconds",
+        66,
+    )
+
+    tsdb_connector = _make_timescaledb_connector(
+        monkeypatch, project_name="test-errors-kwargs-override"
+    )
+    graph = unittest.mock.Mock()
+
+    tsdb_connector.handle_model_error(
+        graph,
+        tsdb_batching_max_events=7,
+        tsdb_batching_timeout_secs=8,
+    )
+
+    call = _find_step_call(graph, "timescaledb_error")
+    assert call.kwargs["max_events"] == 7
+    assert call.kwargs["flush_after_seconds"] == 8
+
+
 class _MockTrigger:
     def __init__(self, kind: str):
         self.kind = kind

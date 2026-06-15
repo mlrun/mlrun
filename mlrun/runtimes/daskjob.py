@@ -223,6 +223,16 @@ class DaskCluster(KubejobRuntime):
     def status(self, status):
         self._status = self._verify_dict(status, "status", DaskStatus)
 
+    def validate(self):
+        super().validate()
+        # The Dask runtime is not supported on Iguazio v4 (IG4) systems, where the dask cluster can
+        # no longer be brought up. Bringing one up would otherwise fail with an opaque
+        # "Failed bringing up dask cluster" error.
+        if config.is_iguazio_v4_mode():
+            raise mlrun.errors.MLRunBadRequestError(
+                "The Dask runtime is not supported on this system."
+            )
+
     def is_deployed(self):
         if not self.spec.remote:
             return True

@@ -26,7 +26,7 @@ Upgrading these three MLRun dependencies spans several releases.  The upgrades a
 
 See a full description of KFP, Python, and the workflow engines in {ref}`local-remote`. Specific changes are listed under the relevant versions.
 
-(#v1-12-0)=
+(v1-12-0)=
 ## v1.12.0 (July 2026)
 
 
@@ -1560,13 +1560,13 @@ with a drill-down to view the steps and their details. [Tech Preview]
 
 ## Limitations
 
-| ID     |Description                                                                                                                                 |Workaround |Opened in|
-|---------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------|     
+| ID     |Description                                    |Workaround |Opened in|
+|---------|----------------------------------------------|------------------|-------|     
 |ML-1278|Users do not automatically have access rights to the project data of the projects they are members of.    | Assign the user access permission for the project folder.             | v0.8.0   |
-|ML-2014|Model deployment returns ResourceNotFoundException (Nuclio error that Service <name> is invalid.)                                                                                    |Verify that all `metadata.labels` values are 63 characters or less. See the [Kubernetes limitation](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set).                                                                                                                        |v1.0.0    |
-|ML-3520|MLRun does not decompress large Kubeflow pipelines.                                                                                                                                 |NA                                                                                                                                                                                                                                                                                                                              |v1.3.0    |
-|ML-3731|When trying to identify a failed step in a workflow with `mlrun.get_run_db().list_pipelines('project-name')`, the returned error is `None`.                                          |To see the error, use `mlrun.db.get_pipelines()` instead.                                                                                                                                                                                                 |v1.3.0|
-|ML-3743|Setting AWS credentials as project secret cause a build failure on EKS configured with ECR.                                                                                          |When using an ECR as the external container registry, make sure that the project secrets AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY have read/write access to ECR, as described in the [platform documentation](https://www.iguazio.com/docs/latest-release/services/app-services/docker-registry/#create-off-cluster-registry)|v1.3.0 |
+|ML-2014|Model deployment returns ResourceNotFoundException (Nuclio error that Service <name> is invalid.)  |Verify that all `metadata.labels` values are 63 characters or less. See the [Kubernetes limitation](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set).  |v1.0.0    |
+|ML-3520|MLRun does not decompress large Kubeflow pipelines.  |NA  |v1.3.0    |
+|ML-3731|When trying to identify a failed step in a workflow with `mlrun.get_run_db().list_pipelines('project-name')`, the returned error is `None`.  |To see the error, use `mlrun.db.get_pipelines()` instead. |v1.3.0|
+|ML-3743|Setting AWS credentials as project secret cause a build failure on EKS configured with ECR.  |When using an ECR as the external container registry, make sure that the project secrets AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY have read/write access to ECR, as described in the [platform documentation](https://www.iguazio.com/docs/latest-release/services/app-services/docker-registry/#create-off-cluster-registry)|v1.3.0 |
 |ML-4386|Notifications of local runs aren't persisted. | NA | v1.5.0|
 |ML-4767|When using mlrun-gpu image, use PyTorch versions up to and including than 2.0.1, but not higher.       | You can build your own images with newer CUDA for a later release of PyTorch. |                 v1.5.0|   
 |ML-4907|MLRun Client does not support Win OS.                                                 | Use WSL instead. | v1.3.0 | 
@@ -1582,16 +1582,10 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-10004|Batch writes to TSDB fail when the ingestion rate for the TSDB target is greater than 1/s. The result is that you cannot monitor inferencing and at some point the influencing results are dropped. |NA|v1.11.0|
 |ML-10614|`project.log_model()` and `project.log_artifact()` do not account for the context folder.|NA|v1.11.0|
 
-
-
-
-
-
-
 ## Deprecations and removed code
 
-| In    |ID     |Description                                                   |
-|--------|---------|-----------------------------------------|
+| In    |ID            |Description                                                   |
+|--------|-------------|-----------------------------------------|
 | v1.11.0 |NA  |Use of underscore '_' in function names will be deprecated. Use dashes '-' instead.|
 | v1.11.0 |NA  |TDEngine support will be removed in v1.11.0. MLRun will support TimescaleDB instead. Data will not be migrated.|
 | v1.10.0 |NA  |SQLtargets are no longer supported.|
@@ -1604,24 +1598,16 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | v1.5.0 |ML-3605|Model Monitoring:  Most of the charts and KPIs in Grafana are now based on the data store target instead of the MLRun API. It is recommended to update the model monitoring dashboards since the old dashboards are not supported. |
 | v1.0.0 |NA      |MLRun / Nuclio does not support python 3.6.      |
 
-## Deprecated APIs  
 
-| Will be removed|Deprecated|API                                                                       |Use instead |
-|----------------|---------|----------------------------------------------------------------------------------|----------------------------------|
-
-|  
-|  
 ## Removed APIs
 
 | Version|API                                       |Use instead                       |
 |---------|------------------------------------------|------------------------------------|
-| v1.12.0|`state` query param                          |`states` query param |
-| v1.12.0|'get_or_create_model_endpoint()` function |Deploy monitored serving function|
-| v1.12.0|'record_results()` function               |Run monitored serving fn as a job|
-| v1.12.0|Real-time processing of model endpoints (the branch)|NA (job-based serving)|
 | v1.12.0|Deprecated route                          |GET /projects/{project}/model-monitoring/metrics|
-
-
+| v1.10.0|Parameter: `mlrun.projects.MlrunProject.list_runs` `state`                     |`states`      |
+| v1.10.0|Parameter: `mlrun.db.httpdb.HTTPRunDB.list_runs` `state`                       |`states`      |
+| v1.10.0 |Function: `record_results()`                             |Run monitored serving function as a job|
+| v1.12.0 |Function: `get_or_create_model_endpoint()` in `mlrun.model_monitoring.api` |Deploy monitored serving function|
 | v1.12.0|`GET /projects/{project}/runs?state` | `states` |
 | v1.12.0|`artifact_path` in `MlrunProject.run_function`| `output path`|
 | v1.12.0|`artifact_path` in `mlrun.projects.operations.run_function`| `output path`|
@@ -1631,7 +1617,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | v1.12.0 |any `mlrun.api.schemas.*`  import        |`mlrun.common.schemas.*`| 
 | v1.12.0 |key name `S3_ENDPOINT_URL`                    |`AWS_ENDPOINT_URL_S3`|
 | v1.12.0 |Datastore class: `DatastoreProfileKafkaSource`, `DatastoreProfileKafkaTarget`    |`DatastoreProfileKafkaStream`|
-| v1.12.0 |processing old batch model endpoint in `mlrun.model_monitoring.controller `  |NA|
+| v1.12.0 |Real-time processing of model endpoints (the branch)|NA (job-based serving)|
 | v1.12.0 |`fetch_credentials_from_sys_config`                                       |NA|
 | v1.11.0|TDEngine support is removed in v1.11.0. Data is not migrated.|MLRun supports TimescaleDB instead.|
 | v1.11.0|`get_cached_artifact` of MLClientCtx                                              |`get_artifact`|
@@ -1651,8 +1637,6 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | v1.11.0|`mlrun.platforms.v3io_cred`                                            |`.mounts.v3io_cred
 | v1.10.0 |Class: `MLModelServer`                                        |`V2ModelServer` class|
 | v1.10.0 |`tracking_policy` in GraphServer and `ServingSpec` classes.   |NA|
-| v1.10.0 |Function: `get_or_create_model_endpoint()` in `mlrun.model_monitoring.api` |To create a new model endpoint, either deploy a monitored serving function as a real-time service or run it as an offline job.|
-| v1.10.0 |Function: `record_results()`                             |Serving as a job for offline model endpoints.|
 | v1.10.0|`labels` in`get_or_create_ctx` |`spec` |
 | v1.10.0|`overwrite_build_params` in `MlrunProject.build_function` |Default value changed to `True` |
 | v1.10.0|`overwrite_build_params` in `MlrunProject.build_config` |Default value changed to `True` |
@@ -1679,8 +1663,6 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | v1.10.0|Datastore redis:`credentials_prefix`                                           |Use datastore profiles for managing credentials|
 | v1.10.0|Parameter: `mlrun.runtimes.nuclio.function.RemoteRuntime.deploy` `auth_info`   | NA. Was not used.|
 | v1.10.0|Parameter: `mlrun.runtimes.nuclio.serving.ServingRuntime.deploy` `auth_info`   | NA. Was not used.|
-| v1.10.0|Parameter: `mlrun.projects.MlrunProject.list_runs` `state`                     |`states`      |
-| v1.10.0|Parameter: `mlrun.db.httpdb.HTTPRunDB.list_runs` `state`                       |`states`      |
 | v1.10.0|Class: `mlrun.common.runtimes.constants.RunLabels`                             |`RunLabels.owner` => `MlrunInternalLabels.owner` <br><br> `RunLabels.v3io_user` => `MlrunInternalLabels.v3io_user`   |
 | v1.10.0|Parameter: `mlrun.runtimes.base.mlrun_op` `rundb`                              |MLRUN_DBPATH environment variable |
 | v1.10.0|`bootstrap_servers` in `mlrun.datastore.datastore_profile.DatastoreProfileKafkaTarget` |brokers|

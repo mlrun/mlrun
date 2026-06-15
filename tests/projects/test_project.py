@@ -4342,15 +4342,6 @@ def test_init_function_from_dict_store_uri_with_repo_raises():
         )
 
 
-def _make_handler_dataitem(tmp_path, body: str):
-    """Build a fake DataItem.local() that materialises ``body`` to disk."""
-    target = tmp_path / "fetched_handler.py"
-    target.write_text(body)
-    item = unittest.mock.MagicMock()
-    item.local.return_value = str(target)
-    return item
-
-
 @pytest.mark.parametrize(
     "remote_url",
     [
@@ -4449,3 +4440,12 @@ def test_set_function_remote_py_propagates_dataitem_fetch_errors(monkeypatch, tm
             kind="job",
             handler="handler:main",
         )
+
+
+def _make_handler_dataitem(tmp_path, body: str):
+    """Build a fake DataItem.local() that materialises ``body`` to disk."""
+    target = tmp_path / "fetched_handler.py"
+    target.write_text(body)
+    item = unittest.mock.MagicMock()
+    item.local.return_value = str(target)
+    return item

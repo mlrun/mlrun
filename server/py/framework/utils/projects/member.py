@@ -73,16 +73,9 @@ class Member(abc.ABC):
         # This mitigates the OPA manifest propagation race condition on multi-pod deployments:
         # when a request is routed to a pod that hasn't received the OPA manifest yet,
         # the cache allows the owner to proceed without waiting for OPA propagation.
-        if (
-            auth_info.username
-            and hasattr(project, "spec")
-            and project.spec
-            and project.spec.owner
-            and auth_info.username == project.spec.owner
-        ):
-            framework.utils.auth.verifier.AuthVerifier().add_allowed_project_for_owner(
-                name, auth_info
-            )
+        verifier = framework.utils.auth.verifier.AuthVerifier()
+        if verifier.is_project_owner(auth_info, project):
+            verifier.add_allowed_project_for_owner(name, auth_info)
 
     @abc.abstractmethod
     def create_project(

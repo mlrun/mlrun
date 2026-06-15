@@ -342,6 +342,16 @@ class GraphServer(ModelObj):
                     )
         try:
             response = self.graph.run(event, **(extra_args or {}))
+
+            # TODO: this is only relevant in certain flows (MockServer, sync...)
+            if hasattr(response, "body"):
+                response = response.body
+
+            if self.http_trigger and self.result_handler:
+                method = getattr(event, "method", None)
+                path = getattr(event, "path", None)
+                if method and path:
+                    response = self.result_handler.apply(method, path, response)
         except Exception as exc:
             # Extract appropriate status code from MLRunHTTPStatusError exceptions
             # For backwards compatibility, default to 400 for other exceptions
@@ -358,16 +368,6 @@ class GraphServer(ModelObj):
             return context.Response(
                 body=message, content_type="text/plain", status_code=status_code
             )
-
-        # TODO: this is only relevant in certain flows (MockServer, sync...)
-        if hasattr(response, "body"):
-            response = response.body
-
-        if self.http_trigger and self.result_handler:
-            method = getattr(event, "method", None)
-            path = getattr(event, "path", None)
-            if method and path:
-                response = self.result_handler.apply(method, path, response)
 
         return response
 

@@ -27,6 +27,7 @@ from pathlib import Path
 from typing import Union
 from unittest.mock import Mock
 
+import aiohttp
 import deepdiff
 import pytest
 import requests
@@ -54,6 +55,19 @@ from mlrun.runtimes import BaseRuntime
 from mlrun.runtimes.utils import global_context
 from mlrun.utils import update_in
 from tests.conftest import logs_path, results, root_path, rundb_path
+
+# aiohttp 3.14 added a required `stream_writer` kwarg to ClientResponse.__init__,
+# which aioresponses (<=0.7.8) doesn't pass. aiohttp only reads
+# `stream_writer.output_size`, so a Mock is sufficient. Drop once aioresponses
+# ships a fix (pnuckowski/aioresponses#289).
+_aiohttp_response_init = aiohttp.ClientResponse.__init__
+if "stream_writer" in inspect.signature(_aiohttp_response_init).parameters:
+
+    def _patched_aiohttp_response_init(self, *args, **kwargs):
+        kwargs.setdefault("stream_writer", Mock(output_size=0))
+        _aiohttp_response_init(self, *args, **kwargs)
+
+    aiohttp.ClientResponse.__init__ = _patched_aiohttp_response_init
 
 session_maker: Callable
 

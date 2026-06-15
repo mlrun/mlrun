@@ -28,6 +28,7 @@ import mlrun.datastore.datastore_profile as ds_profile
 import mlrun.runtimes.kubejob as kubejob_runtime
 import mlrun.runtimes.nuclio.function as nuclio_function
 import mlrun.runtimes.pod as pod_runtime
+import mlrun.serving.openai_mappings
 from mlrun.datastore import get_kafka_brokers_from_dict, parse_kafka_url
 from mlrun.model import ObjectList
 from mlrun.runtimes.function_reference import FunctionReference
@@ -749,6 +750,8 @@ class ServingRuntime(nuclio_function.RemoteRuntime):
         verbose=False,
         builder_env: dict | None = None,
         force_build: bool = False,
+        wait: bool = True,
+        timeout: int | None = None,
     ):
         """deploy model serving function to a local/remote cluster
 
@@ -757,6 +760,10 @@ class ServingRuntime(nuclio_function.RemoteRuntime):
         :param verbose:   verbose logging
         :param builder_env: env vars dict for source archive config/credentials e.g. builder_env={"GIT_TOKEN": token}
         :param force_build: set True for force building the image
+        :param wait:      when True (default), block until ready and return the invocation command (``str``).
+            When ``False``, submit and return ``self`` so the caller can poll. See ``RemoteRuntime.deploy``.
+        :param timeout:   optional deadline in seconds for the readiness wait when ``wait=True``;
+            forwarded to ``RemoteRuntime.deploy``. ``None`` waits indefinitely. Ignored when ``wait=False``.
         """
 
         load_mode = self.spec.load_mode
@@ -819,6 +826,8 @@ class ServingRuntime(nuclio_function.RemoteRuntime):
             verbose,
             builder_env=builder_env,
             force_build=force_build,
+            wait=wait,
+            timeout=timeout,
         )
 
     def _get_serving_spec(self):
@@ -1142,3 +1151,59 @@ class ServingRuntime(nuclio_function.RemoteRuntime):
 
         # Store the configuration in the spec for serialization
         self.spec.api_handler_config = config
+
+    def set_openai_frontend(
+        self,
+        endpoints: list[mlrun.serving.openai_mappings.OpenAIEndpoint] | None = None,
+        prefix: str | None = None,
+    ) -> None:
+        """Wire up OpenAI-compatible API handler endpoints in one call.
+
+        Registers pre-built input and output body mappings for each selected OpenAI
+        operation group. If ``endpoints`` is ``None``, all supported groups are registered.
+
+        **Validation scope — top-level only.** Mandatory field validation applies only to
+        the top-level keys of the request/response body. Full structural validation is
+        delegated to the OpenAI Python SDK, which deserializes responses into typed objects
+        and raises a ``ValidationError`` on any structural mismatch.
+
+        :param endpoints: Optional list of :class:`~mlrun.serving.openai_mappings.OpenAIEndpoint`
+            values selecting which operation groups to enable. Defaults to all groups.
+        :param prefix: Optional path prefix to prepend to every registered endpoint path.
+            Use this when clients send requests with a path prefix (e.g. ``prefix="/v1"``
+            registers ``/v1/chat/completions`` instead of ``/chat/completions``).
+            Defaults to ``None`` (no prefix).
+
+        Example::
+
+            from mlrun.serving.openai_mappings import OpenAIEndpoint
+
+            fn.set_openai_frontend()  # all groups, no prefix
+            fn.set_openai_frontend(prefix="/v1")  # all groups, /v1/ prefix
+            fn.set_openai_frontend([OpenAIEndpoint.RESPONSES], prefix="/v1")
+        """
+
+        if prefix is not None and not prefix.startswith("/"):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"OpenAI API prefix must start with '/': {prefix!r}"
+            )
+
+        existing = self.spec.api_handler_config
+        config = (
+            APIHandlerConfig.from_dict(existing) if existing else APIHandlerConfig()
+        )
+
+        groups = (
+            endpoints
+            if endpoints is not None
+            else list(mlrun.serving.openai_mappings.OpenAIEndpoint)
+        )
+        for ep_group in groups:
+            for ep in mlrun.serving.openai_mappings.ENDPOINT_CLASSES[
+                ep_group
+            ].endpoints():
+                if prefix:
+                    ep.path = prefix + ep.path
+                config.add_endpoint_config(ep)
+
+        self.set_api_handler_config(config)

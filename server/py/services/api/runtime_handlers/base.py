@@ -442,9 +442,7 @@ class BaseRuntimeHandler(ABC):
                     else key
                 )
                 # Don't override user-provided plain env vars
-                if not BaseRuntimeHandler._has_user_set_plain_env(
-                    runtime, env_var_name
-                ):
+                if not runtime.has_user_set_plain_env(env_var_name):
                     runtime.set_env_from_secret(env_var_name, global_secret_name, key)
 
         # the secrets param may be an empty dictionary (asking for all secrets of that project) -
@@ -484,9 +482,7 @@ class BaseRuntimeHandler(ABC):
         for key, env_var_name in secrets.items():
             if key in existing_secret_keys:
                 # Don't override user-provided plain env vars
-                if not BaseRuntimeHandler._has_user_set_plain_env(
-                    runtime, env_var_name
-                ):
+                if not runtime.has_user_set_plain_env(env_var_name):
                     runtime.set_env_from_secret(env_var_name, secret_name, key)
 
         # Keep a list of the variables that relate to secrets, so that the MLRun context (when using nuclio:mlrun)
@@ -2122,22 +2118,3 @@ class BaseRuntimeHandler(ABC):
             return run_retry_count > 0
 
         return int(pod_retry_label) < run_retry_count
-
-    @staticmethod
-    def _has_user_set_plain_env(
-        runtime: mlrun.runtimes.pod.KubeResource, name: str
-    ) -> bool:
-        """Check if runtime was explicitly set with a plain-value env var.
-
-        Returns True only for env vars with a plain .value (user-set), not for
-        secret-injected vars that have .value_from. This distinction is critical
-        to preserve the project > global secret priority.
-        """
-        for env_var in runtime.spec.env:
-            if isinstance(env_var, dict):
-                if env_var.get("name") == name:
-                    return env_var.get("value") is not None
-            else:
-                if getattr(env_var, "name", None) == name:
-                    return getattr(env_var, "value", None) is not None
-        return False

@@ -92,8 +92,12 @@ func EnsureFileExists(filePath string) error {
 		if err := EnsureDirExists(dirPath, os.ModePerm); err != nil {
 			return errors.Wrapf(err, "Failed to create directory - %s", dirPath)
 		}
-		if _, err := os.Create(filePath); err != nil {
+		f, err := os.Create(filePath)
+		if err != nil {
 			return errors.Wrapf(err, "Failed to create file - %s", filePath)
+		}
+		if err := f.Close(); err != nil {
+			return errors.Wrapf(err, "Failed to close newly created file - %s", filePath)
 		}
 	}
 

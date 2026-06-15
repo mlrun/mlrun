@@ -2447,6 +2447,7 @@ class MonitoringDeployment:
         db_session: sqlalchemy.orm.Session,
         function: dict,
         function_name: str,
+        function_tag: str,
         project: str,
     ) -> tuple[
         list[
@@ -2507,8 +2508,6 @@ class MonitoringDeployment:
                 project=project,
             )
 
-        function_tag = (function.get("metadata") or {}).get("tag") or "latest"
-
         model_endpoints_dict: dict[str, str] = await run_in_threadpool(
             framework.utils.singletons.db.get_db().list_model_endpoints,
             project=project,
@@ -2521,12 +2520,10 @@ class MonitoringDeployment:
 
         model_endpoints_instructions = []
         for instruction in instructions:
-            effective_function_name = instruction.function_name or function_name
-            effective_function_tag = instruction.function_tag or function_tag
             uid = self._get_or_create_uid(
                 project=project,
-                function_name=effective_function_name,
-                function_tag=effective_function_tag,
+                function_name=function_name,
+                function_tag=function_tag,
                 model_endpoints_dict=model_endpoints_dict,
                 creation_strategy=instruction.creation_strategy,
                 endpoint_name=instruction.name,
@@ -2535,8 +2532,8 @@ class MonitoringDeployment:
                 name=instruction.name,
                 endpoint_type=mm_constants.EndpointType.USER_EP,
                 model_class=None,
-                function_name=effective_function_name,
-                function_tag=effective_function_tag,
+                function_name=function_name,
+                function_tag=function_tag,
                 track_models=True,
                 uid=uid,
                 label_names=instruction.output_schema,
@@ -2901,6 +2898,7 @@ class MonitoringDeployment:
         background_tasks: BackgroundTasks,
         function: dict,
         function_name: str,
+        function_tag: str,
         project: str,
     ) -> tuple[
         list[
@@ -2928,6 +2926,7 @@ class MonitoringDeployment:
             db_session=db_session,
             function=function,
             function_name=function_name,
+            function_tag=function_tag,
             project=project,
         )
 

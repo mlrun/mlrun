@@ -380,26 +380,32 @@ class APIHandlerConfig(mlrun.model.ModelObj):
             If ``None``, the response is returned as-is.
         :raises mlrun.errors.MLRunValueError: If the path contains an invalid wildcard ``*`` pattern
         """
-        ep = EndpointConfig(
-            path=path,
-            http_method=http_method,
-            action=action,
-            description=description,
-            input_body_mappings=input_body_mappings,
-            output_body_mappings=output_body_mappings,
+        self.add_endpoint_config(
+            EndpointConfig(
+                path=path,
+                http_method=http_method,
+                action=action,
+                description=description,
+                input_body_mappings=input_body_mappings,
+                output_body_mappings=output_body_mappings,
+            )
         )
-        endpoint_key = ep.get_endpoint_key()
 
+    def add_endpoint_config(self, endpoint: "EndpointConfig") -> None:
+        """Add a pre-built :class:`EndpointConfig` directly.
+
+        :param endpoint: The endpoint configuration to add.
+        """
+        endpoint_key = endpoint.get_endpoint_key()
         if endpoint_key in self._endpoints:
             mlrun.utils.logger.warning(
                 "Overriding existing endpoint handler configuration",
-                method=ep.http_method.value,
-                path=ep.path,
+                method=endpoint.http_method.value,
+                path=endpoint.path,
                 old_action=self._endpoints[endpoint_key].action,
-                new_action=str(action),
+                new_action=str(endpoint.action),
             )
-
-        self._endpoints[endpoint_key] = ep
+        self._endpoints[endpoint_key] = endpoint
 
     def remove_endpoint_handler(
         self,
@@ -671,14 +677,14 @@ def apply_body_map(
     :param fill_missing_with_none: If True, missing non-mandatory fields are included as None
         instead of being skipped. Use for output mapping where callers expect a full structure.
     :return: Dict of extracted parameters.
-    :raises mlrun.errors.MLRunBadRequestError: If a mandatory field is missing.
+    :raises mlrun.errors.MLRunUnprocessableEntityError: If a mandatory field is missing.
     """
     result = {}
     for dest_path, (compiled_expr, mandatory) in effective_map.items():
         matches = compiled_expr.find(body)
         if not matches:
             if mandatory:
-                raise mlrun.errors.MLRunBadRequestError(
+                raise mlrun.errors.MLRunUnprocessableEntityError(
                     f"Mandatory field '{dest_path}' not found in body"
                 )
             if fill_missing_with_none:
@@ -719,3 +725,52 @@ def merge_body_maps(
             effective_map[dest] = (expr, mandatory)
             src_to_dest[src] = dest
     return effective_map
+
+
+def apply_body_map_with_dict_check(
+    body: Any,
+    effective_map: dict[str, tuple[Any, bool]],
+    input_body: bool = True,
+) -> dict | None:
+    """Apply a body map with the dict-check + mandatory-mapping contract.
+
+    Shared by the request-side API handler and the response-side result handler:
+    a dict body is mapped via :func:`apply_body_map`; a non-dict body raises iff
+    at least one mapping is mandatory, otherwise the non-dict body silently
+    passes through (caller receives ``None`` and treats it as 'no transformation').
+
+    :param body: Body or response object to apply the mapping to.
+    :param effective_map: Merged map of ``{destination_path: (compiled_expr, mandatory)}``.
+    :param input_body: ``True`` for the request side (default), ``False`` for the response
+        side. Drives both the error message wording and whether missing optional fields are
+        filled with ``None`` (output) or skipped (input).
+    :return: Result of :func:`apply_body_map` if ``body`` is a dict; ``None`` if ``body`` is
+        not a dict and all mappings are optional.
+    :raises mlrun.errors.MLRunUnprocessableEntityError: ``body`` is not a dict and at least
+        one mapping is mandatory, or :func:`apply_body_map` itself raised this error.
+    :raises mlrun.errors.MLRunBadRequestError: :func:`apply_body_map` raised any other
+        exception (wrapped with a descriptive prefix).
+    """
+    # Output side expects a complete structure → missing optional fields become None.
+    # Input side drops missing optional fields.
+    label = "input" if input_body else "output"
+    fill_missing_with_none = not input_body
+    if isinstance(body, dict):
+        try:
+            return apply_body_map(
+                body, effective_map, fill_missing_with_none=fill_missing_with_none
+            )
+        except mlrun.errors.MLRunUnprocessableEntityError as exc:
+            raise mlrun.errors.MLRunUnprocessableEntityError(
+                f"Failed to process {label} body mapping: {exc}"
+            ) from exc
+        except Exception as exc:
+            raise mlrun.errors.MLRunBadRequestError(
+                f"Failed to process {label} body mapping: {exc}"
+            ) from exc
+    if any(mandatory for _, mandatory in effective_map.values()):
+        raise mlrun.errors.MLRunUnprocessableEntityError(
+            f"Mandatory {label} body mappings configured but {label} body is not a dict "
+            f"(got {type(body).__name__})"
+        )
+    return None

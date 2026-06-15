@@ -46,7 +46,7 @@ class TestMpiV1Runtime(TestRuntimeBase):
             mpijob_function = self._generate_runtime(self.runtime_kind)
             self.deploy(db, mpijob_function)
             run = mpijob_function.run(
-                artifact_path="v3io:///mypath",
+                output_path="v3io:///mypath",
                 watch=False,
                 auth_info=mlrun.common.schemas.AuthInfo(),
             )
@@ -106,7 +106,7 @@ class TestMpiV1Runtime(TestRuntimeBase):
         self.deploy(db, mpijob_function)
 
         run = mpijob_function.run(
-            artifact_path="v3io:///mypath",
+            output_path="v3io:///mypath",
             watch=False,
             auth_info=mlrun.common.schemas.AuthInfo(),
         )
@@ -125,7 +125,7 @@ class TestMpiV1Runtime(TestRuntimeBase):
         mpijob_function = self._generate_runtime(self.runtime_kind)
         self.deploy(db, mpijob_function)
         run = mpijob_function.run(
-            artifact_path="v3io:///mypath",
+            output_path="v3io:///mypath",
             watch=False,
             auth_info=mlrun.common.schemas.AuthInfo(),
         )
@@ -143,7 +143,7 @@ class TestMpiV1Runtime(TestRuntimeBase):
         mpijob_function = self._generate_runtime(self.runtime_kind)
         self.deploy(db, mpijob_function)
         run = mpijob_function.run(
-            artifact_path="v3io:///mypath",
+            output_path="v3io:///mypath",
             watch=False,
             auth_info=mlrun.common.schemas.AuthInfo(),
         )

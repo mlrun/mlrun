@@ -232,7 +232,7 @@ def test_mlconf_packagers_enabled(rundb_mock, is_enabled: bool, returns: list):
     log_artifacts_and_results_run = mlrun_function.run(
         handler="log_artifacts_and_results",
         returns=returns,
-        artifact_path=artifact_path.name,
+        output_path=artifact_path.name,
         local=True,
     )
 
@@ -264,7 +264,7 @@ def test_parse_inputs_from_type_annotations(rundb_mock):
     log_artifacts_and_results_run = mlrun_function.run(
         handler="log_artifacts_and_results",
         returns=RETURNS_LOG_HINTS,
-        artifact_path=artifact_path.name,
+        output_path=artifact_path.name,
         local=True,
     )
 
@@ -302,7 +302,7 @@ def test_parse_inputs_from_type_annotations(rundb_mock):
             "my_int": log_artifacts_and_results_run.outputs["my_int"],
             "my_str": log_artifacts_and_results_run.outputs["my_str"],
         },
-        artifact_path=artifact_path.name,
+        output_path=artifact_path.name,
         local=True,
     )
 
@@ -325,7 +325,7 @@ def test_parse_inputs_from_mlrun_function(rundb_mock):
     log_artifacts_and_results_run = mlrun_function.run(
         handler="log_artifacts_and_results",
         returns=RETURNS_LOG_HINTS,
-        artifact_path=artifact_path.name,
+        output_path=artifact_path.name,
         local=True,
     )
 
@@ -368,7 +368,7 @@ def test_parse_inputs_from_mlrun_function(rundb_mock):
             "my_str": log_artifacts_and_results_run.outputs["my_str"],
             "is_conf_test": False,
         },
-        artifact_path=artifact_path.name,
+        output_path=artifact_path.name,
         local=True,
     )
 
@@ -433,7 +433,7 @@ def test_parse_inputs_with_mlconf_packagers_auto_unpack_inputs(
     log_artifacts_and_results_run = mlrun_function.run(
         handler="log_artifacts_and_results",
         returns=RETURNS_LOG_HINTS,
-        artifact_path=artifact_path.name,
+        output_path=artifact_path.name,
         local=True,
     )
 
@@ -457,7 +457,7 @@ def test_parse_inputs_with_mlconf_packagers_auto_unpack_inputs(
             "my_str": log_artifacts_and_results_run.outputs["my_str"],
             "is_conf_test": True,
         },
-        artifact_path=artifact_path.name,
+        output_path=artifact_path.name,
         local=True,
     )
 
@@ -513,7 +513,7 @@ def test_log_with_and_without_packagers(rundb_mock, auto_unpack_inputs: bool):
     log_with_and_without_packagers_run = mlrun_function.run(
         handler="log_with_and_without_packagers",
         returns=["package_df"],
-        artifact_path=artifact_path.name,
+        output_path=artifact_path.name,
         local=True,
     )
 
@@ -524,7 +524,7 @@ def test_log_with_and_without_packagers(rundb_mock, auto_unpack_inputs: bool):
             "context_df": log_with_and_without_packagers_run.outputs["context_df"],
             "package_df": log_with_and_without_packagers_run.outputs["package_df"],
         },
-        artifact_path=artifact_path.name,
+        output_path=artifact_path.name,
         local=True,
     )
 
@@ -573,7 +573,7 @@ def test_log_outputs_with_mlconf_packagers_auto_pack_outputs(
     log_artifacts_and_results_run = mlrun_function.run(
         name="test-run",
         handler="log_artifacts_and_results",
-        artifact_path=artifact_path.name,
+        output_path=artifact_path.name,
         returns=copy.deepcopy(
             returns
         ),  # We copy as in local the outputs are being appended to the list.
@@ -691,7 +691,7 @@ def test_subclasses_packing_and_unpacking(rundb_mock, a: int, b: str):
         handler="func_to_pack_base_class",
         params={"a": a, "b": b},
         returns=["base_class"],
-        artifact_path=artifact_path.name,
+        output_path=artifact_path.name,
         local=True,
     )
 
@@ -714,7 +714,7 @@ def test_subclasses_packing_and_unpacking(rundb_mock, a: int, b: str):
             "a": a,
             "b": b,
         },
-        artifact_path=artifact_path.name,
+        output_path=artifact_path.name,
         local=True,
     )
 
@@ -756,7 +756,7 @@ def test_parse_local_file(rundb_mock):
     mlrun_function.run(
         handler="parse_local_file",
         inputs={"my_dict": str(json_path)},
-        artifact_path=artifact_path.name,
+        output_path=artifact_path.name,
         local=True,
     )
 
@@ -805,7 +805,7 @@ def test_artifact_linking(rundb_mock):
                 },
             ),
         ],
-        artifact_path=artifact_path.name,
+        output_path=artifact_path.name,
         local=True,
     )
 
@@ -861,7 +861,7 @@ def test_context_artifact_linking_to_packager(rundb_mock):
     run = mlrun_function.run(
         handler="log_context_artifact_with_linking",
         returns=["packager_data"],
-        artifact_path=artifact_path.name,
+        output_path=artifact_path.name,
         local=True,
     )
 

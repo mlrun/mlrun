@@ -84,7 +84,7 @@ def test_training(rundb_mock, framework_algorithm_functionality_pair: tuple[str,
     with tempfile.TemporaryDirectory() as test_directory:
         # Run training:
         train_run = mlrun.new_function().run(
-            artifact_path=test_directory,
+            output_path=test_directory,
             handler=functions.train,
             params={"algorithm_functionality": algorithm_functionality},
         )
@@ -126,14 +126,14 @@ def test_evaluation(
     with tempfile.TemporaryDirectory() as test_directory:
         # Run training:
         train_run = mlrun.new_function().run(
-            artifact_path=test_directory,
+            output_path=test_directory,
             handler=functions.train,
             params={"algorithm_functionality": algorithm_functionality},
         )
 
         # Run evaluation (on the model that was just trained):
         evaluate_run = mlrun.new_function().run(
-            artifact_path=test_directory,
+            output_path=test_directory,
             handler=functions.evaluate,
             params={
                 "algorithm_functionality": algorithm_functionality,

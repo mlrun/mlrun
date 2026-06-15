@@ -36,6 +36,9 @@ class FunctionState:
     unknown = "unknown"
     ready = "ready"
     error = "error"  # represents deployment error
+    # nuclio-only: pod is up but failing health checks. Distinct from `error` —
+    # nuclio reports it as a raw string and does not map it to FunctionState.error.
+    unhealthy = "unhealthy"
 
     deploying = "deploying"
     # there is currently an abuse usage of the builder (lower) pod state as the function state, ideally these two would
@@ -44,6 +47,10 @@ class FunctionState:
     pending = "pending"
     # same goes for the build which is not coming from the pod, but is used and we can't just omit it for BC reasons
     build = "build"
+    # `building` is a presentational state: persisted to status.state so the UI shows an in-progress
+    #  build/deploy as "Deploying". On the application build path it's only persisted, never put in the
+    # `x-mlrun-function-status` header, so the SDK build-watch still polls the raw pod phase (running/pending).
+    building = "building"
 
     # for pipeline steps
     skipped = "skipped"
@@ -65,6 +72,13 @@ class FunctionState:
             cls.ready,
             cls.error,
             cls.skipped,
+        ]
+
+    @classmethod
+    def failed_states(cls):
+        return [
+            cls.error,
+            cls.unhealthy,
         ]
 
 

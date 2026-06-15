@@ -12,14 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import threading
-import time
-
 import sqlalchemy
 import sqlalchemy.engine
 import sqlalchemy.event
 import sqlalchemy.exc
 
+import mlrun
 import mlrun.common.db.dialects
 import mlrun.common.schemas
 import mlrun.config
@@ -28,6 +26,7 @@ from mlrun.utils import logger
 
 import framework.db.sqldb.sql_session
 import services.api.utils.events.events_factory as events_factory
+import services.api.utils.events.throttle as throttle
 
 CATEGORY_DISCONNECT = "disconnect"
 CATEGORY_TOO_MANY_CONNECTIONS = "too_many_connections"
@@ -78,8 +77,9 @@ SUPPORTED_DIALECTS: frozenset[str] = frozenset(
     }
 )
 
-_throttle_lock = threading.Lock()
-_last_emit_monotonic: float = 0.0
+_slot = throttle.ThrottledSlot(
+    lambda: mlrun.mlconf.events.db_connection.min_emit_interval_seconds
+)
 
 _registered_engines: set[int] = set()
 
@@ -149,14 +149,10 @@ def publish_connection_failed(
         )
         if event is None:
             return False
-        previous_slot = _try_claim_emit_slot()
-        if previous_slot is None:
-            return False
-        try:
+        with _slot.claim() as acquired:
+            if not acquired:
+                return False
             client.emit(event)
-        except Exception:
-            _release_emit_slot(previous_slot)
-            raise
         return True
     except Exception as publish_exc:
         logger.warning(
@@ -249,27 +245,3 @@ def _extract_pg_sqlstate(exc: BaseException | None) -> str | None:
     if isinstance(code, str) and code:
         return code
     return None
-
-
-def _try_claim_emit_slot() -> float | None:
-    """
-    Try to claim the throttle slot. On success returns the previous
-    ``_last_emit_monotonic`` value (pass to :func:`_release_emit_slot` to
-    undo on delivery failure); returns None if throttled.
-    """
-    global _last_emit_monotonic
-    min_interval = float(mlrun.mlconf.events.db_connection.min_emit_interval_seconds)
-    now = time.monotonic()
-    with _throttle_lock:
-        if now - _last_emit_monotonic < min_interval:
-            return None
-        previous = _last_emit_monotonic
-        _last_emit_monotonic = now
-        return previous
-
-
-def _release_emit_slot(previous: float) -> None:
-    """Restore the slot to ``previous`` so the next DB error can retry emit."""
-    global _last_emit_monotonic
-    with _throttle_lock:
-        _last_emit_monotonic = previous

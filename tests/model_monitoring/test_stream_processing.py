@@ -101,6 +101,139 @@ def test_plot_monitoring_serving_graph(
     print(graph)
 
 
+def _find_step_call(graph_mock: unittest.mock.Mock, step_name: str):
+    for call in graph_mock.add_step.call_args_list:
+        if call.kwargs.get("name") == step_name:
+            return call
+    raise AssertionError(
+        f"graph.add_step was not called with name={step_name!r}; "
+        f"calls were: {graph_mock.add_step.call_args_list}"
+    )
+
+
+def _make_timescaledb_connector(monkeypatch: pytest.MonkeyPatch, project_name: str):
+    monkeypatch.setattr(mlrun.mlconf, "system_id", "123456")
+    return mlrun.model_monitoring.get_tsdb_connector(
+        project=project_name,
+        profile=DatastoreProfilePostgreSQL(
+            name="postgresql-tsdb-test",
+            user="testuser",
+            password="testpass",
+            host="localhost",
+            port=5432,
+            database="postgres",
+        ),
+    )
+
+
+def test_timescaledb_stream_steps_read_max_events_and_flush_from_config(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """TimescaleDB predictions target picks up mlconf values when no kwargs."""
+    monkeypatch.setattr(
+        mlrun.mlconf.model_endpoint_monitoring.stream_graph, "max_events", 4242
+    )
+    monkeypatch.setattr(
+        mlrun.mlconf.model_endpoint_monitoring.stream_graph,
+        "flush_after_seconds",
+        77,
+    )
+
+    tsdb_connector = _make_timescaledb_connector(
+        monkeypatch, project_name="test-stream-config-read"
+    )
+    graph = unittest.mock.Mock()
+
+    tsdb_connector.apply_monitoring_stream_steps(graph)
+
+    call = _find_step_call(graph, "TimescaleDBTarget")
+    assert call.kwargs["max_events"] == 4242
+    assert call.kwargs["flush_after_seconds"] == 77
+
+
+def test_timescaledb_stream_steps_kwargs_override_config(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Explicit kwargs override mlconf values for the predictions target."""
+    monkeypatch.setattr(
+        mlrun.mlconf.model_endpoint_monitoring.stream_graph, "max_events", 4242
+    )
+    monkeypatch.setattr(
+        mlrun.mlconf.model_endpoint_monitoring.stream_graph,
+        "flush_after_seconds",
+        77,
+    )
+
+    tsdb_connector = _make_timescaledb_connector(
+        monkeypatch, project_name="test-stream-kwargs-override"
+    )
+    graph = unittest.mock.Mock()
+
+    tsdb_connector.apply_monitoring_stream_steps(
+        graph,
+        tsdb_batching_max_events=11,
+        tsdb_batching_timeout_secs=22,
+    )
+
+    call = _find_step_call(graph, "TimescaleDBTarget")
+    assert call.kwargs["max_events"] == 11
+    assert call.kwargs["flush_after_seconds"] == 22
+
+
+def test_timescaledb_handle_model_error_reads_from_config(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """TimescaleDB errors target picks up mlconf values when no kwargs."""
+    monkeypatch.setattr(
+        mlrun.mlconf.model_endpoint_monitoring.stream_graph, "max_events", 555
+    )
+    monkeypatch.setattr(
+        mlrun.mlconf.model_endpoint_monitoring.stream_graph,
+        "flush_after_seconds",
+        66,
+    )
+
+    tsdb_connector = _make_timescaledb_connector(
+        monkeypatch, project_name="test-errors-config-read"
+    )
+    graph = unittest.mock.Mock()
+
+    tsdb_connector.handle_model_error(graph)
+
+    call = _find_step_call(graph, "timescaledb_error")
+    assert call.kwargs["max_events"] == 555
+    assert call.kwargs["flush_after_seconds"] == 66
+
+
+def test_timescaledb_handle_model_error_kwargs_override_config(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Explicit kwargs override mlconf values for the errors target."""
+    monkeypatch.setattr(
+        mlrun.mlconf.model_endpoint_monitoring.stream_graph, "max_events", 555
+    )
+    monkeypatch.setattr(
+        mlrun.mlconf.model_endpoint_monitoring.stream_graph,
+        "flush_after_seconds",
+        66,
+    )
+
+    tsdb_connector = _make_timescaledb_connector(
+        monkeypatch, project_name="test-errors-kwargs-override"
+    )
+    graph = unittest.mock.Mock()
+
+    tsdb_connector.handle_model_error(
+        graph,
+        tsdb_batching_max_events=7,
+        tsdb_batching_timeout_secs=8,
+    )
+
+    call = _find_step_call(graph, "timescaledb_error")
+    assert call.kwargs["max_events"] == 7
+    assert call.kwargs["flush_after_seconds"] == 8
+
+
 class _MockTrigger:
     def __init__(self, kind: str):
         self.kind = kind
@@ -158,9 +291,9 @@ class TestProcessHTTPEvent:
         monkeypatch.setattr(mlrun.db, "get_run_db", lambda *a, **kw: mock_db)
         return ProcessHTTPEvent(project="test-project")
 
-    def test_valid_list_payload(self, monkeypatch):
+    async def test_valid_list_payload(self, monkeypatch):
         step = self._step(monkeypatch)
-        result = step.do(
+        result = await step.do(
             {
                 "model_endpoint_uid": "ep-123",
                 "inputs": [[1.0, 2.0]],
@@ -176,9 +309,9 @@ class TestProcessHTTPEvent:
         assert result[EventFieldType.FUNCTION_URI] == ""
         assert result["error"] is None
 
-    def test_dict_inputs_transposed_by_schema(self, monkeypatch):
+    async def test_dict_inputs_transposed_by_schema(self, monkeypatch):
         step = self._step(monkeypatch, feature_names=["f1", "f2"], label_names=["pred"])
-        result = step.do(
+        result = await step.do(
             {
                 "model_endpoint_uid": "ep-123",
                 "model_endpoint_name": "my-model",
@@ -192,9 +325,11 @@ class TestProcessHTTPEvent:
         assert result["request"]["input_schema"] == ["f1", "f2"]
         assert result["resp"]["output_schema"] == ["pred"]
 
-    def test_dict_inputs_without_schema_warns_and_uses_dict_order(self, monkeypatch):
+    async def test_dict_inputs_without_schema_warns_and_uses_dict_order(
+        self, monkeypatch
+    ):
         step = self._step(monkeypatch)
-        result = step.do(
+        result = await step.do(
             {
                 "model_endpoint_uid": "ep-123",
                 "model_endpoint_name": "my-model",
@@ -206,9 +341,9 @@ class TestProcessHTTPEvent:
         # No schema → transpose_by_key infers order from dict keys
         assert result["request"]["inputs"] == [[1.0, 2.0]]
 
-    def test_scalar_inputs_wrapped_in_list(self, monkeypatch):
+    async def test_scalar_inputs_wrapped_in_list(self, monkeypatch):
         step = self._step(monkeypatch)
-        result = step.do(
+        result = await step.do(
             {
                 "model_endpoint_uid": "ep-123",
                 "model_endpoint_name": "my-model",
@@ -219,9 +354,9 @@ class TestProcessHTTPEvent:
         assert result["request"]["inputs"] == [42.0]
         assert result["resp"]["outputs"] == [0.8]
 
-    def test_db_schema_used_when_not_in_event(self, monkeypatch):
+    async def test_db_schema_used_when_not_in_event(self, monkeypatch):
         step = self._step(monkeypatch, feature_names=["a", "b"], label_names=["pred"])
-        result = step.do(
+        result = await step.do(
             {
                 "model_endpoint_uid": "ep-1",
                 "model_endpoint_name": "my-model",
@@ -234,9 +369,9 @@ class TestProcessHTTPEvent:
         assert result["resp"]["outputs"] == [0.9]
         assert result["request"]["input_schema"] == ["a", "b"]
 
-    def test_when_added_if_missing(self, monkeypatch):
+    async def test_when_added_if_missing(self, monkeypatch):
         step = self._step(monkeypatch)
-        result = step.do(
+        result = await step.do(
             {
                 "model_endpoint_uid": "ep-1",
                 "model_endpoint_name": "my-model",
@@ -246,9 +381,9 @@ class TestProcessHTTPEvent:
         )
         assert result["when"] is not None
 
-    def test_when_preserved_if_provided(self, monkeypatch):
+    async def test_when_preserved_if_provided(self, monkeypatch):
         step = self._step(monkeypatch)
-        result = step.do(
+        result = await step.do(
             {
                 "model_endpoint_uid": "ep-1",
                 "model_endpoint_name": "my-model",
@@ -259,17 +394,17 @@ class TestProcessHTTPEvent:
         )
         assert result["when"] == "2024-01-01T00:00:00Z"  # internal field name
 
-    def test_missing_endpoint_id_returns_error_sentinel(self, monkeypatch):
+    async def test_missing_endpoint_id_returns_error_sentinel(self, monkeypatch):
         step = self._step(monkeypatch)
-        result = step.do(
+        result = await step.do(
             {"model_endpoint_name": "my-model", "inputs": [[1.0]], "outputs": [[0.9]]}
         )
         assert _HTTP_ERROR_KEY in result
         assert "model_endpoint_uid" in result[_HTTP_ERROR_KEY]
 
-    def test_missing_inputs_returns_error_sentinel(self, monkeypatch):
+    async def test_missing_inputs_returns_error_sentinel(self, monkeypatch):
         step = self._step(monkeypatch)
-        result = step.do(
+        result = await step.do(
             {
                 "model_endpoint_uid": "ep-1",
                 "model_endpoint_name": "my-model",
@@ -279,9 +414,9 @@ class TestProcessHTTPEvent:
         assert _HTTP_ERROR_KEY in result
         assert "inputs" in result[_HTTP_ERROR_KEY]
 
-    def test_missing_outputs_returns_error_sentinel(self, monkeypatch):
+    async def test_missing_outputs_returns_error_sentinel(self, monkeypatch):
         step = self._step(monkeypatch)
-        result = step.do(
+        result = await step.do(
             {
                 "model_endpoint_uid": "ep-1",
                 "model_endpoint_name": "my-model",
@@ -291,17 +426,17 @@ class TestProcessHTTPEvent:
         assert _HTTP_ERROR_KEY in result
         assert "outputs" in result[_HTTP_ERROR_KEY]
 
-    def test_missing_name_returns_error_sentinel(self, monkeypatch):
+    async def test_missing_name_returns_error_sentinel(self, monkeypatch):
         step = self._step(monkeypatch)
-        result = step.do(
+        result = await step.do(
             {"model_endpoint_uid": "ep-1", "inputs": [[1.0]], "outputs": [[0.8]]}
         )
         assert _HTTP_ERROR_KEY in result
         assert "model_endpoint_name" in result[_HTTP_ERROR_KEY]
 
-    def test_optional_metadata_forwarded(self, monkeypatch):
+    async def test_optional_metadata_forwarded(self, monkeypatch):
         step = self._step(monkeypatch)
-        result = step.do(
+        result = await step.do(
             {
                 "model_endpoint_uid": "ep-1",
                 "model_endpoint_name": "my-model",
@@ -318,9 +453,9 @@ class TestProcessHTTPEvent:
         assert result[EventFieldType.LABELS] == {"env": "prod"}
         assert result[EventFieldType.METRICS] == {"accuracy": 0.99}
 
-    def test_request_id_generated_when_absent(self, monkeypatch):
+    async def test_request_id_generated_when_absent(self, monkeypatch):
         step = self._step(monkeypatch)
-        result = step.do(
+        result = await step.do(
             {
                 "model_endpoint_uid": "ep-1",
                 "model_endpoint_name": "my-model",
@@ -331,14 +466,14 @@ class TestProcessHTTPEvent:
         assert result["request"]["id"] is not None
         assert len(result["request"]["id"]) > 0
 
-    def test_function_uri_from_endpoint_schema(self, monkeypatch):
+    async def test_function_uri_from_endpoint_schema(self, monkeypatch):
         step = self._step(
             monkeypatch,
             feature_names=["f1"],
             label_names=["out"],
             function_uri="my-project/my-fn:latest",
         )
-        result = step.do(
+        result = await step.do(
             {
                 "model_endpoint_uid": "ep-1",
                 "model_endpoint_name": "my-model",
@@ -348,7 +483,7 @@ class TestProcessHTTPEvent:
         )
         assert result[EventFieldType.FUNCTION_URI] == "my-project/my-fn:latest"
 
-    def test_translation_exception_returns_error_sentinel(
+    async def test_translation_exception_returns_error_sentinel(
         self, monkeypatch: pytest.MonkeyPatch
     ):
         import mlrun.serving.system_steps
@@ -359,7 +494,7 @@ class TestProcessHTTPEvent:
             lambda data, schema: (_ for _ in ()).throw(ValueError("boom")),
         )
         step = self._step(monkeypatch)
-        result = step.do(
+        result = await step.do(
             {
                 "model_endpoint_uid": "ep-1",
                 "model_endpoint_name": "my-model",
@@ -371,9 +506,9 @@ class TestProcessHTTPEvent:
         assert "failed to translate event" in result[_HTTP_ERROR_KEY]
         assert "boom" in result[_HTTP_ERROR_KEY]
 
-    def test_function_uri_empty_for_user_ep(self, monkeypatch):
+    async def test_function_uri_empty_for_user_ep(self, monkeypatch):
         step = self._step(monkeypatch, function_uri="")
-        result = step.do(
+        result = await step.do(
             {
                 "model_endpoint_uid": "ep-1",
                 "model_endpoint_name": "my-model",
@@ -383,7 +518,7 @@ class TestProcessHTTPEvent:
         )
         assert result[EventFieldType.FUNCTION_URI] == ""
 
-    def test_not_found_endpoint_returns_error_sentinel(self, monkeypatch):
+    async def test_not_found_endpoint_returns_error_sentinel(self, monkeypatch):
         """When the endpoint does not exist, do() returns a 'not found' error sentinel."""
         mock_db = unittest.mock.MagicMock()
         mock_db.get_model_endpoint.side_effect = mlrun.errors.MLRunNotFoundError(
@@ -392,7 +527,7 @@ class TestProcessHTTPEvent:
         monkeypatch.setattr(mlrun.db, "get_run_db", lambda *a, **kw: mock_db)
         step = ProcessHTTPEvent(project="test-project")
 
-        result = step.do(
+        result = await step.do(
             {
                 "model_endpoint_uid": "ep-missing",
                 "model_endpoint_name": "no-such-model",
@@ -429,39 +564,39 @@ class TestGetEndpointSchema:
         monkeypatch.setattr(mlrun.db, "get_run_db", lambda *a, **kw: mock_db)
         return mock_db
 
-    def test_cache_miss_calls_db_and_populates_cache(self, monkeypatch):
+    async def test_cache_miss_calls_db_and_populates_cache(self, monkeypatch):
         ep = self._make_ep(["f1"], ["out"], "proj/fn:latest")
         mock_db = self._mock_db(monkeypatch, ep)
         step = ProcessHTTPEvent(project="proj")
 
-        result = step._get_endpoint_schema("ep-1", "my-model")
+        result = await step._get_endpoint_schema("ep-1", "my-model")
 
         assert result == (["f1"], ["out"], "proj/fn:latest")
         mock_db.get_model_endpoint.assert_called_once()
         assert step._schema_cache["ep-1"] == (["f1"], ["out"], "proj/fn:latest")
 
-    def test_cache_hit_with_schema_skips_db(self, monkeypatch):
+    async def test_cache_hit_with_schema_skips_db(self, monkeypatch):
         mock_db = self._mock_db(monkeypatch, self._make_ep())
         step = ProcessHTTPEvent(project="proj")
         step._schema_cache["ep-1"] = (["f1"], ["out"], "proj/fn:latest")
 
-        result = step._get_endpoint_schema("ep-1", "my-model")
+        result = await step._get_endpoint_schema("ep-1", "my-model")
 
         assert result == (["f1"], ["out"], "proj/fn:latest")
         mock_db.get_model_endpoint.assert_not_called()
 
-    def test_cache_hit_with_none_schema_refreshes_from_db(self, monkeypatch):
+    async def test_cache_hit_with_none_schema_refreshes_from_db(self, monkeypatch):
         ep = self._make_ep(["f1"], ["out"], "proj/fn:latest")
         mock_db = self._mock_db(monkeypatch, ep)
         step = ProcessHTTPEvent(project="proj")
         step._schema_cache["ep-1"] = (None, None, "proj/fn:latest")
 
-        result = step._get_endpoint_schema("ep-1", "my-model")
+        result = await step._get_endpoint_schema("ep-1", "my-model")
 
         assert result == (["f1"], ["out"], "proj/fn:latest")
         mock_db.get_model_endpoint.assert_called_once()
 
-    def test_db_failure_propagates(self, monkeypatch):
+    async def test_db_failure_propagates(self, monkeypatch):
         """Generic DB errors propagate from _get_endpoint_schema to the caller."""
         mock_db = unittest.mock.MagicMock()
         mock_db.get_model_endpoint.side_effect = Exception("connection error")
@@ -469,9 +604,9 @@ class TestGetEndpointSchema:
         step = ProcessHTTPEvent(project="proj")
 
         with pytest.raises(Exception, match="connection error"):
-            step._get_endpoint_schema("ep-1", "my-model")
+            await step._get_endpoint_schema("ep-1", "my-model")
 
-    def test_not_found_error_propagates(self, monkeypatch):
+    async def test_not_found_error_propagates(self, monkeypatch):
         """MLRunNotFoundError from the DB is not swallowed — it propagates to the caller."""
         mock_db = unittest.mock.MagicMock()
         mock_db.get_model_endpoint.side_effect = mlrun.errors.MLRunNotFoundError(
@@ -481,9 +616,9 @@ class TestGetEndpointSchema:
         step = ProcessHTTPEvent(project="proj")
 
         with pytest.raises(mlrun.errors.MLRunNotFoundError):
-            step._get_endpoint_schema("ep-1", "my-model")
+            await step._get_endpoint_schema("ep-1", "my-model")
 
-    def test_expired_cache_entry_refreshed_from_db(self, monkeypatch):
+    async def test_expired_cache_entry_refreshed_from_db(self, monkeypatch):
         """After the TTL elapses the entry is evicted and the DB is called again."""
         from cachetools import TTLCache
 
@@ -495,13 +630,13 @@ class TestGetEndpointSchema:
         # Replace the cache with a 1-second TTL driven by a fake timer.
         step._schema_cache = TTLCache(maxsize=100, ttl=1, timer=lambda: fake_time[0])
 
-        step._get_endpoint_schema("ep-1", "my-model")
+        await step._get_endpoint_schema("ep-1", "my-model")
         assert mock_db.get_model_endpoint.call_count == 1
 
         # Advance time past TTL — entry should be evicted on next access.
         fake_time[0] = 2.0
 
-        step._get_endpoint_schema("ep-1", "my-model")
+        await step._get_endpoint_schema("ep-1", "my-model")
         assert mock_db.get_model_endpoint.call_count == 2
 
 
@@ -564,6 +699,14 @@ class TestGetModelMonitoringUrl:
 
     _ACTIVE_PROJECT_VAR = "MLRUN_ACTIVE_PROJECT"
 
+    @staticmethod
+    def _stream_url(project: str) -> str:
+        """Build a realistic nuclio model-monitoring-stream service URL for *project*."""
+        return (
+            f"http://nuclio-{project}-model-monitoring-stream"
+            f".default-tenant.svc.cluster.local:8080"
+        )
+
     def setup_method(self):
         os.environ.pop(self._ENV_VAR, None)
         os.environ.pop(self._ACTIVE_PROJECT_VAR, None)
@@ -574,7 +717,7 @@ class TestGetModelMonitoringUrl:
 
     def test_returns_env_var_without_db_call(self, monkeypatch: pytest.MonkeyPatch):
         """When the env var is already set the DB must not be called."""
-        cached = "http://model-monitoring-stream.my-project.svc.cluster.local:8080"
+        cached = self._stream_url("my-project")
         os.environ[self._ENV_VAR] = cached
 
         mock_db = pytest.importorskip("unittest.mock").MagicMock()
@@ -612,7 +755,7 @@ class TestGetModelMonitoringUrl:
 
     def test_second_call_uses_cache_not_db(self, monkeypatch: pytest.MonkeyPatch):
         """A second call must use the cached env var and skip the DB entirely."""
-        stream_url = "http://model-monitoring-stream.my-project.svc.cluster.local:8080"
+        stream_url = self._stream_url("my-project")
         mock_db = pytest.importorskip("unittest.mock").MagicMock()
         mock_db.get_model_monitoring_url.return_value = stream_url
         monkeypatch.setattr(mlrun.db, "get_run_db", lambda: mock_db)
@@ -634,38 +777,73 @@ class TestGetModelMonitoringUrl:
         assert url is None
         assert self._ENV_VAR not in os.environ
 
-    def test_raises_when_cached_url_project_mismatch(
+    def test_refreshes_cache_when_cached_url_project_mismatch(
         self, monkeypatch: pytest.MonkeyPatch
     ):
-        """MLRunInvalidArgumentError is raised when the cached URL belongs to a different project."""
-        os.environ[self._ENV_VAR] = (
-            "http://model-monitoring-stream.other-project.svc.cluster.local:8080"
-        )
+        """When the cached URL belongs to a different project the cache is refreshed from the DB and a warning is
+        logged."""
+        os.environ[self._ENV_VAR] = self._stream_url("other-project")
+        refreshed = self._stream_url("my-project")
+        mock_db = unittest.mock.MagicMock()
+        mock_db.get_model_monitoring_url.return_value = refreshed
+        monkeypatch.setattr(mlrun.db, "get_run_db", lambda: mock_db)
 
-        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError, match="my-project"):
-            mlrun.get_model_monitoring_url(project="my-project")
+        with unittest.mock.patch("mlrun.projects.project.logger") as mock_logger:
+            url = mlrun.get_model_monitoring_url(project="my-project")
+
+        assert url == refreshed
+        assert os.environ[self._ENV_VAR] == refreshed
+        mock_db.get_model_monitoring_url.assert_called_once_with("my-project")
+        mock_logger.warning.assert_called_once()
+        assert "my-project" in str(mock_logger.warning.call_args)
 
     def test_no_error_when_cached_url_matches_project(
         self, monkeypatch: pytest.MonkeyPatch
     ):
-        """No error is raised when the cached URL namespace label matches the project."""
-        cached = "http://model-monitoring-stream.my-project.svc.cluster.local:8080"
+        """No refetch happens when the cached URL's service segment encodes the requested project."""
+        cached = self._stream_url("my-project")
         os.environ[self._ENV_VAR] = cached
+        mock_db = unittest.mock.MagicMock()
+        monkeypatch.setattr(mlrun.db, "get_run_db", lambda: mock_db)
 
         url = mlrun.get_model_monitoring_url(project="my-project")
 
         assert url == cached
+        mock_db.get_model_monitoring_url.assert_not_called()
 
     def test_no_false_positive_for_project_name_prefix(
         self, monkeypatch: pytest.MonkeyPatch
     ):
-        """'project' must not match a URL whose namespace is 'project-1' (substring false positive)."""
-        os.environ[self._ENV_VAR] = (
-            "http://model-monitoring-stream.project-1.svc.cluster.local:8080"
-        )
+        """'project' must not match a URL encoding 'project-1' (substring false positive) — cache is refreshed."""
+        os.environ[self._ENV_VAR] = self._stream_url("project-1")
+        refreshed = self._stream_url("project")
+        mock_db = unittest.mock.MagicMock()
+        mock_db.get_model_monitoring_url.return_value = refreshed
+        monkeypatch.setattr(mlrun.db, "get_run_db", lambda: mock_db)
 
-        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError, match="project"):
-            mlrun.get_model_monitoring_url(project="project")
+        url = mlrun.get_model_monitoring_url(project="project")
+
+        assert url == refreshed
+        mock_db.get_model_monitoring_url.assert_called_once_with("project")
+
+    def test_refreshes_when_cached_url_does_not_match_nuclio_pattern(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        """A cached URL that doesn't follow nuclio-<project>-model-monitoring-stream
+        (e.g. DNS-truncated with a hash) is treated as a mismatch and refreshed."""
+        os.environ[self._ENV_VAR] = (
+            "http://nuclio-very-long-project-name-mod-abc12345"
+            ".default-tenant.svc.cluster.local:8080"
+        )
+        refreshed = self._stream_url("my-project")
+        mock_db = unittest.mock.MagicMock()
+        mock_db.get_model_monitoring_url.return_value = refreshed
+        monkeypatch.setattr(mlrun.db, "get_run_db", lambda: mock_db)
+
+        url = mlrun.get_model_monitoring_url(project="my-project")
+
+        assert url == refreshed
+        mock_db.get_model_monitoring_url.assert_called_once_with("my-project")
 
     def test_uses_active_project_when_no_project_given(
         self, monkeypatch: pytest.MonkeyPatch
@@ -691,7 +869,7 @@ class TestGetModelMonitoringUrl:
         mock_db.get_model_monitoring_url.return_value = "http://stream/ingest"
         monkeypatch.setattr(mlrun.db, "get_run_db", lambda: mock_db)
 
-        with mock.patch("mlrun.run.logger") as mock_logger:
+        with mock.patch("mlrun.projects.project.logger") as mock_logger:
             mlrun.get_model_monitoring_url()
 
         mock_logger.warning.assert_called_once()
@@ -707,7 +885,7 @@ class TestGetModelMonitoringUrl:
         mock_db.get_model_monitoring_url.return_value = "http://stream/ingest"
         monkeypatch.setattr(mlrun.db, "get_run_db", lambda: mock_db)
 
-        with mock.patch("mlrun.run.logger") as mock_logger:
+        with mock.patch("mlrun.projects.project.logger") as mock_logger:
             mlrun.get_model_monitoring_url(project="my-project")
 
         mock_logger.warning.assert_not_called()

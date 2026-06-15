@@ -394,3 +394,22 @@ def test_enrich_run_name_strips_handler_module_prefix(handler_value, expected_su
     )
     assert ":" not in run.metadata.name
     assert run.metadata.name == f"my-fn-{expected_suffix}"
+
+
+def test_validate_run_invokes_runtime_validate(monkeypatch):
+    # _validate_run must call runtime.validate() first, so unsupported runtimes (e.g. Dask on IG4)
+    # fail fast on the client local-run path.
+    launcher = mlrun.launcher.local.ClientLocalLauncher(local=True)
+    runtime = mlrun.code_to_function(
+        name="test", kind="job", filename=str(func_path), handler=handler
+    )
+
+    def _raise():
+        raise mlrun.errors.MLRunBadRequestError("runtime rejected by validate()")
+
+    monkeypatch.setattr(runtime, "validate", _raise)
+
+    with pytest.raises(
+        mlrun.errors.MLRunBadRequestError, match="runtime rejected by validate"
+    ):
+        launcher._validate_run(runtime, mlrun.run.RunObject())

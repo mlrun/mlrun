@@ -232,7 +232,7 @@ def test_inputs_results_artifacts(rundb_mock):
             "accuracy: result",
             "loss: result",
         ],
-        artifact_path=artifact_path.name,
+        output_path=artifact_path.name,
         local=True,
     )
 
@@ -301,7 +301,7 @@ def test_nested_inputs(rundb_mock):
             "file_list": [uri_a, uri_b, uri_c],
         },
         returns=["num_datasets: result", "num_files: result"],
-        artifact_path=artifact_path.name,
+        output_path=artifact_path.name,
         local=True,
     )
 
@@ -352,7 +352,7 @@ def test_nested_results(rundb_mock):
     run = fn.run(
         handler="produce_dataset_bundle",
         returns=["*my_datasets", "scalar_metric: result"],
-        artifact_path=artifact_path.name,
+        output_path=artifact_path.name,
         local=True,
     )
 
@@ -415,7 +415,7 @@ def test_nested_inputs_nested_results(rundb_mock):
         handler="grade_records",
         inputs={"record_list": [uri_a, uri_b, uri_c]},
         returns=["*student_records", "num_records_in: result"],
-        artifact_path=artifact_path.name,
+        output_path=artifact_path.name,
         local=True,
     )
 
@@ -491,7 +491,7 @@ def test_nested_inputs_nested_artifacts(rundb_mock):
             "num_splits: result",
             "mean_value: result",
         ],
-        artifact_path=artifact_path.name,
+        output_path=artifact_path.name,
         local=True,
     )
 

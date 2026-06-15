@@ -56,12 +56,14 @@ COPY mlrun mlrun
 COPY dockerfiles/mlrun-api dockerfiles/mlrun-api
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,id=pip-${MLRUN_PYTHON_VERSION},target=/root/.cache/uv \
+    --mount=type=bind,source=dockerfiles/test-system/locked-requirements.txt,target=locked-requirements.txt \
     uv pip install -c locked-requirements.txt .[complete,dev-postgres] && rm -rf /tmp/mlrun
 
 COPY pipeline-adapters pipeline-adapters
 # Install the pipeline adapters development versions since we release them only after merging
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,id=pip-${MLRUN_PYTHON_VERSION},target=/root/.cache/uv \
+    --mount=type=bind,source=dockerfiles/test-system/locked-requirements.txt,target=locked-requirements.txt \
     uv pip install -c locked-requirements.txt ./pipeline-adapters/mlrun-pipelines-kfp-common ./pipeline-adapters/mlrun-pipelines-kfp-v1-8 --python-version ${MLRUN_PYTHON_VERSION} && rm -rf /tmp/mlrun
 
 WORKDIR /mlrun

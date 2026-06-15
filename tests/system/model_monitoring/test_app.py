@@ -1945,6 +1945,69 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
             condition_description="parquet data with labels to be saved",
         )
 
+    def test_histogram_drift_detected_on_real_data(self):
+        # The model is logged with its training set so the endpoint carries
+        # reference feature statistics; drifted inference then drives the real
+        # histogram data-drift app to a detected result_status on the endpoint.
+        self.function_name = "drift-runner-function"
+        self.project.enable_model_monitoring(
+            image=self.image or mlrun.mlconf.function_defaults.image_by_kind.job,
+            base_period=1,
+            deploy_histogram_data_drift_app=True,
+        )
+        self._log_iris_model()
+
+        function = self.project.set_function(
+            func=str(self.assets_path / "models.py"),
+            name=self.function_name,
+            kind="serving",
+            image=self.image,
+        )
+        graph = function.set_topology("flow", engine="async")
+        model_runner_step = mlrun.serving.ModelRunnerStep(name="my_model_runner")
+        model_runner_step.add_model(
+            endpoint_name="my_model",
+            model_class="MyModel",
+            execution_mechanism="naive",
+            model_artifact=f"store://models/{self.project_name}/classification:latest",
+            input_path="inputs",
+            result_path="outputs",
+        )
+        graph.to(model_runner_step)
+        function.set_tracking()
+        function.deploy()
+
+        serving_fn = self.project.get_function(self.function_name)
+        # Inference far outside the iris training distribution -> strong drift.
+        for _ in range(20):
+            serving_fn.invoke(
+                "/", body=json.dumps({"inputs": [[-500.0, -500.0, -500.0, -500.0]]})
+            )
+
+        initial_wait = (
+            mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs + 60
+        )
+
+        def check_drift_detected() -> None:
+            endpoint = next(
+                ep
+                for ep in mlrun.get_run_db()
+                .list_model_endpoints(self.project_name, tsdb_metrics=True)
+                .endpoints
+                if ep.metadata.name == "my_model"
+            )
+            assert (
+                endpoint.status.result_status == mm_constants.ResultStatusApp.detected
+            )
+
+        self.wait_for_condition(
+            condition_check=check_drift_detected,
+            initial_wait=initial_wait,
+            timeout=360.0,
+            retry_interval=20.0,
+            condition_description="histogram data-drift to be detected on the endpoint",
+        )
+
 
 class TestAppJob(TestMLRunSystem):
     """

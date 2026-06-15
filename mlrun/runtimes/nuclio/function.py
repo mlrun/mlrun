@@ -1748,24 +1748,14 @@ class RemoteRuntime(KubeResource):
     def get_url(
         self,
         force_external_address: bool = False,
-        # leaving auth_info for BC
-        # TODO: remove in 1.12.0
-        auth_info: AuthInfo = None,
     ):
         """
         This method returns function's url.
 
         :param force_external_address:   use the external ingress URL
-        :param auth_info:                service AuthInfo
 
         :return: returns function's url
         """
-        if auth_info:
-            warnings.warn(
-                "'auth_info' is deprecated in 1.10.0 and will be removed in 1.12.0.",
-                # TODO: Remove this in 1.12.0
-                FutureWarning,
-            )
         return self._resolve_invocation_url("", force_external_address)
 
     @staticmethod

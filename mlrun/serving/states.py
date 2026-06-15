@@ -45,7 +45,6 @@ from mlrun.artifacts.llm_prompt import LLMPromptArtifact, PlaceholderDefaultDict
 from mlrun.artifacts.model import ModelArtifact
 from mlrun.datastore.datastore_profile import (
     DatastoreProfileKafkaStream,
-    DatastoreProfileKafkaTarget,
     DatastoreProfileV3io,
     datastore_profile_read,
 )
@@ -4104,7 +4103,7 @@ def _init_async_objects(context, steps, root):
                         datastore_profile = datastore_profile_read(stream_path)
                         if isinstance(
                             datastore_profile,
-                            DatastoreProfileKafkaTarget | DatastoreProfileKafkaStream,
+                            DatastoreProfileKafkaStream,
                         ):
                             step._async_object = KafkaStoreyTarget(
                                 name=step.name,

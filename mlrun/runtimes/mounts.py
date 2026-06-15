@@ -14,7 +14,6 @@
 
 import os
 import typing
-import warnings
 from collections import namedtuple
 
 import mlrun.common.secrets
@@ -251,18 +250,7 @@ def mount_s3(
         _access_key = aws_access_key or os.environ.get(prefix + "AWS_ACCESS_KEY_ID")
         _secret_key = aws_secret_key or os.environ.get(prefix + "AWS_SECRET_ACCESS_KEY")
 
-        # Check for endpoint URL with backward compatibility
         _endpoint_url = endpoint_url or os.environ.get(prefix + "AWS_ENDPOINT_URL_S3")
-        if not _endpoint_url:
-            # Check for deprecated environment variable
-            _endpoint_url = os.environ.get(prefix + "S3_ENDPOINT_URL")
-            if _endpoint_url:
-                warnings.warn(
-                    "S3_ENDPOINT_URL is deprecated in 1.10.0 and will be removed in 1.12.0, "
-                    "use AWS_ENDPOINT_URL_S3 instead.",
-                    # TODO: Remove this in 1.12.0
-                    FutureWarning,
-                )
 
         # Auto-mount fills only env vars the user did not already set as a plain value,
         # so explicit user input (e.g. from the UI batch-run wizard) survives enrichment

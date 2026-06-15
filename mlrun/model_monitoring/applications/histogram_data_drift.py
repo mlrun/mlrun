@@ -164,13 +164,7 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
         sample_df_stats = monitoring_context.dict_to_histogram(
             monitoring_context.sample_df_stats
         )
-        common_features = set(feature_stats.columns) & set(sample_df_stats.columns)
-        if common_features != set(feature_stats.columns):
-            monitoring_context.logger.warning(
-                "Some reference features are missing from the sample data",
-                missing_features=set(feature_stats.columns) - common_features,
-            )
-        for feature_name in common_features:
+        for feature_name in feature_stats:
             sample_hist = np.asarray(sample_df_stats[feature_name])
             reference_hist = np.asarray(feature_stats[feature_name])
             monitoring_context.logger.info(
@@ -274,7 +268,6 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
             {
                 key: monitoring_context.sample_df_stats[key]
                 for key in monitoring_context.feature_stats
-                if key in monitoring_context.sample_df_stats
             }
         )
 
@@ -369,11 +362,6 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
             monitoring_context.logger.warning(
                 "No feature statistics found, skipping the application. \n"
                 "In order to run the application, training set must be provided when logging the model."
-            )
-            return []
-        if monitoring_context.sample_df.empty:
-            monitoring_context.logger.warning(
-                "No sample data found for the given interval, skipping the application."
             )
             return []
         metrics_per_feature = self._compute_metrics_per_feature(

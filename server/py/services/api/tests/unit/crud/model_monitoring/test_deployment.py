@@ -23,7 +23,6 @@ import mlrun.common.schemas
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.runtimes
 from mlrun.datastore.datastore_profile import (
-    DatastoreProfileKafkaSource,
     DatastoreProfileKafkaStream,
     DatastoreProfilePostgreSQL,
     DatastoreProfileV3io,
@@ -907,18 +906,6 @@ class TestResolveStreamTarget:
     @staticmethod
     def test_kafka_stream_resolves_to_kafka() -> None:
         profile = DatastoreProfileKafkaStream(
-            name="p", brokers=["broker:9092"], topics=[]
-        )
-        assert (
-            mm_dep.MonitoringDeployment._resolve_stream_target(profile)
-            == mm_constants.StreamTarget.KAFKA
-        )
-
-    @staticmethod
-    def test_kafka_source_subclass_resolves_to_kafka() -> None:
-        # DatastoreProfileKafkaSource subclasses DatastoreProfileKafkaStream so
-        # the isinstance check still classifies it as KAFKA.
-        profile = DatastoreProfileKafkaSource(
             name="p", brokers=["broker:9092"], topics=[]
         )
         assert (

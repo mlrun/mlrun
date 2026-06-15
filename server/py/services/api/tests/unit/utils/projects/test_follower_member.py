@@ -231,7 +231,7 @@ def test_store_project_field_at_max_length(
     nop_leader: framework.utils.projects.remotes.leader.Member,
     field: str,
 ):
-    # ML-12709 boundary: a field exactly at its DB column width is accepted and stored.
+    # A field exactly at its DB column width is accepted and stored.
     max_length = getattr(framework.db.sqldb.models.Project, field).type.max_length
     max_value = "a" * max_length
     project = _generate_project()
@@ -249,9 +249,8 @@ def test_store_project_field_too_long_is_rejected(
     nop_leader: framework.utils.projects.remotes.leader.Member,
     field: str,
 ):
-    # ML-12709 regression: a project text field longer than its VARCHAR(255) column used to
-    # reach the DB and fail with a 500. Each such field must be rejected with a 400
-    # (MLRunInvalidArgumentError) before the write.
+    # A project text field longer than its VARCHAR(255) column used to reach the DB and fail with a 500.
+    # Each such field must be rejected with a 400 (MLRunInvalidArgumentError) before the write.
     max_length = getattr(framework.db.sqldb.models.Project, field).type.max_length
     too_long_value = "a" * (max_length + 1)
     project = _generate_project()
@@ -267,9 +266,7 @@ def test_project_over_long_field_rejected_on_all_write_paths(
     nop_leader: framework.utils.projects.remotes.leader.Member,
     write_path: str,
 ):
-    # ML-12709: every API write path must reject an over-long field before the write.
-    # Uses `source` as the representative field; patch is covered because it routes
-    # through store_project -> _validate_project.
+    # Every API write path must reject an over-long field before the write.
     max_length = framework.db.sqldb.models.Project.source.type.max_length
     too_long_source = "a" * (max_length + 1)
 

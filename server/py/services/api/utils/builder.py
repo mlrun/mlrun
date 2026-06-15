@@ -40,10 +40,13 @@ from mlrun.utils.helpers import remove_image_protocol_prefix
 import framework.utils.helpers
 import framework.utils.singletons.k8s
 
-# mlrun datastore schemes kaniko cannot resolve as --context.
-# excludes kaniko-native schemes (s3, gs/gcs, http/https) and v3io (igz FUSE-mount).
+# mlrun datastore schemes routed through the fetch-source init container instead of being
+# handed to kaniko as --context: schemes kaniko cannot resolve (az, wasb, wasbs, ds, oss),
+# plus gs/gcs - kaniko resolves gs:// natively but GCP wants file-based creds its
+# storage-blind container never gets, so we let `mlrun load-source` fetch them instead.
+# excludes s3/http(s) (kaniko-native) and v3io (igz FUSE-mount).
 # aligned with `mlrun.datastore.datastore.schema_to_store`.
-_FETCH_SUPPORTED_SCHEMES = frozenset({"az", "wasb", "wasbs", "ds", "oss"})
+_FETCH_SUPPORTED_SCHEMES = frozenset({"az", "wasb", "wasbs", "ds", "oss", "gs", "gcs"})
 
 # matches what ``mlrun load-source`` extracts.
 # TODO: support .tgz

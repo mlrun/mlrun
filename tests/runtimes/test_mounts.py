@@ -120,48 +120,6 @@ def test_mount_s3():
     }
 
 
-# TODO: Remove this in 1.12.0
-def test_mount_s3_backward_compatibility():
-    """Test backward compatibility for S3_ENDPOINT_URL environment variable"""
-    import os
-    import warnings
-
-    # Set up deprecated environment variable
-    os.environ["S3_ENDPOINT_URL"] = "s3.deprecated.com"
-
-    # Ensure AWS_ENDPOINT_URL_S3 is not set so we test the fallback
-    os.environ.pop("AWS_ENDPOINT_URL_S3", None)
-
-    function = mlrun.new_function(
-        "function-name", "function-project", kind=mlrun.runtimes.RuntimeKinds.job
-    )
-
-    # Capture deprecation warning
-    with warnings.catch_warnings(record=True) as w:
-        warnings.simplefilter("always")
-        # Use credentials so that the mount function actually sets environment variables
-        function.apply(
-            mlrun.runtimes.mounts.mount_s3(
-                aws_access_key="test-key", aws_secret_key="test-secret"
-            )
-        )
-
-        # Check that deprecation warning was issued
-        assert len(w) == 1
-        assert issubclass(w[0].category, FutureWarning)
-        assert "S3_ENDPOINT_URL is deprecated" in str(w[0].message)
-
-    env_dict = {var["name"]: var["value"] for var in function.spec.env}
-    assert env_dict == {
-        "AWS_ENDPOINT_URL_S3": "s3.deprecated.com",
-        "AWS_ACCESS_KEY_ID": "test-key",
-        "AWS_SECRET_ACCESS_KEY": "test-secret",
-    }
-
-    # Clean up
-    os.environ.pop("S3_ENDPOINT_URL", None)
-
-
 def test_set_env_variables():
     env_variables = {
         "some_env_1": "some-value",

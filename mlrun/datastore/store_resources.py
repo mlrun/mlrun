@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import asyncio
+import concurrent.futures
 
 import mlrun
 import mlrun.artifacts
@@ -126,8 +127,14 @@ class ResourceCache:
         self._tables.clear()
 
     def close_sync(self):
-        """Synchronous wrapper for close()."""
-        asyncio.run(self.close())
+        """Synchronous wrapper for close(), safe to call from within a running event loop (e.g. Jupyter)."""
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            asyncio.run(self.close())
+            return
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            executor.submit(asyncio.run, self.close()).result()
 
     def resource_getter(self, db=None, secrets=None):
         """wraps get_store_resource with a simple object cache"""

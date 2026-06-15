@@ -1603,7 +1603,6 @@ with a drill-down to view the steps and their details. [Tech Preview]
 
 | Version|API                                       |Use instead                       |
 |---------|------------------------------------------|------------------------------------|
-| v1.12.0|Deprecated route                          |GET /projects/{project}/model-monitoring/metrics|
 | v1.10.0|Parameter: `mlrun.projects.MlrunProject.list_runs` `state`                     |`states`      |
 | v1.10.0|Parameter: `mlrun.db.httpdb.HTTPRunDB.list_runs` `state`                       |`states`      |
 | v1.10.0 |Function: `record_results()`                             |Run monitored serving function as a job|

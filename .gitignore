@@ -24,7 +24,7 @@ tests/system/env.yml
 server/py/services/api/db
 migration_tests.log
 # Coverage reports
-*.coverage
+**/*.coverage
 
 # Editors and operating system files
 # Visual Studio Code settings
@@ -114,8 +114,8 @@ server/py/schemas/proto/*pb2*.py
 # <= 1.7.x legacy project structure
 # on >= 1.8.0, server/api has been moved to server/py/services/api
 server/api
-tests/coverage_reports/*.xml
-tests/coverage_reports/*.html
+**/coverage_reports/*
+!**/coverage_reports/.gitkeep
 **/test-openai.yml
 **/test-huggingface.yml
 

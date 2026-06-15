@@ -15,6 +15,7 @@
 import asyncio
 import collections
 import datetime
+import time
 import uuid
 
 import fastapi.concurrency
@@ -513,17 +514,36 @@ class Projects(
     async def refresh_project_resources_counters_cache(
         self, session: sqlalchemy.orm.Session
     ):
+        # Threshold (seconds) above which a single counters computation is
+        # considered slow enough to warn — it both starves the summaries refresh
+        # and, once it stalls entirely, silently stops all `mlrun_*` inventory
+        # telemetry (emission is downstream of this await). Surfacing it here is
+        # the cheapest early warning before the query fully wedges.
+        slow_counters_warn_threshold_seconds = 60
+
         projects_output = await fastapi.concurrency.run_in_threadpool(
             framework.db.session.run_function_with_new_db_session,
             self.list_projects,
             format_=mlrun.common.formatters.ProjectFormat.name_and_creation_time,
         )
 
+        counters_start_time = time.monotonic()
         project_counters, pipeline_counters = await asyncio.gather(
             framework.utils.singletons.db.get_db().get_project_resources_counters(
                 projects_output.projects
             ),
             self._calculate_pipelines_counters(),
+        )
+        counters_elapsed_seconds = time.monotonic() - counters_start_time
+        log_counters = (
+            logger.warning
+            if counters_elapsed_seconds >= slow_counters_warn_threshold_seconds
+            else logger.debug
+        )
+        log_counters(
+            "Computed project resources counters",
+            projects=len(projects_output.projects),
+            elapsed_seconds=round(counters_elapsed_seconds, 2),
         )
         (
             project_to_files_count,

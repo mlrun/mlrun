@@ -170,7 +170,6 @@ class MonitoringDeployment:
         base_period: int = 10,
         image: str | None = None,
         deploy_histogram_data_drift_app: bool = True,
-        fetch_credentials_from_sys_config: bool = False,
         lag_threshold: int | None = None,
         lag_event_cooldown: int | None = None,
         otlp_enabled: bool = False,
@@ -184,7 +183,6 @@ class MonitoringDeployment:
                                                   stream functions, which are real time nuclio function.
                                                   Defaults to ``mlrun.mlconf.function_defaults.image_by_kind.nuclio``.
         :param deploy_histogram_data_drift_app:   If true, deploy the default histogram-based data drift application.
-        :param fetch_credentials_from_sys_config: If true, fetch the credentials from the system configuration.
         :param lag_threshold:                     Lag threshold in minutes for writer lag detection.
         :param lag_event_cooldown:                Cooldown in minutes between consecutive lag events per worker.
         :param otlp_enabled:                      If true, persist OTel export opt-in to the project spec.
@@ -205,9 +203,6 @@ class MonitoringDeployment:
                     "(mlconf.telemetry.otlp_endpoint is blank)."
                 )
 
-        # check if credentials should be fetched from the system configuration or if they are already been set.
-        if fetch_credentials_from_sys_config:
-            self.set_credentials()
         # reject the request if controller and/or writer pods are already deployed.
         # stream-pod is not checked since by default it is not deleted by disable_model_monitoring.
         if deployed_functions := [

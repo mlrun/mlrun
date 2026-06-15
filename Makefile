@@ -98,14 +98,17 @@ CHECK_COVERAGE_ERROR = if [ "$(RUN_COVERAGE)" = "true" ] && [ $$PYTEST_EXIT -ne 
 	exit $$PYTEST_EXIT ; \
 fi
 
-# Verify the mount point to avoid deleting essential paths
+# Verify the mount point to avoid deleting essential paths.
+# COVERAGE_MOUNT_PATH must live under the repo workspace (not /tmp), so it is
+# disjoint from the -v /tmp:/tmp mount and cannot be wiped by anything that
+# sweeps /tmp during the test run.
 SETUP_COVERAGE_MOUNTING = if [ "$(RUN_COVERAGE)" = "true" ]; then \
-		case "$$COVERAGE_MOUNT_PATH" in /tmp/coverage_reports/*) \
+		case "$$COVERAGE_MOUNT_PATH" in $(ROOT_DIR)coverage_reports/*) \
 			rm -rf $$COVERAGE_MOUNT_PATH && \
 			mkdir -p $$COVERAGE_MOUNT_PATH; \
 			;; \
 	  	*) \
-			echo "Error: COVERAGE_MOUNT_PATH is invalid, must be under /tmp/coverage_reports/*" >&2 ; \
+			echo "Error: COVERAGE_MOUNT_PATH is invalid, must be under $(ROOT_DIR)coverage_reports/*" >&2 ; \
 			exit 1; \
 			;; \
 		esac \
@@ -634,7 +637,7 @@ clean: ## Clean python package build artifacts
 
 .PHONY: test-dockerized
 test-dockerized: build-test ## Run mlrun tests in docker container
-	COVERAGE_MOUNT_PATH="/tmp/coverage_reports/unit_tests$(COVERAGE_DIR_SUFFIX)" ;\
+	COVERAGE_MOUNT_PATH="$(ROOT_DIR)coverage_reports/unit_tests$(COVERAGE_DIR_SUFFIX)" ;\
 	$(SETUP_COVERAGE_MOUNTING) && \
 	docker run \
 		-t \
@@ -698,7 +701,7 @@ test: clean ## Run mlrun tests
 
 .PHONY: test-integration-dockerized
 test-integration-dockerized: build-test api ## Run mlrun integration tests in docker container, some tests require the api image to be built
-	COVERAGE_MOUNT_PATH="/tmp/coverage_reports/integration_tests" ;\
+	COVERAGE_MOUNT_PATH="$(ROOT_DIR)coverage_reports/integration_tests" ;\
 	$(SETUP_COVERAGE_MOUNTING)  && \
 	docker run \
 		-t \
@@ -738,7 +741,7 @@ test-integration: clean ## Run mlrun integration tests
 
 .PHONY: test-migrations-dockerized
 test-migrations-dockerized: build-test ## Run mlrun db migrations tests in docker container
-	COVERAGE_MOUNT_PATH="/tmp/coverage_reports/migration_tests" ;\
+	COVERAGE_MOUNT_PATH="$(ROOT_DIR)coverage_reports/migration_tests" ;\
 	$(SETUP_COVERAGE_MOUNTING) && \
 	docker run \
 		-t \

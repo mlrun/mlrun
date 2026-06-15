@@ -23,7 +23,6 @@ import mlrun.common.schemas
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.runtimes
 from mlrun.datastore.datastore_profile import (
-    DatastoreProfileKafkaSource,
     DatastoreProfileKafkaStream,
     DatastoreProfilePostgreSQL,
     DatastoreProfileV3io,
@@ -451,6 +450,7 @@ class TestCreateModelEndpointsInstructionsForNuclioApp:
                 db_session=Mock(spec=mm_dep.sqlalchemy.orm.Session),
                 function=fn_dict,
                 function_name="my-fn",
+                function_tag="latest",
                 project="proj",
             )
 
@@ -475,6 +475,7 @@ class TestCreateModelEndpointsInstructionsForNuclioApp:
                 db_session=Mock(spec=mm_dep.sqlalchemy.orm.Session),
                 function=fn_dict,
                 function_name="my-fn",
+                function_tag="latest",
                 project="proj",
             )
 
@@ -506,12 +507,17 @@ class TestCreateModelEndpointsInstructionsForNuclioApp:
                 db_session=Mock(spec=mm_dep.sqlalchemy.orm.Session),
                 function=fn_dict,
                 function_name="my-fn",
+                function_tag="latest",
                 project="proj",
             )
 
         assert len(instructions) == 1
         ep, _ = instructions[0]
         assert ep.metadata.name == "ep-obj"
+        # Instruction has function_name=None/function_tag=None; the deployment-supplied
+        # values are what get stored on the created ModelEndpoint (ML-12727).
+        assert ep.spec.function_name == "my-fn"
+        assert ep.spec.function_tag == "latest"
 
     @pytest.mark.asyncio
     async def test_stream_url_none_logs_warning(self):
@@ -532,6 +538,7 @@ class TestCreateModelEndpointsInstructionsForNuclioApp:
                 db_session=Mock(spec=mm_dep.sqlalchemy.orm.Session),
                 function=fn_dict,
                 function_name="my-fn",
+                function_tag="latest",
                 project="proj",
             )
 
@@ -552,6 +559,7 @@ class TestCreateModelEndpointsInstructionsForNuclioApp:
                 db_session=Mock(spec=mm_dep.sqlalchemy.orm.Session),
                 function=fn_dict,
                 function_name="my-fn",
+                function_tag="latest",
                 project="proj",
             )
 
@@ -898,18 +906,6 @@ class TestResolveStreamTarget:
     @staticmethod
     def test_kafka_stream_resolves_to_kafka() -> None:
         profile = DatastoreProfileKafkaStream(
-            name="p", brokers=["broker:9092"], topics=[]
-        )
-        assert (
-            mm_dep.MonitoringDeployment._resolve_stream_target(profile)
-            == mm_constants.StreamTarget.KAFKA
-        )
-
-    @staticmethod
-    def test_kafka_source_subclass_resolves_to_kafka() -> None:
-        # DatastoreProfileKafkaSource subclasses DatastoreProfileKafkaStream so
-        # the isinstance check still classifies it as KAFKA.
-        profile = DatastoreProfileKafkaSource(
             name="p", brokers=["broker:9092"], topics=[]
         )
         assert (

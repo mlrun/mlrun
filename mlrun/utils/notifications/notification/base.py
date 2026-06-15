@@ -41,8 +41,8 @@ class NotificationBase:
     def __init__(
         self,
         name: str | None = None,
-        params: dict[str, str] | None = None,
-        default_params: dict[str, str] | None = None,
+        params: dict[str, typing.Any] | None = None,
+        default_params: dict[str, typing.Any] | None = None,
     ):
         """
         NotificationBase is the base class for all notification types.
@@ -81,7 +81,7 @@ class NotificationBase:
 
     def load_notification(
         self,
-        params: dict[str, str],
+        params: dict[str, typing.Any],
     ) -> None:
         self.params = params or {}
 

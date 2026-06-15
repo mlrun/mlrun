@@ -750,6 +750,8 @@ class ServingRuntime(nuclio_function.RemoteRuntime):
         verbose=False,
         builder_env: dict | None = None,
         force_build: bool = False,
+        wait: bool = True,
+        timeout: int | None = None,
     ):
         """deploy model serving function to a local/remote cluster
 
@@ -758,6 +760,10 @@ class ServingRuntime(nuclio_function.RemoteRuntime):
         :param verbose:   verbose logging
         :param builder_env: env vars dict for source archive config/credentials e.g. builder_env={"GIT_TOKEN": token}
         :param force_build: set True for force building the image
+        :param wait:      when True (default), block until ready and return the invocation command (``str``).
+            When ``False``, submit and return ``self`` so the caller can poll. See ``RemoteRuntime.deploy``.
+        :param timeout:   optional deadline in seconds for the readiness wait when ``wait=True``;
+            forwarded to ``RemoteRuntime.deploy``. ``None`` waits indefinitely. Ignored when ``wait=False``.
         """
 
         load_mode = self.spec.load_mode
@@ -820,6 +826,8 @@ class ServingRuntime(nuclio_function.RemoteRuntime):
             verbose,
             builder_env=builder_env,
             force_build=force_build,
+            wait=wait,
+            timeout=timeout,
         )
 
     def _get_serving_spec(self):

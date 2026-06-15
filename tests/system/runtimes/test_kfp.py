@@ -293,8 +293,8 @@ class TestKFP(tests.system.base.TestMLRunSystem):
         # a known-cloneable demo repo. Its content isn't used here — the
         # function comes from hub://describe and the workflow from store://.
         self.project.spec.source = "git://github.com/mlrun/project-demo.git"
-        self.project.save()
         self.project.set_function("hub://describe", "describe")
+        self.project.save()
 
         workflow_src = self._write_kfp_pipeline_tempfile()
         try:
@@ -343,7 +343,6 @@ class TestKFP(tests.system.base.TestMLRunSystem):
         # Cloneable project source for the remote runner pod (its content is
         # unused — function is hub://, workflow is store://).
         self.project.spec.source = "git://github.com/mlrun/project-demo.git"
-        self.project.save()
 
         workflow_src = self._write_kfp_pipeline_tempfile()
         try:
@@ -360,6 +359,7 @@ class TestKFP(tests.system.base.TestMLRunSystem):
             store_uri = artifact.uri
 
             self.project.set_function("hub://describe", "describe")
+            self.project.save()
             workflow_name = f"store_pipeline_ds_{engine}"
             self.project.set_workflow(
                 workflow_name, workflow_path=store_uri, engine=engine

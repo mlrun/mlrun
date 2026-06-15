@@ -654,8 +654,9 @@ class Secrets(
         auth_info: mlrun.common.schemas.AuthInfo,
     ) -> mlrun.common.schemas.DeleteSecretTokensResponse:
         """
-        Delete all Kubernetes secrets storing tokens for a user.
+        Delete the Kubernetes secrets storing tokens for a user.
 
+        A single token is stored per user, so this deletes that token when present.
         Deletes each token's K8s secret in parallel (bounded by
         secret_stores.kubernetes.concurrent_token_deletions).
         Failures are collected and returned without stopping other deletions.

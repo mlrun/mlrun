@@ -1649,8 +1649,6 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | v1.10.0|`schema` in `mlrun.datastore.sources.SnowflakeSource`                   |`db_schema`|
 | v1.10.0|`credentials_prefix` in `mlrun.datastore.targets.BaseStoreTarget`       |Use datastore profiles for managing credentials|
 | v1.10.0|`kafka_bootstrap_servers` in `get_kafka_brokers_from_dict()`          |`kafka_brokers`|
-| v1.10.0|`drift_threshold`, `possible_drift_threshold` and `trigger_monitoring_job` in `mlrun.model_monitoring.api.record_results`|Enable the default histogram data drift application with `project.enable_model_monitoring()`|
-| v1.10.0|`artifacts_tag`, `default_batch_image` in `mlrun.model_monitoring.api.record_results`  |NA|
 | v1.10.0|`mlrun.model_monitoring.tracking_policy.TrackingPolicy`                          |NA| 
 | v1.10.0|`default_controller_image` in `MlrunProject.enable_model_monitoring()`            |`image`|
 | v1.10.0|`MlrunProject.remove_model_monitoring_function()`                      |`MlrunProject.delete_model_monitoring_function()`|
@@ -1664,7 +1662,6 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | v1.10.0|Parameter: `mlrun.runtimes.nuclio.serving.ServingRuntime.deploy` `auth_info`   | NA. Was not used.|
 | v1.10.0|Class: `mlrun.common.runtimes.constants.RunLabels`                             |`RunLabels.owner` => `MlrunInternalLabels.owner` <br><br> `RunLabels.v3io_user` => `MlrunInternalLabels.v3io_user`   |
 | v1.10.0|Parameter: `mlrun.runtimes.base.mlrun_op` `rundb`                              |MLRUN_DBPATH environment variable |
-| v1.10.0|`bootstrap_servers` in `mlrun.datastore.datastore_profile.DatastoreProfileKafkaTarget` |brokers|
 | v1.10.0|`FunctionSpec.clone_target_dir`                                                |`ImageBuilder.source_code_target_dir`|
 | v1.8.0 |`--watch` parameter of `mlrun logs`                                                        |NA|
 | v1.8.0 |datastore `get_filesystem`                                                                 |`filesystem` property|

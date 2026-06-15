@@ -210,8 +210,7 @@ def test_run_spark_graph_closes_resource_cache():
 
 
 def test_online_vector_service_close_terminates_controller():
-    """OnlineVectorService.close() terminates the controller (which closes the
-    cached tables on its own loop) and does not re-close the cache itself."""
+    """`close()` uses `terminate(wait=True)` and does not call `close_sync()`."""
     from mlrun.feature_store.feature_vector_utils import OnlineVectorService
 
     mock_cache = unittest.mock.MagicMock()
@@ -243,19 +242,14 @@ def test_online_vector_service_close_without_cache():
 
 
 def test_online_vector_service_close_does_not_cross_loop():
-    """Regression test for ML-12632.
-
-    OnlineVectorService.close() must let the storey controller close the cached
-    tables on its own event loop (terminate(wait=True)) rather than re-closing
-    them on a different loop, which raised "attached to a different loop".
-    """
+    """Regression test for ML-12632 cross-loop close errors."""
     from mlrun.datastore.store_resources import ResourceCache
     from mlrun.feature_store.feature_vector_utils import OnlineVectorService
 
-    # A cached table whose async close() is bound to another (live) loop and is
-    # idempotent, mirroring storey's V3ioDriver.close().
+    # Simulate a cached table whose close coroutine is bound to another loop.
+    # Keep close idempotent, similar to V3ioDriver.close().
     other_loop = asyncio.new_event_loop()
-    foreign_future = other_loop.create_future()  # pending, bound to other_loop
+    foreign_future = other_loop.create_future()  # Pending future bound to other_loop.
 
     class ForeignLoopTable:
         def __init__(self):
@@ -265,15 +259,14 @@ def test_online_vector_service_close_does_not_cross_loop():
             if self.closed:
                 return
             self.closed = True
-            await foreign_future  # bound to other_loop -> cross-loop elsewhere
+            await foreign_future  # Raises cross-loop when awaited elsewhere.
 
     cache = ResourceCache()
     table = ForeignLoopTable()
     cache.cache_table("v3io://host/container/t1", table)
 
-    # Fake storey controller: wait=True means storey finished closing the table
-    # on its own loop; wait=False leaves that close in-flight (the race the
-    # online path hit).
+    # wait=True simulates storey finishing close on its own loop.
+    # wait=False leaves close in-flight (the prior online race).
     class FakeController:
         def __init__(self):
             self.wait = None
@@ -294,7 +287,7 @@ def test_online_vector_service_close_does_not_cross_loop():
         resource_cache=cache,
     )
     try:
-        service.close()  # must not raise
+        service.close()
         assert service._controller.wait is True
     finally:
         other_loop.close()

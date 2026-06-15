@@ -19,7 +19,7 @@ import typing
 import warnings
 from dataclasses import dataclass
 from datetime import datetime
-from time import sleep
+from time import monotonic, sleep
 
 import inflection
 import nuclio
@@ -926,6 +926,7 @@ class RemoteRuntime(KubeResource):
         force_build: bool = False,
         track_models: bool | None = None,
         wait: bool = True,
+        timeout: int | None = None,
     ):
         """Deploy the nuclio function to the cluster
 
@@ -942,6 +943,9 @@ class RemoteRuntime(KubeResource):
             return ``self`` so the caller can later call
             ``wait_for_deployment()`` or poll
             ``db.get_nuclio_deploy_status``.
+        :param timeout:    optional deadline in seconds for the readiness wait
+            when ``wait=True``; forwarded to ``wait_for_deployment``. ``None``
+            waits indefinitely. Ignored when ``wait=False``.
 
         :return: the invocation command (``str``) when ``wait=True``; the
             function object (``self``) when ``wait=False``.
@@ -996,23 +1000,30 @@ class RemoteRuntime(KubeResource):
             # Caller handles wait/finalization explicitly.
             return self
 
-        return self.wait_for_deployment(verbose=verbose)
+        return self.wait_for_deployment(verbose=verbose, timeout=timeout)
 
-    def wait_for_deployment(self, verbose: bool = False) -> str:
+    def wait_for_deployment(
+        self, verbose: bool = False, timeout: int | None = None
+    ) -> str:
         """Finalize a submitted Nuclio deploy.
 
         Waits for terminal deploy status, handles model-endpoint tasks,
         enriches the invocation command from status, and returns it.
-        ``deploy(wait=True)`` calls this directly; callers that used
+        ``deploy(wait=True)`` calls this directly; callers of
         ``deploy(wait=False)`` can call it explicitly.
 
-        :param verbose: set True for verbose build-log output
+        :param verbose: print verbose build logs
+        :param timeout: optional deadline in seconds for reaching a terminal
+            deploy state. ``None`` waits indefinitely. Raises
+            :class:`mlrun.errors.MLRunTimeoutError` on timeout. The deadline is
+            checked once per status poll, so the wait may overshoot ``timeout``
+            by up to one poll interval.
         :return: the function's invocation command
         """
         db = self._get_db()
-        # Wait for readiness and refresh function status.
-        self._wait_for_function_deployment(db, verbose=verbose)
-        # Consume submit-captured model-endpoint tasks at most once.
+        # Wait for terminal state and refresh status.
+        self._wait_for_function_deployment(db, verbose=verbose, timeout=timeout)
+        # Consume submit-time model-endpoint tasks once.
         model_endpoints_creation_background_tasks = (
             mlrun.common.schemas.BackgroundTaskList(
                 **getattr(self, "_deploy_background_tasks", None)
@@ -1057,10 +1068,23 @@ class RemoteRuntime(KubeResource):
 
         return self.spec.command
 
-    def _wait_for_function_deployment(self, db, verbose=False):
+    def _wait_for_function_deployment(
+        self, db, verbose=False, timeout: int | None = None
+    ):
         state = ""
         last_log_timestamp = 1
+        deadline = monotonic() + timeout if timeout is not None else None
         while state not in ["ready", "error", "unhealthy"]:
+            if deadline is not None and monotonic() > deadline:
+                logger.error(
+                    "Nuclio deploy timed out",
+                    function_state=state,
+                    timeout=timeout,
+                )
+                raise mlrun.errors.MLRunTimeoutError(
+                    f"Function {self.metadata.name} deployment timed out after "
+                    f"{timeout}s (last state={state!r})"
+                )
             sleep(
                 int(mlrun.mlconf.httpdb.logs.nuclio.pull_deploy_status_default_interval)
             )
@@ -1724,24 +1748,14 @@ class RemoteRuntime(KubeResource):
     def get_url(
         self,
         force_external_address: bool = False,
-        # leaving auth_info for BC
-        # TODO: remove in 1.12.0
-        auth_info: AuthInfo = None,
     ):
         """
         This method returns function's url.
 
         :param force_external_address:   use the external ingress URL
-        :param auth_info:                service AuthInfo
 
         :return: returns function's url
         """
-        if auth_info:
-            warnings.warn(
-                "'auth_info' is deprecated in 1.10.0 and will be removed in 1.12.0.",
-                # TODO: Remove this in 1.12.0
-                FutureWarning,
-            )
         return self._resolve_invocation_url("", force_external_address)
 
     @staticmethod

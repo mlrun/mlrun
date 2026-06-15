@@ -106,8 +106,14 @@ class TimescaleDBStreamProcessor:
                     mm_schemas.EventFieldType.EFFECTIVE_SAMPLE_COUNT,
                     mm_schemas.WriterEvent.ENDPOINT_ID,
                 ],
-                max_events=kwargs.get("tsdb_batching_max_events", 1000),
-                flush_after_seconds=kwargs.get("tsdb_batching_timeout_secs", 30),
+                max_events=kwargs.get(
+                    "tsdb_batching_max_events",
+                    mlrun.mlconf.model_endpoint_monitoring.stream_graph.max_events,
+                ),
+                flush_after_seconds=kwargs.get(
+                    "tsdb_batching_timeout_secs",
+                    mlrun.mlconf.model_endpoint_monitoring.stream_graph.flush_after_seconds,
+                ),
             )
 
         # Apply the processing steps
@@ -120,8 +126,8 @@ class TimescaleDBStreamProcessor:
     def handle_model_error(
         self,
         graph,
-        tsdb_batching_max_events: int = 1000,
-        tsdb_batching_timeout_secs: int = 30,
+        tsdb_batching_max_events: int | None = None,
+        tsdb_batching_timeout_secs: int | None = None,
         **kwargs,
     ) -> None:
         """
@@ -135,6 +141,15 @@ class TimescaleDBStreamProcessor:
         :param tsdb_batching_timeout_secs: Batch timeout in seconds
         :param kwargs: Additional configuration parameters
         """
+
+        if tsdb_batching_max_events is None:
+            tsdb_batching_max_events = (
+                mlrun.mlconf.model_endpoint_monitoring.stream_graph.max_events
+            )
+        if tsdb_batching_timeout_secs is None:
+            tsdb_batching_timeout_secs = (
+                mlrun.mlconf.model_endpoint_monitoring.stream_graph.flush_after_seconds
+            )
 
         errors_table = self.tables[mm_schemas.TimescaleDBTables.ERRORS]
 

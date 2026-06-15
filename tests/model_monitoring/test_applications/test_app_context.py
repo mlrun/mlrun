@@ -17,6 +17,7 @@ import logging
 from pathlib import Path
 from unittest.mock import Mock, patch
 
+import pandas as pd
 import pytest
 from nuclio.request import Logger as NuclioLogger
 
@@ -76,6 +77,39 @@ def test_from_ml_context_error(ml_ctx_dict: dict[str, str]) -> None:
             event={},
             context=ml_ctx,
         )
+
+
+def _make_sample_df_stub(df: pd.DataFrame) -> Mock:
+    """Build a stub object compatible with MonitoringApplicationContext.sample_df.
+
+    The property only touches a small surface — endpoint identifiers, infer
+    times, feature_set.to_dataframe, storage_options, and the private cache —
+    so we bypass __init__ and exercise the property's underlying function via
+    .fget(stub).
+    """
+    stub = Mock(spec=MonitoringApplicationContext)
+    stub._sample_df = None
+    stub.endpoint_name = "ep-name"
+    stub.endpoint_id = "ep-id"
+    stub.start_infer_time = pd.Timestamp("2026-01-01")
+    stub.end_infer_time = pd.Timestamp("2026-01-02")
+    stub.storage_options = {}
+    stub.feature_set = Mock()
+    stub.feature_set.to_dataframe.return_value = df
+    return stub
+
+
+def test_sample_df_raises_when_feature_set_returns_empty_df() -> None:
+    stub = _make_sample_df_stub(df=pd.DataFrame())
+    with pytest.raises(MLRunValueError, match="sample dataframe is empty"):
+        MonitoringApplicationContext.sample_df.fget(stub)
+
+
+def test_sample_df_returns_df_when_feature_set_returns_non_empty_df() -> None:
+    df = pd.DataFrame({"feature_a": [1, 2, 3]})
+    stub = _make_sample_df_stub(df=df)
+    result = MonitoringApplicationContext.sample_df.fget(stub)
+    pd.testing.assert_frame_equal(result, df.reset_index(drop=True))
 
 
 @patch("mlrun.db.nopdb.NopDB.get_project")

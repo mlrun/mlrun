@@ -433,11 +433,13 @@ class OnlineVectorService:
         return results
 
     def close(self):
-        """terminate the async loop and release cached connections"""
-        self._controller.terminate()
-        if self._resource_cache:
-            self._resource_cache.close_sync()
-            self._resource_cache = None
+        """terminate the flow and release cached connections"""
+        # The cached tables are storey closeables (QueryByKey registers them), so
+        # the controller closes them on its own event loop at termination. Waiting
+        # ensures that completes before we return; closing them again here would
+        # run on a different loop and raise "attached to a different loop".
+        self._controller.terminate(wait=True)
+        self._resource_cache = None
 
 
 class OfflineVectorResponse:

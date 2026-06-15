@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import asyncio
-import concurrent.futures
 
 import mlrun
 import mlrun.artifacts
@@ -51,14 +50,14 @@ class ResourceCache:
     """
 
     def __init__(self):
-        self._tabels = {}
+        self._tables = {}
         self._resources = {}
 
     def cache_table(self, uri, value, is_default=False):
         """Cache storey Table objects"""
-        self._tabels[uri] = value
+        self._tables[uri] = value
         if is_default:
-            self._tabels["."] = value
+            self._tables["."] = value
 
     def get_table(self, uri):
         """get storey Table object by uri"""
@@ -66,32 +65,32 @@ class ResourceCache:
             from storey import Driver, Table, V3ioDriver
         except ImportError:
             raise ImportError("storey package is not installed, use pip install storey")
-        if uri in self._tabels:
-            return self._tabels[uri]
+        if uri in self._tables:
+            return self._tables[uri]
         if uri in [".", ""] or uri.startswith("$"):  # $.. indicates in-mem table
-            self._tabels[uri] = Table("", Driver())
-            return self._tabels[uri]
+            self._tables[uri] = Table("", Driver())
+            return self._tables[uri]
 
         if uri.startswith("v3io://") or uri.startswith("v3ios://"):
             endpoint, path = parse_path(uri)
-            self._tabels[uri] = Table(
+            self._tables[uri] = Table(
                 path,
                 V3ioDriver(webapi=endpoint or mlrun.mlconf.v3io_api),
                 flush_interval_secs=mlrun.mlconf.feature_store.flush_interval,
             )
-            return self._tabels[uri]
+            return self._tables[uri]
 
         if uri.startswith("redis://") or uri.startswith("rediss://"):
             from storey.redis_driver import RedisDriver
 
             endpoint, path = parse_path(uri)
             endpoint = endpoint or mlrun.mlconf.redis.url
-            self._tabels[uri] = Table(
+            self._tables[uri] = Table(
                 path,
                 RedisDriver(redis_url=endpoint, key_prefix="/"),
                 flush_interval_secs=mlrun.mlconf.feature_store.flush_interval,
             )
-            return self._tabels[uri]
+            return self._tables[uri]
 
         if is_store_uri(uri):
             resource = get_store_resource(uri)
@@ -104,8 +103,8 @@ class ResourceCache:
                     raise mlrun.errors.MLRunInvalidArgumentError(
                         f"resource {uri} does not have an online data target"
                     )
-                self._tabels[uri] = target.get_table_object()
-                return self._tabels[uri]
+                self._tables[uri] = target.get_table_object()
+                return self._tables[uri]
 
         raise mlrun.errors.MLRunInvalidArgumentError(f"table {uri} not found in cache")
 
@@ -121,20 +120,14 @@ class ResourceCache:
 
     async def close(self):
         """Close all cached Table objects, releasing their underlying connections."""
-        for table in self._tabels.values():
+        for table in self._tables.values():
             if hasattr(table, "close"):
                 await table.close()
-        self._tabels.clear()
+        self._tables.clear()
 
     def close_sync(self):
-        """Synchronous wrapper for close(), safe to call from within a running event loop (e.g. Jupyter)."""
-        try:
-            asyncio.get_running_loop()
-        except RuntimeError:
-            asyncio.run(self.close())
-            return
-        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-            executor.submit(asyncio.run, self.close()).result()
+        """Synchronous wrapper for close()."""
+        asyncio.run(self.close())
 
     def resource_getter(self, db=None, secrets=None):
         """wraps get_store_resource with a simple object cache"""

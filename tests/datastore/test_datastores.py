@@ -417,7 +417,7 @@ def test_resource_cache_close_closes_all_tables():
 
     table1.close.assert_awaited_once()
     table2.close.assert_awaited_once()
-    assert len(cache._tabels) == 0
+    assert len(cache._tables) == 0
 
 
 def test_resource_cache_close_is_idempotent():

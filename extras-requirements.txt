@@ -49,4 +49,4 @@ distributed==2024.8
 # TimescaleDB dependencies - optional for model monitoring
 psycopg[binary,pool]~=3.2
 storey[otel]
-snowflake-connector-python~=4.4,<4.5
+snowflake-connector-python~=4.6

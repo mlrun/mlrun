@@ -144,13 +144,6 @@ def enable_model_monitoring(
     base_period: int = 10,
     image: str | None = None,
     deploy_histogram_data_drift_app: bool = True,
-    fetch_credentials_from_sys_config: bool = Query(
-        False,
-        deprecated=True,
-        description=(
-            "`fetch_credentials_from_sys_config` is deprecated as of 1.10.0 and will be removed in 1.12.0."
-        ),
-    ),
     lag_threshold: int | None = Query(
         None, description="Lag threshold in minutes for writer lag detection."
     ),
@@ -183,7 +176,6 @@ def enable_model_monitoring(
                                               Defaults to
                                               ``mlrun.mlconf.function_defaults.image_by_kind.nuclio``.
     :param deploy_histogram_data_drift_app:   If true, deploy the default histogram-based data drift application.
-    :param fetch_credentials_from_sys_config: Deprecated. If true, fetch the credentials from the system configuration.
     :param lag_threshold:                     Lag threshold in minutes for writer lag detection.
     :param lag_event_cooldown:                Cooldown in minutes between consecutive lag events per worker.
     :param otlp_enabled:                      If true, export monitoring application results/metrics via OTel.
@@ -194,7 +186,6 @@ def enable_model_monitoring(
         image=image,
         base_period=base_period,
         deploy_histogram_data_drift_app=deploy_histogram_data_drift_app,
-        fetch_credentials_from_sys_config=fetch_credentials_from_sys_config,
         lag_threshold=lag_threshold,
         lag_event_cooldown=lag_event_cooldown,
         otlp_enabled=otlp_enabled,

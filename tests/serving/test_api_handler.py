@@ -1036,15 +1036,11 @@ class TestIncludeUrlInfo:
 
         assert isinstance(result.body, _RequestContext)
         assert result.body["mlrun_request_path"] == "/responses/resp url encoded"
-        # path_param kwarg is also decoded — both surfaces consistent
+        # path_param kwarg is also decoded — keeps both surfaces consistent
         assert result.body["response_id"] == "resp url encoded"
 
     def test_mlrun_request_path_decoded_for_wildcard(self) -> None:
-        """mlrun_request_path is decoded on star endpoints — %2F becomes '/' (ML-12732).
-
-        Locks in the Flask/FastAPI-style trade-off documented at api_handler.py: an encoded
-        slash inside a segment is indistinguishable from a path separator after decoding.
-        """
+        """mlrun_request_path is decoded on star endpoints — %2F becomes '/' (ML-12732)."""
         config = APIHandlerConfig(include_url_info=True)
         config.add_endpoint_handler(
             "/responses/*", HTTPMethod.GET, APIHandlerAction.ALLOW

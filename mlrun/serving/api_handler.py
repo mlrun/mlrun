@@ -251,8 +251,8 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
                 # request and mlrun_request_method holds the HTTP method (e.g. "GET").
                 # Together they let a dispatcher handler distinguish endpoints that share a
                 # path template but differ by method (e.g. GET vs DELETE on /responses/{id}).
-                # Decoding matches Flask/FastAPI semantics — a literal %2F in a segment
-                # becomes indistinguishable from a path separator after decoding.
+                # Decoding matches Flask/FastAPI semantics: an encoded slash (%2F)
+                # in a segment becomes indistinguishable from a path separator.
                 url_params: dict[str, Any] = {}
                 if self.config.include_url_info:
                     url_params["mlrun_request_path"] = unquote(normalized_path)

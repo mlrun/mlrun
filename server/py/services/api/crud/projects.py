@@ -702,8 +702,8 @@ class Projects(
         for config_map in config_maps.items:
             k8s_helper.delete_configmap(config_map.metadata.name)
 
-    @staticmethod
     def _wait_for_nuclio_project_deletion(
+        self,
         project_name: str,
         session: sqlalchemy.orm.Session,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
@@ -713,9 +713,26 @@ class Projects(
 
         nuclio_client = framework.utils.clients.nuclio.Client()
 
+        # This deletion runs in a background task that may outlive the user's
+        # token, which would make these Nuclio polls fail authentication partway
+        # through. The request was already authorized at the API layer, so in
+        # IG4 poll with mlrun-api's service account token, which stays valid for
+        # the lifetime of the task.
+        nuclio_auth_info = auth_info
+        if mlrun.mlconf.is_iguazio_v4_mode():
+            nuclio_auth_info = auth_info.copy(
+                update={
+                    "request_headers": self._service_account_token_client.escalate_request_headers(
+                        auth_info.request_headers
+                    )
+                }
+            )
+
         def _check_nuclio_project_deletion():
             try:
-                nuclio_client.get_project(session, project_name, auth_info=auth_info)
+                nuclio_client.get_project(
+                    session, project_name, auth_info=nuclio_auth_info
+                )
             except mlrun.errors.MLRunNotFoundError:
                 logger.debug(
                     "Nuclio project deleted",

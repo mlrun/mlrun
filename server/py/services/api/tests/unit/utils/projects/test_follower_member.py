@@ -231,7 +231,6 @@ def test_store_project_field_at_max_length(
     nop_leader: framework.utils.projects.remotes.leader.Member,
     field: str,
 ):
-    # A field exactly at its DB column width is accepted and stored.
     max_length = getattr(framework.db.sqldb.models.Project, field).type.max_length
     max_value = "a" * max_length
     project = _generate_project()

@@ -87,8 +87,8 @@ class Utf8BinText(TypeDecorator):
     impl = Text
     cache_ok = True
 
-    # Logical max length for values stored in this type. MySQL enforces it physically as VARCHAR(255)
-    # Postgres/SQLite map to unbounded Text and rely on callers validating against this attribute.
+    # Logical max length for values of this type. Only MySQL enforces it physically (VARCHAR(255));
+    # Postgres/SQLite map to unbounded Text, so callers must validate against this attribute.
     max_length = 255
 
     def load_dialect_impl(

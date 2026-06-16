@@ -433,7 +433,10 @@ class OnlineVectorService:
         return results
 
     def close(self):
-        self._controller.terminate(wait=True)
+        try:
+            self._controller.terminate(wait=True)
+        except Exception:
+            pass  # storey already logs termination error
         self._resource_cache = None
 
 

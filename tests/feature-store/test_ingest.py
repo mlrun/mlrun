@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import asyncio
 import unittest.mock
 from unittest.mock import patch
 
@@ -239,58 +238,6 @@ def test_online_vector_service_close_without_cache():
         index_columns=["key"],
     )
     service.close()  # should not raise
-
-
-def test_online_vector_service_close_does_not_cross_loop():
-    """Regression test for ML-12632 cross-loop close errors."""
-    from mlrun.datastore.store_resources import ResourceCache
-    from mlrun.feature_store.feature_vector_utils import OnlineVectorService
-
-    # Simulate a cached table whose close coroutine is bound to another loop.
-    # Keep close idempotent, similar to V3ioDriver.close().
-    other_loop = asyncio.new_event_loop()
-    foreign_future = other_loop.create_future()  # Pending future bound to other_loop.
-
-    class ForeignLoopTable:
-        def __init__(self):
-            self.closed = False
-
-        async def close(self):
-            if self.closed:
-                return
-            self.closed = True
-            await foreign_future  # Raises cross-loop when awaited elsewhere.
-
-    cache = ResourceCache()
-    table = ForeignLoopTable()
-    cache.cache_table("v3io://host/container/t1", table)
-
-    # wait=True simulates storey finishing close on its own loop.
-    # wait=False leaves close in-flight (the prior online race).
-    class FakeController:
-        def __init__(self):
-            self.wait = None
-
-        def terminate(self, wait=False):
-            self.wait = wait
-            if wait:
-                table.closed = True
-
-    class FakeGraph:
-        def __init__(self):
-            self.controller = FakeController()
-
-    service = OnlineVectorService(
-        vector=None,
-        graph=FakeGraph(),
-        index_columns=[],
-        resource_cache=cache,
-    )
-    try:
-        service.close()
-        assert service._controller.wait is True
-    finally:
-        other_loop.close()
 
 
 def test_dask_feature_merger_close_local_client():

@@ -2883,7 +2883,6 @@ class MlrunProject(ModelObj):
         *,
         deploy_histogram_data_drift_app: bool = True,
         wait_for_deployment: bool = False,
-        fetch_credentials_from_sys_config: bool = False,  # deprecated
         lag_threshold: int | None = None,
         lag_event_cooldown: int | None = None,
         otlp_enabled: bool = False,
@@ -2922,8 +2921,6 @@ class MlrunProject(ModelObj):
         :param wait_for_deployment:               If true, return only after the deployment is done on the backend.
                                                   Otherwise, deploy the model monitoring infrastructure on the
                                                   background, including the histogram data drift app if selected.
-        :param fetch_credentials_from_sys_config: Deprecated. If true, fetch the credentials from the project
-                                                  configuration.
         :param lag_threshold:                     Duration in minutes that will be considered as lag in the writer.
                                                   Must be at least
                                                   ``model_endpoint_monitoring.lag_detection.min_lag_threshold_minutes``
@@ -2940,12 +2937,6 @@ class MlrunProject(ModelObj):
                                                   ``project.spec.model_monitoring.otlp_enabled``. Per-function
                                                   override via ``set_model_monitoring_function(otlp_enabled=...)``.
         """
-        if fetch_credentials_from_sys_config:
-            warnings.warn(
-                "`fetch_credentials_from_sys_config` is deprecated in 1.10.0 and will be removed in 1.12.0.",
-                # TODO: Remove this in 1.12.0
-                FutureWarning,
-            )
         if base_period < 10:
             logger.warn(
                 "enable_model_monitoring: 'base_period' < 10 minutes is not supported in production environments",
@@ -2957,7 +2948,6 @@ class MlrunProject(ModelObj):
             image=image,
             base_period=base_period,
             deploy_histogram_data_drift_app=deploy_histogram_data_drift_app,
-            fetch_credentials_from_sys_config=fetch_credentials_from_sys_config,
             lag_threshold=lag_threshold,
             lag_event_cooldown=lag_event_cooldown,
             otlp_enabled=otlp_enabled,

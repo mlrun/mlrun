@@ -713,6 +713,10 @@ default_config = {
             "parquet_batching_max_events": 10,
             "parquet_batching_timeout_secs": 30,
         },
+        "stream_graph": {
+            "max_events": 1000,
+            "flush_after_seconds": 30,
+        },
         "lag_detection": {
             "min_lag_threshold_minutes": 5,
             "default_lag_threshold_minutes": 60,
@@ -729,7 +733,7 @@ default_config = {
         # storage such as the parquet file which is generated from the monitoring stream function for the drift analysis
         "offline_storage_path": "model-endpoints/{kind}",
         "parquet_batching_max_events": 10_000,
-        "parquet_batching_timeout_secs": timedelta(minutes=1).total_seconds(),
+        "parquet_batching_timeout_secs": 30,
         "model_endpoint_creation_check_period": 15,
         # TSDB (TimescaleDB) configuration
         "tsdb": {
@@ -1010,8 +1014,8 @@ default_config = {
             # PeriodicExportingMetricReader interval for inventory gauges, expressed
             # as a multiple of ``monitoring.projects.summaries.cache_interval`` so
             # the exporter samples a freshly-refreshed gauge every Nth cache cycle.
-            # Default 10 × 60s = 600s = 10 minutes. Must be >= 1.
-            "export_interval_multiplier": 10,
+            # Default 1 × 60s = 60s = emit on every cache cycle. Must be >= 1.
+            "export_interval_multiplier": 1,
         },
         # ML-12344 — model monitoring application Results/Metrics OTel export.
         "model_monitoring": {

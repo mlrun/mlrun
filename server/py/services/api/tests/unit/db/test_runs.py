@@ -20,6 +20,7 @@ import pytest
 
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
+import mlrun.errors
 import mlrun.model
 from tests.conftest import new_run
 
@@ -589,6 +590,26 @@ class TestRuns(TestDatabaseBase):
 
         assert runs[0]["status"]["start_time"].endswith(".000000+00:00")
         assert runs[0]["status"]["end_time"].endswith(".000000+00:00")
+
+    def test_list_runs_empty_project_list_returns_empty(self):
+        # Cross-project listing (project="*") for a user with no accessible projects
+        # resolves to an empty project list. That must yield an empty result, not an error.
+        self._create_new_run(project="some-project")
+
+        runs = self._db.list_runs(self._db_session, project=[])
+        assert len(runs) == 0
+
+        # A populated project list still filters normally (the empty-list relaxation doesn't
+        # weaken the list path).
+        runs = self._db.list_runs(self._db_session, project=["some-project"])
+        assert len(runs) == 1
+
+    @pytest.mark.parametrize("project", [None, ""])
+    def test_list_runs_missing_project_raises(self, project):
+        # A truly missing project (None / "") applies no project filter, so it must keep
+        # raising rather than silently listing across all projects.
+        with pytest.raises(mlrun.errors.MLRunMissingProjectError):
+            self._db.list_runs(self._db_session, project=project)
 
     @staticmethod
     def _change_run_record_to_before_align_runs_migration(run, time_before_creation):

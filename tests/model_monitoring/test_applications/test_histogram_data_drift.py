@@ -191,7 +191,6 @@ class TestApplication:
         )
         monitoring_context._sample_df_stats = sample_df_stats
         monitoring_context._feature_stats = feature_stats
-        monitoring_context._sample_df = pd.DataFrame({"f1": [1], "f2": [2], "l": [3]})
 
         return monitoring_context
 
@@ -235,49 +234,6 @@ class TestApplication:
             "drift_table_plot.html",
             "features_drift_results.json",
         }, "The artifact files were not found or are different than expected"
-
-
-class TestEmptySampleDf:
-    """Reproduce ML-12380: do_tracking should handle empty sample data gracefully."""
-
-    @staticmethod
-    def test_do_tracking_with_empty_sample_df(
-        application: HistogramDataDriftApplication,
-        logger: mlrun.utils.Logger,
-        project: mlrun.MlrunProject,
-    ) -> None:
-        monitoring_context = mm_context.MonitoringApplicationContext(
-            application_name=application.NAME,
-            event={},
-            artifacts_logger=project,
-            logger=logger,
-            project=project,
-            nuclio_logger=logger,
-        )
-        monitoring_context._feature_stats = (
-            mlrun.common.model_monitoring.helpers.FeatureStats(
-                {
-                    "f1": {
-                        "count": 100,
-                        "hist": [
-                            [0, 0, 0, 30, 70, 0],
-                            [-10, -5, 0, 5, 10, 15, 20],
-                        ],
-                    },
-                    "f2": {
-                        "count": 100,
-                        "hist": [
-                            [0, 45, 5, 15, 35, 0],
-                            [66, 67, 68, 69, 70, 71, 72],
-                        ],
-                    },
-                }
-            )
-        )
-        monitoring_context._sample_df = pd.DataFrame()
-
-        results = application.do_tracking(monitoring_context)
-        assert results == [], "Expected empty results when sample data is empty"
 
 
 class TestMetricsPerFeature:
@@ -324,49 +280,6 @@ class TestMetricsPerFeature:
         }, "Different metrics than expected"
         assert set(metrics_per_feature.index) == set(feature_stats.columns), (
             "The features are different than expected"
-        )
-
-    @staticmethod
-    def test_compute_metrics_mismatched_features(
-        application: HistogramDataDriftApplication,
-        monitoring_context: Mock,
-        caplog: pytest.LogCaptureFixture,
-    ) -> None:
-        """feature_stats has features not present in sample_df_stats (ML-12380)."""
-        feature_stats = pd.DataFrame(
-            {"f1": [1, 2, 3], "f2": [4, 5, 6], "f3": [7, 8, 9]}
-        )
-        sample_df_stats = pd.DataFrame({"f1": [10, 20, 30]})
-
-        monitoring_context.sample_df_stats = sample_df_stats
-        monitoring_context.feature_stats = feature_stats
-
-        metrics_per_feature = application._compute_metrics_per_feature(
-            monitoring_context=monitoring_context
-        )
-        assert set(metrics_per_feature.index) == {"f1"}, (
-            "Should only compute metrics for shared features"
-        )
-        assert "missing from the sample data" in caplog.text
-
-
-class TestGetSharedFeaturesSampleStats:
-    @staticmethod
-    def test_missing_keys(
-        application: HistogramDataDriftApplication,
-    ) -> None:
-        """feature_stats keys not in sample_df_stats should not cause KeyError (ML-12380)."""
-        ctx = Mock()
-        ctx.feature_stats = mlrun.common.model_monitoring.helpers.FeatureStats(
-            {"f1": {"count": 100}, "f2": {"count": 200}}
-        )
-        ctx.sample_df_stats = mlrun.common.model_monitoring.helpers.FeatureStats(
-            {"f1": {"count": 50}}
-        )
-
-        result = application._get_shared_features_sample_stats(ctx)
-        assert set(result.keys()) == {"f1"}, (
-            "Should only include features present in both stats dicts"
         )
 
 

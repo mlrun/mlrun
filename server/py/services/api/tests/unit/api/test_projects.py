@@ -1227,14 +1227,15 @@ def test_project_with_invalid_node_selector(
     _assert_project_response(project, response)
 
 
-# leader format is only relevant to follower mode
-@pytest.mark.parametrize("project_member_mode", ["follower"], indirect=True)
 def test_list_projects_leader_format(
     db: Session, client: TestClient, project_member_mode: str
 ) -> None:
     """
     See list_projects in follower.py for explanation on the rationality behind the leader format
     """
+    # leader format is only relevant to follower mode
+    if project_member_mode != "follower":
+        pytest.skip("leader format is only relevant to follower mode")
     # create some projects in the db (mocking projects left there from before when leader format was used)
     project_names = []
     for _ in range(5):

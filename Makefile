@@ -98,14 +98,17 @@ CHECK_COVERAGE_ERROR = if [ "$(RUN_COVERAGE)" = "true" ] && [ $$PYTEST_EXIT -ne 
 	exit $$PYTEST_EXIT ; \
 fi
 
-# Verify the mount point to avoid deleting essential paths
+# Verify the mount point to avoid deleting essential paths.
+# COVERAGE_MOUNT_PATH must live under the repo workspace (not /tmp), so it is
+# disjoint from the -v /tmp:/tmp mount and cannot be wiped by anything that
+# sweeps /tmp during the test run.
 SETUP_COVERAGE_MOUNTING = if [ "$(RUN_COVERAGE)" = "true" ]; then \
-		case "$$COVERAGE_MOUNT_PATH" in /tmp/coverage_reports/*) \
+		case "$$COVERAGE_MOUNT_PATH" in $(ROOT_DIR)coverage_reports/*) \
 			rm -rf $$COVERAGE_MOUNT_PATH && \
 			mkdir -p $$COVERAGE_MOUNT_PATH; \
 			;; \
 	  	*) \
-			echo "Error: COVERAGE_MOUNT_PATH is invalid, must be under /tmp/coverage_reports/*" >&2 ; \
+			echo "Error: COVERAGE_MOUNT_PATH is invalid, must be under $(ROOT_DIR)coverage_reports/*" >&2 ; \
 			exit 1; \
 			;; \
 		esac \
@@ -151,6 +154,12 @@ endif
 # Change to `--upgrade-package <package-name>` to upgrade only a specific package
 MLRUN_UV_UPGRADE_FLAG ?= --upgrade
 
+# Optional constraints file used to pin versions during installs (e.g. a locked-requirements
+# file). Empty by default so local development installs stay upgradable; CI sets it to a lock
+# so dependency releases can't silently drift into the test environment.
+MLRUN_PIP_CONSTRAINTS_FILE ?=
+MLRUN_PIP_CONSTRAINTS_FLAG := $(if $(MLRUN_PIP_CONSTRAINTS_FILE),-c $(MLRUN_PIP_CONSTRAINTS_FILE),)
+
 # absolute path to this Makefile
 THIS_MAKEFILE := $(abspath $(lastword $(MAKEFILE_LIST)))
 # its directory
@@ -174,6 +183,7 @@ install-requirements: ## Install all requirements needed for development
 
 	$(MLRUN_PYTHON_VENV_PIP_INSTALL) \
 		$(MLRUN_PIP_NO_CACHE_FLAG) \
+		$(MLRUN_PIP_CONSTRAINTS_FLAG) \
 		-r requirements.txt \
 		-r extras-requirements.txt \
 		-r dev-requirements.txt \
@@ -210,7 +220,7 @@ install-docs-requirements: ## Install all requirements needed for compiling mlru
 install-complete-requirements: ## Install all requirements needed for development and testing
 	$(MLRUN_PYTHON_VENV_PIP_INSTALL) --upgrade $(MLRUN_PIP_NO_CACHE_FLAG) pip~=$(MLRUN_PIP_VERSION)
 	$(eval MLRUN_PIP_INSTALL_FLAG := $(if $(and $(MLRUN_PYTHON_PACKAGE_INSTALLER),$(filter -m pip,$(MLRUN_PYTHON_PACKAGE_INSTALLER))),--ignore-requires-python,))
-	$(MLRUN_PYTHON_VENV_PIP_INSTALL) .[complete,kfp18,dev-postgres] $(MLRUN_PIP_INSTALL_FLAG)
+	$(MLRUN_PYTHON_VENV_PIP_INSTALL) $(MLRUN_PIP_CONSTRAINTS_FLAG) .[complete,kfp18,dev-postgres] $(MLRUN_PIP_INSTALL_FLAG)
 
 .PHONY: install-all-requirements
 install-all-requirements: ## Install all requirements needed for development and testing
@@ -634,7 +644,7 @@ clean: ## Clean python package build artifacts
 
 .PHONY: test-dockerized
 test-dockerized: build-test ## Run mlrun tests in docker container
-	COVERAGE_MOUNT_PATH="/tmp/coverage_reports/unit_tests$(COVERAGE_DIR_SUFFIX)" ;\
+	COVERAGE_MOUNT_PATH="$(ROOT_DIR)coverage_reports/unit_tests$(COVERAGE_DIR_SUFFIX)" ;\
 	$(SETUP_COVERAGE_MOUNTING) && \
 	docker run \
 		-t \
@@ -698,7 +708,7 @@ test: clean ## Run mlrun tests
 
 .PHONY: test-integration-dockerized
 test-integration-dockerized: build-test api ## Run mlrun integration tests in docker container, some tests require the api image to be built
-	COVERAGE_MOUNT_PATH="/tmp/coverage_reports/integration_tests" ;\
+	COVERAGE_MOUNT_PATH="$(ROOT_DIR)coverage_reports/integration_tests" ;\
 	$(SETUP_COVERAGE_MOUNTING)  && \
 	docker run \
 		-t \
@@ -738,7 +748,7 @@ test-integration: clean ## Run mlrun integration tests
 
 .PHONY: test-migrations-dockerized
 test-migrations-dockerized: build-test ## Run mlrun db migrations tests in docker container
-	COVERAGE_MOUNT_PATH="/tmp/coverage_reports/migration_tests" ;\
+	COVERAGE_MOUNT_PATH="$(ROOT_DIR)coverage_reports/migration_tests" ;\
 	$(SETUP_COVERAGE_MOUNTING) && \
 	docker run \
 		-t \

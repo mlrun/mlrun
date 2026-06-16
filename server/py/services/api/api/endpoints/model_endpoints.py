@@ -389,16 +389,6 @@ async def get_model_endpoint_monitoring_metrics(
     return metrics
 
 
-# TODO: remove in 1.12.0
-@router.get(
-    "/metrics",
-    response_model=dict[str, list[mm_endpoints.ModelEndpointMonitoringMetric]],
-    deprecated=True,
-    description=(
-        "This endpoint is deprecated from 1.10.0 and will be removed in MLRun 1.12.0. "
-        "Use the GET '/projects/{project}/model-monitoring/metrics' API endpoint instead."
-    ),
-)
 async def get_metrics_by_multiple_endpoints(
     project: ProjectAnnotation,
     auth_info: schemas.AuthInfo = Depends(framework.api.deps.authenticate_request),

@@ -45,7 +45,7 @@ import mlrun.runtimes.mounts
 from mlrun.config import config
 from mlrun.data_types.data_types import InferOptions, ValueType
 from mlrun.datastore.datastore_profile import (
-    DatastoreProfileKafkaTarget,
+    DatastoreProfileKafkaStream,
     DatastoreProfileRedis,
     DatastoreProfileV3io,
     register_temporary_client_datastore_profile,
@@ -2606,7 +2606,7 @@ class TestFeatureStore(TestMLRunSystem):
         reason="mlrun.mlconf.redis.url is not set, skipping until testing against real redis",
     )
     @pytest.mark.parametrize(
-        "target_redis, ", ["", "redis://:aaa@localhost:6379", "ds://dsname"]
+        "target_redis", ["", "redis://:aaa@localhost:6379", "ds://dsname"]
     )
     def test_purge_redis(self, target_redis):
         key = "patient_id"
@@ -3535,8 +3535,8 @@ class TestFeatureStore(TestMLRunSystem):
         not kafka_brokers, reason="MLRUN_SYSTEM_TESTS_KAFKA_BROKERS must be set"
     )
     def test_kafka_target_datastore_profile(self, kafka_consumer):
-        profile = DatastoreProfileKafkaTarget(
-            name="dskafkatarget", brokers=kafka_brokers, topic=kafka_topic
+        profile = DatastoreProfileKafkaStream(
+            name="dskafkatarget", brokers=kafka_brokers, topics=[kafka_topic]
         )
         register_temporary_client_datastore_profile(profile)
 

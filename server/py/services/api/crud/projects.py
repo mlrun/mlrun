@@ -26,6 +26,7 @@ import mlrun.common.constants as mlrun_constants
 import mlrun.common.formatters
 import mlrun.common.schemas
 import mlrun.errors
+import mlrun.runtimes.constants
 import mlrun.utils.singleton
 import mlrun_pipelines.client
 from mlrun.utils import logger, retry_until_successful
@@ -44,6 +45,9 @@ import services.api.utils.events.events_factory as events_factory
 import services.api.utils.singletons.scheduler
 import services.api.utils.telemetry.inventory as telemetry_inventory
 from framework.utils.singletons.k8s import get_k8s_helper
+
+# Persistable function kinds, zero-filled per project in ``mlrun_functions``.
+_FUNCTION_INVENTORY_KINDS = mlrun.runtimes.constants.RuntimeKinds.all()
 
 
 class Projects(
@@ -724,15 +728,18 @@ class Projects(
                 project=project_name,
             )
 
-            # `local`/`handler` are excluded since they're not deployable
-            # inventory items; we report whichever kinds the DB actually
-            # contains for this project.
-            for fn_kind, fn_count in project_to_function_kind_counts.get(
-                project_name, ()
-            ):
+            # Zero-fill every known function kind so a project/kind with no
+            # functions reports 0 (and a kind that drops to zero resets to 0
+            # rather than going absent), matching the other per-kind inventory
+            # metrics. The DB only returns kinds the project actually has, so
+            # absent kinds fall back to 0.
+            fn_counts_by_kind = dict(
+                project_to_function_kind_counts.get(project_name, ())
+            )
+            for fn_kind in _FUNCTION_INVENTORY_KINDS:
                 telemetry_inventory.set_count(
                     "mlrun_functions",
-                    fn_count,
+                    fn_counts_by_kind.get(fn_kind, 0),
                     project=project_name,
                     kind=fn_kind,
                 )

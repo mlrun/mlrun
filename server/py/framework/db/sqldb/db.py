@@ -3903,7 +3903,7 @@ class SQLDB(DBInterface):
             collections.defaultdict(list)
         )
         for project, kind, count in rows:
-            project_to_kind_counts[project].append((kind or "unknown", count))
+            project_to_kind_counts[project].append((kind, count))
         return project_to_kind_counts
 
     @staticmethod

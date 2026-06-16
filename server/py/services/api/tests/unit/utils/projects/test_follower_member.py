@@ -27,6 +27,7 @@ import mlrun.config
 import mlrun.errors
 import mlrun.utils
 
+import framework.db.sqldb.models
 import framework.utils.background_tasks
 import framework.utils.projects.follower
 import framework.utils.projects.remotes.leader
@@ -221,6 +222,71 @@ def test_patch_project(
     expected_patched_project.status.state = mlrun.common.schemas.ProjectState.online
     _assert_projects_equal(expected_patched_project, patched_project)
     _assert_project_in_follower(db, projects_follower, expected_patched_project)
+
+
+@pytest.mark.parametrize("field", ["source", "description", "owner"])
+def test_store_project_field_at_max_length(
+    db: sqlalchemy.orm.Session,
+    projects_follower: framework.utils.projects.follower.Member,
+    nop_leader: framework.utils.projects.remotes.leader.Member,
+    field: str,
+):
+    max_length = getattr(framework.db.sqldb.models.Project, field).type.max_length
+    max_value = "a" * max_length
+    project = _generate_project()
+    setattr(project.spec, field, max_value)
+    stored_project, _ = projects_follower.store_project(
+        db, project.metadata.name, project
+    )
+    assert getattr(stored_project.spec, field) == max_value
+
+
+@pytest.mark.parametrize("field", ["source", "description", "owner"])
+def test_store_project_field_too_long_is_rejected(
+    db: sqlalchemy.orm.Session,
+    projects_follower: framework.utils.projects.follower.Member,
+    nop_leader: framework.utils.projects.remotes.leader.Member,
+    field: str,
+):
+    # A project text field longer than its VARCHAR(255) column used to reach the DB and fail with a 500.
+    # Each such field must be rejected with a 400 (MLRunInvalidArgumentError) before the write.
+    max_length = getattr(framework.db.sqldb.models.Project, field).type.max_length
+    too_long_value = "a" * (max_length + 1)
+    project = _generate_project()
+    setattr(project.spec, field, too_long_value)
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+        projects_follower.store_project(db, project.metadata.name, project)
+
+
+@pytest.mark.parametrize("write_path", ["create", "store", "patch"])
+def test_project_over_long_field_rejected_on_all_write_paths(
+    db: sqlalchemy.orm.Session,
+    projects_follower: framework.utils.projects.follower.Member,
+    nop_leader: framework.utils.projects.remotes.leader.Member,
+    write_path: str,
+):
+    # Every API write path must reject an over-long field before the write.
+    max_length = framework.db.sqldb.models.Project.source.type.max_length
+    too_long_source = "a" * (max_length + 1)
+
+    if write_path == "create":
+        project = _generate_project()
+        project.spec.source = too_long_source
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+            projects_follower.create_project(db, project)
+    elif write_path == "store":
+        project = _generate_project()
+        project.spec.source = too_long_source
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+            projects_follower.store_project(db, project.metadata.name, project)
+    else:
+        # patch an existing, valid project with an over-long source
+        project = _generate_project()
+        projects_follower.store_project(db, project.metadata.name, project)
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+            projects_follower.patch_project(
+                db, project.metadata.name, {"spec": {"source": too_long_source}}
+            )
 
 
 def test_delete_project(

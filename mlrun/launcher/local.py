@@ -289,6 +289,7 @@ class ClientLocalLauncher(launcher.ClientBaseLauncher):
         runtime: "mlrun.runtimes.BaseRuntime",
         run: "mlrun.run.RunObject",
     ):
+        runtime.validate()
         super()._validate_run(runtime, run)
         if self._is_run_local and run.spec.retry.count:
             logger.warning(

@@ -43,7 +43,7 @@ TEST_PROJECT = "test-application-results"
 V3IO_TABLE_CONTAINER = f"bigdata/{TEST_PROJECT}"
 
 
-@pytest.fixture(params=[(0, "1.7.0", "result")])
+@pytest.fixture
 def event(request: pytest.FixtureRequest) -> _AppResultEvent:
     now = datetime.datetime.now()
     start_infer_time = now - datetime.timedelta(minutes=5)
@@ -204,7 +204,7 @@ class TestTSDB:
 
     @staticmethod
     @pytest.mark.parametrize(
-        ("event"),
+        "event",
         [(0, "1.6.0", "result"), (0, "1.7.0", "result")],
         indirect=["event"],
     )
@@ -253,7 +253,7 @@ class TestTSDB:
 
     @staticmethod
     @pytest.mark.parametrize(
-        ("event"),
+        "event",
         [(0, "1.7.0", "metric")],
         indirect=["event"],
     )

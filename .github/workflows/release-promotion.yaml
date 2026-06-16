@@ -100,6 +100,9 @@ jobs:
       - name: Resolve inputs
         id: resolve
         run: |
+          # Trim surrounding whitespace; a stray space breaks the Docker reference in skopeo
+          VERSION_INPUT="$(echo -n "$VERSION_INPUT" | xargs)"
+          PREVIOUS_VERSION_INPUT="$(echo -n "$PREVIOUS_VERSION_INPUT" | xargs)"
           echo "version=$VERSION_INPUT" >> $GITHUB_OUTPUT
           echo "previous_version=$PREVIOUS_VERSION_INPUT" >> $GITHUB_OUTPUT
           echo "Promoting version: $VERSION_INPUT"

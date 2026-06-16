@@ -4110,7 +4110,6 @@ class HTTPRunDB(RunDBInterface):
         base_period: int = 10,
         image: str | None = None,
         deploy_histogram_data_drift_app: bool = True,
-        fetch_credentials_from_sys_config: bool = False,
         lag_threshold: int | None = None,
         lag_event_cooldown: int | None = None,
         otlp_enabled: bool = False,
@@ -4131,7 +4130,6 @@ class HTTPRunDB(RunDBInterface):
                                                   Defaults to
                                                   ``mlrun.mlconf.function_defaults.image_by_kind.nuclio``.
         :param deploy_histogram_data_drift_app:   If true, deploy the default histogram-based data drift application.
-        :param fetch_credentials_from_sys_config: If true, fetch the credentials from the system configuration.
         :param lag_threshold:                     Lag threshold in minutes for writer lag detection.
         :param lag_event_cooldown:                Cooldown in minutes between consecutive lag events per worker.
         :param otlp_enabled:                      If true, monitoring application results and metrics are also
@@ -4144,7 +4142,6 @@ class HTTPRunDB(RunDBInterface):
         params = {
             "base_period": base_period,
             "deploy_histogram_data_drift_app": deploy_histogram_data_drift_app,
-            "fetch_credentials_from_sys_config": fetch_credentials_from_sys_config,
             "auth_token_name": auth_token_name,
             "otlp_enabled": otlp_enabled,
         }

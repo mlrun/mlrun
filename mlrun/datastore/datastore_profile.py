@@ -19,7 +19,6 @@ import typing
 from urllib.parse import ParseResult, quote, unquote, urlparse
 
 import pydantic.v1
-from deprecated import deprecated
 from mergedeep import merge
 
 import mlrun
@@ -139,35 +138,6 @@ class ConfigProfile(DatastoreProfile):
         return res
 
 
-# TODO: Remove in 1.12.0
-@deprecated(
-    version="1.10.0",
-    reason=(
-        "This class is deprecated from mlrun 1.10.0, and will be removed in 1.12.0. "
-        "Use `DatastoreProfileKafkaStream` instead."
-    ),
-    category=FutureWarning,
-)
-class DatastoreProfileKafkaTarget(DatastoreProfile):
-    type: str = pydantic.v1.Field("kafka_target")
-    _private_attributes = "kwargs_private"
-    brokers: str
-    topic: str
-    kwargs_public: dict | None
-    kwargs_private: dict | None
-
-    def get_topic(self) -> str | None:
-        return self.topic
-
-    def attributes(self):
-        attributes = {"brokers": self.brokers}
-        if self.kwargs_public:
-            attributes = merge(attributes, self.kwargs_public)
-        if self.kwargs_private:
-            attributes = merge(attributes, self.kwargs_private)
-        return attributes
-
-
 class DatastoreProfileKafkaStream(DatastoreProfile):
     type: str = pydantic.v1.Field("kafka_stream")
     _private_attributes = ("kwargs_private", "sasl_user", "sasl_pass")
@@ -206,19 +176,6 @@ class DatastoreProfileKafkaStream(DatastoreProfile):
         ):
             attributes["sasl"] = sasl
         return attributes
-
-
-# TODO: Remove in 1.12.0
-@deprecated(
-    version="1.10.0",
-    reason=(
-        "This class is deprecated from mlrun 1.10.0, and will be removed in 1.12.0. "
-        "Use `DatastoreProfileKafkaStream` instead."
-    ),
-    category=FutureWarning,
-)
-class DatastoreProfileKafkaSource(DatastoreProfileKafkaStream):
-    type: str = pydantic.v1.Field("kafka_source")
 
 
 class DatastoreProfileRabbitMQ(DatastoreProfile):
@@ -651,8 +608,6 @@ _DATASTORE_TYPE_TO_PROFILE_CLASS: dict[str, type[DatastoreProfile]] = {
     "s3": DatastoreProfileS3,
     "redis": DatastoreProfileRedis,
     "basic": DatastoreProfileBasic,
-    "kafka_target": DatastoreProfileKafkaTarget,
-    "kafka_source": DatastoreProfileKafkaSource,
     "kafka_stream": DatastoreProfileKafkaStream,
     "dbfs": DatastoreProfileDBFS,
     "gcs": DatastoreProfileGCS,

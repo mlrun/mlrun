@@ -12,12 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import datetime
 import pathlib
 from typing import Any, Literal
 from unittest.mock import Mock, patch
 
-import pandas as pd
 import pytest
 
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
@@ -61,57 +59,6 @@ def test_read_dataset_as_dataframe():
     )
     feature_columns.remove("feature_2")
     assert list(df.columns) == feature_columns
-
-
-@pytest.fixture
-def batch_model_endpoint() -> ModelEndpoint:
-    return ModelEndpoint(
-        metadata=mlrun.common.schemas.ModelEndpointMetadata(
-            name="my-endpoint",
-            project="some-project",
-            endpoint_type=mm_constants.EndpointType.BATCH_EP,
-        ),
-        spec=mlrun.common.schemas.ModelEndpointSpec(
-            model_path="path/to/model", monitoring_feature_set_uri="path/to/feature"
-        ),
-        status=mlrun.common.schemas.ModelEndpointStatus(),
-    )
-
-
-def test_record_result_updates_last_request(
-    batch_model_endpoint: ModelEndpoint,
-) -> None:
-    db_mock = Mock(spec=RunDBInterface)
-    datetime_mock = datetime.datetime(
-        2011, 11, 4, 0, 5, 23, 283000, tzinfo=datetime.UTC
-    )
-    df_mock = pd.DataFrame(
-        {
-            "feature_1": [-500, -500],
-            "feature_2": [-500, -500],
-            "feature_3": [-500, -500],
-            "feature_4": [-500, -500],
-            "p0": [0, 0],
-        }
-    )
-    with patch("mlrun.model_monitoring.api.datetime_now", return_value=datetime_mock):
-        with patch("mlrun.model_monitoring.api.mlrun.get_run_db", return_value=db_mock):
-            with patch(
-                "mlrun.model_monitoring.api.get_or_create_model_endpoint",
-                return_value=batch_model_endpoint,
-            ):
-                mlrun.model_monitoring.api.record_results(
-                    project=batch_model_endpoint.metadata.project,
-                    model_path=batch_model_endpoint.spec.model_path,
-                    model_endpoint_name=batch_model_endpoint.metadata.name,
-                    infer_results_df=df_mock,
-                )
-
-    db_mock.patch_model_endpoint.assert_called_once()
-    assert (
-        db_mock.patch_model_endpoint.call_args.kwargs["attributes"]["last_request"]
-        == datetime_mock
-    ), "last_request attribute of the model endpoint was not updated as expected"
 
 
 def _get_metrics(

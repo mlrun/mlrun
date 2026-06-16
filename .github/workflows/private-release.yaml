@@ -76,6 +76,9 @@ jobs:
         id: resolve
         run: |
 
+          # Trim surrounding whitespace; a stray space breaks the Docker reference downstream
+          VERSION_INPUT="$(echo -n "$VERSION_INPUT" | xargs)"
+
           # map the input to the actual mode
           declare -A bump_version_mode=(["bump-rc"]="rc" ["stable"]="rc-grad")
           NEXT_VERSION_MODE=${bump_version_mode[$BUMP_VERSION_MODE_INPUT]}

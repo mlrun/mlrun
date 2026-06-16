@@ -17,7 +17,7 @@
 from http import HTTPMethod
 from re import Pattern
 from typing import Any, Union
-from urllib.parse import parse_qs, urlsplit
+from urllib.parse import parse_qs, unquote, urlsplit
 
 import nuclio_sdk
 
@@ -247,13 +247,15 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
                         body_params = {}
 
                 # Build system-injected URL params when include_url_info is enabled.
-                # mlrun_request_path holds the normalized path of the matched request and
-                # mlrun_request_method holds the HTTP method (e.g. "GET"). Together they
-                # let a dispatcher handler distinguish endpoints that share a path template
-                # but differ by method (e.g. GET vs DELETE on /responses/{id}).
+                # mlrun_request_path holds the normalized, URL-decoded path of the matched
+                # request and mlrun_request_method holds the HTTP method (e.g. "GET").
+                # Together they let a dispatcher handler distinguish endpoints that share a
+                # path template but differ by method (e.g. GET vs DELETE on /responses/{id}).
+                # Decoding matches Flask/FastAPI semantics — a literal %2F in a segment
+                # becomes indistinguishable from a path separator after decoding.
                 url_params: dict[str, Any] = {}
                 if self.config.include_url_info:
-                    url_params["mlrun_request_path"] = normalized_path
+                    url_params["mlrun_request_path"] = unquote(normalized_path)
                     url_params["mlrun_request_method"] = method.value
 
                 # Build the event body for the next step.

@@ -85,7 +85,9 @@ from .events import (
     DBConnectionEventActions,
     EventClientKinds,
     EventsModes,
+    LogCollectorEventActions,
     MigrationEventActions,
+    ProjectLifecycleEventActions,
     SecretEventActions,
 )
 from .feature_store import (

@@ -13,8 +13,6 @@
 # limitations under the License.
 
 import inspect
-from http import HTTPMethod
-from re import Pattern
 from typing import Any
 
 import mlrun.errors
@@ -181,63 +179,3 @@ class RouterToDict(StepToDict):
         strip: bool = False,
     ):
         return super().to_dict(exclude=["routes"], strip=strip)
-
-
-def combine_serving_endpoint_key(method: HTTPMethod, path: str) -> str:
-    """Combine method and path to create a unique endpoint key"""
-    return f"{method.value}:{path}"
-
-
-def check_body_and_path_parameters_overlapping(
-    template_patterns: list[
-        tuple[HTTPMethod, Pattern, "mlrun.runtimes.nuclio.serving.EndpointConfig"]
-    ],
-    star_patterns: list[
-        tuple[HTTPMethod, str, "mlrun.runtimes.nuclio.serving.EndpointConfig"]
-    ],
-) -> None:
-    """Check that input_body_mappings destination_path names don't conflict with path
-    template parameter names that would be extracted on the same request.
-
-    Two sources of conflict for each template endpoint:
-    1. Same endpoint — the template endpoint itself has input_body_mappings with a conflicting name.
-    2. Star endpoint — a star endpoint whose prefix covers the template's path has
-       input_body_mappings with a conflicting name (its mappings apply to all requests under
-       its prefix, including requests that also match the template).
-
-    :raises mlrun.errors.MLRunValueError: On config-time conflict detection.
-    """
-    for template_method, compiled_pattern, template_ep in template_patterns:
-        path_param_names = set(compiled_pattern.groupindex.keys())
-
-        # Source 1: same endpoint has input_body_mappings with conflicting destination_path
-        candidates = [(template_ep, "same endpoint")]
-
-        # Source 2: star endpoints whose prefix covers this template's path
-        for star_method, prefix, star_ep in star_patterns:
-            if star_method != template_method:
-                continue
-            if template_ep.path.startswith(prefix):
-                candidates.append(
-                    (star_ep, f"star endpoint '{star_ep.get_endpoint_key()}'")
-                )
-
-        for candidate_ep, source_desc in candidates:
-            if not candidate_ep.input_body_mappings:
-                continue
-            dest_names = {
-                m["destination_path"]
-                for m in candidate_ep.input_body_mappings.mappings
-                if m.get("destination_path")
-            }
-            overlapping = dest_names & path_param_names
-            if overlapping:
-                raise mlrun.errors.MLRunValueError(
-                    f"Configuration conflict: input_body_mappings destination_path(s) "
-                    f"{', '.join(sorted(overlapping))} from {source_desc} "
-                    f"overlap with path template parameter(s) in pattern "
-                    f"'{compiled_pattern.pattern}' "
-                    f"(endpoint '{template_ep.get_endpoint_key()}'). "
-                    f"Rename the destination_path(s) or the path template "
-                    f"placeholder(s) to avoid ambiguity."
-                )

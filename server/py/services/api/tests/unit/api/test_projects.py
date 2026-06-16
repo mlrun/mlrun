@@ -98,10 +98,9 @@ def project_member_mode(request, db: Session) -> str:
 def test_redirection_from_worker_to_chief_delete_project(
     db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient, httpserver
 ):
-    project_name = "test-project"
-    # create the project while still in chief role - project CRUD reroutes to chief on workers
-    _create_project(client, project_name)
     mlrun.mlconf.httpdb.clusterization.role = "worker"
+    project_name = "test-project"
+    _create_project(client, project_name)
 
     endpoint = f"projects/{project_name}"
     for strategy in mlrun.common.schemas.DeletionStrategy:
@@ -146,93 +145,6 @@ def test_redirection_from_worker_to_chief_delete_project(
             except json.decoder.JSONDecodeError:
                 # NO_CONTENT response doesn't return json serializable response
                 assert response.text == expected_response
-
-
-def test_redirection_from_worker_to_chief_create_project(
-    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient, httpserver
-):
-    mlrun.mlconf.httpdb.clusterization.role = "worker"
-    project_name = "test-project"
-    project = mlrun.common.schemas.Project(
-        metadata=mlrun.common.schemas.ProjectMetadata(name=project_name),
-        spec=mlrun.common.schemas.ProjectSpec(),
-    )
-
-    endpoint = "projects"
-    for test_case in [
-        # creating project accepted and is running in background
-        {
-            "expected_status": http.HTTPStatus.ACCEPTED.value,
-            "expected_body": {},
-        },
-        # project successfully created
-        {
-            "expected_status": http.HTTPStatus.CREATED.value,
-            "expected_body": project.dict(),
-        },
-        # creating project failed for unknown reason
-        {
-            "expected_status": http.HTTPStatus.INTERNAL_SERVER_ERROR.value,
-            "expected_body": {"detail": {"reason": "Unknown error"}},
-        },
-    ]:
-        expected_status = test_case.get("expected_status")
-        expected_response = test_case.get("expected_body")
-
-        httpserver.expect_ordered_request(
-            f"{ORIGINAL_VERSIONED_API_PREFIX}/{endpoint}", method="POST"
-        ).respond_with_json(expected_response, status=expected_status)
-        url = httpserver.url_for("")
-        mlrun.mlconf.httpdb.clusterization.chief.url = url
-        response = client.post(endpoint, json=project.dict())
-        assert response.status_code == expected_status
-        assert response.json() == expected_response
-
-
-def test_redirection_from_worker_to_chief_store_project(
-    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient, httpserver
-):
-    mlrun.mlconf.httpdb.clusterization.role = "worker"
-    project_name = "test-project"
-    project = mlrun.common.schemas.Project(
-        metadata=mlrun.common.schemas.ProjectMetadata(name=project_name),
-        spec=mlrun.common.schemas.ProjectSpec(),
-    )
-
-    endpoint = f"projects/{project_name}"
-    for test_case in [
-        # storing project accepted and is running in background
-        {
-            "expected_status": http.HTTPStatus.ACCEPTED.value,
-            "expected_body": {},
-        },
-        # project successfully stored
-        {
-            "expected_status": http.HTTPStatus.OK.value,
-            "expected_body": project.dict(),
-        },
-        # project successfully created via store
-        {
-            "expected_status": http.HTTPStatus.CREATED.value,
-            "expected_body": project.dict(),
-        },
-        # storing project failed for unknown reason
-        {
-            "expected_status": http.HTTPStatus.INTERNAL_SERVER_ERROR.value,
-            "expected_body": {"detail": {"reason": "Unknown error"}},
-        },
-    ]:
-        expected_status = test_case.get("expected_status")
-        expected_response = test_case.get("expected_body")
-
-        httpserver.expect_ordered_request(
-            f"{ORIGINAL_VERSIONED_API_PREFIX}/{endpoint}", method="PUT"
-        ).respond_with_json(expected_response, status=expected_status)
-        url = httpserver.url_for("")
-        mlrun.mlconf.httpdb.clusterization.chief.url = url
-        response = client.put(endpoint, json=project.dict())
-        assert response.status_code == expected_status
-        assert response.json() == expected_response
 
 
 def test_create_project_failure_already_exists(
@@ -320,6 +232,117 @@ async def test_project_permissions_update_when_exists(
     )
     query_project.assert_awaited_once_with(project_name, action, auth_info)
     query_global.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_project_permissions_owner_short_circuits_opa_check(
+    db: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """When the requester is the project owner, skip OPA and populate the owner cache."""
+    project_name = PERMISSIONS_PROJECT_NAME
+    owner_username = "project-owner"
+    auth_info = mlrun.common.schemas.AuthInfo(username=owner_username)
+    auth_verifier = framework.utils.auth.verifier.AuthVerifier()
+    query_project = AsyncMock()
+    add_allowed = Mock()
+    monkeypatch.setattr(auth_verifier, "query_project_permissions", query_project)
+    monkeypatch.setattr(auth_verifier, "add_allowed_project_for_owner", add_allowed)
+    existing_project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name=project_name),
+        spec=mlrun.common.schemas.ProjectSpec(owner=owner_username),
+    )
+    project_member = framework.utils.singletons.project_member.get_project_member()
+    monkeypatch.setattr(
+        project_member, "get_project", Mock(return_value=existing_project)
+    )
+
+    await projects_endpoints._ensure_project_create_or_update_permissions(
+        db, project_name, auth_info
+    )
+
+    add_allowed.assert_called_once_with(project_name, auth_info)
+    query_project.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_get_project_owner_short_circuits_opa_check(
+    db: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """When the requester owns the project, GET /projects/{name} skips OPA and primes the owner cache."""
+    project_name = PERMISSIONS_PROJECT_NAME
+    owner_username = "project-owner"
+    auth_info = mlrun.common.schemas.AuthInfo(username=owner_username)
+    auth_verifier = framework.utils.auth.verifier.AuthVerifier()
+    query_project = AsyncMock()
+    add_allowed = Mock()
+    monkeypatch.setattr(auth_verifier, "query_project_permissions", query_project)
+    monkeypatch.setattr(auth_verifier, "add_allowed_project_for_owner", add_allowed)
+    monkeypatch.setattr(
+        mlrun.mlconf.httpdb.authentication,
+        "mode",
+        mlrun.common.types.AuthenticationMode.IGUAZIO_V4,
+    )
+    existing_project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name=project_name),
+        spec=mlrun.common.schemas.ProjectSpec(owner=owner_username),
+    )
+    project_member = framework.utils.singletons.project_member.get_project_member()
+    monkeypatch.setattr(
+        project_member, "get_project", Mock(return_value=existing_project)
+    )
+
+    returned = await projects_endpoints.get_project(
+        name=project_name,
+        format_=mlrun.common.formatters.ProjectFormat.full,
+        db_session=db,
+        auth_info=auth_info,
+    )
+
+    assert returned is existing_project
+    add_allowed.assert_called_once_with(project_name, auth_info)
+    query_project.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_get_project_non_owner_falls_back_to_opa(
+    db: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """When the requester is not the project owner, GET /projects/{name} queries OPA as before."""
+    project_name = PERMISSIONS_PROJECT_NAME
+    auth_info = mlrun.common.schemas.AuthInfo(username="not-the-owner")
+    auth_verifier = framework.utils.auth.verifier.AuthVerifier()
+    query_project = AsyncMock()
+    add_allowed = Mock()
+    monkeypatch.setattr(auth_verifier, "query_project_permissions", query_project)
+    monkeypatch.setattr(auth_verifier, "add_allowed_project_for_owner", add_allowed)
+    monkeypatch.setattr(
+        mlrun.mlconf.httpdb.authentication,
+        "mode",
+        mlrun.common.types.AuthenticationMode.IGUAZIO_V4,
+    )
+    existing_project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name=project_name),
+        spec=mlrun.common.schemas.ProjectSpec(owner="someone-else"),
+    )
+    project_member = framework.utils.singletons.project_member.get_project_member()
+    monkeypatch.setattr(
+        project_member, "get_project", Mock(return_value=existing_project)
+    )
+
+    returned = await projects_endpoints.get_project(
+        name=project_name,
+        format_=mlrun.common.formatters.ProjectFormat.full,
+        db_session=db,
+        auth_info=auth_info,
+    )
+
+    assert returned is existing_project
+    add_allowed.assert_not_called()
+    query_project.assert_awaited_once_with(
+        project_name,
+        mlrun.common.schemas.AuthorizationAction.read,
+        auth_info,
+    )
 
 
 @pytest.mark.asyncio
@@ -654,6 +677,12 @@ async def test_list_and_get_project_summaries(
     _create_artifacts(
         client, project_name, files_count, mlrun.artifacts.PlotArtifact.kind
     )
+
+    code_files_count = 3
+    _create_artifacts(
+        client, project_name, code_files_count, mlrun.artifacts.CodeArtifact.kind
+    )
+    files_count += code_files_count
 
     # create feature sets for the project
     feature_sets_count = 9
@@ -1198,14 +1227,15 @@ def test_project_with_invalid_node_selector(
     _assert_project_response(project, response)
 
 
-# leader format is only relevant to follower mode
-@pytest.mark.parametrize("project_member_mode", ["follower"], indirect=True)
 def test_list_projects_leader_format(
     db: Session, client: TestClient, project_member_mode: str
 ) -> None:
     """
     See list_projects in follower.py for explanation on the rationality behind the leader format
     """
+    # leader format is only relevant to follower mode
+    if project_member_mode != "follower":
+        pytest.skip("leader format is only relevant to follower mode")
     # create some projects in the db (mocking projects left there from before when leader format was used)
     project_names = []
     for _ in range(5):
@@ -1634,6 +1664,68 @@ def test_delete_project_fail_fast(
                 "Failed to delete project project-name: some error"
                 in background_task.status.error
             )
+
+
+@pytest.mark.parametrize("delete_api_version", ["v1", "v2"])
+@pytest.mark.parametrize(
+    "requester_username, expect_permission_check",
+    [
+        ("project-owner", False),
+        ("someone-else", True),
+    ],
+)
+def test_delete_project_owner_short_circuits_opa_check(
+    unversioned_client: TestClient,
+    mock_project_follower_iguazio_client,
+    mocked_k8s_helper,
+    monkeypatch: pytest.MonkeyPatch,
+    delete_api_version: str,
+    requester_username: str,
+    expect_permission_check: bool,
+) -> None:
+    """When the requester is the project owner, both delete endpoints must skip
+    the OPA permission query and prime the owner cache. Non-owners still go
+    through query_project_permissions and never prime the cache.
+    """
+    owner_username = "project-owner"
+    project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name="owned-project"),
+        spec=mlrun.common.schemas.ProjectSpec(owner=owner_username),
+    )
+    response = unversioned_client.post("v1/projects", json=project.dict())
+    assert response.status_code == HTTPStatus.CREATED.value
+
+    auth_verifier = framework.utils.auth.verifier.AuthVerifier()
+    query_project_permissions = AsyncMock()
+    add_allowed_project_for_owner = Mock()
+    monkeypatch.setattr(
+        auth_verifier, "query_project_permissions", query_project_permissions
+    )
+    monkeypatch.setattr(
+        auth_verifier, "add_allowed_project_for_owner", add_allowed_project_for_owner
+    )
+
+    response = unversioned_client.delete(
+        f"{delete_api_version}/projects/{project.metadata.name}",
+        headers={mlrun.common.schemas.HeaderNames.remote_user: requester_username},
+    )
+    assert response.status_code in (
+        HTTPStatus.NO_CONTENT.value,
+        HTTPStatus.ACCEPTED.value,
+    )
+
+    if expect_permission_check:
+        query_project_permissions.assert_awaited_once_with(
+            project.metadata.name,
+            mlrun.common.schemas.AuthorizationAction.delete,
+            unittest.mock.ANY,
+        )
+        add_allowed_project_for_owner.assert_not_called()
+    else:
+        query_project_permissions.assert_not_awaited()
+        add_allowed_project_for_owner.assert_called_once_with(
+            project.metadata.name, unittest.mock.ANY
+        )
 
 
 def test_project_image_builder_validation(

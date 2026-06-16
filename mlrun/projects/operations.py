@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import typing
-import warnings
 from typing import Union
 
 import mlrun
@@ -74,7 +73,6 @@ def run_function(
     project_object=None,
     auto_build: bool | None = None,
     schedule: Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
-    artifact_path: str | None = None,
     notifications: list[mlrun.model.Notification] | None = None,
     returns: "list[str | mlrun.LogHint] | None" = None,
     builder_env: dict | None = None,
@@ -157,8 +155,6 @@ def run_function(
                             (which will be converted to the class using its `from_crontab` constructor),
                             see this link for help:
                             https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron
-    :param artifact_path:   (deprecated) path to store artifacts, when running in a workflow this will be set
-                            automatically
     :param notifications:   list of notifications to push when the run is completed
     :param returns:         List of log hints - configurations for how to log the returning values from the handler's
                             run (as artifacts or results). The list's length must be equal to the amount of returning
@@ -196,14 +192,6 @@ def run_function(
             "handler cannot be specified when running a KubeJobRuntime with a serving spec"
         )
 
-    if artifact_path:
-        warnings.warn(
-            "'artifact_path' parameter is deprecated in 1.10.0 and will be removed in 1.12.0, "
-            "use 'output_path' instead.",
-            # TODO: Remove this in 1.12.0
-            FutureWarning,
-        )
-    output_path = output_path or artifact_path
     engine, function = _get_engine_and_function(function, project_object)
     task = mlrun.new_task(
         handler=handler,
@@ -251,26 +239,23 @@ def run_function(
             existing = function.spec.build.builder_env or {}
             function.spec.build.builder_env = {**existing, **builder_env}
 
-        # remove this filter once the artifact_path parameter is deprecated in 1.12.0
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", category=FutureWarning)
-            run_result = function.run(
-                name=name,
-                runspec=task,
-                workdir=workdir,
-                verbose=verbose,
-                watch=watch,
-                local=local,
-                output_path=output_path
-                # workflow output_path has precedence over the project artifact_path equivalent to passing
-                # output_path to function.run() has precedence over the project.artifact_path and the default one
-                or pipeline_context.workflow_artifact_path
-                or (project.artifact_path if project else None),
-                auto_build=auto_build,
-                schedule=schedule,
-                notifications=notifications,
-                reset_on_run=reset_on_run,
-            )
+        run_result = function.run(
+            name=name,
+            runspec=task,
+            workdir=workdir,
+            verbose=verbose,
+            watch=watch,
+            local=local,
+            output_path=output_path
+            # workflow output_path has precedence over the project artifact_path equivalent to passing
+            # output_path to function.run() has precedence over the project.artifact_path and the default one
+            or pipeline_context.workflow_artifact_path
+            or (project.artifact_path if project else None),
+            auto_build=auto_build,
+            schedule=schedule,
+            notifications=notifications,
+            reset_on_run=reset_on_run,
+        )
         if run_result:
             run_result._notified = False
             pipeline_context.runs_map[run_result.uid()] = run_result

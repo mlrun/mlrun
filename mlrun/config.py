@@ -132,6 +132,11 @@ default_config = {
             # k8s resource by default the interval will be - (monitoring.runs.interval * 2 ), if set will override the
             # default
             "missing_runtime_resources_debouncing_interval": None,
+            # Grace period (seconds) for which monitoring defers marking a run "completed" after its
+            # runtime resource reports completion while the run still has no results - used by
+            # self-reporting runtimes (e.g. mpijob) to avoid completing before results are committed;
+            # past the grace the run completes regardless.
+            "result_settle_grace_seconds": 90,
             # max number of parallel abort run jobs in runs monitoring
             "concurrent_abort_stale_runs_workers": 10,
             "list_runs_time_period_in_days": 7,  # days
@@ -584,6 +589,10 @@ default_config = {
             "kaniko_init_container_image": "alpine:3.20",
             # image for kaniko init container when docker registry is ECR
             "kaniko_aws_cli_image": "amazon/aws-cli:2.17.16",
+            # init container image that runs ``python -m mlrun load-source`` for sources
+            # kaniko cannot resolve natively (az://, wasb(s)://, ds://, oss://). Empty
+            # derives from the mlrun image; override must have python and the mlrun package.
+            "kaniko_source_fetch_init_container_image": "",
             # kaniko sometimes fails to get filesystem from image, this is a workaround to retry the process
             # a known issue in Kaniko - https://github.com/GoogleContainerTools/kaniko/issues/1717
             "kaniko_image_fs_extraction_retries": "3",
@@ -591,6 +600,11 @@ default_config = {
             "kaniko_image_push_retry": "3",
             # additional docker build args in json encoded base64 format
             "build_args": "",
+            # labels to be applied to builder pods - json string base64 encoded format.
+            # used (for example) to attach the azure.workload.identity/use label so the Azure
+            # workload-identity webhook injects credentials into the builder pod for pushing to ACR.
+            # system-assigned mlrun/* labels take precedence over these.
+            "pod_labels": "e30=",
             "pip_ca_secret_name": "",
             "pip_ca_secret_key": "",
             "pip_ca_path": "/etc/ssl/certs/mlrun/pip-ca-certificates.crt",
@@ -699,6 +713,10 @@ default_config = {
             "parquet_batching_max_events": 10,
             "parquet_batching_timeout_secs": 30,
         },
+        "stream_graph": {
+            "max_events": 1000,
+            "flush_after_seconds": 30,
+        },
         "lag_detection": {
             "min_lag_threshold_minutes": 5,
             "default_lag_threshold_minutes": 60,
@@ -715,7 +733,7 @@ default_config = {
         # storage such as the parquet file which is generated from the monitoring stream function for the drift analysis
         "offline_storage_path": "model-endpoints/{kind}",
         "parquet_batching_max_events": 10_000,
-        "parquet_batching_timeout_secs": timedelta(minutes=1).total_seconds(),
+        "parquet_batching_timeout_secs": 30,
         "model_endpoint_creation_check_period": 15,
         # TSDB (TimescaleDB) configuration
         "tsdb": {
@@ -992,10 +1010,12 @@ default_config = {
         # Name of the K8s secret holding OTLP auth headers (one key per header,
         # e.g. Authorization, X-Scope-OrgID). Blank = no auth headers.
         "headers_secret_name": "",
-        # ML-16 — chief-only periodic system-size counters.
         "system_counters": {
-            # Seconds between collection cycles. Default once per day; minimum 3600.
-            "interval": 86400,
+            # PeriodicExportingMetricReader interval for inventory gauges, expressed
+            # as a multiple of ``monitoring.projects.summaries.cache_interval`` so
+            # the exporter samples a freshly-refreshed gauge every Nth cache cycle.
+            # Default 1 × 60s = 60s = emit on every cache cycle. Must be >= 1.
+            "export_interval_multiplier": 1,
         },
         # ML-12344 — model monitoring application Results/Metrics OTel export.
         "model_monitoring": {
@@ -1004,6 +1024,7 @@ default_config = {
         },
     },
     "system_id": "",
+    "system_id_len": 12,
 }
 _is_running_as_api = None
 
@@ -1175,6 +1196,11 @@ class Config:
     def get_default_function_pod_labels(self) -> dict:
         return self.decode_base64_config_and_load_to_object(
             "default_function_pod_labels", dict
+        )
+
+    def get_builder_pod_labels(self) -> dict:
+        return self.decode_base64_config_and_load_to_object(
+            "httpdb.builder.pod_labels", dict
         )
 
     def get_preemptible_node_selector(self) -> dict:
@@ -1632,6 +1658,8 @@ def _validate_config(config):
     # Fail-fast on malformed base64/JSON in default_function_pod_labels so the
     # API pod doesn't start with config that would crash every function deploy.
     config.get_default_function_pod_labels()
+    # Fail-fast on malformed base64/JSON in the builder pod labels for the same reason.
+    config.get_builder_pod_labels()
 
 
 def _verify_gpu_requests_and_limits(

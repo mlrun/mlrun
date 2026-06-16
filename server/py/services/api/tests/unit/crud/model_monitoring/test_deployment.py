@@ -23,7 +23,6 @@ import mlrun.common.schemas
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.runtimes
 from mlrun.datastore.datastore_profile import (
-    DatastoreProfileKafkaSource,
     DatastoreProfileKafkaStream,
     DatastoreProfilePostgreSQL,
     DatastoreProfileV3io,
@@ -206,7 +205,6 @@ def test_apply_and_create_kafka_source(
         function=fn,
         function_name="test-confluent-trigger",
         stream_args=mlrun.mlconf.model_endpoint_monitoring.serving_stream,
-        ignore_stream_already_exists_failure=True,
     )
 
     create_topics_mock.assert_called_once_with(
@@ -250,7 +248,6 @@ def test_kafka_source_no_hpa_target_when_not_configured(
             function=fn,
             function_name="model-monitoring-stream",
             stream_args=stream_args,
-            ignore_stream_already_exists_failure=True,
         )
     finally:
         stream_args.kafka.target_cpu = original_target_cpu
@@ -337,6 +334,7 @@ class TestBuildAndInjectMonitoringEnvVars:
         env = {e["name"]: e["value"] for e in fn["spec"]["env"]}
         assert env["MODEL_MONITORING_URL"] == "http://stream:8080"
         assert env["MODEL_ENDPOINT_UID"] == "uid-111"
+        assert env["MODEL_ENDPOINT_NAME"] == "ep1"
         assert "MODEL_ENDPOINTS_MAP" not in env
 
     def test_multiple_endpoints_injects_map(self):
@@ -360,6 +358,7 @@ class TestBuildAndInjectMonitoringEnvVars:
         )
         env = {e["name"]: e["value"] for e in fn["spec"]["env"]}
         assert env["MODEL_ENDPOINT_UID"] == "uid-1"
+        assert env["MODEL_ENDPOINT_NAME"] == "ep1"
         assert "MODEL_MONITORING_URL" not in env
         ep_map = json.loads(env["MODEL_ENDPOINTS_MAP"])
         assert ep_map == {"ep1": "uid-1", "ep2": "uid-2"}
@@ -379,6 +378,7 @@ class TestBuildAndInjectMonitoringEnvVars:
         names = {e["name"] for e in fn["spec"]["env"]}
         assert "MODEL_MONITORING_URL" not in names
         assert "MODEL_ENDPOINT_UID" in names
+        assert "MODEL_ENDPOINT_NAME" in names
 
     def test_empty_instructions_raises(self):
         dep = mm_dep.MonitoringDeployment(project="proj")
@@ -448,6 +448,7 @@ class TestCreateModelEndpointsInstructionsForNuclioApp:
                 db_session=Mock(spec=mm_dep.sqlalchemy.orm.Session),
                 function=fn_dict,
                 function_name="my-fn",
+                function_tag="latest",
                 project="proj",
             )
 
@@ -472,6 +473,7 @@ class TestCreateModelEndpointsInstructionsForNuclioApp:
                 db_session=Mock(spec=mm_dep.sqlalchemy.orm.Session),
                 function=fn_dict,
                 function_name="my-fn",
+                function_tag="latest",
                 project="proj",
             )
 
@@ -503,12 +505,17 @@ class TestCreateModelEndpointsInstructionsForNuclioApp:
                 db_session=Mock(spec=mm_dep.sqlalchemy.orm.Session),
                 function=fn_dict,
                 function_name="my-fn",
+                function_tag="latest",
                 project="proj",
             )
 
         assert len(instructions) == 1
         ep, _ = instructions[0]
         assert ep.metadata.name == "ep-obj"
+        # Instruction has function_name=None/function_tag=None; the deployment-supplied
+        # values are what get stored on the created ModelEndpoint (ML-12727).
+        assert ep.spec.function_name == "my-fn"
+        assert ep.spec.function_tag == "latest"
 
     @pytest.mark.asyncio
     async def test_stream_url_none_logs_warning(self):
@@ -529,6 +536,7 @@ class TestCreateModelEndpointsInstructionsForNuclioApp:
                 db_session=Mock(spec=mm_dep.sqlalchemy.orm.Session),
                 function=fn_dict,
                 function_name="my-fn",
+                function_tag="latest",
                 project="proj",
             )
 
@@ -549,6 +557,7 @@ class TestCreateModelEndpointsInstructionsForNuclioApp:
                 db_session=Mock(spec=mm_dep.sqlalchemy.orm.Session),
                 function=fn_dict,
                 function_name="my-fn",
+                function_tag="latest",
                 project="proj",
             )
 
@@ -587,7 +596,6 @@ def test_kafka_consumer_group_is_per_function_with_profile_prefix(
         function=fn,
         function_name="model-monitoring-stream",
         stream_args=mlrun.mlconf.model_endpoint_monitoring.serving_stream,
-        ignore_stream_already_exists_failure=True,
     )
 
     topic = _kafka_trigger_topic(fn)
@@ -617,7 +625,6 @@ def test_kafka_consumer_group_defaults_to_serving_when_profile_group_is_none(
         function=fn,
         function_name="model-monitoring-writer",
         stream_args=mlrun.mlconf.model_endpoint_monitoring.writer_stream_args,
-        ignore_stream_already_exists_failure=True,
     )
 
     topic = _kafka_trigger_topic(fn)
@@ -655,7 +662,6 @@ def test_kafka_migration_invoked_on_topic_already_exists(
         function=fn,
         function_name="model-monitoring-stream",
         stream_args=mlrun.mlconf.model_endpoint_monitoring.serving_stream,
-        ignore_stream_already_exists_failure=True,
     )
 
     migrate_offsets_mock.assert_called_once()
@@ -692,7 +698,6 @@ def test_kafka_migration_invoked_for_all_mm_functions(
         function=fn,
         function_name="model-monitoring-writer",
         stream_args=mlrun.mlconf.model_endpoint_monitoring.writer_stream_args,
-        ignore_stream_already_exists_failure=True,
     )
 
     migrate_offsets_mock.assert_called_once()
@@ -726,7 +731,6 @@ def test_kafka_migration_raises_on_kafka_failure(
                 function=fn,
                 function_name="model-monitoring-stream",
                 stream_args=mlrun.mlconf.model_endpoint_monitoring.serving_stream,
-                ignore_stream_already_exists_failure=True,
             )
 
 
@@ -734,14 +738,20 @@ def test_kafka_migration_raises_on_kafka_failure(
     "mlrun.datastore.sources.KafkaSource.create_topics",
     side_effect=kafka.errors.TopicAlreadyExistsError(),
 )
-def test_kafka_migration_not_invoked_when_ignore_flag_false(
+@patch(
+    "services.api.crud.model_monitoring.deployment.MonitoringDeployment"
+    "._migrate_kafka_consumer_group_offsets",
+)
+def test_controller_tolerates_existing_kafka_topic(
+    migrate_offsets_mock: Mock,
     create_topics_mock: Mock,
     monitoring_deployment: mm_dep.MonitoringDeployment,
 ) -> None:
-    """When ``ignore_stream_already_exists_failure=False`` (e.g. controller
-    deploy without overwrite), ``TopicAlreadyExistsError`` must propagate
-    as it always has — migration logic is only triggered on the tolerant
-    branch."""
+    """The controller must tolerate an existing Kafka topic (it
+    persists across deploys, so re-enabling monitoring hits it) instead of
+    failing with ``TopicAlreadyExistsError``. On this upgrade path it still
+    runs the consumer-group offset migration, so the controller resumes from
+    its committed offset rather than replaying the topic."""
     kafka_profile = DatastoreProfileKafkaStream(
         name="test-kafka-profile",
         brokers=["localhost:9092"],
@@ -749,18 +759,14 @@ def test_kafka_migration_not_invoked_when_ignore_flag_false(
     )
 
     fn = mlrun.runtimes.ServingRuntime()
-    with patch.object(
-        monitoring_deployment, "_migrate_kafka_consumer_group_offsets"
-    ) as migrate_offsets_mock:
-        with pytest.raises(kafka.errors.TopicAlreadyExistsError):
-            monitoring_deployment._apply_and_create_kafka_source(
-                kafka_profile=kafka_profile,
-                function=fn,
-                function_name="model-monitoring-controller",
-                stream_args=mlrun.mlconf.model_endpoint_monitoring.controller_stream_args,
-                ignore_stream_already_exists_failure=False,
-            )
-    migrate_offsets_mock.assert_not_called()
+    monitoring_deployment._apply_and_create_kafka_source(
+        kafka_profile=kafka_profile,
+        function=fn,
+        function_name="model-monitoring-controller",
+        stream_args=mlrun.mlconf.model_endpoint_monitoring.controller_stream_args,
+    )
+
+    migrate_offsets_mock.assert_called_once()
 
 
 # --- ML-12543: project.spec.model_monitoring persistence + OTel validation -----
@@ -895,18 +901,6 @@ class TestResolveStreamTarget:
     @staticmethod
     def test_kafka_stream_resolves_to_kafka() -> None:
         profile = DatastoreProfileKafkaStream(
-            name="p", brokers=["broker:9092"], topics=[]
-        )
-        assert (
-            mm_dep.MonitoringDeployment._resolve_stream_target(profile)
-            == mm_constants.StreamTarget.KAFKA
-        )
-
-    @staticmethod
-    def test_kafka_source_subclass_resolves_to_kafka() -> None:
-        # DatastoreProfileKafkaSource subclasses DatastoreProfileKafkaStream so
-        # the isinstance check still classifies it as KAFKA.
-        profile = DatastoreProfileKafkaSource(
             name="p", brokers=["broker:9092"], topics=[]
         )
         assert (

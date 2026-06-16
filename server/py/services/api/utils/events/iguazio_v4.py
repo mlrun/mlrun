@@ -30,53 +30,87 @@ DB_MIGRATION_COMPLETED = "MLRun.DB.Migration.Completed"
 DB_MIGRATION_FAILED = "MLRun.DB.Migration.Failed"
 DB_CONNECTION_FAILED = "MLRun.DB.Connection.Failed"
 
-EVENT_KIND = "system"
-EVENT_CLASS = "DB"
+LOG_COLLECTOR_FAILED = "MLRun.LogCollector.Failed"
+
+PROJECT_CREATION_SUCCEEDED = "MLRun.Project.Creation.Succeeded"
+PROJECT_CREATION_FAILED = "MLRun.Project.Creation.Failed"
+PROJECT_DELETION_SUCCEEDED = "MLRun.Project.Deletion.Succeeded"
+PROJECT_DELETION_FAILED = "MLRun.Project.Deletion.Failed"
+
 ERROR_DETAIL_LIMIT = 1024
-ERROR_DESCRIPTION_LIMIT = 200
 TRUNCATION_SUFFIX = "...[truncated]"
 
 DB_MIGRATION_EVENTS: dict[
     mlrun.common.schemas.MigrationEventActions,
-    tuple[str, iguazio.schemas.Severity, str],
+    tuple[str, str],
 ] = {
     mlrun.common.schemas.MigrationEventActions.required: (
         DB_MIGRATION_REQUIRED,
-        iguazio.schemas.Severity.CRITICAL,
         "MLRun database migration required, functionality may be impaired",
     ),
     mlrun.common.schemas.MigrationEventActions.started: (
         DB_MIGRATION_STARTED,
-        iguazio.schemas.Severity.INFO,
         "MLRun database migration started",
     ),
     mlrun.common.schemas.MigrationEventActions.completed: (
         DB_MIGRATION_COMPLETED,
-        iguazio.schemas.Severity.INFO,
         "MLRun database migration completed successfully",
     ),
     mlrun.common.schemas.MigrationEventActions.failed: (
         DB_MIGRATION_FAILED,
-        iguazio.schemas.Severity.CRITICAL,
         "MLRun database migration failed, functionality may be impaired",
     ),
 }
 
 DB_CONNECTION_EVENTS: dict[
     mlrun.common.schemas.DBConnectionEventActions,
-    tuple[str, iguazio.schemas.Severity, str],
+    tuple[str, str],
 ] = {
     mlrun.common.schemas.DBConnectionEventActions.failed: (
         DB_CONNECTION_FAILED,
-        iguazio.schemas.Severity.CRITICAL,
         "MLRun cannot connect to its database",
+    ),
+}
+
+# Description text is kept identical to the orca catalog entry for
+# MLRun.LogCollector.Failed so the canonical event description stays in lockstep
+# across producer and catalog; per-operation context is attached to ``details``.
+LOG_COLLECTOR_EVENTS: dict[
+    mlrun.common.schemas.LogCollectorEventActions,
+    tuple[str, str],
+] = {
+    mlrun.common.schemas.LogCollectorEventActions.failed: (
+        LOG_COLLECTOR_FAILED,
+        "MLRun log collector failed to retrieve logs",
+    ),
+}
+
+PROJECT_LIFECYCLE_EVENTS: dict[
+    mlrun.common.schemas.ProjectLifecycleEventActions,
+    tuple[str, str],
+] = {
+    mlrun.common.schemas.ProjectLifecycleEventActions.creation_succeeded: (
+        PROJECT_CREATION_SUCCEEDED,
+        "Project was successfully created",
+    ),
+    mlrun.common.schemas.ProjectLifecycleEventActions.creation_failed: (
+        PROJECT_CREATION_FAILED,
+        "Project creation failed",
+    ),
+    mlrun.common.schemas.ProjectLifecycleEventActions.deletion_succeeded: (
+        PROJECT_DELETION_SUCCEEDED,
+        "Project was successfully deleted",
+    ),
+    mlrun.common.schemas.ProjectLifecycleEventActions.deletion_failed: (
+        PROJECT_DELETION_FAILED,
+        "Project deletion failed",
     ),
 }
 
 
 class Client(base_events.BaseEventClient):
     """
-    Events client for Iguazio v4. Publishes events through the Iguazio (orca)
+    Events client for Iguazio v4. Publishes events through  the
     SDK using catalog event configs.
     """
 
@@ -121,7 +155,7 @@ class Client(base_events.BaseEventClient):
         versions: dict | None = None,
     ) -> iguazio.schemas.EventActivationSpec:
         try:
-            config_name, severity, description = DB_MIGRATION_EVENTS[action]
+            config_name, description = DB_MIGRATION_EVENTS[action]
         except KeyError as exc:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Unsupported DB migration action {action}"
@@ -138,14 +172,10 @@ class Client(base_events.BaseEventClient):
             details["duration_seconds"] = round(float(duration_seconds), 3)
 
         if action == mlrun.common.schemas.MigrationEventActions.failed:
-            description = self._apply_error(details, description, error)
+            self._record_error(details, error)
 
         return iguazio.schemas.EventActivationSpec(
             config_name=config_name,
-            source="",
-            kind=EVENT_KIND,
-            severity=severity,
-            class_=EVENT_CLASS,
             entity_name=self._entity_name,
             description=description,
             details=details,
@@ -160,7 +190,7 @@ class Client(base_events.BaseEventClient):
         dialect: str | None = None,
     ) -> iguazio.schemas.EventActivationSpec:
         try:
-            config_name, severity, description = DB_CONNECTION_EVENTS[action]
+            config_name, description = DB_CONNECTION_EVENTS[action]
         except KeyError as exc:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Unsupported DB connection action {action}"
@@ -174,14 +204,70 @@ class Client(base_events.BaseEventClient):
         if dialect:
             details["dialect"] = dialect
 
-        description = self._apply_error(details, description, error)
+        self._record_error(details, error)
 
         return iguazio.schemas.EventActivationSpec(
             config_name=config_name,
-            source="",
-            kind=EVENT_KIND,
-            severity=severity,
-            class_=EVENT_CLASS,
+            entity_name=self._entity_name,
+            description=description,
+            details=details,
+        )
+
+    def generate_log_collector_event(
+        self,
+        action: mlrun.common.schemas.LogCollectorEventActions,
+        error: BaseException | str | None = None,
+        run_uid: str | None = None,
+        project: str | None = None,
+    ) -> iguazio.schemas.EventActivationSpec:
+        try:
+            config_name, description = LOG_COLLECTOR_EVENTS[action]
+        except KeyError as exc:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Unsupported log collector action {action}"
+            ) from exc
+
+        details: dict = {}
+        if run_uid:
+            details["run_uid"] = run_uid
+        if project:
+            details["project"] = project
+
+        self._record_error(details, error)
+
+        return iguazio.schemas.EventActivationSpec(
+            config_name=config_name,
+            entity_name=self._entity_name,
+            description=description,
+            details=details,
+        )
+
+    def generate_project_lifecycle_event(
+        self,
+        action: mlrun.common.schemas.ProjectLifecycleEventActions,
+        project_name: str,
+        actor: str | None = None,
+        error: BaseException | str | None = None,
+    ) -> iguazio.schemas.EventActivationSpec:
+        try:
+            config_name, description = PROJECT_LIFECYCLE_EVENTS[action]
+        except KeyError as exc:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Unsupported project lifecycle action {action}"
+            ) from exc
+
+        details: dict = {"project_name": project_name}
+        if actor:
+            details["actor"] = actor
+
+        if action in (
+            mlrun.common.schemas.ProjectLifecycleEventActions.creation_failed,
+            mlrun.common.schemas.ProjectLifecycleEventActions.deletion_failed,
+        ):
+            self._record_error(details, error)
+
+        return iguazio.schemas.EventActivationSpec(
+            config_name=config_name,
             entity_name=self._entity_name,
             description=description,
             details=details,
@@ -194,9 +280,7 @@ class Client(base_events.BaseEventClient):
         action: mlrun.common.schemas.AuthSecretEventActions,
     ):
         # TODO: map v3 auth-secret events onto the v4 catalog (separate change).
-        raise NotImplementedError(
-            "Auth secret events are not yet supported on Iguazio v4"
-        )
+        pass
 
     def generate_project_secret_event(
         self,
@@ -206,9 +290,7 @@ class Client(base_events.BaseEventClient):
         action: mlrun.common.schemas.SecretEventActions = mlrun.common.schemas.SecretEventActions.created,
     ):
         # TODO: map v3 project-secret events onto the v4 catalog (separate change).
-        raise NotImplementedError(
-            "Project secret events are not yet supported on Iguazio v4"
-        )
+        pass
 
     @staticmethod
     def _resolve_entity_name() -> str:
@@ -228,20 +310,21 @@ class Client(base_events.BaseEventClient):
         return value[: limit - len(TRUNCATION_SUFFIX)] + TRUNCATION_SUFFIX
 
     @classmethod
-    def _apply_error(
+    def _record_error(
         cls,
         details: dict,
-        description: str,
         error: BaseException | str | None,
-    ) -> str:
+    ) -> None:
         """
-        Append truncated error context to ``details`` and ``description``.
-        Returns the (possibly extended) description.
+        Record truncated error context in ``details``.
+
+        The event ``description`` is intentionally left untouched: it must stay
+        the generic, per-config catalog text (the events service enriches it
+        from the catalog), so per-instance specifics belong only in ``details``.
         """
         if not error:
-            return description
+            return
         error_str = error if isinstance(error, str) else mlrun.errors.err_to_str(error)
         details["error"] = cls._truncate(error_str, ERROR_DETAIL_LIMIT)
         if not isinstance(error, str):
             details["error_type"] = type(error).__name__
-        return f"{description}: {cls._truncate(error_str, ERROR_DESCRIPTION_LIMIT)}"

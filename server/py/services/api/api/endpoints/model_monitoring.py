@@ -144,13 +144,6 @@ def enable_model_monitoring(
     base_period: int = 10,
     image: str | None = None,
     deploy_histogram_data_drift_app: bool = True,
-    fetch_credentials_from_sys_config: bool = Query(
-        False,
-        deprecated=True,
-        description=(
-            "`fetch_credentials_from_sys_config` is deprecated as of 1.10.0 and will be removed in 1.12.0."
-        ),
-    ),
     lag_threshold: int | None = Query(
         None, description="Lag threshold in minutes for writer lag detection."
     ),
@@ -183,7 +176,6 @@ def enable_model_monitoring(
                                               Defaults to
                                               ``mlrun.mlconf.function_defaults.image_by_kind.nuclio``.
     :param deploy_histogram_data_drift_app:   If true, deploy the default histogram-based data drift application.
-    :param fetch_credentials_from_sys_config: Deprecated. If true, fetch the credentials from the system configuration.
     :param lag_threshold:                     Lag threshold in minutes for writer lag detection.
     :param lag_event_cooldown:                Cooldown in minutes between consecutive lag events per worker.
     :param otlp_enabled:                      If true, export monitoring application results/metrics via OTel.
@@ -194,7 +186,6 @@ def enable_model_monitoring(
         image=image,
         base_period=base_period,
         deploy_histogram_data_drift_app=deploy_histogram_data_drift_app,
-        fetch_credentials_from_sys_config=fetch_credentials_from_sys_config,
         lag_threshold=lag_threshold,
         lag_event_cooldown=lag_event_cooldown,
         otlp_enabled=otlp_enabled,
@@ -625,17 +616,19 @@ async def get_model_monitoring_url(
     """
     Get the internal cluster HTTP URL of the model monitoring stream pod for the given project.
 
-    Verifies that the stream function is deployed and in a ready state, then returns
-    its internal_invocation_url. The returned URL is only reachable from within the
-    Kubernetes cluster and is intended for use by other pods/functions running in the
-    same cluster (e.g. nuclio functions sending prediction data to the stream pod).
+    Returns the stream pod's internal_invocation_url. The returned URL is only reachable
+    from within the Kubernetes cluster and is intended for use by other pods/functions
+    running in the same cluster (e.g. nuclio functions sending prediction data to the
+    stream pod). A non-ready stream pod still returns its URL (with a server-side warning)
+    — it may not be reachable until the pod becomes ready. A stream pod in terminal error
+    state raises so callers do not depend on a broken stream.
 
     :param project:    The name of the project.
     :param auth_info:  The auth info of the request.
     :param db_session: A session that manages the current dialog with the database.
     :return: Internal cluster HTTP URL of the stream pod, or None if no HTTP trigger is configured.
     :raises MLRunNotFoundError: if the stream function is not deployed.
-    :raises MLRunPreconditionFailedError: if the stream function is not in ready state.
+    :raises MLRunPreconditionFailedError: if the stream function is in terminal error state.
     """
     await framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
         project_name=project,

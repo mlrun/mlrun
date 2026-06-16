@@ -445,3 +445,87 @@ def test_client_spec_default_runtime_image_by_kind_enrichment(
     assert (
         mlrun.mlconf.function_defaults.image_by_kind.to_dict() == expected_image_by_kind
     )
+
+
+def test_client_spec_telemetry_sync_overrides_local(requests_mock):
+    """Operator-set telemetry values in /client-spec overwrite local mlconf.
+    Critical: bool False and the False / 0 edge cases must not be skipped
+    as if they were falsy (regression guard on the `is not None` check).
+    """
+    # Set local mlconf to something distinguishable, then verify it gets
+    # overwritten by the server's values.
+    mlrun.mlconf.telemetry.enabled = False
+    mlrun.mlconf.telemetry.otlp_endpoint = ""
+    mlrun.mlconf.telemetry.insecure = True
+    mlrun.mlconf.telemetry.model_monitoring.interval = 60
+
+    requests_mock.get(
+        "https://fake-url/api/v1/client-spec",
+        json={
+            "version": "v1.1.0",
+            "telemetry_enabled": True,
+            "telemetry_otlp_endpoint": (
+                "otel-collector.iguazio.svc.cluster.local:4317"
+            ),
+            # False (not the default True) must propagate, not be skipped
+            # as falsy.
+            "telemetry_insecure": False,
+            # Non-default integer.
+            "telemetry_model_monitoring_interval": 30,
+        },
+    )
+
+    db = mlrun.db.httpdb.HTTPRunDB("https://fake-url")
+    db.connect()
+
+    assert mlrun.mlconf.telemetry.enabled is True
+    assert (
+        mlrun.mlconf.telemetry.otlp_endpoint
+        == "otel-collector.iguazio.svc.cluster.local:4317"
+    )
+    assert mlrun.mlconf.telemetry.insecure is False
+    assert mlrun.mlconf.telemetry.model_monitoring.interval == 30
+
+    # Restore defaults so we don't leak into other tests.
+    mlrun.mlconf.telemetry.enabled = False
+    mlrun.mlconf.telemetry.otlp_endpoint = ""
+    mlrun.mlconf.telemetry.insecure = True
+    mlrun.mlconf.telemetry.model_monitoring.interval = 60
+
+
+def test_client_spec_telemetry_sync_keeps_local_when_server_omits(requests_mock):
+    """When the operator hasn't overridden telemetry config the server emits
+    None for every telemetry field — local mlconf must be preserved (e.g. an
+    env-var-set MLRUN_TELEMETRY__ENABLED=true on the dev's machine).
+    """
+    mlrun.mlconf.telemetry.enabled = True
+    mlrun.mlconf.telemetry.otlp_endpoint = "https://local-collector:4317"
+    mlrun.mlconf.telemetry.insecure = False
+    mlrun.mlconf.telemetry.model_monitoring.interval = 15
+
+    requests_mock.get(
+        "https://fake-url/api/v1/client-spec",
+        json={
+            "version": "v1.1.0",
+            # Server emits None / omits the telemetry_* fields entirely.
+            "telemetry_enabled": None,
+            "telemetry_otlp_endpoint": None,
+            "telemetry_insecure": None,
+            "telemetry_model_monitoring_interval": None,
+        },
+    )
+
+    db = mlrun.db.httpdb.HTTPRunDB("https://fake-url")
+    db.connect()
+
+    # Local values preserved.
+    assert mlrun.mlconf.telemetry.enabled is True
+    assert mlrun.mlconf.telemetry.otlp_endpoint == "https://local-collector:4317"
+    assert mlrun.mlconf.telemetry.insecure is False
+    assert mlrun.mlconf.telemetry.model_monitoring.interval == 15
+
+    # Restore defaults.
+    mlrun.mlconf.telemetry.enabled = False
+    mlrun.mlconf.telemetry.otlp_endpoint = ""
+    mlrun.mlconf.telemetry.insecure = True
+    mlrun.mlconf.telemetry.model_monitoring.interval = 60

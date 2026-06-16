@@ -64,6 +64,21 @@ on:
           type: string
           required: false
           default: 'false'
+        pr_base_sha:
+          description: 'Pinned HEAD SHA of the PR base branch. If empty, computed internally.'
+          type: string
+          required: false
+          default: ''
+        pr_base_ref:
+          description: 'Base branch name of the PR. If empty, computed internally.'
+          type: string
+          required: false
+          default: ''
+        base_commits_since_sync:
+          description: 'Number of base-branch commits since the PR last synced with it. If empty, computed internally.'
+          type: string
+          required: false
+          default: ''
       outputs:
         pr_base_sha:
           description: 'Pinned SHA of the base branch captured at workflow start'
@@ -200,28 +215,38 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          PR_JSON=$(curl -sS \
-            -H "Authorization: token ${GITHUB_TOKEN}" \
-            -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/repos/${{ github.repository }}/pulls/${{ inputs.pr_number }}")
-          BASE_REF=$(echo "$PR_JSON" | jq -r '.base.ref')
-          BASE_SHA=$(git ls-remote origin "refs/heads/${BASE_REF}" | cut -f1)
+          # If the caller passed all three base-info inputs, use them verbatim so
+          # everything downstream (merge step, comment) sees the same values.
+          # Otherwise compute internally.
+          if [ -n "${{ inputs.pr_base_sha }}" ] && [ -n "${{ inputs.pr_base_ref }}" ] && [ -n "${{ inputs.base_commits_since_sync }}" ]; then
+            BASE_REF="${{ inputs.pr_base_ref }}"
+            BASE_SHA="${{ inputs.pr_base_sha }}"
+            BASE_COMMITS_SINCE_SYNC="${{ inputs.base_commits_since_sync }}"
+            echo "Using base info from caller"
+          else
+            PR_JSON=$(curl -sS \
+              -H "Authorization: token ${GITHUB_TOKEN}" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/${{ github.repository }}/pulls/${{ inputs.pr_number }}")
+            BASE_REF=$(echo "$PR_JSON" | jq -r '.base.ref')
+            BASE_SHA=$(git ls-remote origin "refs/heads/${BASE_REF}" | cut -f1)
 
-          # Count how many base-branch commits have landed since the PR's last sync
-          # (where "sync" = the merge-base with the base branch). Use the compare API
-          # to find the real merge-base, since .base.sha from the PR API is just
-          # GitHub's cached base branch HEAD (often stale).
-          PR_HEAD_SHA=$(echo "$PR_JSON" | jq -r '.head.sha')
-          MERGE_BASE_SHA=$(curl -sS \
-            -H "Authorization: token ${GITHUB_TOKEN}" \
-            -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/repos/${{ github.repository }}/compare/${BASE_REF}...${PR_HEAD_SHA}" \
-            | jq -r '.merge_base_commit.sha')
-          BASE_COMMITS_SINCE_SYNC=$(curl -sS \
-            -H "Authorization: token ${GITHUB_TOKEN}" \
-            -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/repos/${{ github.repository }}/compare/${MERGE_BASE_SHA}...${BASE_SHA}" \
-            | jq -r '.ahead_by // 0')
+            # Count how many base-branch commits have landed since the PR's last sync
+            # (where "sync" = the merge-base with the base branch). Use the compare API
+            # to find the real merge-base, since .base.sha from the PR API is just
+            # GitHub's cached base branch HEAD (often stale).
+            PR_HEAD_SHA=$(echo "$PR_JSON" | jq -r '.head.sha')
+            MERGE_BASE_SHA=$(curl -sS \
+              -H "Authorization: token ${GITHUB_TOKEN}" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/${{ github.repository }}/compare/${BASE_REF}...${PR_HEAD_SHA}" \
+              | jq -r '.merge_base_commit.sha')
+            BASE_COMMITS_SINCE_SYNC=$(curl -sS \
+              -H "Authorization: token ${GITHUB_TOKEN}" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/${{ github.repository }}/compare/${MERGE_BASE_SHA}...${BASE_SHA}" \
+              | jq -r '.ahead_by // 0')
+          fi
 
           echo "pr_base_ref=${BASE_REF}" >> $GITHUB_OUTPUT
           echo "pr_base_sha=${BASE_SHA}" >> $GITHUB_OUTPUT
@@ -285,7 +310,7 @@ jobs:
         echo "Merged ${BASE_REF} @ ${BASE_SHA} into PR"
 
     - name: Install uv
-      uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+      uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39
       with:
         enable-cache: true
         cache-dependency-glob: "**/*requirements*.txt"
@@ -302,7 +327,11 @@ jobs:
         sudo chmod +x /usr/local/bin/yq
         uv venv venv --seed --clear
         source venv/bin/activate
-        make install-requirements install-complete-requirements install-automation-requirements
+        # Constrain installs to the locked requirements so dependency releases can't silently
+        # drift into the smoke environment (this job installs from the requirement files, not
+        # the test docker images).
+        make install-requirements install-complete-requirements install-automation-requirements \
+          MLRUN_PIP_CONSTRAINTS_FILE=dockerfiles/test-system/locked-requirements.txt
 
         # Pin cffi below 2.0.0 to avoid wheels without _cffi_backend on the runner
         # python -m pip install --upgrade --force-reinstall "cffi<2.0.0" cryptography bcrypt paramiko orjson
@@ -361,7 +390,7 @@ jobs:
         kubectl get nodes -o json | jq -r '.items[].spec.taints' || echo "No taints found"
 
     - name: Setup tmate session
-      uses: mxschmitt/action-tmate@c0afd6f790e3a5564914980036ebf83216678101 # 3.23
+      uses: mxschmitt/action-tmate@35b54afac29c97fb54faba5b513f8fbd1882f113 # 3.24
       if: ${{ (inputs.debug_enabled || env.DEFAULT_DEBUG_ENABLED) == 'true' }}
       with:
 

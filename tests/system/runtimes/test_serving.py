@@ -14,12 +14,14 @@
 import time
 from http import HTTPMethod
 
+import httpx
 import pytest
 
 import mlrun
 import tests.system.base
 from mlrun.common.schemas.serving import APIHandlerAction
-from mlrun.runtimes.nuclio.serving import APIHandlerConfig, BodyMappings
+from mlrun.serving.endpoint_mapping import APIHandlerConfig, BodyMappings
+from mlrun.serving.openai_mappings import OpenAIEndpoint
 
 
 def assert_endpoint_configs_equal(
@@ -300,8 +302,8 @@ class TestServingAPIHandler(tests.system.base.TestMLRunSystem):
 
         self._logger.info("Body map inheritance and HTTP method isolation test passed")
 
-    def test_api_handler_mandatory_field_missing_returns_400(self) -> None:
-        """Test that a missing mandatory field returns HTTP 400."""
+    def test_api_handler_mandatory_field_missing_returns_422(self) -> None:
+        """Test that a missing mandatory field returns HTTP 422."""
         self._logger.info("Testing mandatory field enforcement")
 
         bm = BodyMappings()
@@ -327,8 +329,8 @@ class TestServingAPIHandler(tests.system.base.TestMLRunSystem):
         self._logger.debug("Deploying function for mandatory field test")
         function.deploy()
 
-        # Missing mandatory field → expect 400
-        with pytest.raises(RuntimeError, match="400"):
+        # Missing mandatory field → expect 422
+        with pytest.raises(RuntimeError, match="422"):
             function.invoke(
                 path="/api/v1/predict",
                 method="POST",
@@ -432,6 +434,9 @@ class TestServingAPIHandler(tests.system.base.TestMLRunSystem):
         assert response["matched_path"] == "/api/wildcard/v1/data", (
             "mlrun_request_path should reflect the exact request path"
         )
+        assert response["matched_method"] == "POST", (
+            "mlrun_request_method should reflect the request HTTP method"
+        )
 
         # Verify a different nested path also routes correctly
         self._logger.debug("Invoking /api/wildcard/users/42")
@@ -443,5 +448,306 @@ class TestServingAPIHandler(tests.system.base.TestMLRunSystem):
         assert response2["matched_path"] == "/api/wildcard/users/42", (
             "mlrun_request_path should reflect the request path for a different sub-path"
         )
+        assert response2["matched_method"] == "POST", (
+            "mlrun_request_method should reflect the request HTTP method"
+        )
 
         self._logger.info("Wildcard path API handler test passed")
+
+    def test_output_body_mapping(self) -> None:
+        """Test output_body_mappings reshapes the graph response on a live deployment.
+
+        Input:  input_body_mappings extracts $.model, $.temperature, $.debug_flag from request.
+        Graph:  echo_kwargs returns them as-is: {"input_model", "input_temperature", "input_debug_flag"}.
+        Output: output_body_mappings selects and renames only model and temperature.
+                $.input_model       → output_model       (rename)
+                $.input_temperature → output_temperature  (rename)
+                $.nonexistent       → output_extra        (optional — not in response → None)
+                input_debug_flag is intentionally not mapped — verifies output drops unmapped fields.
+        """
+        self._logger.info("Testing output body mapping on live deployment")
+
+        # Input: extract three fields; input_debug_flag will NOT appear in the output mapping,
+        # proving that output_body_mappings fully controls what the caller receives.
+        in_bm = BodyMappings()
+        in_bm.add_mapping("$.model", destination_path="input_model")
+        in_bm.add_mapping("$.temperature", destination_path="input_temperature")
+        in_bm.add_mapping("$.debug_flag", destination_path="input_debug_flag")
+
+        # Output: reshape the graph response — only declare what the caller should receive.
+        # input_debug_flag is deliberately omitted here to show unmapped fields are dropped.
+        out_bm = BodyMappings()
+        out_bm.add_mapping("$.input_model", destination_path="output_model")
+        out_bm.add_mapping("$.input_temperature", destination_path="output_temperature")
+        out_bm.add_mapping(
+            "$.nonexistent", destination_path="output_extra"
+        )  # optional — will be None
+
+        config = APIHandlerConfig()
+        config.add_endpoint_handler(
+            "/predict",
+            HTTPMethod.POST,
+            APIHandlerAction.ALLOW,
+            "Predict with output body mapping",
+            input_body_mappings=in_bm,
+            output_body_mappings=out_bm,
+        )
+
+        function = self._create_serving_function(
+            name="output-body-map-handler",
+            api_config=config,
+            func=str(self.assets_path / "body_map_handler.py"),
+        )
+
+        graph = function.set_topology("flow", engine="sync", exist_ok=True)
+        graph.to(name="echo", handler="echo_kwargs").respond()
+
+        self._logger.debug("Deploying serving function with output body mapping")
+        function.deploy()
+
+        self._logger.debug("Invoking /predict")
+        response = function.invoke(
+            path="/predict",
+            body={"model": "gpt-4", "temperature": 0.7, "debug_flag": True},
+        )
+
+        assert response == {
+            "output_model": "gpt-4",
+            "output_temperature": 0.7,
+            "output_extra": None,
+            # input_debug_flag is not here — output mapping dropped it
+        }
+
+        self._logger.info("Output body mapping test passed")
+
+    def test_output_body_mapping_mandatory_missing_returns_422(self) -> None:
+        """Missing mandatory output field raises HTTP 422."""
+        out_bm = BodyMappings()
+        out_bm.add_mapping(
+            "$.nonexistent", destination_path="output_result", mandatory=True
+        )
+
+        config = APIHandlerConfig()
+        config.add_endpoint_handler(
+            "/predict",
+            HTTPMethod.POST,
+            APIHandlerAction.ALLOW,
+            output_body_mappings=out_bm,
+        )
+
+        function = self._create_serving_function(
+            name="output-mandatory-handler",
+            api_config=config,
+            func=str(self.assets_path / "body_map_handler.py"),
+        )
+        graph = function.set_topology("flow", engine="sync", exist_ok=True)
+        graph.to(name="echo", handler="echo_kwargs").respond()
+        function.deploy()
+
+        with pytest.raises(
+            RuntimeError,
+            match=r"bad function response 422:.*MLRunUnprocessableEntityError.*Mandatory field 'output_result' not found",  # noqa: E501
+        ):
+            function.invoke(path="/predict", body={"model": "gpt-4"})
+
+        self._logger.info("Output mandatory missing field test passed")
+
+    # ---------------------------------------------------------------------------
+    # OpenAI frontend tests (set_openai_frontend)
+    # ---------------------------------------------------------------------------
+
+    def test_chat_completions_create(self) -> None:
+        """POST /chat/completions via the real OpenAI SDK.
+
+        Verifies end-to-end: routing, input body mapping, output body mapping
+        (extra_field filtering), and that the SDK parses the response into a
+        typed ChatCompletion object.
+        """
+        openai = pytest.importorskip("openai")
+
+        function = self.project.set_function(
+            func=str(self.assets_path / "openai_serving_handler.py"),
+            name="openai-chat-completions",
+            kind="serving",
+            image=self.image,
+        )
+        function.set_openai_frontend([OpenAIEndpoint.CHAT_COMPLETIONS])
+        graph = function.set_topology("flow", engine="sync")
+        graph.to(name="handler", handler="chat_completion_handler").respond()
+
+        self._logger.debug("Deploying OpenAI chat completions serving function")
+        function.deploy()
+
+        client = openai.OpenAI(
+            base_url=function.get_url(),
+            api_key="dummy",
+            http_client=httpx.Client(verify=mlrun.mlconf.httpdb.http.verify),
+        )
+
+        self._logger.debug("Calling POST /chat/completions via OpenAI SDK")
+        response = client.chat.completions.create(
+            model="gpt-4",
+            messages=[{"role": "user", "content": "Hello"}],
+        )
+
+        assert isinstance(response, openai.types.chat.ChatCompletion), (
+            "SDK should return a ChatCompletion instance"
+        )
+        assert response.id == "chatcmpl_system_test_123"
+        assert response.object == "chat.completion"
+        assert response.created == 1234567890
+        assert response.model == "gpt-4"
+        assert response.service_tier == "default"
+        assert response.usage.prompt_tokens == 10
+        assert response.usage.completion_tokens == 5
+        assert response.usage.total_tokens == 15
+        assert len(response.choices) == 1
+        assert response.choices[0].index == 0
+        assert response.choices[0].finish_reason == "stop"
+        assert response.choices[0].logprobs is None
+        assert response.choices[0].message.role == "assistant"
+        assert response.choices[0].message.content == "Hello from MLRun!"
+
+        self._logger.info("OpenAI chat completions create system test passed")
+
+    def test_responses_create(self) -> None:
+        """POST /responses via the real OpenAI SDK.
+
+        Verifies end-to-end: routing, input body mapping, output body mapping
+        (extra_field filtering), and that the SDK parses the response into a
+        typed Response object.
+        """
+        openai = pytest.importorskip("openai")
+
+        function = self.project.set_function(
+            func=str(self.assets_path / "openai_serving_handler.py"),
+            name="openai-responses",
+            kind="serving",
+            image=self.image,
+        )
+        function.set_openai_frontend([OpenAIEndpoint.RESPONSES])
+        graph = function.set_topology("flow", engine="sync")
+        graph.to(name="handler", handler="response_handler").respond()
+
+        self._logger.debug("Deploying OpenAI responses serving function")
+        function.deploy()
+
+        client = openai.OpenAI(
+            base_url=function.get_url(),
+            api_key="dummy",
+            http_client=httpx.Client(verify=mlrun.mlconf.httpdb.http.verify),
+        )
+
+        self._logger.debug("Calling POST /responses via OpenAI SDK")
+        response = client.responses.create(
+            model="gpt-4",
+            input="Hello",
+        )
+
+        assert isinstance(response, openai.types.responses.Response), (
+            "SDK should return a Response instance"
+        )
+        assert response.id == "resp_system_test_123"
+        assert response.object == "response"
+        assert response.created_at == 1741476542
+        assert response.status == "completed"
+        assert response.completed_at == 1741476543
+        assert response.model == "gpt-4"
+        assert response.error is None
+        assert response.incomplete_details is None
+        assert response.instructions is None
+        assert response.max_output_tokens is None
+        assert response.parallel_tool_calls is True
+        assert response.previous_response_id is None
+        assert response.reasoning.effort is None
+        assert response.temperature == 1.0
+        assert response.tool_choice == "auto"
+        assert response.tools == []
+        assert response.top_p == 1.0
+        assert response.truncation == "disabled"
+        assert response.store is True
+        assert response.usage.input_tokens == 36
+        assert response.usage.output_tokens == 87
+        assert response.usage.total_tokens == 123
+        assert response.metadata == {}
+        assert len(response.output) == 1
+        assert response.output[0].role == "assistant"
+        assert response.output[0].content[0].text == "Hello from MLRun!"
+
+        self._logger.info("OpenAI responses create system test passed")
+
+    def test_chat_completions_missing_mandatory_output_raises(self) -> None:
+        """POST /chat/completions — handler omits mandatory 'choices' output field → error."""
+        openai = pytest.importorskip("openai")
+
+        function = self.project.set_function(
+            func=str(self.assets_path / "openai_serving_handler.py"),
+            name="openai-chat-missing-mandatory",
+            kind="serving",
+            image=self.image,
+        )
+        function.set_openai_frontend([OpenAIEndpoint.CHAT_COMPLETIONS])
+        graph = function.set_topology("flow", engine="sync")
+        graph.to(
+            name="handler", handler="chat_completion_handler_missing_mandatory"
+        ).respond()
+
+        self._logger.debug(
+            "Deploying chat completions function with incomplete handler"
+        )
+        function.deploy()
+
+        client = openai.OpenAI(
+            base_url=function.get_url(),
+            api_key="dummy",
+            http_client=httpx.Client(verify=mlrun.mlconf.httpdb.http.verify),
+        )
+
+        with pytest.raises(openai.APIStatusError) as exc_info:
+            client.chat.completions.create(
+                model="gpt-4",
+                messages=[{"role": "user", "content": "Hello"}],
+            )
+        assert exc_info.value.status_code == 422
+        assert (
+            "MLRunUnprocessableEntityError: Failed to process output body mapping: "
+            "Mandatory field 'choices' not found in body" in str(exc_info.value)
+        )
+
+        self._logger.info("Chat completions missing mandatory output field test passed")
+
+    def test_responses_missing_mandatory_output_raises(self) -> None:
+        """POST /responses — handler omits mandatory 'id' output field → error."""
+        openai = pytest.importorskip("openai")
+
+        function = self.project.set_function(
+            func=str(self.assets_path / "openai_serving_handler.py"),
+            name="openai-responses-missing-mandatory",
+            kind="serving",
+            image=self.image,
+        )
+        function.set_openai_frontend([OpenAIEndpoint.RESPONSES])
+        graph = function.set_topology("flow", engine="sync")
+        graph.to(name="handler", handler="response_handler_missing_mandatory").respond()
+
+        self._logger.debug("Deploying responses function with incomplete handler")
+        function.deploy()
+
+        client = openai.OpenAI(
+            base_url=function.get_url(),
+            api_key="dummy",
+            http_client=httpx.Client(verify=mlrun.mlconf.httpdb.http.verify),
+        )
+
+        with pytest.raises(openai.APIStatusError) as exc_info:
+            client.responses.create(
+                model="gpt-4",
+                input="Hello",
+            )
+        assert exc_info.value.status_code == 422
+        assert (
+            "MLRunUnprocessableEntityError: Failed to process output body mapping: "
+            "Mandatory field 'id' not found in body" in str(exc_info.value)
+        )
+
+        self._logger.info("Responses missing mandatory output field test passed")

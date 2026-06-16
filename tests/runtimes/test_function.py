@@ -21,6 +21,7 @@ import pytest
 from deepdiff import DeepDiff
 
 import mlrun
+import mlrun.common.schemas
 import mlrun.errors
 from mlrun import code_to_function
 from mlrun.datastore.datastore_profile import DatastoreProfileRabbitMQ
@@ -153,6 +154,134 @@ def test_nuclio_deploy_set_token_name():
     with mlrun.RuntimeConfigurationContext(auth_token_name="context-nuclio-token"):
         function.deploy()
         assert function.spec.auth["token_name"] == "context-nuclio-token"
+
+
+def _mock_nuclio_deploy(function):
+    """Mock deploy internals for submit-only tests."""
+    db = mlrun.get_run_db()
+    db.deploy_nuclio_function = MagicMock(
+        return_value={"data": {"status": {}, "spec": function.spec}}
+    )
+    function._wait_for_function_deployment = MagicMock()
+    function._update_credentials_from_remote_build = MagicMock()
+    function._enrich_command_from_status = MagicMock(return_value="http://invocation")
+
+
+def test_nuclio_deploy_wait_false_skips_wait_and_enrich():
+    """``deploy(wait=False)`` submits and skips wait/enrich."""
+    function: mlrun.runtimes.RemoteRuntime = mlrun.new_function("tst", kind="nuclio")
+    _mock_nuclio_deploy(function)
+
+    result = function.deploy(wait=False)
+
+    assert result is function
+    function._wait_for_function_deployment.assert_not_called()
+    function._enrich_command_from_status.assert_not_called()
+
+
+def test_serving_deploy_forwards_wait():
+    """``ServingRuntime.deploy`` must forward ``wait`` to ``super().deploy``."""
+    function = mlrun.new_function("tst", kind="serving")
+    function.set_topology("router")
+
+    with patch.object(
+        mlrun.runtimes.nuclio.function.RemoteRuntime, "deploy", return_value="cmd"
+    ) as super_deploy:
+        function.deploy(wait=False)
+
+    assert super_deploy.call_args.kwargs.get("wait") is False
+
+
+def test_deploy_forwards_timeout():
+    """``deploy(wait=True, timeout=...)`` forwards the deadline to wait_for_deployment."""
+    function: mlrun.runtimes.RemoteRuntime = mlrun.new_function("tst", kind="nuclio")
+    _mock_nuclio_deploy(function)
+    function.wait_for_deployment = MagicMock(return_value="http://invocation")
+
+    function.deploy(timeout=30)
+
+    assert function.wait_for_deployment.call_args.kwargs.get("timeout") == 30
+
+
+def test_serving_deploy_forwards_timeout():
+    """``ServingRuntime.deploy`` must forward ``timeout`` to ``super().deploy``."""
+    function = mlrun.new_function("tst", kind="serving")
+    function.set_topology("router")
+
+    with patch.object(
+        mlrun.runtimes.nuclio.function.RemoteRuntime, "deploy", return_value="cmd"
+    ) as super_deploy:
+        function.deploy(wait=False, timeout=30)
+
+    assert super_deploy.call_args.kwargs.get("timeout") == 30
+
+
+def test_nuclio_deploy_wait_true_waits_and_enriches():
+    """``deploy(wait=True)`` keeps legacy wait+enrich behavior."""
+    function: mlrun.runtimes.RemoteRuntime = mlrun.new_function("tst", kind="nuclio")
+    _mock_nuclio_deploy(function)
+
+    result = function.deploy()
+
+    function._wait_for_function_deployment.assert_called_once()
+    function._enrich_command_from_status.assert_called_once()
+    assert result == "http://invocation"
+
+
+def test_wait_for_deployment_finalizes_after_submit():
+    """``deploy(wait=False)`` + ``wait_for_deployment()`` finalizes normally."""
+    function: mlrun.runtimes.RemoteRuntime = mlrun.new_function("tst", kind="nuclio")
+    _mock_nuclio_deploy(function)
+
+    submitted = function.deploy(wait=False)
+    assert submitted is function
+    function._wait_for_function_deployment.assert_not_called()
+    function._enrich_command_from_status.assert_not_called()
+
+    result = function.wait_for_deployment()
+    function._wait_for_function_deployment.assert_called_once()
+    function._enrich_command_from_status.assert_called_once()
+    assert result == "http://invocation"
+
+
+def test_wait_for_deployment_times_out():
+    """A non-terminal deploy fails after ``timeout`` instead of polling forever."""
+    function: mlrun.runtimes.RemoteRuntime = mlrun.new_function("tst", kind="nuclio")
+    function.status.state = "building"  # never reaches a terminal state
+    db = MagicMock()
+    db.get_nuclio_deploy_status = MagicMock(return_value=("", 1))
+
+    # deadline=110; second loop check (120) times out.
+    with (
+        patch("mlrun.runtimes.nuclio.function.sleep"),
+        patch(
+            "mlrun.runtimes.nuclio.function.monotonic",
+            side_effect=[100.0, 100.0, 120.0],
+        ),
+        pytest.raises(mlrun.errors.MLRunTimeoutError, match="timed out after 10s"),
+    ):
+        function._wait_for_function_deployment(db, timeout=10)
+
+
+def test_wait_for_deployment_clears_background_tasks_after_processing():
+    """Model-endpoint background tasks are consumed once."""
+    function: mlrun.runtimes.RemoteRuntime = mlrun.new_function("tst", kind="nuclio")
+    function._wait_for_function_deployment = MagicMock()
+    function._enrich_command_from_status = MagicMock(return_value="http://invocation")
+    function._check_model_endpoint_task_state = MagicMock()
+
+    task = mlrun.common.schemas.BackgroundTask(
+        metadata=mlrun.common.schemas.BackgroundTaskMetadata(name="t"),
+        spec=mlrun.common.schemas.BackgroundTaskSpec(),
+        status=mlrun.common.schemas.BackgroundTaskStatus(state="running"),
+    )
+    function._deploy_background_tasks = {"background_tasks": [task.dict()]}
+
+    function.wait_for_deployment()
+    function.wait_for_deployment()
+
+    function._check_model_endpoint_task_state.assert_called_once()
+    assert function._deploy_background_tasks == {"background_tasks": []}
 
 
 def test_v3io_stream_trigger():
@@ -617,86 +746,110 @@ class TestSetupModelMonitoring:
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentError, match="mix"):
             fn.setup_model_monitoring(extra_model_endpoint_instructions=mixed)
 
-    def test_extra_instructions_name_mismatch_raises(self):
+    def test_function_name_provided_raises(self):
         from mlrun.common.schemas.model_monitoring.model_endpoints import (
             ModelEndpointInstruction,
         )
 
         fn = self._nuclio_fn(name="my-fn")
-        extra = [ModelEndpointInstruction(name="wrong-name")]
+        # Providing function_name is rejected, even when it matches metadata.name.
+        instruction = ModelEndpointInstruction(name="my-ep", function_name="my-fn")
         with pytest.raises(
-            mlrun.errors.MLRunInvalidArgumentError, match="name mismatch"
+            mlrun.errors.MLRunInvalidArgumentError,
+            match="function_name must not be set",
         ):
-            fn.setup_model_monitoring(extra_model_endpoint_instructions=extra)
+            fn.setup_model_monitoring(general_model_endpoint_instructions=instruction)
 
-    def test_extra_instructions_tag_mismatch_raises(self):
+    def test_function_tag_provided_raises(self):
         from mlrun.common.schemas.model_monitoring.model_endpoints import (
             ModelEndpointInstruction,
         )
 
         fn = self._nuclio_fn(name="my-fn")
         fn.metadata.tag = "v1"
-        extra = [ModelEndpointInstruction(name="my-fn", function_tag="v2")]
+        # Providing function_tag is rejected, even when it matches metadata.tag.
+        instruction = ModelEndpointInstruction(name="my-ep", function_tag="v1")
         with pytest.raises(
-            mlrun.errors.MLRunInvalidArgumentError, match="tag mismatch"
+            mlrun.errors.MLRunInvalidArgumentError,
+            match="function_tag must not be set",
+        ):
+            fn.setup_model_monitoring(general_model_endpoint_instructions=instruction)
+
+    def test_extra_instructions_function_name_provided_raises(self):
+        from mlrun.common.schemas.model_monitoring.model_endpoints import (
+            ModelEndpointInstruction,
+        )
+
+        fn = self._nuclio_fn(name="my-fn")
+        extra = [ModelEndpointInstruction(name="my-ep", function_name="my-fn")]
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError,
+            match="function_name must not be set",
         ):
             fn.setup_model_monitoring(extra_model_endpoint_instructions=extra)
 
-    def test_extra_instructions_no_tag_skips_tag_check(self):
+    def test_extra_instructions_function_tag_provided_raises(self):
         from mlrun.common.schemas.model_monitoring.model_endpoints import (
             ModelEndpointInstruction,
         )
 
         fn = self._nuclio_fn(name="my-fn")
         fn.metadata.tag = "v1"
-        extra = [ModelEndpointInstruction(name="my-fn")]  # function_tag=None
+        extra = [ModelEndpointInstruction(name="my-ep", function_tag="v1")]
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError,
+            match="function_tag must not be set",
+        ):
+            fn.setup_model_monitoring(extra_model_endpoint_instructions=extra)
+
+    def test_no_function_identity_kept_none(self):
+        # Reproduces ML-12727: omitting function_name/function_tag is the supported usage.
+        # The instruction is stored as-is with None values; the deployment side derives them
+        # from the function's metadata.
+        from mlrun.common.schemas.model_monitoring.model_endpoints import (
+            ModelEndpointInstruction,
+        )
+
+        fn = self._nuclio_fn(name="my-fn")
+        fn.metadata.tag = "v2"
+        instruction = ModelEndpointInstruction(
+            name="my-ep",
+            input_schema=["age", "income"],
+            output_schema=["approved"],
+        )
+        fn.setup_model_monitoring(general_model_endpoint_instructions=instruction)
+        stored = fn.spec.model_endpoints_instructions[0]
+        assert stored.name == "my-ep"
+        assert stored.function_name is None
+        assert stored.function_tag is None
+
+    def test_extra_instructions_no_function_identity_kept_none(self):
+        from mlrun.common.schemas.model_monitoring.model_endpoints import (
+            ModelEndpointInstruction,
+        )
+
+        fn = self._nuclio_fn(name="my-fn")
+        fn.metadata.tag = "v2"
+        extra = [
+            ModelEndpointInstruction(name="ep-a"),
+            ModelEndpointInstruction(name="ep-b"),
+        ]
         fn.setup_model_monitoring(extra_model_endpoint_instructions=extra)
-        names = [i.name for i in fn.spec.model_endpoints_instructions]
-        assert "my-fn" in names
+        # primary default + 2 extras
+        assert len(fn.spec.model_endpoints_instructions) == 3
+        # The primary default still carries the function identity (set explicitly when
+        # generated). Extras intentionally stay None — the deployment side fills them in.
+        for instr in fn.spec.model_endpoints_instructions[1:]:
+            assert instr.function_name is None
+            assert instr.function_tag is None
 
-    def test_name_mismatch_raises(self):
+    def test_function_name_provided_error_includes_endpoint(self):
         from mlrun.common.schemas.model_monitoring.model_endpoints import (
             ModelEndpointInstruction,
         )
 
         fn = self._nuclio_fn(name="my-fn")
-        instruction = ModelEndpointInstruction(name="wrong-name")
-        with pytest.raises(
-            mlrun.errors.MLRunInvalidArgumentError, match="name mismatch"
-        ):
+        instruction = ModelEndpointInstruction(name="my-ep", function_name="anything")
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as exc_info:
             fn.setup_model_monitoring(general_model_endpoint_instructions=instruction)
-
-    def test_function_tag_mismatch_raises(self):
-        from mlrun.common.schemas.model_monitoring.model_endpoints import (
-            ModelEndpointInstruction,
-        )
-
-        fn = self._nuclio_fn(name="my-fn")
-        fn.metadata.tag = "v1"
-        instruction = ModelEndpointInstruction(name="my-fn", function_tag="v2")
-        with pytest.raises(
-            mlrun.errors.MLRunInvalidArgumentError, match="tag mismatch"
-        ):
-            fn.setup_model_monitoring(general_model_endpoint_instructions=instruction)
-
-    def test_matching_tag_does_not_raise(self):
-        from mlrun.common.schemas.model_monitoring.model_endpoints import (
-            ModelEndpointInstruction,
-        )
-
-        fn = self._nuclio_fn(name="my-fn")
-        fn.metadata.tag = "v1"
-        instruction = ModelEndpointInstruction(name="my-fn", function_tag="v1")
-        fn.setup_model_monitoring(general_model_endpoint_instructions=instruction)
-        assert fn.spec.model_endpoints_instructions[0].function_tag == "v1"
-
-    def test_no_function_tag_skips_tag_check(self):
-        from mlrun.common.schemas.model_monitoring.model_endpoints import (
-            ModelEndpointInstruction,
-        )
-
-        fn = self._nuclio_fn(name="my-fn")
-        fn.metadata.tag = "v1"
-        instruction = ModelEndpointInstruction(name="my-fn")  # function_tag=None
-        fn.setup_model_monitoring(general_model_endpoint_instructions=instruction)
-        assert fn.spec.model_endpoints_instructions[0].name == "my-fn"
+        assert "my-ep" in str(exc_info.value)

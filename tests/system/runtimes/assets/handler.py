@@ -37,3 +37,18 @@ def my_func(context, p1: int = 1, p2="a-string"):
 def set_labels_and_annotations_handler(context):
     context.set_label("label1", "label-value1")
     context.set_annotation("annotation1", "annotation-value1")
+
+
+def check_otel_installed(context):
+    """Assert opentelemetry-api is importable; log its version as a result.
+
+    ML-12617 regression: the base image does not include opentelemetry, so a
+    successful import here proves the code artifact's requirements were
+    installed via auto_build.
+    """
+    from importlib.metadata import version
+
+    import opentelemetry  # noqa: F401
+
+    context.log_result("otel_version", version("opentelemetry-api"))
+    context.log_result("otel_installed", True)

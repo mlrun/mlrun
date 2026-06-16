@@ -98,7 +98,7 @@ class DaskSpec(KubeResourceSpec):
         parameters=None,
         track_models=None,
         env_from=None,
-        otlp_enabled: bool = False,
+        mount_otlp_secret: bool = False,
     ):
         super().__init__(
             command=command,
@@ -133,7 +133,7 @@ class DaskSpec(KubeResourceSpec):
             graph=graph,
             parameters=parameters,
             track_models=track_models,
-            otlp_enabled=otlp_enabled,
+            mount_otlp_secret=mount_otlp_secret,
         )
         self.args = args
 
@@ -222,6 +222,16 @@ class DaskCluster(KubejobRuntime):
     @status.setter
     def status(self, status):
         self._status = self._verify_dict(status, "status", DaskStatus)
+
+    def validate(self):
+        super().validate()
+        # The Dask runtime is not supported on Iguazio v4 (IG4) systems, where the dask cluster can
+        # no longer be brought up. Bringing one up would otherwise fail with an opaque
+        # "Failed bringing up dask cluster" error.
+        if config.is_iguazio_v4_mode():
+            raise mlrun.errors.MLRunBadRequestError(
+                "The Dask runtime is not supported on this system."
+            )
 
     def is_deployed(self):
         if not self.spec.remote:
@@ -497,9 +507,7 @@ class DaskCluster(KubejobRuntime):
         project: str | None = "",
         params: dict | None = None,
         inputs: dict[str, str] | None = None,
-        out_path: str | None = "",
         workdir: str | None = "",
-        artifact_path: str | None = "",
         watch: bool | None = True,
         schedule: Union[str, mlrun.common.schemas.ScheduleCronTrigger] | None = None,
         hyperparams: dict[str, list] | None = None,
@@ -529,7 +537,6 @@ class DaskCluster(KubejobRuntime):
             project=project,
             params=params,
             inputs=inputs,
-            out_path=out_path,
             workdir=workdir,
             output_path=output_path,
             watch=watch,

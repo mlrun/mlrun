@@ -671,12 +671,20 @@ def test_iguazio_v4_oauth_token_file_auto_initialization(
         )
 
 
+def test_connect_invokes_init_token_provider_from_env():
+    """``connect()`` initializes the token provider after syncing server config."""
+    server_cfg = {"version": mlrun.mlconf.version}
+    with _mock_httpdb_connect(server_cfg):
+        db = HTTPRunDB("http://some-server:1919")
+        db.connect()
+
+
 def test_init_token_provider_stores_username_and_password_from_add_or_refresh_credentials(
     monkeypatch,
 ):
     """
-    Test that _init_token_provider stores the username and password returned
-    from add_or_refresh_credentials in self.user and self.password.
+    Test that _init_token_provider_from_env stores the username and password
+    returned from add_or_refresh_credentials in self.user and self.password.
     This ensures credentials are properly propagated for subsequent API calls.
     """
     # Disable oauth flows to trigger the add_or_refresh_credentials path
@@ -689,7 +697,7 @@ def test_init_token_provider_stores_username_and_password_from_add_or_refresh_cr
     returned_password = "returned_access_key"
     returned_token = ""
 
-    # _init_token_provider is called during __init__, so we mock before creating the instance
+    # _init_token_provider_from_env is called during __init__, so we mock before creating the instance
     with patch(
         "mlrun.platforms.add_or_refresh_credentials",
         return_value=(returned_username, returned_password, returned_token),
@@ -705,7 +713,7 @@ def test_init_token_provider_stores_username_and_password_from_add_or_refresh_cr
 
 def test_init_token_provider_stores_credentials_with_token(monkeypatch):
     """
-    Test that _init_token_provider stores both credentials and creates
+    Test that _init_token_provider_from_env stores both credentials and creates
     a StaticTokenProvider when add_or_refresh_credentials returns a token.
     """
     # Disable oauth flows to trigger the add_or_refresh_credentials path
@@ -723,7 +731,7 @@ def test_init_token_provider_stores_credentials_with_token(monkeypatch):
         return_value=(returned_username, returned_password, returned_token),
     ):
         db = HTTPRunDB("http://mlrun-api:8080")
-        db._init_token_provider()
+        db._init_token_provider_from_env()
 
         # Verify credentials are stored
         assert db.user == returned_username
@@ -1502,21 +1510,20 @@ def test_store_secret_token_invalid_inputs(create_server):
         db.store_secret_token(None)
 
 
-# TODO add test for force parameter when IG4 mode is enabled for integration test (ML-11332)
-
-
-@pytest.mark.parametrize("secret_tokens", [None, []])
-def test_store_secret_tokens_invalid_inputs(create_server, secret_tokens):
+def test_store_secret_tokens_not_implemented(create_server):
+    # Storing multiple tokens cannot apply to a single-token-per-user model, so the
+    # bulk store is kept for API compatibility but no longer supported.
     server: Server = create_server()
     db: HTTPRunDB = server.conn
     mlrun.mlconf.httpdb.authentication.mode = (
         mlrun.common.types.AuthenticationMode.IGUAZIO_V4
     )
 
-    with pytest.raises(
-        mlrun.errors.MLRunInvalidArgumentError, match="No secret tokens provided"
-    ):
-        db.store_secret_tokens(secret_tokens)
+    with pytest.raises(NotImplementedError):
+        db.store_secret_tokens([])
+
+
+# TODO add test for force parameter when IG4 mode is enabled for integration test (ML-11332)
 
 
 def test_enable_model_monitoring_passes_auth_token_from_context():

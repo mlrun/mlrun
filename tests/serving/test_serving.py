@@ -990,3 +990,24 @@ def test_setup_model_monitoring_not_supported_for_serving():
     serving_fn = mlrun.new_function("test-serving", kind="serving")
     with pytest.raises(NotImplementedError, match="set_tracking"):
         serving_fn.setup_model_monitoring([])
+
+
+def test_deploy_after_set_tracking_does_not_invoke_setup_model_monitoring(rundb_mock):
+    # set_tracking() is the supported path for serving monitoring; setup_model_monitoring()
+    # raises NotImplementedError on serving. Deploying after set_tracking() must NOT route
+    # through setup_model_monitoring (which would break the deploy).
+    serving_fn = mlrun.new_function("test-serving", kind="serving")
+    serving_fn.set_topology("router")
+    serving_fn.add_model(
+        "my",
+        ".",
+        class_name=ModelTestingClass(multiplier=100),
+    )
+    serving_fn.set_tracking(stream_path="dummy://")
+    assert serving_fn.spec.track_models is True
+
+    with patch.object(
+        serving_fn, "setup_model_monitoring", autospec=True
+    ) as mock_setup:
+        serving_fn.deploy()
+    mock_setup.assert_not_called()

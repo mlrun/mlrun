@@ -85,10 +85,21 @@ class TestWriterLag(TestMLRunSystemModelMonitoring):
             notifications=notification,
         )
 
-        model_endpoint = mlrun.model_monitoring.api.get_or_create_model_endpoint(
-            project=self.project.metadata.name,
-            model_endpoint_name="test-lag-endpoint",
-            context=mlrun.get_or_create_ctx("demo"),
+        model_endpoint = mlrun.get_run_db().create_model_endpoint(
+            mlrun.common.schemas.ModelEndpoint(
+                metadata=mlrun.common.schemas.ModelEndpointMetadata(
+                    name="test-lag-endpoint",
+                    project=self.project.metadata.name,
+                    endpoint_type=mlrun.common.schemas.model_monitoring.EndpointType.NODE_EP,
+                ),
+                spec=mlrun.common.schemas.ModelEndpointSpec(
+                    function_name="test-lag-function",
+                    function_tag="latest",
+                ),
+                status=mlrun.common.schemas.ModelEndpointStatus(
+                    monitoring_mode=mlrun.common.schemas.model_monitoring.ModelMonitoringMode.enabled,
+                ),
+            )
         )
 
         writer = self.project.get_function(

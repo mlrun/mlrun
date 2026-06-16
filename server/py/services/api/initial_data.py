@@ -20,6 +20,7 @@ import random
 import string
 import time
 import typing
+import uuid
 
 import alembic
 import alembic.command
@@ -1303,15 +1304,25 @@ def _init_system_id(db_session: sqlalchemy.orm.Session):
 
 
 def _get_configured_system_id() -> str | None:
-    return mlrun.mlconf.system_id or None
+    system_id = mlrun.mlconf.system_id or None
+    if system_id is None:
+        return None
+
+    # UUID has some issues in several system-id use cases (length, hyphens, etc.)
+    # so we use only a subset of the UUID.
+    try:
+        uuid.UUID(system_id)
+    except ValueError:
+        return system_id
+
+    return system_id.replace("-", "")[: mlrun.mlconf.system_id_len]
 
 
 def _generate_system_id() -> str:
-    # Generate a 6-character alphanumeric ID using lowercase letters and digits only
+    # Generate an alphanumeric ID using lowercase letters and digits only
     valid_chars = string.ascii_lowercase + string.digits
-    system_id_len = 6
 
-    return "".join(random.choices(valid_chars, k=system_id_len))
+    return "".join(random.choices(valid_chars, k=mlrun.mlconf.system_id_len))
 
 
 def main() -> None:

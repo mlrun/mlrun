@@ -680,6 +680,29 @@ def test_inline_body(new_project_factory):
     assert artifact.metadata.key == "y"
 
 
+def test_log_code_file_body_requires_path(new_project_factory):
+    project = new_project_factory("code-body", save=False)
+
+    # a body with no local_path/target_path cannot name its file -> rejected
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match="must provide local_path or target_path",
+    ):
+        project.log_code_file("c", body="def f(): pass")
+
+    # is_inline=True embeds the body in the record (no upload needed)
+    artifact = project.log_code_file(
+        "c",
+        body="def f(): pass",
+        local_path="c.py",
+        is_inline=True,
+        upload=False,
+        artifact_path=results_dir,
+    )
+    assert artifact.spec.get_body() == "def f(): pass"
+    assert artifact.spec._is_inline is True
+
+
 def test_register_artifacts(rundb_mock, new_project_factory):
     project_name = "my-projects"
     project = new_project_factory(project_name)
@@ -814,6 +837,30 @@ def test_code_artifact_create_with_requirements():
 
 
 @pytest.mark.parametrize(
+    "requirements",
+    [
+        "pandas>=1.0",  # ML-12563 reproducer: string passed instead of list
+        ("pandas",),  # tuple is not a list
+        123,  # not iterable
+        ["pandas", 123],  # list with non-str item
+        ["pandas", None],
+    ],
+)
+def test_code_artifact_invalid_requirements_raises(requirements):
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+        mlrun.artifacts.CodeArtifact(key="bad", requirements=requirements)
+
+
+@pytest.mark.parametrize(
+    "requirements",
+    [None, [], ["pandas"], ["pandas>=2.0", "numpy"]],
+)
+def test_code_artifact_valid_requirements_accepted(requirements):
+    artifact = mlrun.artifacts.CodeArtifact(key="ok", requirements=requirements)
+    assert artifact.spec.requirements == requirements
+
+
+@pytest.mark.parametrize(
     "target_path,src_path,language,expected",
     [
         # suffix → "python"
@@ -876,23 +923,15 @@ def test_code_artifact_registered_in_artifact_types():
     )
 
 
-def test_code_artifact_category_filtering():
+def test_code_artifact_categorized_as_other():
     assert (
         mlrun.common.schemas.artifact.ArtifactCategories.from_kind("code")
-        == mlrun.common.schemas.artifact.ArtifactCategories.code
+        == mlrun.common.schemas.artifact.ArtifactCategories.other
     )
-    kinds, exclude = (
-        mlrun.common.schemas.artifact.ArtifactCategories.code.to_kinds_filter()
-    )
-    assert "code" in kinds
-    assert not exclude
-
-
-def test_code_artifact_other_category_excludes_code():
     kinds, exclude = (
         mlrun.common.schemas.artifact.ArtifactCategories.other.to_kinds_filter()
     )
-    assert "code" in kinds
+    assert "code" not in kinds
     assert exclude
 
 
@@ -901,6 +940,7 @@ def test_log_code_file_via_project(new_project_factory):
     project = new_project_factory("test-code-proj", save=False)
     artifact = project.log_code_file(
         "my-func",
+        local_path="my-func.py",
         body="def handler(): pass",
         language="python:3.11",
         code_type="function",
@@ -920,6 +960,7 @@ def test_log_code_file_via_context(ensure_project):
     context = mlrun.get_or_create_ctx("test")
     artifact = context.log_code_file(
         "my-func",
+        local_path="my-func.py",
         body="def handler(): pass",
         language="python:3.11",
         code_type="workflow",

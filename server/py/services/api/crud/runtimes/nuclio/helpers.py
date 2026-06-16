@@ -315,6 +315,7 @@ def compile_nuclio_archive_config(
         code_entry_attributes["s3AccessKeyId"] = get_secret("AWS_ACCESS_KEY_ID")
         code_entry_attributes["s3SecretAccessKey"] = get_secret("AWS_SECRET_ACCESS_KEY")
         code_entry_attributes["s3SessionToken"] = get_secret("AWS_SESSION_TOKEN")
+        code_entry_attributes["s3Endpoint"] = get_secret("AWS_ENDPOINT_URL_S3")
 
     # git
     if code_entry_type == "git":

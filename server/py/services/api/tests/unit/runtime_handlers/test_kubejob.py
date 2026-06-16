@@ -1210,23 +1210,24 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         assert runtime.spec.volumes == []
 
     @pytest.mark.parametrize(
-        "otlp_enabled,headers_secret_name,expect_telemetry_mount",
+        "mount_otlp_secret,headers_secret_name,expect_telemetry_mount",
         [
             # Both flags set → mount applied
             (True, "mlrun-otel-headers", True),
-            # otlp_enabled off → no mount even if the secret is configured
+            # mount_otlp_secret off → no mount even if the secret is configured
             (False, "mlrun-otel-headers", False),
-            # otlp_enabled on but no secret name → no mount (nothing to point at)
+            # mount_otlp_secret on but no secret name → no mount (nothing to point at)
             (True, "", False),
             # Neither set → no mount
             (False, "", False),
         ],
     )
     def test_add_k8s_secrets_to_spec_telemetry_gating(
-        self, otlp_enabled, headers_secret_name, expect_telemetry_mount
+        self, mount_otlp_secret, headers_secret_name, expect_telemetry_mount
     ):
-        """Telemetry mount fires only when both the per-function `otlp_enabled` flag
-        is True and the operator has configured `mlconf.telemetry.headers_secret_name`."""
+        """Telemetry mount fires only when both the per-function
+        `mount_otlp_secret` flag is True and the operator has configured
+        `mlconf.telemetry.headers_secret_name`."""
         runtime = mlrun.runtimes.kubejob.KubejobRuntime()
         mlrun.mlconf.telemetry.headers_secret_name = headers_secret_name
 
@@ -1241,7 +1242,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
                 None,
                 runtime,
                 project_name="some-project",
-                otlp_enabled=otlp_enabled,
+                mount_otlp_secret=mount_otlp_secret,
             )
         finally:
             mlrun.mlconf.telemetry.headers_secret_name = ""
@@ -1261,7 +1262,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             assert telemetry_mounts == []
 
     @pytest.mark.parametrize("kind", ["job", "serving"])
-    def test_otlp_enabled_round_trips_through_spec(self, kind):
+    def test_mount_otlp_secret_round_trips_through_spec(self, kind):
         """The spec attribute lifts to KubeResourceSpec so it works for both
         job (KubejobRuntime) and remote/serving (NuclioSpec subclass) kinds."""
         if kind == "job":
@@ -1270,12 +1271,12 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             runtime = mlrun.runtimes.ServingRuntime()
 
         # Default is False
-        assert runtime.spec.otlp_enabled is False
+        assert runtime.spec.mount_otlp_secret is False
 
         # Round-trip through to_dict / from_dict
-        runtime.spec.otlp_enabled = True
+        runtime.spec.mount_otlp_secret = True
         spec_dict = runtime.spec.to_dict()
-        assert spec_dict["otlp_enabled"] is True
+        assert spec_dict["mount_otlp_secret"] is True
 
     def test_resolve_container_error_status_with_null_container_statuses(self):
         # When containerStatuses is absent from the K8s API response,

@@ -112,7 +112,11 @@ class KubeResourceSpec(FunctionSpec):
         "parameters",
         "graph",
         "filename",
-        "otlp_enabled",
+        "mount_otlp_secret",
+        # Internal book-keeping for auto-mount modifiers (see has_user_set_plain_env).
+        # Serialized so it survives SDK->API; deliberately excluded from
+        # _k8s_fields_to_serialize so it never reaches the pod manifest.
+        "auto_mount_injected_env_names",
     ]
     _default_fields_to_strip = FunctionSpec._default_fields_to_strip + [
         "volumes",
@@ -194,7 +198,7 @@ class KubeResourceSpec(FunctionSpec):
         parameters=None,
         graph=None,
         env_from=None,
-        otlp_enabled: bool = False,
+        mount_otlp_secret: bool = False,
     ):
         super().__init__(
             command=command,
@@ -249,7 +253,13 @@ class KubeResourceSpec(FunctionSpec):
         # When True, the API server mounts the OTLP telemetry headers secret onto
         # the function pod so the runtime can authenticate against the OTLP endpoint
         # via mlrun.utils.telemetry.resolve_otlp_headers().
-        self.otlp_enabled = otlp_enabled
+        self.mount_otlp_secret = mount_otlp_secret
+        # Names of env vars an auto-mount modifier wrote as plain values. Project-secret
+        # injection (server-side) consults this via has_user_set_plain_env to know it
+        # may override these — they were not set by the user. Internal book-keeping:
+        # in _dict_fields so it round-trips SDK↔API via from_dict's setattr, but
+        # deliberately not a constructor kwarg (no external caller sets it).
+        self.auto_mount_injected_env_names = []
         # Termination grace period is internal for runtimes that have a pod termination hook hence it is not in the
         # _dict_fields and doesn't have a setter.
         self._termination_grace_period_seconds = None
@@ -677,6 +687,17 @@ class AutoMountType(StrEnum):
             mlrun.runtimes.mounts.set_env_vars_from_secret.__name__,
         ]
 
+    # Modifiers that contribute only env vars / envFrom (no volumes) - safe to harvest
+    # by reading spec.env after applying them.
+    @classmethod
+    def env_style_modifiers(cls) -> set:
+        return {
+            mlrun.runtimes.mounts.set_env_variables,
+            mlrun.runtimes.mounts.set_env_vars_from_secret,
+            mlrun.runtimes.mounts.v3io_cred,
+            mlrun.runtimes.mounts.mount_s3,
+        }
+
     @classmethod
     def is_auto_modifier(cls, modifier):
         # Check if modifier is one of the known mount modifiers. We need to use startswith since the modifier itself is
@@ -812,8 +833,47 @@ class KubeResource(BaseRuntime):
                 return True
         return False
 
+    def has_user_set_plain_env(self, name: str) -> bool:
+        """Check whether `name` is present in the runtime spec as a plain-value env var.
+
+        Returns True only for env vars with a plain ``.value`` *and* not flagged as
+        auto-mount-injected (see ``mark_env_auto_mount_injected``). Returns False
+        for secret-injected vars (``.value_from``) and for plain values that an
+        auto-mount modifier wrote — the latter must yield to project-secret
+        injection. Auto-mount modifiers and secret-store injection consult this
+        to defer to user-set values instead of overriding them.
+        """
+        if name in self.spec.auto_mount_injected_env_names:
+            return False
+        for env_var in self.spec.env:
+            if get_item_name(env_var) == name:
+                return get_item_name(env_var, "value") is not None
+        return False
+
+    def mark_env_auto_mount_injected(self, name: str) -> None:
+        """Flag ``name`` as written by an auto-mount modifier (plain-value path).
+
+        Called by ``mount_s3`` (and any future modifier that injects plain
+        values) right after writing the env var, so that project-secret
+        injection can override the value via ``has_user_set_plain_env``.
+        Idempotent.
+
+        Ordering contract: must be called *after* ``set_env``/``_set_env``,
+        never before. Any write to ``name`` via ``_set_env`` clears the marker
+        (see the comment there), so flagging first and writing second would
+        silently wipe the flag.
+        """
+        if name not in self.spec.auto_mount_injected_env_names:
+            self.spec.auto_mount_injected_env_names.append(name)
+
     def _set_env(self, name, value=None, value_from=None):
         new_var = k8s_client.V1EnvVar(name=name, value=value, value_from=value_from)
+
+        # Any write to `name` invalidates a stale auto-mount-injected marker;
+        # the auto-mount caller re-asserts it via mark_env_auto_mount_injected
+        # immediately after writing if it owns the new value.
+        if name in self.spec.auto_mount_injected_env_names:
+            self.spec.auto_mount_injected_env_names.remove(name)
 
         # ensure we don't have duplicate env vars with the same name
         for env_index, value_item in enumerate(self.spec.env):

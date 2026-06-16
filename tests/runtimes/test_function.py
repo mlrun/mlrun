@@ -192,6 +192,30 @@ def test_serving_deploy_forwards_wait():
     assert super_deploy.call_args.kwargs.get("wait") is False
 
 
+def test_deploy_forwards_timeout():
+    """``deploy(wait=True, timeout=...)`` forwards the deadline to wait_for_deployment."""
+    function: mlrun.runtimes.RemoteRuntime = mlrun.new_function("tst", kind="nuclio")
+    _mock_nuclio_deploy(function)
+    function.wait_for_deployment = MagicMock(return_value="http://invocation")
+
+    function.deploy(timeout=30)
+
+    assert function.wait_for_deployment.call_args.kwargs.get("timeout") == 30
+
+
+def test_serving_deploy_forwards_timeout():
+    """``ServingRuntime.deploy`` must forward ``timeout`` to ``super().deploy``."""
+    function = mlrun.new_function("tst", kind="serving")
+    function.set_topology("router")
+
+    with patch.object(
+        mlrun.runtimes.nuclio.function.RemoteRuntime, "deploy", return_value="cmd"
+    ) as super_deploy:
+        function.deploy(wait=False, timeout=30)
+
+    assert super_deploy.call_args.kwargs.get("timeout") == 30
+
+
 def test_nuclio_deploy_wait_true_waits_and_enriches():
     """``deploy(wait=True)`` keeps legacy wait+enrich behavior."""
     function: mlrun.runtimes.RemoteRuntime = mlrun.new_function("tst", kind="nuclio")
@@ -218,6 +242,25 @@ def test_wait_for_deployment_finalizes_after_submit():
     function._wait_for_function_deployment.assert_called_once()
     function._enrich_command_from_status.assert_called_once()
     assert result == "http://invocation"
+
+
+def test_wait_for_deployment_times_out():
+    """A non-terminal deploy fails after ``timeout`` instead of polling forever."""
+    function: mlrun.runtimes.RemoteRuntime = mlrun.new_function("tst", kind="nuclio")
+    function.status.state = "building"  # never reaches a terminal state
+    db = MagicMock()
+    db.get_nuclio_deploy_status = MagicMock(return_value=("", 1))
+
+    # deadline=110; second loop check (120) times out.
+    with (
+        patch("mlrun.runtimes.nuclio.function.sleep"),
+        patch(
+            "mlrun.runtimes.nuclio.function.monotonic",
+            side_effect=[100.0, 100.0, 120.0],
+        ),
+        pytest.raises(mlrun.errors.MLRunTimeoutError, match="timed out after 10s"),
+    ):
+        function._wait_for_function_deployment(db, timeout=10)
 
 
 def test_wait_for_deployment_clears_background_tasks_after_processing():

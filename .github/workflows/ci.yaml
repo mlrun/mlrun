@@ -149,7 +149,7 @@ jobs:
       uses: actions/upload-artifact@v7
       with:
         name: coverage_unit_tests_report_${{ matrix.python-version }}_${{ github.run_id }}_${{ matrix.test-suite }}.coverage
-        path: /tmp/coverage_reports/unit_tests_${{ matrix.test-suite }}/unit_tests_${{ matrix.test-suite }}.coverage
+        path: ${{ github.workspace }}/coverage_reports/unit_tests_${{ matrix.test-suite }}/unit_tests_${{ matrix.test-suite }}.coverage
         retention-days: 30
 
 
@@ -214,7 +214,7 @@ jobs:
       if: env.RUN_COVERAGE == 'true'
       with:
          name: coverage_integration_tests_report_${{ matrix.python-version }}_${{ matrix.test-db }}_${{ github.run_id }}.coverage
-         path: /tmp/coverage_reports/integration_tests/integration_tests.coverage
+         path: ${{ github.workspace }}/coverage_reports/integration_tests/integration_tests.coverage
          retention-days: 30
 
   migrations-tests:
@@ -243,7 +243,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: coverage_migration_tests_report-${{ github.run_id }}.coverage
-          path: /tmp/coverage_reports/migration_tests/migration_tests.coverage
+          path: ${{ github.workspace }}/coverage_reports/migration_tests/migration_tests.coverage
           retention-days: 30
 
   package-tests:

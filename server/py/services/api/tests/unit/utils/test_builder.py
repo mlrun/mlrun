@@ -1787,6 +1787,9 @@ def _init_container_by_name(name: str):
         "wasbs://container@account.blob.core.windows.net/path/project.tar.gz",
         "ds://my-profile/path/project.tar.gz",
         "oss://bucket/path/project.tar.gz",
+        # gs/gcs are kaniko-native but routed through fetch for GCP's file-based creds
+        "gs://bucket/path/project.tar.gz",
+        "gcs://bucket/path/project.tar.gz",
     ],
 )
 def test_build_runtime_kaniko_incompatible_source_uses_fetch_init_container(
@@ -2020,7 +2023,6 @@ def test_build_runtime_kaniko_incompatible_source_rejects_non_archive(monkeypatc
     [
         # kaniko-native: URL is the build context
         ("s3://bucket/path/project.tar.gz", "s3://bucket/path/project.tar.gz"),
-        ("gs://bucket/path/project.tar.gz", "gs://bucket/path/project.tar.gz"),
         (
             "git://github.com/mlrun/example.git#main",
             "git://github.com/mlrun/example.git#refs/heads/main",
@@ -2057,14 +2059,15 @@ def test_build_runtime_v3io_source_unchanged_by_fix(monkeypatch):
         ("wasbs://x@a.blob.core.windows.net/y.tar.gz", True),
         ("ds://profile/path/y.tar.gz", True),
         ("oss://bucket/path/y.tar.gz", True),
+        # gs/gcs are kaniko-native but routed through fetch for GCP's file-based creds
+        ("gs://x/y.tar.gz", True),
+        ("gcs://x/y.tar.gz", True),
         # kaniko-native or otherwise handled out-of-band - must NOT be routed
         # through the fetch init container.
         ("abfs://x/y.tar.gz", False),
         ("abfss://x/y.tar.gz", False),
         ("dbfs://path/y.tar.gz", False),
         ("s3://x/y.tar.gz", False),
-        ("gs://x/y.tar.gz", False),
-        ("gcs://x/y.tar.gz", False),
         ("git://x/y", False),
         ("https://x/y.tar.gz", False),
         ("http://x/y.tar.gz", False),

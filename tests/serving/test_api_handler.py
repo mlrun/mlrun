@@ -838,11 +838,13 @@ class TestStarPatternMatching:
 
 
 class TestIncludeUrlInfo:
-    """Tests for include_url_info parameter (ML-11658)
+    """Tests for include_url_info parameter (ML-11658, ML-12695)
 
     When include_url_info=True, the API handler injects 'mlrun_request_path'
-    (the normalized request path, without query string) into the RequestContext
-    that is forwarded to the next step.
+    (the normalized request path, without query string) and 'mlrun_request_method'
+    (the HTTP method string) into the RequestContext that is forwarded to the next
+    step. Both kwargs together let a dispatcher handler distinguish endpoints that
+    share a path template but differ by method (e.g. GET vs DELETE on /responses/{id}).
     """
 
     def test_include_url_info_default_false(self) -> None:
@@ -873,7 +875,7 @@ class TestIncludeUrlInfo:
         assert config2.include_url_info is True
 
     def test_include_url_info_disabled_no_path_injected(self) -> None:
-        """When include_url_info=False, mlrun_request_path is NOT in the context"""
+        """When include_url_info=False, neither mlrun_request_path nor mlrun_request_method is injected"""
         config = APIHandlerConfig(include_url_info=False)
         config.add_endpoint_handler("/api/test", HTTPMethod.GET, APIHandlerAction.ALLOW)
         step = _APIHandlerStep(config=config)
@@ -885,7 +887,7 @@ class TestIncludeUrlInfo:
         assert result.body == "hello"
 
     def test_include_url_info_enabled_exact_path(self) -> None:
-        """When include_url_info=True the RequestContext contains mlrun_request_path"""
+        """When include_url_info=True the RequestContext contains mlrun_request_path and mlrun_request_method"""
         config = APIHandlerConfig(include_url_info=True)
         config.add_endpoint_handler("/api/test", HTTPMethod.GET, APIHandlerAction.ALLOW)
         step = _APIHandlerStep(config=config)
@@ -896,6 +898,7 @@ class TestIncludeUrlInfo:
         assert isinstance(result.body, _RequestContext)
         assert result.body.original_body == "hello"
         assert result.body["mlrun_request_path"] == "/api/test"
+        assert result.body["mlrun_request_method"] == "GET"
 
     def test_include_url_info_path_without_query_string(self) -> None:
         """mlrun_request_path must NOT include query string"""
@@ -914,6 +917,7 @@ class TestIncludeUrlInfo:
         assert result.body.original_body == "hello"
         # Path must be normalized (no query string)
         assert result.body["mlrun_request_path"] == "/api/items"
+        assert result.body["mlrun_request_method"] == "GET"
         # Query params are still extracted normally
         assert result.body["limit"] == "5"
         assert result.body["offset"] == "10"
@@ -935,6 +939,7 @@ class TestIncludeUrlInfo:
         assert result.body.original_body == "hello"
         # Actual request path, not the template pattern
         assert result.body["mlrun_request_path"] == "/api/users/abc-123"
+        assert result.body["mlrun_request_method"] == "GET"
         # Path param is also present
         assert result.body["user_id"] == "abc-123"
 
@@ -952,6 +957,7 @@ class TestIncludeUrlInfo:
         assert isinstance(result.body, _RequestContext)
         assert result.body.original_body == "hello"
         assert result.body["mlrun_request_path"] == "/api/deeply/nested/resource"
+        assert result.body["mlrun_request_method"] == "GET"
 
     def test_include_url_info_combined_with_existing_params(self) -> None:
         """mlrun_request_path is available alongside path, query, and body params"""
@@ -977,9 +983,41 @@ class TestIncludeUrlInfo:
         assert isinstance(result.body, _RequestContext)
         assert result.body.original_body == {"q": "Hello world"}
         assert result.body["mlrun_request_path"] == "/api/gpt4/ask"
+        assert result.body["mlrun_request_method"] == "POST"
         assert result.body["model_id"] == "gpt4"
         assert result.body["lang"] == "en"
         assert result.body["question"] == "Hello world"
+
+    def test_include_url_info_dispatch_get_vs_delete_same_path(self) -> None:
+        """A dispatcher handler can distinguish GET vs DELETE on the same path template (ML-12695)."""
+        config = APIHandlerConfig(include_url_info=True)
+        config.add_endpoint_handler(
+            "/responses/{response_id}", HTTPMethod.GET, APIHandlerAction.ALLOW
+        )
+        config.add_endpoint_handler(
+            "/responses/{response_id}", HTTPMethod.DELETE, APIHandlerAction.ALLOW
+        )
+        step = _APIHandlerStep(config=config)
+
+        get_event = MockEvent(
+            method=HTTPMethod.GET, path="/responses/resp-123", body=None
+        )
+        delete_event = MockEvent(
+            method=HTTPMethod.DELETE, path="/responses/resp-123", body=None
+        )
+
+        get_result = step.do(get_event)
+        delete_result = step.do(delete_event)
+
+        assert isinstance(get_result.body, _RequestContext)
+        assert isinstance(delete_result.body, _RequestContext)
+        # Same path template — only the injected method distinguishes them
+        assert get_result.body["mlrun_request_path"] == "/responses/resp-123"
+        assert delete_result.body["mlrun_request_path"] == "/responses/resp-123"
+        assert get_result.body["mlrun_request_method"] == "GET"
+        assert delete_result.body["mlrun_request_method"] == "DELETE"
+        assert get_result.body["response_id"] == "resp-123"
+        assert delete_result.body["response_id"] == "resp-123"
 
 
 class TestAPIHandlerMockServer:

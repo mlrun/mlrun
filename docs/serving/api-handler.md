@@ -191,7 +191,12 @@ config.add_endpoint_handler(
 
 ### URL info (`include_url_info`)
 
-When `include_url_info=True`, the handler injects an additional field `mlrun_request_path` into the event. This field contains the normalized URL path (without the query string). Query string parameters are always extracted as keyword arguments regardless of this setting.
+When `include_url_info=True`, the handler injects two additional fields into the event:
+
+- `mlrun_request_path` — the normalized URL path (without the query string).
+- `mlrun_request_method` — the HTTP method as an uppercase string (e.g. `"GET"`, `"DELETE"`).
+
+Both are passed together so a dispatcher handler can distinguish endpoints that share a path template but differ by method. Query string parameters are always extracted as keyword arguments regardless of this setting.
 
 ```python
 config = APIHandlerConfig(include_url_info=True)
@@ -207,24 +212,56 @@ A `GET /v1/chat/completions/abc123?limit=10` request passes the following keywor
     "completion_id": "abc123",  # from path template
     "limit": "10",  # from query string
     "mlrun_request_path": "/v1/chat/completions/abc123",  # from include_url_info
+    "mlrun_request_method": "GET",  # from include_url_info
 }
 ```
+
+Dispatch by method on a shared path template:
+
+```python
+def responses_router(
+    body, response_id, mlrun_request_path, mlrun_request_method, **kwargs
+):
+    if mlrun_request_method == "GET":
+        return get_response(response_id)
+    if mlrun_request_method == "DELETE":
+        return delete_response(response_id)
+    raise ValueError(f"unsupported method {mlrun_request_method}")
+```
+
+The handler signature must accept these names (explicitly or via `**kwargs`); otherwise Python raises `TypeError: unexpected keyword argument`.
 
 ## How downstream steps receive parameters
 
 Extracted parameters are passed as keyword arguments to the handler function or `do()` method. For example, given the endpoint `/v1/chat/completions/{completion_id}` with `include_url_info=True`, a `GET /v1/chat/completions/abc123?limit=10` request calls the next step as:
 
 ```python
-def step_handler(body, completion_id, limit, mlrun_request_path, **kwargs):
+def step_handler(
+    body,
+    completion_id,
+    limit,
+    mlrun_request_path,
+    mlrun_request_method,
+    **kwargs,
+):
     # body: original request body
     # completion_id="abc123"                            — from path template
     # limit="10"                                        — from query string
     # mlrun_request_path="/v1/chat/completions/abc123"  — from include_url_info
+    # mlrun_request_method="GET"                        — from include_url_info
     ...
 
 
 class MyStep:
-    def do(self, body, completion_id, limit, mlrun_request_path, **kwargs): ...
+    def do(
+        self,
+        body,
+        completion_id,
+        limit,
+        mlrun_request_path,
+        mlrun_request_method,
+        **kwargs,
+    ): ...
 ```
 
 ## Complete example

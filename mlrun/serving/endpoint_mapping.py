@@ -291,7 +291,23 @@ class EndpointConfig(mlrun.model.ModelObj):
 
 
 class APIHandlerConfig(mlrun.model.ModelObj):
-    """Configuration for API handler in serving graph."""
+    """Configuration for API handler in serving graph.
+
+    :param enabled:          Whether the API handler step is active.
+    :param endpoints:        Map of endpoint key (``"METHOD:path"``) to ``EndpointConfig``
+                             (or a raw dict that will be deserialized).
+    :param include_url_info: When True, inject the request's URL info into the handler
+                             as keyword arguments — ``mlrun_request_path`` (the normalized
+                             matched path) and ``mlrun_request_method`` (the HTTP method
+                             string, e.g. ``"GET"``). Both are passed together so a
+                             dispatcher handler can distinguish endpoints that share a
+                             path template but differ by method (e.g. ``GET`` vs ``DELETE``
+                             on ``/responses/{id}``).
+
+                             The handler signature MUST accept these names (either as
+                             explicit parameters or via ``**kwargs``); otherwise Python
+                             raises ``TypeError: unexpected keyword argument``.
+    """
 
     _dict_fields = ["enabled", "endpoints", "include_url_info"]
 

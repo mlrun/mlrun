@@ -510,7 +510,7 @@ def _deploy_function(
         logger.info("Resolved function", fn=fn.to_yaml())
     except Exception as err:
         logger.error(traceback.format_exc())
-        # Correct the build phase's premature "ready" from Nuclio's real state.
+        # Correct the build phase's premature "ready".
         _mark_function_deploy_error(db_session, auth_info, project, name, fn)
         framework.api.utils.log_and_raise(
             HTTPStatus.BAD_REQUEST.value,
@@ -531,23 +531,20 @@ def _mark_function_deploy_error(
         db_session, name, project, tag
     )
     if not db_function:
-        # Nothing persisted yet (deploy failed before any build): no premature "ready".
+        # Nothing persisted: no premature "ready" to correct.
         return
 
     try:
-        # Reconcile from Nuclio's live state: a serving version stays, a failed one
-        # becomes error/unhealthy.
+        # A serving version stays ready; a failed one becomes error/unhealthy.
         state, *_ = services.api.crud.runtimes.nuclio.function.get_nuclio_deploy_status(
             name, project, tag, resolve_address=False, auth_info=auth_info
         )
     except Exception:
-        # No Nuclio function (e.g. first deploy) or its status can't be read:
-        # record the deploy as failed.
+        # No Nuclio function or unreadable status: record as failed.
         state = mlrun.common.schemas.FunctionState.error
 
     try:
-        # Update only status.state on the same unversioned record the build phase
-        # wrote; never mint a permanent versioned snapshot from a failed deploy.
+        # versioned=False: update the unversioned record, never snapshot a failed deploy.
         mlrun.utils.update_in(db_function, "status.state", state)
         services.api.crud.Functions().store_function(
             db_session,

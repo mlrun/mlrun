@@ -16,7 +16,6 @@ import asyncio
 import base64
 import os
 import shlex
-import typing
 
 import nuclio
 import nuclio.utils
@@ -50,7 +49,6 @@ def deploy_nuclio_function(
     client_version: str | None = None,
     builder_env: dict | None = None,
     client_python_version: str | None = None,
-    on_submit: typing.Callable[[], None] | None = None,
 ):
     """Deploys a nuclio function.
 
@@ -59,8 +57,6 @@ def deploy_nuclio_function(
     :param client_version:        mlrun client version
     :param builder_env:           mlrun builder environment (for config/credentials)
     :param client_python_version: mlrun client python version
-    :param on_submit:             called right before the function config is submitted to Nuclio,
-                                  i.e. once a Nuclio resource may exist
     """
     function_name, project_name, function_config = _compile_function_config(
         function,
@@ -84,8 +80,6 @@ def deploy_nuclio_function(
             function_name=function_name,
             project_name=project_name,
         )
-        if on_submit:
-            on_submit()
         return nuclio.deploy.deploy_config(
             function_config,
             dashboard_url=mlrun.mlconf.nuclio_dashboard_url,

@@ -448,12 +448,6 @@ def _deploy_function(
         )
 
     fn: mlrun.runtimes.RemoteRuntime
-    nuclio_submitted = False
-
-    def _on_nuclio_submit():
-        nonlocal nuclio_submitted
-        nuclio_submitted = True
-
     try:
         # Connect to run db
         run_db = framework.api.utils.get_run_db_instance(db_session)
@@ -509,7 +503,6 @@ def _deploy_function(
             client_version,
             db_session,
             fn,
-            on_submit=_on_nuclio_submit,
         )
         # after deploying the function, we need to re-mask the sensitive data again and save to the db
         fn.mask_sensitive_data_in_config()
@@ -517,11 +510,6 @@ def _deploy_function(
         logger.info("Resolved function", fn=fn.to_yaml())
     except Exception as err:
         logger.error(traceback.format_exc())
-        # A failure before the Nuclio submission leaves the build phase's premature
-        # "ready" state uncorrected (no Nuclio resource exists and the deploy-status
-        # poller never runs). Once submitted, leave the state to the poller.
-        if not nuclio_submitted:
-            _mark_function_deploy_error(db_session, project, name, fn)
         framework.api.utils.log_and_raise(
             HTTPStatus.BAD_REQUEST.value,
             reason=f"Runtime error: {mlrun.errors.err_to_str(err)}",
@@ -529,37 +517,8 @@ def _deploy_function(
     return fn
 
 
-def _mark_function_deploy_error(
-    db_session: sqlalchemy.orm.Session,
-    project: str,
-    name: str,
-    fn: mlrun.runtimes.RemoteRuntime | None,
-):
-    tag = fn.metadata.tag if fn is not None else ""
-    try:
-        services.api.crud.Functions().update_function(
-            db_session,
-            function={"metadata": {"name": name, "tag": tag}},
-            project=project,
-            updates={"status.state": mlrun.common.schemas.FunctionState.error},
-        )
-    except Exception as exc:
-        logger.warning(
-            "Failed to mark function as errored after deploy failure",
-            project=project,
-            name=name,
-            error=mlrun.errors.err_to_str(exc),
-        )
-
-
 def _deploy_nuclio_runtime(
-    auth_info,
-    builder_env,
-    client_python_version,
-    client_version,
-    db_session,
-    fn,
-    on_submit=None,
+    auth_info, builder_env, client_python_version, client_version, db_session, fn
 ):
     monitoring_application = (
         fn.metadata.labels.get(mm_constants.ModelMonitoringAppLabel.KEY)
@@ -642,7 +601,6 @@ def _deploy_nuclio_runtime(
         client_version=client_version,
         client_python_version=client_python_version,
         builder_env=builder_env,
-        on_submit=on_submit,
     )
     return fn
 

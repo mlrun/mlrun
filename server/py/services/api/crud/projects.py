@@ -971,11 +971,8 @@ class Projects(
 
         nuclio_client = framework.utils.clients.nuclio.Client()
 
-        # This deletion runs in a background task that may outlive the user's
-        # token, which would make these Nuclio polls fail authentication partway
-        # through. The request was already authorized at the API layer, so in
-        # IG4 poll with mlrun-api's service account token, which stays valid for
-        # the lifetime of the task.
+        # The background task may outlive the user's token, so poll with the
+        # service account token instead (the deletion is already authorized).
         nuclio_auth_info = auth_info
         if mlrun.mlconf.is_iguazio_v4_mode():
             nuclio_auth_info = auth_info.copy(

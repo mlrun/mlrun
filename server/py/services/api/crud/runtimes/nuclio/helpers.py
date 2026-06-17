@@ -248,8 +248,8 @@ def _parse_azure_connection_string(connection_string: str) -> dict:
     """Parse an Azure ``key=value;...`` connection string into a dict. Values can contain ``=``
     (base64 account keys, SAS tokens), so split on the first ``=`` only.
 
-    Hand-rolled rather than reusing adlfs's internal ``parse_connection_str`` to avoid depending
-    on a private API for the few fields we need (``AccountName``/``AccountKey``/SAS).
+    Hand-rolled rather than reusing azure-storage-blob's internal ``parse_connection_str`` to
+    avoid depending on a private API for the few fields we need (``AccountName``/``AccountKey``/SAS).
     """
     parts = {}
     for segment in connection_string.split(";"):
@@ -264,12 +264,14 @@ def _build_azure_blob_sas_url(source: str, secrets: dict) -> str:
     read-only SAS, so Nuclio can fetch it as a regular ``archive`` (Nuclio has no native Azure
     Blob code-entry type).
 
-    Credential + endpoint resolution is delegated to mlrun's ``AzureBlobStore`` via a fresh,
-    request-scoped ``StoreManager`` (never the process-global ``store_manager`` — its URL-keyed
-    cache must not be shared across projects). This makes Nuclio deploys authenticate ``az://``
-    exactly like mlrun jobs — account-key, connection-string, SAS pass-through, service
-    principal, and managed/workload identity — rather than a parallel auth implementation. The
-    SAS *type* is chosen from whatever the store resolved.
+    Credential + endpoint resolution is delegated to mlrun's ``AzureBlobStore`` so deploys
+    resolve ``az://`` credentials the same way mlrun jobs do — account-key, connection-string,
+    SAS pass-through, service principal, and managed/workload identity — rather than a parallel
+    auth implementation. The SAS *type* is then chosen from whatever the store resolved.
+
+    A fresh ``StoreManager`` is constructed per call rather than the process-global one to keep
+    resolution request-scoped (the API server already bypasses the datastore cache, so this is
+    defense-in-depth).
     """
     from azure.storage.blob import BlobSasPermissions, generate_blob_sas
 

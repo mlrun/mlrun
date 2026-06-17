@@ -341,7 +341,7 @@ def _build_azure_blob_sas_url(source: str, secrets: dict) -> str:
         blob=blob_name,
     )
     # The SAS rides in spec.build.path (persisted on the Nuclio function); it is read-only and
-    # short-lived. Moving it to a request header (codeEntryAttributes) is a follow-up (ML-12764).
+    # short-lived.
     return f"https://{host}/{container}/{blob_name}?{sas}"
 
 

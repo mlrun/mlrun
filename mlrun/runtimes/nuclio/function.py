@@ -1677,7 +1677,13 @@ class RemoteRuntime(KubeResource):
         if self.status.external_invocation_urls:
             external_url = self.status.external_invocation_urls[0]
             if "://" not in external_url:
-                external_url = f"https://{external_url}"
+                # NodePort serves plain HTTP (no TLS termination); use http for NodePort and
+                # https for ClusterIP so we don't force TLS against an HTTP port.
+                service_type = (
+                    self.spec.service_type or mlconf.httpdb.nuclio.default_service_type
+                )
+                scheme = "http" if service_type == "NodePort" else "https"
+                external_url = f"{scheme}://{external_url}"
             return mlrun.utils.helpers.join_urls(external_url, path)
 
         if not self.status.address:

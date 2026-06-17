@@ -4455,15 +4455,17 @@ class MlrunProject(ModelObj):
         :param function_name:      Name of an associated MLRun function (optional).
         :param function_tag:       Tag of the associated function (optional).
         :param creation_strategy: Strategy for creating or updating the model endpoint:
+
             * **overwrite**:
-            1. If model endpoints with the same name exist, delete the `latest` one.
-            2. Create a new model endpoint entry and set it as `latest`.
+                1. If model endpoints with the same name exist, delete the `latest` one.
+                2. Create a new model endpoint entry and set it as `latest`.
             * **inplace** (default):
-            1. If model endpoints with the same name exist, update the `latest` entry.
-            2. Otherwise, create a new entry.
+                1. If model endpoints with the same name exist, update the `latest` entry.
+                2. Otherwise, create a new entry.
             * **archive**:
-            1. If model endpoints with the same name exist, preserve them.
-            2. Create a new model endpoint with the same name and set it to `latest`.
+                1. If model endpoints with the same name exist, preserve them.
+                2. Create a new model endpoint with the same name and set it to `latest`.
+
         :param monitoring_mode:    Monitoring mode written to the endpoint ``status.monitoring_mode``.
             Accepts a :class:`~mlrun.common.schemas.model_monitoring.constants.ModelMonitoringMode`
             (``enabled`` or ``disabled``). Defaults to ``enabled`` when neither this param

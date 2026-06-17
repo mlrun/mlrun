@@ -247,10 +247,14 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
                         body_params = {}
 
                 # Build system-injected URL params when include_url_info is enabled.
-                # mlrun_request_path holds the normalized path of the matched request.
+                # mlrun_request_path holds the normalized path of the matched request and
+                # mlrun_request_method holds the HTTP method (e.g. "GET"). Together they
+                # let a dispatcher handler distinguish endpoints that share a path template
+                # but differ by method (e.g. GET vs DELETE on /responses/{id}).
                 url_params: dict[str, Any] = {}
                 if self.config.include_url_info:
                     url_params["mlrun_request_path"] = normalized_path
+                    url_params["mlrun_request_method"] = method.value
 
                 # Build the event body for the next step.
                 # When any params are present, always use _RequestContext so the

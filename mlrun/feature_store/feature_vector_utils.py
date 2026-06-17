@@ -433,11 +433,11 @@ class OnlineVectorService:
         return results
 
     def close(self):
-        """terminate the async loop and release cached connections"""
-        self._controller.terminate()
-        if self._resource_cache:
-            self._resource_cache.close_sync()
-            self._resource_cache = None
+        try:
+            self._controller.terminate(wait=True)
+        except Exception:
+            pass  # storey already logs termination error
+        self._resource_cache = None
 
 
 class OfflineVectorResponse:

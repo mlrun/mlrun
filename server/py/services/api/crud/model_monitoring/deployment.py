@@ -360,9 +360,7 @@ class MonitoringDeployment:
                 f"Deploying {mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER} function",
                 project=self.project,
             )
-            fn = self._get_model_monitoring_controller_function(
-                image=controller_image, ignore_stream_already_exists_failure=overwrite
-            )
+            fn = self._get_model_monitoring_controller_function(image=controller_image)
 
             minutes = base_period
             hours = days = 0
@@ -456,7 +454,6 @@ class MonitoringDeployment:
         function: mlrun.runtimes.ServingRuntime,
         function_name: str,
         stream_args: mlrun.config.Config,
-        ignore_stream_already_exists_failure: bool = False,
     ) -> mlrun.runtimes.ServingRuntime:
         """
         Add stream source for the nuclio serving function. The function's stream trigger can be
@@ -471,8 +468,6 @@ class MonitoringDeployment:
                                                      trigger.
         :param function_name:                        The name of the function that be applied with the stream trigger.
         :param stream_args:                          Stream args from the config.
-        :param ignore_stream_already_exists_failure: If True, ignores `TopicAlreadyExistsError` error on
-                                                     MM-infra-functions deployment when using kafka.
 
         :return: `ServingRuntime` object with stream trigger.
         """
@@ -486,7 +481,6 @@ class MonitoringDeployment:
                 function=function,
                 function_name=function_name,
                 stream_args=stream_args,
-                ignore_stream_already_exists_failure=ignore_stream_already_exists_failure,
             )
 
         elif isinstance(
@@ -521,7 +515,6 @@ class MonitoringDeployment:
         function: mlrun.runtimes.ServingRuntime,
         function_name: str,
         stream_args: mlrun.config.Config,
-        ignore_stream_already_exists_failure: bool,
     ) -> None:
         # Generate Kafka stream source
         topic = mlrun.common.model_monitoring.helpers.get_kafka_topic(
@@ -558,8 +551,7 @@ class MonitoringDeployment:
                 num_partitions=num_partitions, replication_factor=replication_factor
             )
         except kafka.errors.TopicAlreadyExistsError as exc:
-            if not ignore_stream_already_exists_failure:
-                raise exc
+            # Idempotent: topic persists across deploys. Other errors propagate.
             logger.info(
                 "Kafka topic of model monitoring stream already exists. "
                 "Skipping topic creation",
@@ -862,7 +854,6 @@ class MonitoringDeployment:
             function=function,
             function_name=mm_constants.MonitoringFunctionNames.STREAM,
             stream_args=config.model_endpoint_monitoring.serving_stream,
-            ignore_stream_already_exists_failure=True,
         )
 
         # Add an explicit HTTP trigger so the stream pod is reachable via HTTP.
@@ -875,16 +866,12 @@ class MonitoringDeployment:
 
         return function
 
-    def _get_model_monitoring_controller_function(
-        self, image: str, ignore_stream_already_exists_failure: bool
-    ):
+    def _get_model_monitoring_controller_function(self, image: str):
         """
         Initialize model monitoring controller function.
 
-        :param image:                               Base docker image to use for building the function container.
-        :param ignore_stream_already_exists_failure: If True, ignores `TopicAlreadyExistsError` error on
-                                                     MM-infra-functions deployment when using kafka.
-        :return:                                    A function object from a mlrun runtime class.
+        :param image: Base docker image to use for building the function container.
+        :return:      A function object from a mlrun runtime class.
         """
         # Create job function runtime for the controller
         function = mlrun.code_to_function(
@@ -910,7 +897,6 @@ class MonitoringDeployment:
             function=function,
             function_name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
             stream_args=config.model_endpoint_monitoring.controller_stream_args,
-            ignore_stream_already_exists_failure=ignore_stream_already_exists_failure,
         )
 
         function = self._apply_access_key_and_mount_function(
@@ -1053,7 +1039,6 @@ class MonitoringDeployment:
             function=function,
             function_name=mm_constants.MonitoringFunctionNames.WRITER,
             stream_args=config.model_endpoint_monitoring.writer_stream_args,
-            ignore_stream_already_exists_failure=True,
         )
 
         # Apply feature store run configurations on the serving function

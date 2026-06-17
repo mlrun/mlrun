@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import concurrent.futures
-import ipaddress
 import json
 import pickle
 import tempfile
@@ -560,36 +559,7 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
             serving_fn.spec.image = serving_fn.spec.build.image = cls.image
 
         serving_fn.deploy()
-        cls._workaround_ml_12522_force_http_for_nodeport(serving_fn)
         return serving_fn
-
-    @staticmethod
-    def _workaround_ml_12522_force_http_for_nodeport(
-        fn: mlrun.runtimes.nuclio.serving.ServingRuntime,
-    ) -> None:
-        """Workaround for ML-12522.
-
-        Nuclio reports ``status.external_invocation_urls`` as scheme-less.
-        Since mlrun #9578, ``_resolve_invocation_url`` prepends ``https://``
-        to scheme-less external URLs, which breaks plain-HTTP NodePort
-        setups (open-source CE / k3s) with ``SSL: WRONG_VERSION_NUMBER``.
-        Iguazio setups expose functions via TLS-terminated ingress
-        (hostname/path form) and must keep the ``https://`` default.
-
-        Only rewrite the NodePort form (IPv4 ``host:port`` with no path)
-        to ``http://`` here. Remove once ML-12522 routes API-gateway
-        invocations through ``APIGateway.invoke_url`` and
-        ``_resolve_invocation_url`` defaults back to ``http://``.
-        """
-        for i, url in enumerate(fn.status.external_invocation_urls or []):
-            if "://" in url or "/" in url:
-                continue
-            host = url.split(":", 1)[0]
-            try:
-                ipaddress.ip_address(host)
-            except ValueError:
-                continue
-            fn.status.external_invocation_urls[i] = f"http://{url}"
 
     @classmethod
     def _infer(

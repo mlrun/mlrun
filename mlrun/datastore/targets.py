@@ -585,8 +585,14 @@ class BaseStoreTarget(DataTargetBase):
                 **kwargs,
             )
             try:
-                return file_system.size(target_path)
-            except Exception:
+                # du() sums part files; size() returns the dir entry's own length (0/N-A).
+                return file_system.du(target_path)
+            except Exception as exc:
+                logger.debug(
+                    "Failed to read written dataframe size from target",
+                    target_path=target_path,
+                    error=mlrun.errors.err_to_str(exc),
+                )
                 return None
 
     @staticmethod

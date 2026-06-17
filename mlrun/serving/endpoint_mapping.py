@@ -297,12 +297,16 @@ class APIHandlerConfig(mlrun.model.ModelObj):
     :param endpoints:        Map of endpoint key (``"METHOD:path"``) to ``EndpointConfig``
                              (or a raw dict that will be deserialized).
     :param include_url_info: When True, inject the request's URL info into the handler
-                             as keyword arguments — ``mlrun_request_path`` (the normalized
-                             matched path) and ``mlrun_request_method`` (the HTTP method
-                             string, e.g. ``"GET"``). Both are passed together so a
-                             dispatcher handler can distinguish endpoints that share a
+                             as keyword arguments — ``mlrun_request_path`` (the normalized,
+                             URL-decoded matched path) and ``mlrun_request_method`` (the
+                             HTTP method string, e.g. ``"GET"``). Both are passed together
+                             so a dispatcher handler can distinguish endpoints that share a
                              path template but differ by method (e.g. ``GET`` vs ``DELETE``
                              on ``/responses/{id}``).
+
+                             Decoding matches Flask/FastAPI semantics: an encoded slash
+                             (``%2F``) in a segment becomes indistinguishable from a path
+                             separator.
 
                              The handler signature MUST accept these names (either as
                              explicit parameters or via ``**kwargs``); otherwise Python

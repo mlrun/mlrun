@@ -1019,6 +1019,40 @@ class TestIncludeUrlInfo:
         assert get_result.body["response_id"] == "resp-123"
         assert delete_result.body["response_id"] == "resp-123"
 
+    def test_mlrun_request_path_url_decoded(self) -> None:
+        """mlrun_request_path must be URL-decoded (ML-12732)."""
+        config = APIHandlerConfig(include_url_info=True)
+        config.add_endpoint_handler(
+            "/responses/{response_id}", HTTPMethod.GET, APIHandlerAction.ALLOW
+        )
+        step = _APIHandlerStep(config=config)
+
+        event = MockEvent(
+            method=HTTPMethod.GET,
+            path="/responses/resp%20url%20encoded",
+            body=None,
+        )
+        result = step.do(event)
+
+        assert isinstance(result.body, _RequestContext)
+        assert result.body["mlrun_request_path"] == "/responses/resp url encoded"
+        # path_param kwarg is also decoded — keeps both surfaces consistent
+        assert result.body["response_id"] == "resp url encoded"
+
+    def test_mlrun_request_path_decoded_for_wildcard(self) -> None:
+        """mlrun_request_path is decoded on star endpoints — %2F becomes '/' (ML-12732)."""
+        config = APIHandlerConfig(include_url_info=True)
+        config.add_endpoint_handler(
+            "/responses/*", HTTPMethod.GET, APIHandlerAction.ALLOW
+        )
+        step = _APIHandlerStep(config=config)
+
+        event = MockEvent(method=HTTPMethod.GET, path="/responses/abc%2Fdef", body=None)
+        result = step.do(event)
+
+        assert isinstance(result.body, _RequestContext)
+        assert result.body["mlrun_request_path"] == "/responses/abc/def"
+
 
 class TestAPIHandlerMockServer:
     """Test API handler with mock server integration"""
@@ -1183,7 +1217,7 @@ class TestAPIHandlerMockServer:
             server.wait_for_completion()
 
     def test_api_handler_url_encoded_path_params(self) -> None:
-        """Test that URL-encoded path parameters are properly decoded"""
+        """URL-encoded path parameters are decoded, and 405 errors show the decoded path (ML-12732)."""
 
         def handler(body, **kwargs):
             return {"filename": kwargs.get("filename")}
@@ -1212,6 +1246,50 @@ class TestAPIHandlerMockServer:
                 body={},
             )
             assert response == {"filename": "my document.pdf"}
+
+            # Wrong method on the same encoded path → 405 with the decoded path in the message.
+            error_response = server.test(
+                "/files/my%20document.pdf",
+                method="POST",
+                body={},
+                silent=True,
+            )
+            assert error_response.status_code == 405
+            assert "/files/my document.pdf" in error_response.body
+            assert "%20" not in error_response.body
+        finally:
+            server.wait_for_completion()
+
+    def test_dispatcher_pattern_url_encoded(self) -> None:
+        """Dispatcher that parses mlrun_request_path receives the decoded form (ML-12732)."""
+
+        def dispatcher(body, mlrun_request_path, mlrun_request_method, **kwargs):
+            # Mirrors the OpenAI router pattern — extract the id from the path itself
+            response_id = mlrun_request_path.removeprefix("/responses/")
+            return {"id": response_id, "method": mlrun_request_method}
+
+        fn = cast(
+            ServingRuntime,
+            mlrun.new_function("test-dispatcher-url-encoded", kind="serving"),
+        )
+
+        config = APIHandlerConfig(include_url_info=True)
+        config.add_endpoint_handler(
+            "/responses/{response_id}", HTTPMethod.GET, APIHandlerAction.ALLOW
+        )
+        fn.set_api_handler_config(config)
+
+        graph = fn.set_topology("flow", engine="sync")
+        graph.to(name="router", handler=dispatcher).respond()
+
+        server = fn.to_mock_server()
+        try:
+            response = server.test(
+                "/responses/resp%20url%20encoded",
+                method="GET",
+                body=None,
+            )
+            assert response == {"id": "resp url encoded", "method": "GET"}
         finally:
             server.wait_for_completion()
 

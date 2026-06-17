@@ -176,7 +176,7 @@ jobs:
 
         echo "mlrun_docker_registries=$( \
           if [ \"${{ inputs.is_private_release }}\" = \"true\" ]; then \
-            echo \"${{ secrets.ARTIFACTORY_URL }}/\"; \
+            echo \"${{ secrets.PRIVATE_ARTIFACTORY_DOCKER_URL }}/\"; \
           else \
             echo ${{ inputs.docker_registries || 'ghcr.io/' }}; \
           fi)" >> $GITHUB_OUTPUT
@@ -214,9 +214,9 @@ jobs:
       if: inputs.is_private_release == true
       uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # 4.2.0
       with:
-        registry: ${{ secrets.ARTIFACTORY_URL }}
-        username: ${{ secrets.ARTIFACTORY_USERNAME }}
-        password: ${{ secrets.ARTIFACTORY_PASSWORD }}
+        registry: ${{ secrets.PRIVATE_ARTIFACTORY_DOCKER_URL }}
+        username: ${{ secrets.PRIVATE_ARTIFACTORY_USERNAME }}
+        password: ${{ secrets.PRIVATE_ARTIFACTORY_PASSWORD }}
 
     # We need to use a python venv to avoid conflicts with the system python packages (like docker etc.)
     # Also those self hosted runners are not ephemeral, so we need to make sure we have a clean env   

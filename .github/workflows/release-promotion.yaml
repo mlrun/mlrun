@@ -30,6 +30,14 @@ on:
         description: 'The version to promote (must already exist), without prefix v (e.g. 1.1.0-rc10)'
         required: true
         type: string
+      commit_sha:
+        description: 'The MLRun commit SHA to tag for this release'
+        required: true
+        type: string
+      ui_commit_sha:
+        description: 'The UI repo commit SHA to tag for this release'
+        required: true
+        type: string
       previous_version:
         description: 'The previous version for release notes comparison, without prefix v (e.g. 1.0.0)'
         required: true
@@ -52,7 +60,7 @@ on:
       source_artifactory_pypi_repo:
         description: 'Source Artifactory PyPI repository name'
         required: false
-        default: 'private-mlrun-py'
+        default: 'mlrun-private-pypi-local'
         type: string
       target_artifactory_pypi_repo:
         description: 'Target Artifactory PyPI repository name (for promotion)'
@@ -112,6 +120,69 @@ jobs:
           VERSION_INPUT: ${{ github.event.inputs.version }}
           PREVIOUS_VERSION_INPUT: ${{ github.event.inputs.previous_version }}
 
+  create-tag:
+    name: Create tag v${{ needs.prepare-inputs.outputs.version }}
+    runs-on: ubuntu-latest
+    if: github.event.inputs.skip_create_tag_release != 'true'
+    needs: [prepare-inputs]
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Validate MLRun commit SHA
+        run: |
+          if ! git cat-file -t "${{ github.event.inputs.commit_sha }}" &>/dev/null; then
+            echo "❌ Error: commit SHA '${{ github.event.inputs.commit_sha }}' does not exist in this repository"
+            exit 1
+          fi
+          echo "✅ Commit SHA validated: ${{ github.event.inputs.commit_sha }}"
+
+      - name: Create git tag for branch at specific SHA
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout ${{ github.ref_name }}
+          git tag -a "v${{ needs.prepare-inputs.outputs.version }}" "${{ github.event.inputs.commit_sha }}" -m "Branch tag ${{ github.ref_name }} at ${{ github.event.inputs.commit_sha }}"
+          git push origin "v${{ needs.prepare-inputs.outputs.version }}"
+          echo "✅ Created and pushed tag: v${{ needs.prepare-inputs.outputs.version }} on commit ${{ github.event.inputs.commit_sha }}"
+
+      - name: Generate GitHub App Token for ui repo
+        id: ui-app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ui
+
+      - name: Create git tag for UI repo
+        env:
+          GH_TOKEN: ${{ steps.ui-app-token.outputs.token }}
+        run: |
+          VERSION="v${{ needs.prepare-inputs.outputs.version }}"
+          UI_SHA="${{ github.event.inputs.ui_commit_sha }}"
+          UI_REPO="${{ github.repository_owner }}/ui"
+
+          echo "Creating tag ${VERSION} on UI repo at SHA ${UI_SHA}"
+
+          # Create annotated tag object
+          TAG_SHA=$(gh api "repos/${UI_REPO}/git/tags" \
+            -X POST \
+            -f tag="${VERSION}" \
+            -f message="Release ${VERSION}" \
+            -f object="${UI_SHA}" \
+            -f type="commit" \
+            --jq '.sha')
+
+          # Create tag reference
+          gh api "repos/${UI_REPO}/git/refs" \
+            -X POST \
+            -f ref="refs/tags/${VERSION}" \
+            -f sha="${TAG_SHA}"
+
+          echo "✅ Created and pushed tag: ${VERSION} on UI repo at commit ${UI_SHA}"
+
   matrix-prep:
     name: Prepare image matrix
     runs-on: ubuntu-latest
@@ -139,9 +210,9 @@ jobs:
           AUTHFILE="$GITHUB_WORKSPACE/.skopeo/auth.json"
           
           # Login to source registry (Artifactory)
-          skopeo login "${{ secrets.ARTIFACTORY_URL }}" \
-            -u "${{ secrets.ARTIFACTORY_USERNAME }}" \
-            -p "${{ secrets.ARTIFACTORY_PASSWORD }}" \
+          skopeo login "${{ secrets.PRIVATE_ARTIFACTORY_DOCKER_URL }}" \
+            -u "${{ secrets.PRIVATE_ARTIFACTORY_USERNAME }}" \
+            -p "${{ secrets.PRIVATE_ARTIFACTORY_PASSWORD }}" \
             --authfile "$AUTHFILE"
           
           # Login to target registries
@@ -182,7 +253,7 @@ jobs:
             python_version_suffix="-py$(echo '${{ matrix.python-version }}' | tr -d '.')"
           fi
           
-          SOURCE_IMAGE="docker://${{ secrets.ARTIFACTORY_URL }}/${{ github.event.inputs.source_artifactory_docker_repo }}/${image_name}:${{ needs.prepare-inputs.outputs.version }}${python_version_suffix}"
+          SOURCE_IMAGE="docker://${{ secrets.PRIVATE_ARTIFACTORY_DOCKER_URL }}/${{ github.event.inputs.source_artifactory_docker_repo }}/${image_name}:${{ needs.prepare-inputs.outputs.version }}${python_version_suffix}"
           
           echo "Source image: $SOURCE_IMAGE"
           
@@ -208,7 +279,7 @@ jobs:
 
       - name: Generate GitHub App Token for ui repo
         id: ui-app-token
-        uses: actions/create-github-app-token@v3
+        uses: actions/create-github-app-token@v2
         with:
           app-id: ${{ secrets.GH_APP_ID }}
           private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
@@ -232,7 +303,7 @@ jobs:
     steps:
       - name: Setup Python 3.11 venv
         run: |
-          python3.11 -m venv --clear $GITHUB_WORKSPACE/.venv-promotion
+          python3.11 -m venv $GITHUB_WORKSPACE/.venv-promotion
           echo "$GITHUB_WORKSPACE/.venv-promotion/bin" >> $GITHUB_PATH
 
       - name: Download package from source PyPI repo
@@ -241,7 +312,7 @@ jobs:
           mkdir -p dist
           pip download \
             --no-deps \
-            --index-url https://${{ secrets.ARTIFACTORY_USERNAME }}:${{ secrets.ARTIFACTORY_PASSWORD }}@${{ secrets.ARTIFACTORY_URL }}/artifactory/api/pypi/${{ github.event.inputs.source_artifactory_pypi_repo }}/simple \
+            --index-url https://${{ secrets.PRIVATE_ARTIFACTORY_USERNAME }}:${{ secrets.PRIVATE_ARTIFACTORY_PASSWORD }}@${{ secrets.PRIVATE_ARTIFACTORY_URL }}/artifactory/api/pypi/${{ github.event.inputs.source_artifactory_pypi_repo }}/simple \
             --dest dist \
             mlrun==${{ needs.prepare-inputs.outputs.version }}
           
@@ -264,33 +335,30 @@ jobs:
   create-releases:
     name: Create release & tag v${{ needs.prepare-inputs.outputs.version }}
     runs-on: ubuntu-latest
-    needs: [ prepare-inputs, promote-pypi-package ]
+    needs: [ prepare-inputs, promote-pypi-package, create-tag ]
     steps:
-      - name: Create GitHub release (using existing tag from private-release)
+      - name: Create GitHub release
         uses: ncipollo/release-action@339a81892b84b4eeb0f6e744e4574d79d0d9b8dd # 1.21.0
         if: github.event.inputs.skip_create_tag_release != 'true'
         with:
           tag: v${{ needs.prepare-inputs.outputs.version }}
-          # Use existing tag created by private-release workflow (don't create new tag)
-          # allowUpdates allows creating a release on an existing tag
           allowUpdates: true
           token: ${{ secrets.GITHUB_TOKEN }}
       - name: Generate GitHub App Token for ui repo
         if: github.event.inputs.skip_create_tag_release != 'true'
         id: ui-release-app-token
-        uses: actions/create-github-app-token@v3
+        uses: actions/create-github-app-token@v2
         with:
           app-id: ${{ secrets.GH_APP_ID }}
           private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
           repositories: ui
-      - name: Create UI repo release (tag should exist from ui-promotion workflow)
+      - name: Create UI repo release
         uses: ncipollo/release-action@339a81892b84b4eeb0f6e744e4574d79d0d9b8dd # 1.21.0
         if: github.event.inputs.skip_create_tag_release != 'true'
         with:
           repo: ui
           tag: v${{ needs.prepare-inputs.outputs.version }}
-          # Use existing tag (don't create new one)
           allowUpdates: true
           token: ${{ steps.ui-release-app-token.outputs.token }}
           # experienced 500 errors when trying to create release notes for ui repo with `prerelease flag`

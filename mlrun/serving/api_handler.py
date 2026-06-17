@@ -247,12 +247,7 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
                         body_params = {}
 
                 # Build system-injected URL params when include_url_info is enabled.
-                # mlrun_request_path holds the normalized, URL-decoded path of the matched
-                # request and mlrun_request_method holds the HTTP method (e.g. "GET").
-                # Together they let a dispatcher handler distinguish endpoints that share a
-                # path template but differ by method (e.g. GET vs DELETE on /responses/{id}).
-                # Decoding matches Flask/FastAPI semantics: an encoded slash (%2F)
-                # in a segment becomes indistinguishable from a path separator.
+                # See APIHandlerConfig.include_url_info for the full contract.
                 url_params: dict[str, Any] = {}
                 if self.config.include_url_info:
                     url_params["mlrun_request_path"] = unquote(normalized_path)
@@ -310,25 +305,28 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
             for m in HTTPMethod
             if m != method
         )
+        # Use the decoded form for user/operator-facing logs and errors; matching above
+        # runs on the raw path so encoded slashes don't sneak across route boundaries.
+        decoded_path = unquote(normalized_path)
         if path_exists:
             # Path exists but method not allowed (405)
             mlrun.utils.logger.warning(
                 "Method not allowed for endpoint",
                 method=method.value,
-                path=normalized_path,
+                path=decoded_path,
             )
             raise mlrun.errors.MLRunMethodNotAllowedError(
-                f"Method not allowed: {method.value} {normalized_path}"
+                f"Method not allowed: {method.value} {decoded_path}"
             )
         else:
             # No matching endpoint found (404)
             mlrun.utils.logger.warning(
                 "No matching endpoint found",
                 method=method.value,
-                path=normalized_path,
+                path=decoded_path,
             )
             raise mlrun.errors.MLRunNotFoundError(
-                f"Endpoint not found: {method.value} {normalized_path}"
+                f"Endpoint not found: {method.value} {decoded_path}"
             )
 
     def _collect_endpoint_matches(

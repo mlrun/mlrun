@@ -1217,7 +1217,7 @@ class TestAPIHandlerMockServer:
             server.wait_for_completion()
 
     def test_api_handler_url_encoded_path_params(self) -> None:
-        """Test that URL-encoded path parameters are properly decoded"""
+        """URL-encoded path parameters are decoded, and 405 errors show the decoded path (ML-12732)."""
 
         def handler(body, **kwargs):
             return {"filename": kwargs.get("filename")}
@@ -1246,6 +1246,17 @@ class TestAPIHandlerMockServer:
                 body={},
             )
             assert response == {"filename": "my document.pdf"}
+
+            # Wrong method on the same encoded path → 405 with the decoded path in the message.
+            error_response = server.test(
+                "/files/my%20document.pdf",
+                method="POST",
+                body={},
+                silent=True,
+            )
+            assert error_response.status_code == 405
+            assert "/files/my document.pdf" in error_response.body
+            assert "%20" not in error_response.body
         finally:
             server.wait_for_completion()
 

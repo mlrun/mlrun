@@ -527,10 +527,11 @@ def _mark_function_deploy_error(
     fn: mlrun.runtimes.RemoteRuntime,
 ):
     tag = fn.metadata.tag
-    db_function = services.api.crud.Functions().get_function(
-        db_session, name, project, tag
-    )
-    if not db_function:
+    try:
+        db_function = services.api.crud.Functions().get_function(
+            db_session, name, project, tag
+        )
+    except mlrun.errors.MLRunNotFoundError:
         # Nothing persisted: no premature "ready" to correct.
         return
 
@@ -540,7 +541,7 @@ def _mark_function_deploy_error(
             name, project, tag, resolve_address=False, auth_info=auth_info
         )
     except Exception:
-        # No Nuclio function or unreadable status: record as failed.
+        # No Nuclio function or unreadable status: record as failed (heals on next poll).
         state = mlrun.common.schemas.FunctionState.error
 
     try:
@@ -555,6 +556,7 @@ def _mark_function_deploy_error(
             versioned=False,
         )
     except Exception as exc:
+        # Best-effort: a failed status write must not mask the original deploy error.
         logger.warning(
             "Failed to update function status after deploy failure",
             project=project,

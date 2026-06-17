@@ -389,7 +389,7 @@ def test_deploy_function_failure_status_update_error_is_swallowed(
     db: sqlalchemy.orm.Session,
     client: fastapi.testclient.TestClient,
 ):
-    """A failed status update must not mask the original deploy error."""
+    """A failed status write must not mask the original deploy error."""
     services.api.tests.unit.api.utils.create_project(client, PROJECT)
     func_name = "test-app"
     fn = mlrun.new_function(name=func_name, kind="application", project=PROJECT)

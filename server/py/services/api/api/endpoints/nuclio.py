@@ -546,7 +546,8 @@ def _mark_function_deploy_error(
         state = mlrun.common.schemas.FunctionState.error
 
     try:
-        # Persist the state the way the deploy-status poller does.
+        # Update only status.state on the same unversioned record the build phase
+        # wrote; never mint a permanent versioned snapshot from a failed deploy.
         mlrun.utils.update_in(db_function, "status.state", state)
         services.api.crud.Functions().store_function(
             db_session,
@@ -554,7 +555,7 @@ def _mark_function_deploy_error(
             name,
             project,
             tag,
-            versioned=state == mlrun.common.schemas.FunctionState.ready,
+            versioned=False,
         )
     except Exception as exc:
         logger.warning(

@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import datetime
 import urllib.parse
 
 import semver
@@ -243,6 +244,107 @@ def is_nuclio_version_in_range(min_version: str, max_version: str) -> bool:
     return parsed_min_version <= parsed_current_version < parsed_max_version
 
 
+def _parse_azure_connection_string(connection_string: str) -> dict:
+    """Parse an Azure ``key=value;...`` connection string into a dict. Values can contain ``=``
+    (base64 account keys, SAS tokens), so split on the first ``=`` only.
+
+    Hand-rolled rather than reusing adlfs's internal ``parse_connection_str`` to avoid depending
+    on a private API for the few fields we need (``AccountName``/``AccountKey``/SAS).
+    """
+    parts = {}
+    for segment in connection_string.split(";"):
+        if "=" in segment:
+            key, value = segment.split("=", 1)
+            parts[key.strip()] = value.strip()
+    return parts
+
+
+def _build_azure_blob_sas_url(source: str, secrets: dict) -> str:
+    """Rewrite an ``az://`` source archive into an HTTPS blob URL carrying a short-lived,
+    read-only SAS, so Nuclio can fetch it as a regular ``archive`` (Nuclio has no native Azure
+    Blob code-entry type).
+
+    Credential + endpoint resolution is delegated to mlrun's ``AzureBlobStore`` via a fresh,
+    request-scoped ``StoreManager`` (never the process-global ``store_manager`` — its URL-keyed
+    cache must not be shared across projects). This makes Nuclio deploys authenticate ``az://``
+    exactly like mlrun jobs — account-key, connection-string, SAS pass-through, service
+    principal, and managed/workload identity — rather than a parallel auth implementation. The
+    SAS *type* is chosen from whatever the store resolved.
+    """
+    from azure.storage.blob import BlobSasPermissions, generate_blob_sas
+
+    from mlrun.datastore.datastore import StoreManager
+
+    store, sub_path, _ = StoreManager().get_or_create_store(source, secrets=secrets)
+    options = store.storage_options
+    account_name = options.get("account_name")
+    account_key = options.get("account_key")
+    sas_token = options.get("sas_token")
+    if not (account_key or sas_token) and options.get("connection_string"):
+        conn = _parse_azure_connection_string(options["connection_string"])
+        account_key = conn.get("AccountKey")
+        sas_token = conn.get("SharedAccessSignature")
+        account_name = account_name or conn.get("AccountName")
+
+    container = options.get("container")
+    blob_name = sub_path.lstrip("/")
+    if not container or not blob_name:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"could not resolve Azure container/blob from source {source!r}"
+        )
+
+    now = datetime.datetime.now(datetime.UTC)
+    # back-date the start to absorb clock skew (a "future" start is rejected as not-yet-valid);
+    # keep the window generous so a queued Nuclio build still fetches before the SAS expires
+    start = now - datetime.timedelta(minutes=5)
+    expiry = now + datetime.timedelta(hours=6)
+
+    try:
+        host = (
+            store.service_client.primary_hostname
+        )  # <account>.blob.<suffix>, carries no SAS
+        # Sign with the resolved storage-account name; the host's first label is only a fallback
+        # (a custom-domain BlobEndpoint's first label is not the account, which would otherwise
+        # produce an invalid SAS signature).
+        sas_kwargs = dict(
+            account_name=account_name or host.split(".", 1)[0],
+            container_name=container,
+            blob_name=blob_name,
+            permission=BlobSasPermissions(read=True),
+            expiry=expiry,
+            start=start,
+        )
+        if sas_token:
+            sas = sas_token.lstrip("?")
+        elif account_key:
+            sas = generate_blob_sas(account_key=account_key, **sas_kwargs)
+        else:
+            # AAD: service principal or managed/workload identity
+            sas = generate_blob_sas(
+                user_delegation_key=store.service_client.get_user_delegation_key(
+                    start, expiry
+                ),
+                **sas_kwargs,
+            )
+    except mlrun.errors.MLRunBaseError:
+        raise  # e.g. missing credentials — keep the client-error status, don't mask as 500
+    except Exception as exc:
+        raise mlrun.errors.MLRunRuntimeError(
+            "failed to mint an Azure SAS for the Nuclio source archive — verify the project's "
+            "Azure credentials (for service-principal / identity auth the principal needs the "
+            "'Storage Blob Delegator' role on the storage account)"
+        ) from exc
+
+    logger.debug(
+        "rewrote azure source archive to https with a read-only SAS",
+        container=container,
+        blob=blob_name,
+    )
+    # The SAS rides in spec.build.path (persisted on the Nuclio function); it is read-only and
+    # short-lived. Moving it to a request header (codeEntryAttributes) is a follow-up (ML-12764).
+    return f"https://{host}/{container}/{blob_name}?{sas}"
+
+
 @pure_nuclio_deployed_restricted()
 def compile_nuclio_archive_config(
     function: mlrun.runtimes.nuclio.function.RemoteRuntime,
@@ -267,6 +369,9 @@ def compile_nuclio_archive_config(
 
     source = function.spec.build.source
     parsed_url = urllib.parse.urlparse(source)
+    # Azure Blob has no native Nuclio code-entry type, but the blob is reachable over HTTPS, so
+    # we resolve az:// as a (rewritten, SAS-signed) archive below.
+    is_azure_source = source.startswith("az://")
     code_entry_type = ""
     if source.startswith("s3://"):
         code_entry_type = "s3"
@@ -275,6 +380,8 @@ def compile_nuclio_archive_config(
     for archive_prefix in ["http://", "https://", "v3io://", "v3ios://"]:
         if source.startswith(archive_prefix):
             code_entry_type = "archive"
+    if is_azure_source:
+        code_entry_type = "archive"
 
     if code_entry_type == "":
         raise mlrun.errors.MLRunInvalidArgumentError(
@@ -291,6 +398,11 @@ def compile_nuclio_archive_config(
 
     # archive
     if code_entry_type == "archive":
+        if is_azure_source:
+            source = _build_azure_blob_sas_url(
+                source, {**secrets, **(builder_env or {})}
+            )
+
         v3io_access_key = builder_env.get("V3IO_ACCESS_KEY", "")
         if source.startswith("v3io"):
             if not parsed_url.netloc:

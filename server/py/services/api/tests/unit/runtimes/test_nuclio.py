@@ -1534,6 +1534,179 @@ class TestNuclioRuntime(TestRuntimeBase):
             },
         }
 
+    @staticmethod
+    def _patch_azure_service_client(mock_client):
+        return unittest.mock.patch(
+            "mlrun.datastore.azure_blob.AzureBlobStore.service_client",
+            new_callable=unittest.mock.PropertyMock,
+            return_value=mock_client,
+        )
+
+    def test_load_function_with_source_archive_azure_blob_service_principal(self):
+        """az:// + service-principal → archive at an HTTPS URL with a user-delegation SAS.
+
+        Credential/endpoint resolution is delegated to AzureBlobStore (so secret-name handling
+        and auth modes match mlrun jobs); the authenticated client is mocked so the rewrite runs
+        without a live account.
+        """
+        fn = self._generate_runtime(self.runtime_kind)
+        fn.with_source_archive(
+            "az://data/projects/airun-test/artifacts/src.tar.gz",
+            handler="main:handler",
+            workdir="path/inside/archive",
+        )
+        secrets = {
+            "AZURE_STORAGE_ACCOUNT_NAME": "mystorageacct",
+            "AZURE_CLIENT_ID": "cid",
+            "AZURE_CLIENT_SECRET": "csecret",
+            "AZURE_TENANT_ID": "tid",
+        }
+        mock_client = unittest.mock.Mock()
+        mock_client.primary_hostname = "mystorageacct.blob.core.windows.net"
+        mock_client.get_user_delegation_key.return_value = "the-udk"
+
+        with (
+            self._patch_azure_service_client(mock_client),
+            unittest.mock.patch(
+                "azure.storage.blob.generate_blob_sas", return_value="sig=fake-sas"
+            ) as mock_gen_sas,
+        ):
+            archive = get_archive_spec(fn, secrets)
+
+        assert archive == {
+            "spec": {
+                "handler": "main:handler",
+                "build": {
+                    "path": "https://mystorageacct.blob.core.windows.net/data/"
+                    "projects/airun-test/artifacts/src.tar.gz?sig=fake-sas",
+                    "codeEntryType": "archive",
+                    "codeEntryAttributes": {"workDir": "path/inside/archive"},
+                },
+            },
+        }
+        mock_client.get_user_delegation_key.assert_called_once()
+        _, sas_kwargs = mock_gen_sas.call_args
+        assert sas_kwargs["user_delegation_key"] == "the-udk"
+        assert sas_kwargs["account_name"] == "mystorageacct"
+        assert sas_kwargs["container_name"] == "data"
+        assert sas_kwargs["blob_name"] == "projects/airun-test/artifacts/src.tar.gz"
+        assert sas_kwargs["permission"].read is True
+        assert sas_kwargs["start"] < sas_kwargs["expiry"]
+
+    def test_load_function_with_source_archive_azure_blob_account_key(self):
+        """az:// + account key → an account-key SAS, with no user-delegation call."""
+        fn = self._generate_runtime(self.runtime_kind)
+        fn.with_source_archive("az://data/src.tar.gz", handler="main:handler")
+        secrets = {
+            "AZURE_STORAGE_ACCOUNT_NAME": "acct",
+            "AZURE_STORAGE_ACCOUNT_KEY": "the-key",
+        }
+        mock_client = unittest.mock.Mock()
+        mock_client.primary_hostname = "acct.blob.core.windows.net"
+
+        with (
+            self._patch_azure_service_client(mock_client),
+            unittest.mock.patch(
+                "azure.storage.blob.generate_blob_sas", return_value="sig=ak"
+            ) as mock_gen_sas,
+        ):
+            archive = get_archive_spec(fn, secrets)
+
+        assert (
+            archive["spec"]["build"]["path"]
+            == "https://acct.blob.core.windows.net/data/src.tar.gz?sig=ak"
+        )
+        mock_client.get_user_delegation_key.assert_not_called()
+        _, sas_kwargs = mock_gen_sas.call_args
+        assert sas_kwargs["account_key"] == "the-key"
+        assert "user_delegation_key" not in sas_kwargs
+
+    def test_load_function_with_source_archive_azure_blob_sas_passthrough(self):
+        """az:// + an existing SAS token → the token is passed through, nothing is minted."""
+        fn = self._generate_runtime(self.runtime_kind)
+        fn.with_source_archive("az://data/src.tar.gz", handler="main:handler")
+        secrets = {
+            "AZURE_STORAGE_ACCOUNT_NAME": "acct",
+            "AZURE_STORAGE_SAS_TOKEN": "?sv=2023&sig=abc",
+        }
+        mock_client = unittest.mock.Mock()
+        mock_client.primary_hostname = "acct.blob.core.windows.net"
+
+        with (
+            self._patch_azure_service_client(mock_client),
+            unittest.mock.patch("azure.storage.blob.generate_blob_sas") as mock_gen_sas,
+        ):
+            archive = get_archive_spec(fn, secrets)
+
+        assert (
+            archive["spec"]["build"]["path"]
+            == "https://acct.blob.core.windows.net/data/src.tar.gz?sv=2023&sig=abc"
+        )
+        mock_gen_sas.assert_not_called()
+        mock_client.get_user_delegation_key.assert_not_called()
+
+    def test_load_function_with_source_archive_azure_blob_connection_string(self):
+        """az:// + a connection string → account-key SAS, signed with the parsed AccountName."""
+        fn = self._generate_runtime(self.runtime_kind)
+        fn.with_source_archive("az://data/src.tar.gz", handler="main:handler")
+        # base64-style key contains '=' — exercises the split-on-first-'=' contract
+        secrets = {
+            "AZURE_STORAGE_CONNECTION_STRING": (
+                "DefaultEndpointsProtocol=https;AccountName=connacct;"
+                "AccountKey=YWJjZA==;EndpointSuffix=core.windows.net"
+            ),
+        }
+        mock_client = unittest.mock.Mock()
+        mock_client.primary_hostname = "connacct.blob.core.windows.net"
+
+        with (
+            self._patch_azure_service_client(mock_client),
+            unittest.mock.patch(
+                "azure.storage.blob.generate_blob_sas", return_value="sig=cs"
+            ) as mock_gen_sas,
+        ):
+            archive = get_archive_spec(fn, secrets)
+
+        assert (
+            archive["spec"]["build"]["path"]
+            == "https://connacct.blob.core.windows.net/data/src.tar.gz?sig=cs"
+        )
+        _, sas_kwargs = mock_gen_sas.call_args
+        assert (
+            sas_kwargs["account_key"] == "YWJjZA=="
+        )  # split on first '=' kept the trailing ==
+        assert sas_kwargs["account_name"] == "connacct"
+        mock_client.get_user_delegation_key.assert_not_called()
+
+    def test_load_function_with_source_archive_azure_blob_missing_secrets(self):
+        """az:// without any Azure credentials surfaces a client-side error (not a 500)."""
+        fn = self._generate_runtime(self.runtime_kind)
+        fn.with_source_archive("az://data/src.tar.gz", handler="main:handler")
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+            get_archive_spec(fn, {})
+
+    def test_load_function_with_source_archive_azure_blob_sas_failure_wrapped(self):
+        """An Azure SDK failure while minting the SAS is wrapped as an MLRun runtime error."""
+        fn = self._generate_runtime(self.runtime_kind)
+        fn.with_source_archive("az://data/src.tar.gz", handler="main:handler")
+        secrets = {
+            "AZURE_STORAGE_ACCOUNT_NAME": "acct",
+            "AZURE_CLIENT_ID": "cid",
+            "AZURE_CLIENT_SECRET": "csecret",
+            "AZURE_TENANT_ID": "tid",
+        }
+        mock_client = unittest.mock.Mock()
+        mock_client.primary_hostname = "acct.blob.core.windows.net"
+        mock_client.get_user_delegation_key.side_effect = Exception("boom")
+
+        with (
+            self._patch_azure_service_client(mock_client),
+            pytest.raises(
+                mlrun.errors.MLRunRuntimeError, match="Storage Blob Delegator"
+            ),
+        ):
+            get_archive_spec(fn, secrets)
+
     @pytest.mark.parametrize(
         "image_pull_secret_name,build_secret_name,default_image_pull_secret_name,"
         "default_build_secret_name,expected_secret_name",
@@ -2431,3 +2604,14 @@ def get_archive_spec(function, secrets):
     )
     spec.merge(config)
     return config
+
+
+def test_parse_azure_connection_string():
+    """Values may contain '=' (base64 keys, SAS); only the first '=' separates key/value."""
+    parsed = services.api.crud.runtimes.nuclio.helpers._parse_azure_connection_string(
+        "DefaultEndpointsProtocol=https;AccountName=acct;AccountKey=YWJjZA==;"
+        "SharedAccessSignature=sv=2023&sig=x%3D%3D"
+    )
+    assert parsed["AccountName"] == "acct"
+    assert parsed["AccountKey"] == "YWJjZA=="
+    assert parsed["SharedAccessSignature"] == "sv=2023&sig=x%3D%3D"

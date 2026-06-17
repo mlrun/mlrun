@@ -245,11 +245,9 @@ def is_nuclio_version_in_range(min_version: str, max_version: str) -> bool:
 
 
 def _parse_azure_connection_string(connection_string: str) -> dict:
-    """Parse an Azure ``key=value;...`` connection string into a dict. Values can contain ``=``
-    (base64 account keys, SAS tokens), so split on the first ``=`` only.
+    """Parse ``key=value;...`` Azure connection strings.
 
-    Hand-rolled rather than reusing azure-storage-blob's internal ``parse_connection_str`` to
-    avoid depending on a private API for the few fields we need (``AccountName``/``AccountKey``/SAS).
+    Split each segment on the first ``=`` so base64 keys and SAS values are preserved.
     """
     parts = {}
     for segment in connection_string.split(";"):
@@ -260,18 +258,10 @@ def _parse_azure_connection_string(connection_string: str) -> dict:
 
 
 def _build_azure_blob_sas_url(source: str, secrets: dict) -> str:
-    """Rewrite an ``az://`` source archive into an HTTPS blob URL carrying a short-lived,
-    read-only SAS, so Nuclio can fetch it as a regular ``archive`` (Nuclio has no native Azure
-    Blob code-entry type).
+    """Rewrite ``az://`` source archives to HTTPS + read-only SAS for Nuclio.
 
-    Credential + endpoint resolution is delegated to mlrun's ``AzureBlobStore`` so deploys
-    resolve ``az://`` credentials the same way mlrun jobs do — account-key, connection-string,
-    SAS pass-through, service principal, and managed/workload identity — rather than a parallel
-    auth implementation. The SAS *type* is then chosen from whatever the store resolved.
-
-    A fresh ``StoreManager`` is constructed per call rather than the process-global one to keep
-    resolution request-scoped (the API server already bypasses the datastore cache, so this is
-    defense-in-depth).
+    Uses request-scoped ``StoreManager`` + ``AzureBlobStore`` resolution so auth behavior matches
+    mlrun jobs.
     """
     from azure.storage.blob import BlobSasPermissions, generate_blob_sas
 
@@ -296,18 +286,14 @@ def _build_azure_blob_sas_url(source: str, secrets: dict) -> str:
         )
 
     now = datetime.datetime.now(datetime.UTC)
-    # back-date the start to absorb clock skew (a "future" start is rejected as not-yet-valid);
-    # keep the window generous so a queued Nuclio build still fetches before the SAS expires
+    # Backdate start for clock skew; keep expiry long enough for queued builds.
     start = now - datetime.timedelta(minutes=5)
     expiry = now + datetime.timedelta(hours=6)
 
     try:
-        host = (
-            store.service_client.primary_hostname
-        )  # <account>.blob.<suffix>, carries no SAS
-        # Sign with the resolved storage-account name; the host's first label is only a fallback
-        # (a custom-domain BlobEndpoint's first label is not the account, which would otherwise
-        # produce an invalid SAS signature).
+        # primary_hostname contains no SAS.
+        host = store.service_client.primary_hostname
+        # Prefer resolved account_name; host-label fallback can be wrong on custom domains.
         sas_kwargs = dict(
             account_name=account_name or host.split(".", 1)[0],
             container_name=container,
@@ -329,21 +315,19 @@ def _build_azure_blob_sas_url(source: str, secrets: dict) -> str:
                 **sas_kwargs,
             )
     except mlrun.errors.MLRunBaseError:
-        raise  # e.g. missing credentials — keep the client-error status, don't mask as 500
+        raise  # Keep client-side errors (e.g. missing credentials).
     except Exception as exc:
         raise mlrun.errors.MLRunRuntimeError(
-            "failed to mint an Azure SAS for the Nuclio source archive — verify the project's "
-            "Azure credentials (for service-principal / identity auth the principal needs the "
-            "'Storage Blob Delegator' role on the storage account)"
+            "failed to build Azure SAS for Nuclio source archive; verify Azure credentials "
+            "and ensure the principal has the 'Storage Blob Delegator' role"
         ) from exc
 
     logger.debug(
-        "rewrote azure source archive to https with a read-only SAS",
+        "rewrote az:// source archive to https with read-only SAS",
         container=container,
         blob=blob_name,
     )
-    # The SAS rides in spec.build.path (persisted on the Nuclio function); it is read-only and
-    # short-lived.
+    # SAS currently rides in spec.build.path; keep it read-only and short-lived.
     return f"https://{host}/{container}/{blob_name}?{sas}"
 
 
@@ -371,8 +355,7 @@ def compile_nuclio_archive_config(
 
     source = function.spec.build.source
     parsed_url = urllib.parse.urlparse(source)
-    # Azure Blob has no native Nuclio code-entry type, but the blob is reachable over HTTPS, so
-    # we resolve az:// as a (rewritten, SAS-signed) archive below.
+    # Nuclio has no az:// code-entry type; rewrite Azure source as archive HTTPS.
     is_azure_source = source.startswith("az://")
     code_entry_type = ""
     if source.startswith("s3://"):

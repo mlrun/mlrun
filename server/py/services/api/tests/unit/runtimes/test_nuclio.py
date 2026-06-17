@@ -1543,12 +1543,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         )
 
     def test_load_function_with_source_archive_azure_blob_service_principal(self):
-        """az:// + service-principal → archive at an HTTPS URL with a user-delegation SAS.
-
-        Credential/endpoint resolution is delegated to AzureBlobStore (so secret-name handling
-        and auth modes match mlrun jobs); the authenticated client is mocked so the rewrite runs
-        without a live account.
-        """
+        """Service-principal auth mints a user-delegation SAS and rewrites to HTTPS."""
         fn = self._generate_runtime(self.runtime_kind)
         fn.with_source_archive(
             "az://data/projects/airun-test/artifacts/src.tar.gz",
@@ -1594,7 +1589,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         assert sas_kwargs["start"] < sas_kwargs["expiry"]
 
     def test_load_function_with_source_archive_azure_blob_account_key(self):
-        """az:// + account key → an account-key SAS, with no user-delegation call."""
+        """Account-key auth mints account-key SAS without user-delegation."""
         fn = self._generate_runtime(self.runtime_kind)
         fn.with_source_archive("az://data/src.tar.gz", handler="main:handler")
         secrets = {
@@ -1622,7 +1617,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         assert "user_delegation_key" not in sas_kwargs
 
     def test_load_function_with_source_archive_azure_blob_sas_passthrough(self):
-        """az:// + an existing SAS token → the token is passed through, nothing is minted."""
+        """Existing SAS token is passed through (no SAS minting)."""
         fn = self._generate_runtime(self.runtime_kind)
         fn.with_source_archive("az://data/src.tar.gz", handler="main:handler")
         secrets = {
@@ -1646,10 +1641,10 @@ class TestNuclioRuntime(TestRuntimeBase):
         mock_client.get_user_delegation_key.assert_not_called()
 
     def test_load_function_with_source_archive_azure_blob_connection_string(self):
-        """az:// + a connection string → account-key SAS, signed with the parsed AccountName."""
+        """Connection-string auth mints account-key SAS using parsed AccountName."""
         fn = self._generate_runtime(self.runtime_kind)
         fn.with_source_archive("az://data/src.tar.gz", handler="main:handler")
-        # base64-style key contains '=' — exercises the split-on-first-'=' contract
+        # Key includes '=' to verify split-on-first-'=' parsing.
         secrets = {
             "AZURE_STORAGE_CONNECTION_STRING": (
                 "DefaultEndpointsProtocol=https;AccountName=connacct;"
@@ -1672,21 +1667,19 @@ class TestNuclioRuntime(TestRuntimeBase):
             == "https://connacct.blob.core.windows.net/data/src.tar.gz?sig=cs"
         )
         _, sas_kwargs = mock_gen_sas.call_args
-        assert (
-            sas_kwargs["account_key"] == "YWJjZA=="
-        )  # split on first '=' kept the trailing ==
+        assert sas_kwargs["account_key"] == "YWJjZA=="
         assert sas_kwargs["account_name"] == "connacct"
         mock_client.get_user_delegation_key.assert_not_called()
 
     def test_load_function_with_source_archive_azure_blob_missing_secrets(self):
-        """az:// without any Azure credentials surfaces a client-side error (not a 500)."""
+        """Missing Azure credentials returns a client-side error."""
         fn = self._generate_runtime(self.runtime_kind)
         fn.with_source_archive("az://data/src.tar.gz", handler="main:handler")
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
             get_archive_spec(fn, {})
 
     def test_load_function_with_source_archive_azure_blob_sas_failure_wrapped(self):
-        """An Azure SDK failure while minting the SAS is wrapped as an MLRun runtime error."""
+        """Azure SDK SAS failures are wrapped as MLRunRuntimeError."""
         fn = self._generate_runtime(self.runtime_kind)
         fn.with_source_archive("az://data/src.tar.gz", handler="main:handler")
         secrets = {
@@ -2607,7 +2600,7 @@ def get_archive_spec(function, secrets):
 
 
 def test_parse_azure_connection_string():
-    """Values may contain '=' (base64 keys, SAS); only the first '=' separates key/value."""
+    """Split on first '=' so base64 keys and SAS values are preserved."""
     parsed = services.api.crud.runtimes.nuclio.helpers._parse_azure_connection_string(
         "DefaultEndpointsProtocol=https;AccountName=acct;AccountKey=YWJjZA==;"
         "SharedAccessSignature=sv=2023&sig=x%3D%3D"

@@ -132,6 +132,8 @@ class GoogleCloudStorageStore(DataStore):
                 "Append mode not supported for Google cloud storage datastore"
             )
         data, _ = self._prepare_put_data(data, append)
+        if isinstance(data, str):
+            data = data.encode("utf-8")
         # pipe_file streams in chunks; write() buffers the whole body.
         self.filesystem.pipe_file(path, data)
 

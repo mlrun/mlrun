@@ -193,7 +193,7 @@ config.add_endpoint_handler(
 
 When `include_url_info=True`, the handler injects two additional fields into the event:
 
-- `mlrun_request_path` — the normalized URL path (without the query string).
+- `mlrun_request_path` — the normalized, URL-decoded path (without the query string). Decoding matches Flask/FastAPI semantics: an encoded slash (`%2F`) in a segment becomes indistinguishable from a path separator.
 - `mlrun_request_method` — the HTTP method as an uppercase string (e.g. `"GET"`, `"DELETE"`).
 
 Both are passed together so a dispatcher handler can distinguish endpoints that share a path template but differ by method. Query string parameters are always extracted as keyword arguments regardless of this setting.

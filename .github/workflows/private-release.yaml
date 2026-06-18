@@ -16,8 +16,8 @@ name: Private Release
 run-name: Privately ( artifactory only ) releasing ${{ inputs.version }} (${{ github.ref_name }})
 
 permissions:
-  # Write repository contents (needed to push tags)
-  contents: write
+  # Read repository contents
+  contents: read
   packages: write
 
 on:
@@ -40,7 +40,7 @@ on:
       artifactory_pypi_repo:
         description: 'Artifactory PyPI repository name'
         required: false
-        default: 'private-mlrun-py'
+        default: 'mlrun-private-pypi-local'
         type: string
       ui_ref:
         description: 'The UI reference (branch / tag name) to use for the UI image, (development, 1.3.3, etc)'
@@ -99,9 +99,31 @@ jobs:
           BUMP_VERSION_MODE_INPUT: ${{ github.event.inputs.bump_version_mode }}
           VERSION_INPUT: ${{ github.event.inputs.version }}
           ARTIFACTORY_PYPI_REPO: ${{ github.event.inputs.artifactory_pypi_repo }}
-          ARTIFACTORY_URL: ${{ secrets.ARTIFACTORY_URL }}
-          ARTIFACTORY_DOCKER_REPO: ${{ github.event.inputs.artifactory_docker_repo }}
           UI_REF_INPUT: ${{ github.event.inputs.ui_ref }}
+
+      - name: Generate GitHub App Token for ui repo
+        id: ui-app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ui
+
+      - name: Resolve UI commit SHA
+        id: resolve-ui-sha
+        env:
+          GH_TOKEN: ${{ steps.ui-app-token.outputs.token }}
+        run: |
+          UI_REF="${{ steps.resolve.outputs.ui_ref }}"
+          UI_REPO="${{ github.repository_owner }}/ui"
+
+          # Get the SHA of the ui_ref (try as branch first, then as tag)
+          UI_SHA=$(gh api "repos/${UI_REPO}/git/ref/heads/${UI_REF}" --jq '.object.sha' 2>/dev/null || \
+                   gh api "repos/${UI_REPO}/git/ref/tags/${UI_REF}" --jq '.object.sha')
+
+          echo "ui_commit_sha=${UI_SHA}" >> $GITHUB_OUTPUT
+          echo "Resolved UI commit SHA: ${UI_SHA} (from ref: ${UI_REF})"
 
       - name: Display calculated version
         run: |
@@ -111,6 +133,14 @@ jobs:
           echo "**Branch:** \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
           echo "**Previous Version:** \`${{ steps.resolve.outputs.previous_version }}\`" >> $GITHUB_STEP_SUMMARY
           echo "**Is Stable:** \`${{ steps.resolve.outputs.is_stable_version }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**UI Ref:** \`${{ steps.resolve.outputs.ui_ref }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📋 Commit SHAs (for release promotion)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Repository | Commit SHA |" >> $GITHUB_STEP_SUMMARY
+          echo "|------------|------------|" >> $GITHUB_STEP_SUMMARY
+          echo "| **MLRun** | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **UI** | \`${{ steps.resolve-ui-sha.outputs.ui_commit_sha }}\` |" >> $GITHUB_STEP_SUMMARY
 
 
   trigger-and-wait-for-mlrun-image-building:
@@ -130,20 +160,34 @@ jobs:
 
   trigger-and-wait-for-ui-image-building:
     name: Build and push UI image to Artifactory
+    runs-on: mlrun-release
     needs: prepare-inputs
-    uses: mlrun/ui/.github/workflows/build.yaml@fix/reusable-workflow-call
-    with:
-      artifactory_docker_repo: ${{ inputs.artifactory_docker_repo }}
-      version: ${{ needs.prepare-inputs.outputs.version }}
-      runner: mlrun-release
-      ref: ${{ needs.prepare-inputs.outputs.ui_ref }}
-    secrets: inherit
+    env:
+      DOCKER_REGISTRY: "${{ secrets.PRIVATE_ARTIFACTORY_DOCKER_URL }}/${{ inputs.artifactory_docker_repo }}/"
+    steps:
+      - name: Generate GitHub App Token for ui repo
+        id: ui-app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ui
+      - uses: convictional/trigger-workflow-and-wait@f69fa9eedd3c62a599220f4d5745230e237904be # 1.6.5
+        with:
+          owner: ${{ github.repository_owner }}
+          repo: ui
+          github_token: ${{ steps.ui-app-token.outputs.token }}
+          workflow_file_name: build.yaml
+          ref: ${{ needs.prepare-inputs.outputs.ui_ref }}
+          wait_interval: 60
+          client_payload: "{\"docker_registries\": \"${{ env.DOCKER_REGISTRY }}\", \"docker_repo\": \"\", \"runner\": \"mlrun-release\", \"version\": \"${{ needs.prepare-inputs.outputs.version }}\"}"
 
   publish-to-artifactory:
     name: Publish package to Artifactory PyPI
     runs-on: mlrun-release
     env:
-      PYPI_REPO_URL: "https://${{ secrets.ARTIFACTORY_URL }}/artifactory/api/pypi/${{ inputs.artifactory_pypi_repo }}"
+      PYPI_REPO_URL: "https://${{ secrets.PRIVATE_ARTIFACTORY_URL }}/artifactory/api/pypi/${{ inputs.artifactory_pypi_repo }}"
 
     # skip releasing to pypi for feature branches
     # pypi do not allow local version identifier (https://peps.python.org/pep-0440/#local-version-identifiers)
@@ -167,61 +211,6 @@ jobs:
         env:
           MLRUN_VERSION: ${{ needs.prepare-inputs.outputs.version }}
           UV_PUBLISH_URL: ${{ env.PYPI_REPO_URL }}
-          UV_PUBLISH_USERNAME: ${{ secrets.ARTIFACTORY_USERNAME }}
-          UV_PUBLISH_PASSWORD: ${{ secrets.ARTIFACTORY_PASSWORD }}
+          UV_PUBLISH_USERNAME: ${{ secrets.PRIVATE_ARTIFACTORY_USERNAME }}
+          UV_PUBLISH_PASSWORD: ${{ secrets.PRIVATE_ARTIFACTORY_PASSWORD }}
         run: uv run --no-project --with packaging~=25.0 make publish-package
-
-  create-tag:
-    name: Create tag
-    runs-on: ubuntu-latest
-    needs: [prepare-inputs, trigger-and-wait-for-ui-image-building, trigger-and-wait-for-mlrun-image-building, publish-to-artifactory]
-    steps:
-      - uses: actions/checkout@v6
-
-      - name: Create git tag for mlrun version
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag -a "v${{ needs.prepare-inputs.outputs.version }}" -m "Release v${{ needs.prepare-inputs.outputs.version }}"
-          git push origin "v${{ needs.prepare-inputs.outputs.version }}"
-          echo "✅ Created and pushed tag: v${{ needs.prepare-inputs.outputs.version }}"
-
-      - name: Generate GitHub App Token for ui repo
-        id: ui-app-token
-        uses: actions/create-github-app-token@v3
-        with:
-          app-id: ${{ secrets.GH_APP_ID }}
-          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
-          owner: ${{ github.repository_owner }}
-          repositories: ui
-
-      - name: Create git tag for UI repo
-        env:
-          GH_TOKEN: ${{ steps.ui-app-token.outputs.token }}
-        run: |
-          VERSION="v${{ needs.prepare-inputs.outputs.version }}"
-          UI_REF="${{ needs.prepare-inputs.outputs.ui_ref }}"
-          UI_REPO="${{ github.repository_owner }}/ui"
-          
-          # Get the SHA of the ui_ref (try as branch first, then as tag)
-          SHA=$(gh api "repos/${UI_REPO}/git/ref/heads/${UI_REF}" --jq '.object.sha' 2>/dev/null || \
-                gh api "repos/${UI_REPO}/git/ref/tags/${UI_REF}" --jq '.object.sha')
-          
-          echo "Creating tag ${VERSION} on UI repo at SHA ${SHA} (from ref: ${UI_REF})"
-          
-          # Create annotated tag object
-          TAG_SHA=$(gh api "repos/${UI_REPO}/git/tags" \
-            -X POST \
-            -f tag="${VERSION}" \
-            -f message="Release ${VERSION}" \
-            -f object="${SHA}" \
-            -f type="commit" \
-            --jq '.sha')
-          
-          # Create tag reference
-          gh api "repos/${UI_REPO}/git/refs" \
-            -X POST \
-            -f ref="refs/tags/${VERSION}" \
-            -f sha="${TAG_SHA}"
-          
-          echo "✅ Created and pushed tag: ${VERSION} on UI repo"        

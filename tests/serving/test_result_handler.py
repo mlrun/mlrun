@@ -17,6 +17,7 @@
 from http import HTTPMethod
 from typing import cast
 
+import nuclio_sdk
 import pytest
 
 import mlrun
@@ -440,8 +441,16 @@ class TestResultHandlerHttpTriggerGuard:
         finally:
             server.wait_for_completion()
 
-    # ML-12706 — skip output mapping on error responses
-    def test_e2e_error_response_skips_output_mapping(self) -> None:
+    # ML-12706 — skip output mapping on error responses.
+    # Parameterized over both Response classes the fix accepts (mlrun.serving.server.Response
+    # and nuclio_sdk.Response). In real Nuclio, context.Response is nuclio_sdk.Response;
+    # both must be unwrapped correctly.
+    @pytest.mark.parametrize(
+        "response_cls",
+        [Response, nuclio_sdk.Response],
+        ids=["mlrun_response", "nuclio_response"],
+    )
+    def test_e2e_error_response_skips_output_mapping(self, response_cls) -> None:
         """Response(status_code=404) — error body passes through with original status (ML-12706)."""
         error_body = {
             "error": {
@@ -451,7 +460,7 @@ class TestResultHandlerHttpTriggerGuard:
         }
 
         def error_handler(body, **kwargs):
-            return Response(
+            return response_cls(
                 body=error_body,
                 status_code=404,
                 content_type="application/json",
@@ -473,12 +482,19 @@ class TestResultHandlerHttpTriggerGuard:
         finally:
             server.wait_for_completion()
 
-    def test_e2e_response_wrapper_preserves_status_code_on_success(self) -> None:
+    @pytest.mark.parametrize(
+        "response_cls",
+        [Response, nuclio_sdk.Response],
+        ids=["mlrun_response", "nuclio_response"],
+    )
+    def test_e2e_response_wrapper_preserves_status_code_on_success(
+        self, response_cls
+    ) -> None:
         """Response(status_code=200) — output mapping applies, status_code preserved (ML-12706)."""
         success_body = {"id": "resp_1", "object": "response", "extra_field": "filter"}
 
         def success_handler(body, **kwargs):
-            return Response(
+            return response_cls(
                 body=success_body,
                 status_code=200,
                 content_type="application/json",

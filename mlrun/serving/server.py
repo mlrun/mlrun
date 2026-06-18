@@ -29,6 +29,7 @@ from datetime import UTC, datetime
 from http import HTTPMethod
 from typing import Any, Optional, Union
 
+import nuclio_sdk
 import pandas as pd
 import storey
 from nuclio import Context as NuclioContext
@@ -351,7 +352,7 @@ class GraphServer(ModelObj):
             # output mapping on non-2xx (success-shape contract, ML-12706).
             # context.Response is adapter-aware — mlrun's in MockServer, nuclio_sdk's in Nuclio.
             explicit_response: Any = None
-            if isinstance(response, context.Response):
+            if isinstance(response, (Response, nuclio_sdk.Response)):
                 explicit_response = response
                 response = explicit_response.body
 

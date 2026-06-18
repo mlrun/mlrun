@@ -349,8 +349,9 @@ class GraphServer(ModelObj):
 
             # Unwrap an explicit Response so result_handler sees the body; skip
             # output mapping on non-2xx (success-shape contract, ML-12706).
-            explicit_response: Response | None = None
-            if isinstance(response, Response):
+            # context.Response is adapter-aware — mlrun's in MockServer, nuclio_sdk's in Nuclio.
+            explicit_response: Any = None
+            if isinstance(response, context.Response):
                 explicit_response = response
                 response = explicit_response.body
 

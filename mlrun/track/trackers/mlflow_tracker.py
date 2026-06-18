@@ -446,10 +446,12 @@ class MLFlowTracker(Tracker):
 
         # Prepare the archive path:
         archive_path = pathlib.Path(tmp_path) / f"{model_path.name}.zip"
-        # TODO add progress bar for the case of large files
         # Zip the artifact:
+        from tqdm import tqdm
+
+        files_to_zip = list(model_path.rglob("*"))
         with zipfile.ZipFile(archive_path, "w") as zip_file:
-            for path in model_path.rglob("*"):
+            for path in tqdm(files_to_zip, desc="Zipping model artifact", unit="file"):
                 zip_file.write(filename=path, arcname=path.relative_to(model_uri))
 
         # Get inputs and outputs info:

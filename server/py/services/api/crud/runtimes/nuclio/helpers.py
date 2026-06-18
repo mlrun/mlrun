@@ -18,6 +18,7 @@ import semver
 
 import mlrun
 import mlrun.runtimes
+from mlrun.datastore.datastore import StoreManager
 from mlrun.runtimes.nuclio.function import validate_nuclio_version_compatibility
 from mlrun.utils import logger
 
@@ -299,8 +300,6 @@ def compile_nuclio_archive_config(
             # Nuclio can't fetch az:// directly; have the datastore mint a read-only HTTPS+SAS
             # URL (auth resolved exactly like mlrun jobs) and hand Nuclio that instead. A fresh
             # StoreManager keeps credential resolution request-scoped (not the global cache).
-            from mlrun.datastore.datastore import StoreManager
-
             store, sub_path, _ = StoreManager().get_or_create_store(
                 source, secrets={**secrets, **(builder_env or {})}
             )

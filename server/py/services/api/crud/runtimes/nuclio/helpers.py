@@ -297,9 +297,7 @@ def compile_nuclio_archive_config(
     # archive
     if code_entry_type == "archive":
         if is_azure_source:
-            # Nuclio can't fetch az:// directly; have the datastore mint a read-only HTTPS+SAS
-            # URL (auth resolved exactly like mlrun jobs) and hand Nuclio that instead. A fresh
-            # StoreManager keeps credential resolution request-scoped (not the global cache).
+            # Nuclio can't fetch az:// directly; use a datastore-minted read-only HTTPS+SAS URL.
             store, sub_path, _ = StoreManager().get_or_create_store(
                 source, secrets={**secrets, **(builder_env or {})}
             )

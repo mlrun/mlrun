@@ -30,8 +30,7 @@ import mlrun.errors
 
 from .base import DataStore, FileStats, make_datastore_schema_sanitizer
 
-# Validity window for read-only SAS URLs minted for source-archive fetches. The blob is fetched
-# once shortly after the URL is created; the start is back-dated to absorb clock skew.
+# Validity window for read-only SAS URLs.
 _SAS_CLOCK_SKEW = datetime.timedelta(minutes=5)
 _SAS_TTL = datetime.timedelta(hours=2)
 
@@ -214,15 +213,7 @@ class AzureBlobStore(DataStore):
         return self._service_client
 
     def get_read_only_https_url(self, key, *, ttl=_SAS_TTL, clock_skew=_SAS_CLOCK_SKEW):
-        """Return an ``https://`` URL to ``key`` in this store's container, carrying a
-        short-lived, read-only SAS.
-
-        Lets callers without Azure-Blob SDK support (e.g. Nuclio's archive fetcher, which has no
-        native ``az://`` code-entry type) fetch the blob over plain HTTPS. The SAS type follows
-        the resolved credentials: an existing SAS token is passed through, an account key yields
-        an account-key SAS, otherwise (service principal / managed / workload identity) an AAD
-        user-delegation SAS is minted.
-        """
+        """Return an ``https://`` URL for ``key`` with a short-lived read-only SAS."""
         st = self.storage_options
         account_name = st.get("account_name")
         account_key = st.get("account_key")
@@ -246,8 +237,7 @@ class AzureBlobStore(DataStore):
                 f"could not resolve Azure container/blob for key {key!r}"
             )
 
-        # primary_hostname is authoritative (covers custom-domain endpoints) and carries no SAS.
-        # Accessed outside the try so missing-credential errors stay client-side (400).
+        # primary_hostname carries no SAS.
         host = self.service_client.primary_hostname
         if sas_token:
             sas = sas_token.lstrip("?")
@@ -255,8 +245,7 @@ class AzureBlobStore(DataStore):
             now = datetime.datetime.now(datetime.UTC)
             start, expiry = now - clock_skew, now + ttl
             sas_kwargs = dict(
-                # Prefer the resolved account name; the host's first label is only a fallback
-                # and can be wrong for custom-domain endpoints.
+                # Prefer resolved account name; host-label fallback can be wrong on custom domains.
                 account_name=account_name or host.split(".", 1)[0],
                 container_name=container,
                 blob_name=blob_name,
@@ -276,19 +265,18 @@ class AzureBlobStore(DataStore):
                         **sas_kwargs,
                     )
             except Exception as exc:
-                # Only identity-auth failures warrant the Delegator-role hint.
+                # Only identity-auth failures should include this role hint.
                 hint = (
                     ""
                     if account_key
-                    else " (service-principal/managed-identity auth requires the "
-                    "'Storage Blob Delegator' role)"
+                    else " (identity auth requires 'Storage Blob Delegator')"
                 )
                 raise mlrun.errors.MLRunRuntimeError(
-                    f"failed to create a read-only Azure SAS for {blob_name!r}{hint}: "
+                    f"failed to create read-only Azure SAS for {blob_name!r}{hint}: "
                     f"{mlrun.errors.err_to_str(exc)}"
                 ) from exc
 
-        # Encode blob path for the URL (keep '/'); SAS is signed over the raw blob name.
+        # Encode blob path for URL (keep '/'); SAS is signed over raw blob name.
         return f"https://{host}/{container}/{quote(blob_name, safe='/')}?{sas}"
 
     def _do_connect(self):

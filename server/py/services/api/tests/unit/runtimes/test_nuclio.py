@@ -1535,7 +1535,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         }
 
     def test_load_function_with_source_archive_azure_blob(self):
-        """az:// resolves to an archive whose path is the datastore-minted read-only HTTPS URL."""
+        """az:// sources resolve to a datastore-minted read-only HTTPS URL."""
         fn = self._generate_runtime(self.runtime_kind)
         fn.with_source_archive(
             "az://data/projects/x/src.tar.gz", handler="main:handler", workdir="wd"

@@ -39,7 +39,7 @@ class TestAzureBlobStore:
             secrets=secrets or {},
         )
 
-    # --- get_read_only_https_url (read-only SAS URLs for source-archive fetches) ---
+    # --- get_read_only_https_url ---
 
     def _store_with_mock_client(
         self, secrets, hostname="acct.blob.core.windows.net", udk="udk"
@@ -123,7 +123,7 @@ class TestAzureBlobStore:
             url
             == "https://acct.blob.core.windows.net/data/projects/a%20b/src.tar.gz?sig=x"
         )
-        # SAS is signed over the raw (unencoded) blob name
+        # SAS signs the raw blob name.
         assert gen.call_args.kwargs["blob_name"] == "projects/a b/src.tar.gz"
 
     def test_read_only_url_account_key_failure_not_mislabeled(self):

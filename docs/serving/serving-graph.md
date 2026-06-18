@@ -52,8 +52,11 @@ class MyStep:
             content_type="application/json",
         )
 
+
 # B) Import the class directly — works the same way; the SDK normalizes it on the way out.
 from mlrun.serving.server import Response
+
+
 def my_handler(body, **kwargs):
     return Response(
         body={"id": "resp_1", "object": "response"},

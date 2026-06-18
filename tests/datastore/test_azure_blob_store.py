@@ -156,6 +156,13 @@ class TestAzureBlobStore:
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
             store.get_read_only_https_url("/src.tar.gz")
 
+    def test_read_only_url_missing_credentials_raises_client_error(self):
+        # No credentials: the service_client build (outside the try) must surface as a
+        # client-side MLRunInvalidArgumentError (400), not get wrapped as a 500.
+        store = self._create_store(schema="az", endpoint="data", secrets={})
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+            store.get_read_only_https_url("/src.tar.gz")
+
     def test_spark_url_az_schema_with_endpoint_container(self):
         """Test spark_url generation for az:// URLs where endpoint is container"""
         secrets = {

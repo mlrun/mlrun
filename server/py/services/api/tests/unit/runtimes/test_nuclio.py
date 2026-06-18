@@ -1700,6 +1700,65 @@ class TestNuclioRuntime(TestRuntimeBase):
         ):
             get_archive_spec(fn, secrets)
 
+    def test_load_function_with_source_archive_azure_blob_url_encodes_blob_name(self):
+        """The blob name is percent-encoded in the URL (path slashes preserved), while the SAS
+        is signed over the raw blob name."""
+        fn = self._generate_runtime(self.runtime_kind)
+        fn.with_source_archive(
+            "az://data/projects/a b/src.tar.gz", handler="main:handler"
+        )
+        secrets = {
+            "AZURE_STORAGE_ACCOUNT_NAME": "acct",
+            "AZURE_CLIENT_ID": "cid",
+            "AZURE_CLIENT_SECRET": "csecret",
+            "AZURE_TENANT_ID": "tid",
+        }
+        mock_client = unittest.mock.Mock()
+        mock_client.primary_hostname = "acct.blob.core.windows.net"
+        mock_client.get_user_delegation_key.return_value = "the-udk"
+
+        with (
+            self._patch_azure_service_client(mock_client),
+            unittest.mock.patch(
+                "azure.storage.blob.generate_blob_sas", return_value="sig=x"
+            ) as mock_gen_sas,
+        ):
+            archive = get_archive_spec(fn, secrets)
+
+        assert (
+            archive["spec"]["build"]["path"]
+            == "https://acct.blob.core.windows.net/data/projects/a%20b/src.tar.gz?sig=x"
+        )
+        # Azure signs the canonical (raw) blob name, not the percent-encoded one
+        _, sas_kwargs = mock_gen_sas.call_args
+        assert sas_kwargs["blob_name"] == "projects/a b/src.tar.gz"
+
+    def test_load_function_with_source_archive_azure_blob_account_key_failure_not_mislabeled(
+        self,
+    ):
+        """An account-key signing failure is wrapped consistently as MLRunRuntimeError (with the
+        underlying cause), but must not carry the AAD-only 'Storage Blob Delegator' hint."""
+        fn = self._generate_runtime(self.runtime_kind)
+        fn.with_source_archive("az://data/src.tar.gz", handler="main:handler")
+        secrets = {
+            "AZURE_STORAGE_ACCOUNT_NAME": "acct",
+            "AZURE_STORAGE_ACCOUNT_KEY": "the-key",
+        }
+        mock_client = unittest.mock.Mock()
+        mock_client.primary_hostname = "acct.blob.core.windows.net"
+
+        with (
+            self._patch_azure_service_client(mock_client),
+            unittest.mock.patch(
+                "azure.storage.blob.generate_blob_sas",
+                side_effect=ValueError("bad key"),
+            ),
+            pytest.raises(mlrun.errors.MLRunRuntimeError) as exc_info,
+        ):
+            get_archive_spec(fn, secrets)
+        assert "Storage Blob Delegator" not in str(exc_info.value)
+        assert "bad key" in str(exc_info.value)  # underlying cause surfaced
+
     @pytest.mark.parametrize(
         "image_pull_secret_name,build_secret_name,default_image_pull_secret_name,"
         "default_build_secret_name,expected_secret_name",

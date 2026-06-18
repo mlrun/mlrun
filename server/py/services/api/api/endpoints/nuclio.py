@@ -511,7 +511,7 @@ def _deploy_function(
     except Exception as err:
         logger.error(traceback.format_exc())
         # Correct the build phase's premature "ready".
-        _mark_function_deploy_error(db_session, auth_info, project, name, fn)
+        _reconcile_function_status_from_nuclio(db_session, auth_info, project, name, fn)
         framework.api.utils.log_and_raise(
             HTTPStatus.BAD_REQUEST.value,
             reason=f"Runtime error: {mlrun.errors.err_to_str(err)}",
@@ -519,7 +519,7 @@ def _deploy_function(
     return fn
 
 
-def _mark_function_deploy_error(
+def _reconcile_function_status_from_nuclio(
     db_session: sqlalchemy.orm.Session,
     auth_info: mlrun.common.schemas.AuthInfo,
     project: str,

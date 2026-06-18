@@ -347,11 +347,30 @@ class GraphServer(ModelObj):
             if hasattr(response, "body"):
                 response = response.body
 
-            if self.http_trigger and self.result_handler:
+            # Unwrap an explicit Response so result_handler sees the body; skip
+            # output mapping on non-2xx (success-shape contract, ML-12706).
+            explicit_response: Response | None = None
+            if isinstance(response, Response):
+                explicit_response = response
+                response = explicit_response.body
+
+            if (
+                self.http_trigger
+                and self.result_handler
+                and (explicit_response is None or explicit_response.status_code < 300)
+            ):
                 method = getattr(event, "method", None)
                 path = getattr(event, "path", None)
                 if method and path:
                     response = self.result_handler.apply(method, path, response)
+
+            if explicit_response is not None:
+                return context.Response(
+                    body=response,
+                    status_code=explicit_response.status_code,
+                    content_type=explicit_response.content_type,
+                    headers=explicit_response.headers,
+                )
         except Exception as exc:
             # Extract appropriate status code from MLRunHTTPStatusError exceptions
             # For backwards compatibility, default to 400 for other exceptions

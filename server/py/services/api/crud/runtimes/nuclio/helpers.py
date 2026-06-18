@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import datetime
 import urllib.parse
 
 import semver
@@ -244,98 +243,6 @@ def is_nuclio_version_in_range(min_version: str, max_version: str) -> bool:
     return parsed_min_version <= parsed_current_version < parsed_max_version
 
 
-# SAS window for Nuclio source-archive fetch.
-_AZURE_SAS_CLOCK_SKEW = datetime.timedelta(minutes=5)
-_AZURE_SAS_TTL = datetime.timedelta(hours=2)
-
-
-def _parse_azure_connection_string(connection_string: str) -> dict[str, str]:
-    """Parse Azure ``key=value;...`` connection strings (split on first ``=``)."""
-    parts = {}
-    for segment in connection_string.split(";"):
-        if "=" in segment:
-            key, value = segment.split("=", 1)
-            parts[key.strip()] = value.strip()
-    return parts
-
-
-def _build_azure_blob_sas_url(source: str, secrets: dict[str, str]) -> str:
-    """Rewrite ``az://`` source archives to HTTPS + read-only SAS for Nuclio."""
-    from azure.storage.blob import BlobSasPermissions, generate_blob_sas
-
-    from mlrun.datastore.datastore import StoreManager
-
-    store, sub_path, _ = StoreManager().get_or_create_store(source, secrets=secrets)
-    options = store.storage_options
-    account_name = options.get("account_name")
-    account_key = options.get("account_key")
-    sas_token = options.get("sas_token")
-    if not (account_key or sas_token) and options.get("connection_string"):
-        conn = _parse_azure_connection_string(options["connection_string"])
-        account_key = conn.get("AccountKey")
-        sas_token = conn.get("SharedAccessSignature")
-        account_name = account_name or conn.get("AccountName")
-
-    container = options.get("container")
-    blob_name = sub_path.lstrip("/")
-    if not container or not blob_name:
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            f"could not resolve Azure container/blob from source {source!r}"
-        )
-
-    now = datetime.datetime.now(datetime.UTC)
-    start = now - _AZURE_SAS_CLOCK_SKEW
-    expiry = now + _AZURE_SAS_TTL
-
-    # primary_hostname carries no SAS. Kept outside the try so missing-cred errors stay
-    # client-side (400) instead of being wrapped as a 500 below.
-    host = store.service_client.primary_hostname
-    if sas_token:
-        sas = sas_token.lstrip("?")
-    else:
-        sas_kwargs = dict(
-            # Prefer resolved account name; host-label fallback can be wrong on custom domains.
-            account_name=account_name or host.split(".", 1)[0],
-            container_name=container,
-            blob_name=blob_name,
-            permission=BlobSasPermissions(read=True),
-            expiry=expiry,
-            start=start,
-        )
-        try:
-            if account_key:
-                sas = generate_blob_sas(account_key=account_key, **sas_kwargs)
-            else:
-                # AAD: service principal or managed/workload identity
-                sas = generate_blob_sas(
-                    user_delegation_key=store.service_client.get_user_delegation_key(
-                        start, expiry
-                    ),
-                    **sas_kwargs,
-                )
-        except Exception as exc:
-            # Only identity auth failures should include the Delegator-role hint.
-            hint = (
-                ""
-                if account_key
-                else " (service-principal/managed-identity auth requires "
-                "'Storage Blob Delegator')"
-            )
-            raise mlrun.errors.MLRunRuntimeError(
-                f"failed to create Azure SAS for Nuclio source archive{hint}: "
-                f"{mlrun.errors.err_to_str(exc)}"
-            ) from exc
-
-    logger.debug(
-        "rewrote az:// source archive to https with read-only SAS",
-        container=container,
-        blob=blob_name,
-    )
-    # Encode blob path for URL (keep '/'); SAS is signed over raw blob name.
-    encoded_blob = urllib.parse.quote(blob_name, safe="/")
-    return f"https://{host}/{container}/{encoded_blob}?{sas}"
-
-
 @pure_nuclio_deployed_restricted()
 def compile_nuclio_archive_config(
     function: mlrun.runtimes.nuclio.function.RemoteRuntime,
@@ -389,9 +296,15 @@ def compile_nuclio_archive_config(
     # archive
     if code_entry_type == "archive":
         if is_azure_source:
-            source = _build_azure_blob_sas_url(
-                source, {**secrets, **(builder_env or {})}
+            # Nuclio can't fetch az:// directly; have the datastore mint a read-only HTTPS+SAS
+            # URL (auth resolved exactly like mlrun jobs) and hand Nuclio that instead. A fresh
+            # StoreManager keeps credential resolution request-scoped (not the global cache).
+            from mlrun.datastore.datastore import StoreManager
+
+            store, sub_path, _ = StoreManager().get_or_create_store(
+                source, secrets={**secrets, **(builder_env or {})}
             )
+            source = store.get_read_only_https_url(sub_path)
 
         v3io_access_key = builder_env.get("V3IO_ACCESS_KEY", "")
         if source.startswith("v3io"):

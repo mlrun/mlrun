@@ -287,7 +287,8 @@ def _build_azure_blob_sas_url(source: str, secrets: dict[str, str]) -> str:
     start = now - _AZURE_SAS_CLOCK_SKEW
     expiry = now + _AZURE_SAS_TTL
 
-    # primary_hostname carries no SAS.
+    # primary_hostname carries no SAS. Kept outside the try so missing-cred errors stay
+    # client-side (400) instead of being wrapped as a 500 below.
     host = store.service_client.primary_hostname
     if sas_token:
         sas = sas_token.lstrip("?")

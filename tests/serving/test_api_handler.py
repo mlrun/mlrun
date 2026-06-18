@@ -1618,6 +1618,64 @@ class TestAPIHandlerMockServer:
         finally:
             server.wait_for_completion()
 
+    @pytest.mark.parametrize("with_body_mapping", [False, True], ids=["no-bm", "bm"])
+    def test_include_url_info_delivers_body_to_handler(
+        self, with_body_mapping: bool
+    ) -> None:
+        """ML-12647: with ``include_url_info=True`` the original body must reach
+        the handler — both with and without body_mapping. URL info and mapped
+        fields are additive kwargs, not a replacement for the positional body.
+        """
+        received: dict = {}
+
+        def chat_handler(
+            event=None,
+            mlrun_request_path=None,
+            mlrun_request_method=None,
+            model_name=None,
+            **kwargs,
+        ):
+            received["event"] = event
+            received["mlrun_request_path"] = mlrun_request_path
+            received["mlrun_request_method"] = mlrun_request_method
+            received["model_name"] = model_name
+            return "ok"
+
+        fn = cast(
+            ServingRuntime,
+            mlrun.new_function("test-include-url-info-body", kind="serving"),
+        )
+
+        config = APIHandlerConfig(include_url_info=True)
+        bm = None
+        if with_body_mapping:
+            bm = BodyMappings()
+            bm.add_mapping("$.model", destination_path="model_name")
+        config.add_endpoint_handler(
+            "/v1/chat/completions",
+            HTTPMethod.POST,
+            APIHandlerAction.ALLOW,
+            input_body_mappings=bm,
+        )
+        fn.set_api_handler_config(config)
+
+        graph = fn.set_topology("flow", engine="sync")
+        graph.to(name="chat", handler=chat_handler).respond()
+
+        body = {"model": "my-llm", "messages": [{"role": "user", "content": "Hello"}]}
+
+        server = fn.to_mock_server()
+        try:
+            server.test("/v1/chat/completions", method="POST", body=body)
+        finally:
+            server.wait_for_completion()
+
+        assert received["event"] == body
+        assert received["mlrun_request_path"] == "/v1/chat/completions"
+        assert received["mlrun_request_method"] == "POST"
+        if with_body_mapping:
+            assert received["model_name"] == "my-llm"
+
 
 class TestAPIHandlerConfig:
     """Direct tests for APIHandlerConfig class"""

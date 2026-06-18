@@ -345,7 +345,10 @@ class GraphServer(ModelObj):
             response = self.graph.run(event, **(extra_args or {}))
 
             # TODO: this is only relevant in certain flows (MockServer, sync...)
-            if hasattr(response, "body"):
+            # Peel one Event wrapper, but not a Response — Response is captured below.
+            if hasattr(response, "body") and not isinstance(
+                response, (Response, nuclio_sdk.Response)
+            ):
                 response = response.body
 
             # Unwrap an explicit Response so result_handler sees the body; skip

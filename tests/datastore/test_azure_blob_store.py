@@ -39,6 +39,130 @@ class TestAzureBlobStore:
             secrets=secrets or {},
         )
 
+    # --- get_read_only_https_url ---
+
+    def _store_with_mock_client(
+        self, secrets, hostname="acct.blob.core.windows.net", udk="udk"
+    ):
+        store = self._create_store(schema="az", endpoint="data", secrets=secrets)
+        client = Mock()
+        client.primary_hostname = hostname
+        client.get_user_delegation_key.return_value = udk
+        store._service_client = client
+        return store, client
+
+    def test_read_only_url_service_principal_user_delegation(self):
+        store, client = self._store_with_mock_client({"account_name": "acct"})
+        with patch(
+            "mlrun.datastore.azure_blob.generate_blob_sas", return_value="sig=x"
+        ) as gen:
+            url = store.get_read_only_https_url("/projects/x/src.tar.gz")
+        assert (
+            url == "https://acct.blob.core.windows.net/data/projects/x/src.tar.gz?sig=x"
+        )
+        client.get_user_delegation_key.assert_called_once()
+        kwargs = gen.call_args.kwargs
+        assert kwargs["user_delegation_key"] == "udk"
+        assert kwargs["account_name"] == "acct"
+        assert kwargs["container_name"] == "data"
+        assert kwargs["blob_name"] == "projects/x/src.tar.gz"
+        assert kwargs["permission"].read is True
+        assert kwargs["start"] < kwargs["expiry"]
+
+    def test_read_only_url_account_key(self):
+        store, client = self._store_with_mock_client(
+            {"account_name": "acct", "account_key": "the-key"}
+        )
+        with patch(
+            "mlrun.datastore.azure_blob.generate_blob_sas", return_value="sig=ak"
+        ) as gen:
+            url = store.get_read_only_https_url("/src.tar.gz")
+        assert url == "https://acct.blob.core.windows.net/data/src.tar.gz?sig=ak"
+        client.get_user_delegation_key.assert_not_called()
+        assert gen.call_args.kwargs["account_key"] == "the-key"
+
+    def test_read_only_url_sas_passthrough(self):
+        store, client = self._store_with_mock_client(
+            {"account_name": "acct", "sas_token": "?sv=2023&sig=abc"}
+        )
+        with patch("mlrun.datastore.azure_blob.generate_blob_sas") as gen:
+            url = store.get_read_only_https_url("/src.tar.gz")
+        assert (
+            url == "https://acct.blob.core.windows.net/data/src.tar.gz?sv=2023&sig=abc"
+        )
+        gen.assert_not_called()
+        client.get_user_delegation_key.assert_not_called()
+
+    def test_read_only_url_connection_string_account_key(self):
+        cs = (
+            "DefaultEndpointsProtocol=https;AccountName=connacct;"
+            "AccountKey=YWJjZA==;EndpointSuffix=core.windows.net"
+        )
+        store, client = self._store_with_mock_client(
+            {"connection_string": cs}, hostname="connacct.blob.core.windows.net"
+        )
+        with patch(
+            "mlrun.datastore.azure_blob.generate_blob_sas", return_value="sig=cs"
+        ) as gen:
+            url = store.get_read_only_https_url("/src.tar.gz")
+        assert url == "https://connacct.blob.core.windows.net/data/src.tar.gz?sig=cs"
+        kwargs = gen.call_args.kwargs
+        assert kwargs["account_key"] == "YWJjZA=="
+        assert kwargs["account_name"] == "connacct"
+        client.get_user_delegation_key.assert_not_called()
+
+    def test_read_only_url_encodes_blob_name(self):
+        store, _ = self._store_with_mock_client(
+            {"account_name": "acct", "account_key": "k"}
+        )
+        with patch(
+            "mlrun.datastore.azure_blob.generate_blob_sas", return_value="sig=x"
+        ) as gen:
+            url = store.get_read_only_https_url("/projects/a b/src.tar.gz")
+        assert (
+            url
+            == "https://acct.blob.core.windows.net/data/projects/a%20b/src.tar.gz?sig=x"
+        )
+        # SAS signs the raw blob name.
+        assert gen.call_args.kwargs["blob_name"] == "projects/a b/src.tar.gz"
+
+    def test_read_only_url_account_key_failure_not_mislabeled(self):
+        store, _ = self._store_with_mock_client(
+            {"account_name": "acct", "account_key": "k"}
+        )
+        with (
+            patch(
+                "mlrun.datastore.azure_blob.generate_blob_sas",
+                side_effect=ValueError("bad key"),
+            ),
+            pytest.raises(mlrun.errors.MLRunRuntimeError) as exc_info,
+        ):
+            store.get_read_only_https_url("/src.tar.gz")
+        assert "Storage Blob Delegator" not in str(exc_info.value)
+        assert "bad key" in str(exc_info.value)
+
+    def test_read_only_url_user_delegation_failure_hints_role(self):
+        store, client = self._store_with_mock_client({"account_name": "acct"})
+        client.get_user_delegation_key.side_effect = Exception("boom")
+        with pytest.raises(
+            mlrun.errors.MLRunRuntimeError, match="Storage Blob Delegator"
+        ):
+            store.get_read_only_https_url("/src.tar.gz")
+
+    def test_read_only_url_no_container_raises(self):
+        store = self._create_store(
+            schema="az", endpoint="", secrets={"account_name": "acct"}
+        )
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+            store.get_read_only_https_url("/src.tar.gz")
+
+    def test_read_only_url_missing_credentials_raises_client_error(self):
+        # No credentials: the service_client build (outside the try) must surface as a
+        # client-side MLRunInvalidArgumentError (400), not get wrapped as a 500.
+        store = self._create_store(schema="az", endpoint="data", secrets={})
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+            store.get_read_only_https_url("/src.tar.gz")
+
     def test_spark_url_az_schema_with_endpoint_container(self):
         """Test spark_url generation for az:// URLs where endpoint is container"""
         secrets = {

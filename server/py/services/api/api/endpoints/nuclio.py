@@ -510,11 +510,59 @@ def _deploy_function(
         logger.info("Resolved function", fn=fn.to_yaml())
     except Exception as err:
         logger.error(traceback.format_exc())
+        # Correct the build phase's premature "ready".
+        _reconcile_function_status_from_nuclio(db_session, auth_info, project, name, fn)
         framework.api.utils.log_and_raise(
             HTTPStatus.BAD_REQUEST.value,
             reason=f"Runtime error: {mlrun.errors.err_to_str(err)}",
         )
     return fn
+
+
+def _reconcile_function_status_from_nuclio(
+    db_session: sqlalchemy.orm.Session,
+    auth_info: mlrun.common.schemas.AuthInfo,
+    project: str,
+    name: str,
+    fn: mlrun.runtimes.RemoteRuntime,
+):
+    tag = fn.metadata.tag
+    try:
+        db_function = services.api.crud.Functions().get_function(
+            db_session, name, project, tag
+        )
+    except mlrun.errors.MLRunNotFoundError:
+        # Nothing persisted: no premature "ready" to correct.
+        return
+
+    try:
+        # A serving version stays ready; a failed one becomes error/unhealthy.
+        state, *_ = services.api.crud.runtimes.nuclio.function.get_nuclio_deploy_status(
+            name, project, tag, resolve_address=False, auth_info=auth_info
+        )
+    except Exception:
+        # No Nuclio function or unreadable status: record as failed (heals on next poll).
+        state = mlrun.common.schemas.FunctionState.error
+
+    try:
+        # versioned=False: update the unversioned record, never snapshot a failed deploy.
+        mlrun.utils.update_in(db_function, "status.state", state)
+        services.api.crud.Functions().store_function(
+            db_session,
+            db_function,
+            name,
+            project,
+            tag,
+            versioned=False,
+        )
+    except Exception as exc:
+        # Best-effort: a failed status write must not mask the original deploy error.
+        logger.warning(
+            "Failed to update function status after deploy failure",
+            project=project,
+            name=name,
+            error=mlrun.errors.err_to_str(exc),
+        )
 
 
 def _deploy_nuclio_runtime(
@@ -633,7 +681,7 @@ def _handle_nuclio_deploy_status(
     )
     if state in ["ready", "scaledToZero"]:
         logger.info("Nuclio function deployed successfully", name=name)
-    if state in ["error", "unhealthy"]:
+    if state in mlrun.common.schemas.FunctionState.failed_states():
         logger.error(f"Nuclio deploy error, {text}", name=name)
 
     internal_invocation_urls = (

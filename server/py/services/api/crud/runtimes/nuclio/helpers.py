@@ -18,6 +18,7 @@ import semver
 
 import mlrun
 import mlrun.runtimes
+from mlrun.datastore.datastore import StoreManager
 from mlrun.runtimes.nuclio.function import validate_nuclio_version_compatibility
 from mlrun.utils import logger
 
@@ -267,6 +268,8 @@ def compile_nuclio_archive_config(
 
     source = function.spec.build.source
     parsed_url = urllib.parse.urlparse(source)
+    # Nuclio has no az:// code-entry type; rewrite Azure source as archive HTTPS.
+    is_azure_source = source.startswith("az://")
     code_entry_type = ""
     if source.startswith("s3://"):
         code_entry_type = "s3"
@@ -275,6 +278,8 @@ def compile_nuclio_archive_config(
     for archive_prefix in ["http://", "https://", "v3io://", "v3ios://"]:
         if source.startswith(archive_prefix):
             code_entry_type = "archive"
+    if is_azure_source:
+        code_entry_type = "archive"
 
     if code_entry_type == "":
         raise mlrun.errors.MLRunInvalidArgumentError(
@@ -291,6 +296,13 @@ def compile_nuclio_archive_config(
 
     # archive
     if code_entry_type == "archive":
+        if is_azure_source:
+            # Nuclio can't fetch az:// directly; use a datastore-minted read-only HTTPS+SAS URL.
+            store, sub_path, _ = StoreManager().get_or_create_store(
+                source, secrets={**secrets, **(builder_env or {})}
+            )
+            source = store.get_read_only_https_url(sub_path)
+
         v3io_access_key = builder_env.get("V3IO_ACCESS_KEY", "")
         if source.startswith("v3io"):
             if not parsed_url.netloc:

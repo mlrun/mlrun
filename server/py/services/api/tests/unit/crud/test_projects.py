@@ -340,11 +340,22 @@ async def test_inventory_functions_alerts_workflows_use_cached_counts(
         for call in set_count_mock.call_args_list
         if call.args[0] == "mlrun_functions"
     }
-    assert fn_calls == {
-        ("proj-a", "job"): 3,
-        ("proj-a", "serving"): 1,
-        ("proj-b", "nuclio"): 2,
+    # mlrun_functions zero-fills every known kind for every project so an
+    # empty project/kind reports 0 rather than vanishing — mirroring the other
+    # per-kind metrics. Cached counts override the 0 default for present kinds.
+    expected_fn = {
+        (project, kind): 0
+        for project in project_names
+        for kind in projects_crud._FUNCTION_INVENTORY_KINDS
     }
+    expected_fn[("proj-a", "job")] = 3
+    expected_fn[("proj-a", "serving")] = 1
+    expected_fn[("proj-b", "nuclio")] = 2
+    assert fn_calls == expected_fn
+    # The zero-filled kind set is exactly RuntimeKinds.all() — the persistable
+    # kinds (e.g. local), excluding the ephemeral, never-stored "handler".
+    assert ("proj-a", "local") in fn_calls
+    assert ("proj-a", "handler") not in fn_calls
 
     alert_calls = {
         call.kwargs["project"]: call.args[1]

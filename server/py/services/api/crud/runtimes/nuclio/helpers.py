@@ -244,17 +244,13 @@ def is_nuclio_version_in_range(min_version: str, max_version: str) -> bool:
     return parsed_min_version <= parsed_current_version < parsed_max_version
 
 
-# SAS validity window for Nuclio source-archive fetches. The archive is fetched once early in
-# the build; the start is back-dated to absorb clock skew.
+# SAS window for Nuclio source-archive fetch.
 _AZURE_SAS_CLOCK_SKEW = datetime.timedelta(minutes=5)
 _AZURE_SAS_TTL = datetime.timedelta(hours=2)
 
 
 def _parse_azure_connection_string(connection_string: str) -> dict[str, str]:
-    """Parse ``key=value;...`` Azure connection strings.
-
-    Split each segment on the first ``=`` so base64 keys and SAS values are preserved.
-    """
+    """Parse Azure ``key=value;...`` connection strings (split on first ``=``)."""
     parts = {}
     for segment in connection_string.split(";"):
         if "=" in segment:
@@ -264,11 +260,7 @@ def _parse_azure_connection_string(connection_string: str) -> dict[str, str]:
 
 
 def _build_azure_blob_sas_url(source: str, secrets: dict[str, str]) -> str:
-    """Rewrite ``az://`` source archives to HTTPS + read-only SAS for Nuclio.
-
-    Uses request-scoped ``StoreManager`` + ``AzureBlobStore`` resolution so auth behavior matches
-    mlrun jobs.
-    """
+    """Rewrite ``az://`` source archives to HTTPS + read-only SAS for Nuclio."""
     from azure.storage.blob import BlobSasPermissions, generate_blob_sas
 
     from mlrun.datastore.datastore import StoreManager
@@ -295,14 +287,13 @@ def _build_azure_blob_sas_url(source: str, secrets: dict[str, str]) -> str:
     start = now - _AZURE_SAS_CLOCK_SKEW
     expiry = now + _AZURE_SAS_TTL
 
-    # primary_hostname contains no SAS; missing-credential errors surface here as client errors.
+    # primary_hostname carries no SAS.
     host = store.service_client.primary_hostname
     if sas_token:
         sas = sas_token.lstrip("?")
     else:
         sas_kwargs = dict(
-            # Prefer the resolved account name; the host's first label is only a fallback and
-            # can be wrong for custom-domain endpoints.
+            # Prefer resolved account name; host-label fallback can be wrong on custom domains.
             account_name=account_name or host.split(".", 1)[0],
             container_name=container,
             blob_name=blob_name,
@@ -322,16 +313,15 @@ def _build_azure_blob_sas_url(source: str, secrets: dict[str, str]) -> str:
                     **sas_kwargs,
                 )
         except Exception as exc:
-            # Wrap all SDK failures consistently; only the AAD path warrants the
-            # 'Storage Blob Delegator' hint, so account-key failures aren't misdiagnosed.
+            # Only identity auth failures should include the Delegator-role hint.
             hint = (
                 ""
                 if account_key
-                else " (for service-principal / managed-identity auth, the principal needs "
-                "the 'Storage Blob Delegator' role)"
+                else " (service-principal/managed-identity auth requires "
+                "'Storage Blob Delegator')"
             )
             raise mlrun.errors.MLRunRuntimeError(
-                f"failed to build Azure SAS for the Nuclio source archive{hint}: "
+                f"failed to create Azure SAS for Nuclio source archive{hint}: "
                 f"{mlrun.errors.err_to_str(exc)}"
             ) from exc
 
@@ -340,8 +330,7 @@ def _build_azure_blob_sas_url(source: str, secrets: dict[str, str]) -> str:
         container=container,
         blob=blob_name,
     )
-    # SAS currently rides in spec.build.path; keep it read-only and short-lived. The blob name is
-    # percent-encoded for the URL (path separators kept); the SAS is signed over the raw name.
+    # Encode blob path for URL (keep '/'); SAS is signed over raw blob name.
     encoded_blob = urllib.parse.quote(blob_name, safe="/")
     return f"https://{host}/{container}/{encoded_blob}?{sas}"
 

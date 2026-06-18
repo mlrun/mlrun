@@ -1701,8 +1701,7 @@ class TestNuclioRuntime(TestRuntimeBase):
             get_archive_spec(fn, secrets)
 
     def test_load_function_with_source_archive_azure_blob_url_encodes_blob_name(self):
-        """The blob name is percent-encoded in the URL (path slashes preserved), while the SAS
-        is signed over the raw blob name."""
+        """URL encodes blob name (keeping '/'); SAS is signed over raw blob name."""
         fn = self._generate_runtime(self.runtime_kind)
         fn.with_source_archive(
             "az://data/projects/a b/src.tar.gz", handler="main:handler"
@@ -1729,15 +1728,14 @@ class TestNuclioRuntime(TestRuntimeBase):
             archive["spec"]["build"]["path"]
             == "https://acct.blob.core.windows.net/data/projects/a%20b/src.tar.gz?sig=x"
         )
-        # Azure signs the canonical (raw) blob name, not the percent-encoded one
+        # Blob name for SAS signing stays raw.
         _, sas_kwargs = mock_gen_sas.call_args
         assert sas_kwargs["blob_name"] == "projects/a b/src.tar.gz"
 
     def test_load_function_with_source_archive_azure_blob_account_key_failure_not_mislabeled(
         self,
     ):
-        """An account-key signing failure is wrapped consistently as MLRunRuntimeError (with the
-        underlying cause), but must not carry the AAD-only 'Storage Blob Delegator' hint."""
+        """Account-key failures are wrapped but must not include AAD Delegator hint."""
         fn = self._generate_runtime(self.runtime_kind)
         fn.with_source_archive("az://data/src.tar.gz", handler="main:handler")
         secrets = {
@@ -1757,7 +1755,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         ):
             get_archive_spec(fn, secrets)
         assert "Storage Blob Delegator" not in str(exc_info.value)
-        assert "bad key" in str(exc_info.value)  # underlying cause surfaced
+        assert "bad key" in str(exc_info.value)
 
     @pytest.mark.parametrize(
         "image_pull_secret_name,build_secret_name,default_image_pull_secret_name,"

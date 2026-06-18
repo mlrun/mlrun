@@ -442,7 +442,7 @@ class TestResultHandlerHttpTriggerGuard:
 
     # ML-12706 — skip output mapping on error responses
     def test_e2e_error_response_skips_output_mapping(self) -> None:
-        """Handler returns Response(status_code=404) — error body must pass through with the original status (ML-12706)."""
+        """Response(status_code=404) — error body passes through with original status (ML-12706)."""
         error_body = {
             "error": {
                 "message": "Response with id resp_x not found",
@@ -474,7 +474,7 @@ class TestResultHandlerHttpTriggerGuard:
             server.wait_for_completion()
 
     def test_e2e_response_wrapper_preserves_status_code_on_success(self) -> None:
-        """Handler returns Response(status_code=200) — output mapping still applies, status_code preserved (ML-12706)."""
+        """Response(status_code=200) — output mapping applies, status_code preserved (ML-12706)."""
         success_body = {"id": "resp_1", "object": "response", "extra_field": "filter"}
 
         def success_handler(body, **kwargs):

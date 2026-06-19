@@ -67,7 +67,7 @@ jobs:
       previous_version: ${{ steps.resolve.outputs.previous_version }}
       ui_ref: ${{ steps.resolve.outputs.ui_ref }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
 
           # Fetch all history for all tags and branches
@@ -204,7 +204,7 @@ jobs:
           if [ -d "$GITHUB_WORKSPACE/server" ]; then
             docker run --rm -v "$GITHUB_WORKSPACE:/workspace" alpine sh -c "rm -rf /workspace/server/common/proto/build /workspace/server/go/proto/build" || true
           fi      
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Set up uv
         uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # 8.2.0
       - name: Build & push to Artifactory PyPI

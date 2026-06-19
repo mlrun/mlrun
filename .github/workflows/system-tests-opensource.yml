@@ -118,7 +118,7 @@ jobs:
       pr_base_ref: ${{ steps.pr_base.outputs.pr_base_ref }}
       base_commits_since_sync: ${{ steps.pr_base.outputs.base_commits_since_sync }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Extract git hashes from upstream and latest version
         id: git_upstream_info
@@ -283,10 +283,10 @@ jobs:
       needs.prepare-inputs.result == 'success' &&
       (needs.build-mlrun.result == 'success' || needs.build-mlrun.result == 'skipped')
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
       if: inputs.pr_number == ''
 
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
       if: inputs.pr_number != ''
       with:
         ref: refs/pull/${{ inputs.pr_number }}/head

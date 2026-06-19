@@ -126,7 +126,7 @@ jobs:
     if: github.event.inputs.skip_create_tag_release != 'true'
     needs: [prepare-inputs]
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -189,7 +189,7 @@ jobs:
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - id: set-matrix
         uses: ./.github/actions/image-matrix-prep
         with:
@@ -369,7 +369,7 @@ jobs:
     needs: [ prepare-inputs, create-releases ]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Create tutorials tar
         run: |
           wget -c https://raw.githubusercontent.com/v3io/tutorials/refs/heads/development/welcome.ipynb -P docs
@@ -389,7 +389,7 @@ jobs:
     needs: [ prepare-inputs, create-releases ]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Install Python venv
         run: |
           venv="$HOME/.local/share/venv"
@@ -426,7 +426,7 @@ jobs:
     # runs lastly to avoid conflicts with other release-related jobs
     needs: [ prepare-inputs, update-tutorials, update-demos ]
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 

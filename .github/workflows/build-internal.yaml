@@ -81,7 +81,7 @@ jobs:
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - id: set-matrix
         uses: ./.github/actions/image-matrix-prep
         with:
@@ -104,10 +104,10 @@ jobs:
         if [ -d "$GITHUB_WORKSPACE/server" ]; then
           docker run --rm -v "$GITHUB_WORKSPACE:/workspace" alpine sh -c "rm -rf /workspace/server/common/proto/build /workspace/server/go/proto/build" || true
         fi       
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
       if: inputs.pr_number == ''
 
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
       if: inputs.pr_number != ''
       with:
         fetch-depth: 0

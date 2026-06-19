@@ -260,10 +260,16 @@ class TestResultHandlerNonDictResponse:
 
 
 # ---------------------------------------------------------------------------
-# Group 6 — http_trigger guard (end-to-end via to_mock_server())
+# Group 6 — End-to-end via to_mock_server()
 # ---------------------------------------------------------------------------
 class TestResultHandlerHttpTriggerGuard:
-    """Exit mapping is only applied when http_trigger=True on GraphServer."""
+    """End-to-end ResultHandler behavior through ``to_mock_server()``.
+
+    Covers the http_trigger guard, full-reshape happy paths, non-dict mandatory
+    422 surfacing, and path-normalization edge cases (ML-12735) where the raw
+    ``event.path`` carries a query string that would otherwise defeat route
+    matching.
+    """
 
     @staticmethod
     def _make_fn(output_bm: BodyMappings) -> ServingRuntime:
@@ -379,5 +385,49 @@ class TestResultHandlerHttpTriggerGuard:
                 match=r"failed \(422\):.*Mandatory output body mappings configured but output body is not a dict",
             ):
                 server.test("/predict", method="POST", body={"any": "input"})
+        finally:
+            server.wait_for_completion()
+
+    @pytest.mark.parametrize(
+        "endpoint_path",
+        ["/predict", "/responses/{response_id}/input_items", "/predict/*"],
+        ids=["exact", "template_subpath", "star"],
+    )
+    def test_e2e_query_string_applies_mapping(self, endpoint_path: str) -> None:
+        """Query string in event.path must not block the output BM (ML-12735).
+
+        BM renames ``$.result → answer`` and the handler returns ``extra_field``
+        which must be filtered. If route lookup is defeated by ``?query=...``,
+        the response passes through unchanged and the assertion fails.
+        """
+        bm = BodyMappings()
+        bm.add_mapping("$.result", destination_path="answer")
+
+        fn = cast(
+            ServingRuntime,
+            mlrun.new_function("test-result-handler-qs", kind="serving"),
+        )
+        config = APIHandlerConfig()
+        config.add_endpoint_handler(
+            endpoint_path,
+            HTTPMethod.POST,
+            APIHandlerAction.ALLOW,
+            output_body_mappings=bm,
+        )
+        fn.set_api_handler_config(config)
+        graph = fn.set_topology("flow", engine="sync")
+        graph.to(
+            name="handler",
+            handler=lambda body, **kwargs: {"result": 42, "extra_field": "ignored"},
+        ).respond()
+
+        request_path = (
+            endpoint_path.replace("{response_id}", "abc").replace("*", "foo")
+            + "?debug=1"
+        )
+        server = fn.to_mock_server()
+        try:
+            resp = server.test(request_path, method="POST", body={"any": "input"})
+            assert resp == {"answer": 42}
         finally:
             server.wait_for_completion()

@@ -13,17 +13,26 @@
 # limitations under the License.
 
 import contextlib
+import datetime
 import time
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import quote, urlparse
 
-from azure.storage.blob import BlobServiceClient
+from azure.storage.blob import (
+    BlobSasPermissions,
+    BlobServiceClient,
+    generate_blob_sas,
+)
 from azure.storage.blob._shared.base_client import parse_connection_str
 from fsspec.registry import get_filesystem_class
 
 import mlrun.errors
 
 from .base import DataStore, FileStats, make_datastore_schema_sanitizer
+
+# Validity window for read-only SAS URLs.
+_SAS_CLOCK_SKEW = datetime.timedelta(minutes=5)
+_SAS_TTL = datetime.timedelta(hours=2)
 
 # Azure blobs will be represented with the following URL: az://<container name>. The storage account is already
 # pointed to by the connection string, so the user is not expected to specify it in any way.
@@ -202,6 +211,73 @@ class AzureBlobStore(DataStore):
         if not self._service_client:
             self._do_connect()
         return self._service_client
+
+    def get_read_only_https_url(self, key, *, ttl=_SAS_TTL, clock_skew=_SAS_CLOCK_SKEW):
+        """Return an ``https://`` URL for ``key`` with a short-lived read-only SAS."""
+        st = self.storage_options
+        account_name = st.get("account_name")
+        account_key = st.get("account_key")
+        sas_token = st.get("sas_token")
+        if not (account_key or sas_token) and (
+            connection_string := st.get("connection_string")
+        ):
+            _, _, parsed = parse_connection_str(
+                connection_string, credential=None, service="blob"
+            )
+            if isinstance(parsed, str):
+                parsed = {"sas_token": parsed}
+            account_name = account_name or parsed.get("account_name")
+            account_key = account_key or parsed.get("account_key")
+            sas_token = sas_token or parsed.get("sas_token")
+
+        container = st.get("container")
+        blob_name = key.lstrip("/")
+        if not container or not blob_name:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"could not resolve Azure container/blob for key {key!r}"
+            )
+
+        # primary_hostname carries no SAS.
+        host = self.service_client.primary_hostname
+        if sas_token:
+            sas = sas_token.lstrip("?")
+        else:
+            now = datetime.datetime.now(datetime.UTC)
+            start, expiry = now - clock_skew, now + ttl
+            sas_kwargs = dict(
+                # Prefer resolved account name; host-label fallback can be wrong on custom domains.
+                account_name=account_name or host.split(".", 1)[0],
+                container_name=container,
+                blob_name=blob_name,
+                permission=BlobSasPermissions(read=True),
+                start=start,
+                expiry=expiry,
+            )
+            try:
+                if account_key:
+                    sas = generate_blob_sas(account_key=account_key, **sas_kwargs)
+                else:
+                    # AAD: service principal or managed/workload identity
+                    sas = generate_blob_sas(
+                        user_delegation_key=self.service_client.get_user_delegation_key(
+                            start, expiry
+                        ),
+                        **sas_kwargs,
+                    )
+            except Exception as exc:
+                # Only identity-auth failures should include this role hint.
+                hint = (
+                    ""
+                    if account_key
+                    else " (identity auth requires 'Storage Blob Delegator')"
+                )
+                raise mlrun.errors.MLRunRuntimeError(
+                    f"failed to create read-only Azure SAS for {blob_name!r}{hint}: "
+                    f"{mlrun.errors.err_to_str(exc)}"
+                ) from exc
+
+        # Encode blob path for URL (keep '/'); SAS is signed over raw blob name.
+        return f"https://{host}/{container}/{quote(blob_name, safe='/')}?{sas}"
 
     def _do_connect(self):
         """

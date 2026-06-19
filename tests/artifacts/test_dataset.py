@@ -434,7 +434,7 @@ def test_is_format_supported():
     # supported formats should return True
     for fmt in mlrun.artifacts.dataset.DatasetArtifact.SUPPORTED_FORMATS:
         assert mlrun.artifacts.dataset.DatasetArtifact.is_format_supported(fmt) is True
-
+    # unsupported / unknown formats should return False
     assert (
         mlrun.artifacts.dataset.DatasetArtifact.is_format_supported("unsupported_fmt")
         is False

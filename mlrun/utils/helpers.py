@@ -30,7 +30,7 @@ import typing
 import uuid
 import warnings
 from copy import deepcopy
-from datetime import UTC, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta, timezone
 from importlib import import_module, reload
 from os import path
 from types import ModuleType
@@ -789,6 +789,8 @@ class MyEncoder(json.JSONEncoder):
             return float(obj)
         elif isinstance(obj, np.ndarray):
             return obj.tolist()
+        elif isinstance(obj, (datetime, date)):
+            return obj.isoformat()
         else:
             return str(obj)
 

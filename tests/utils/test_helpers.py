@@ -2328,3 +2328,20 @@ def test_split_handler_module_and_function(handler, expected):
     from mlrun.utils.helpers import split_handler_module_and_function
 
     assert split_handler_module_and_function(handler) == expected
+
+
+@pytest.mark.parametrize(
+    "value,expected",
+    [
+        ({"d": __import__("datetime").date(2023, 1, 1)}, '{"d": "2023-01-01"}'),
+        (
+            {"ts": __import__("datetime").datetime(2023, 1, 1, 12, 0, 0)},
+            '{"ts": "2023-01-01T12:00:00"}',
+        ),
+        ({"n": 42, "s": "hello"}, '{"n": 42, "s": "hello"}'),
+    ],
+)
+def test_dict_to_json_datetime_serialization(value, expected):
+    from mlrun.utils.helpers import dict_to_json
+
+    assert dict_to_json(value) == expected

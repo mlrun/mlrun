@@ -67,7 +67,7 @@ from .states import (
     get_function,
     graph_root_setter,
 )
-from .utils import event_id_key, event_path_key
+from .utils import event_id_key, event_path_key, is_event_like
 
 DUMMY_STREAM = "dummy://"
 
@@ -345,10 +345,9 @@ class GraphServer(ModelObj):
             response = self.graph.run(event, **(extra_args or {}))
 
             # TODO: this is only relevant in certain flows (MockServer, sync...)
-            # Peel one Event wrapper, but not a Response — Response is captured below.
-            if hasattr(response, "body") and not isinstance(
-                response, (Response, nuclio_sdk.Response)
-            ):
+            # Peel one Event wrapper if present. Positive event-type check avoids
+            # the .body ambiguity with Response (which is captured below).
+            if is_event_like(response):
                 response = response.body
 
             # Unwrap an explicit Response so result_handler sees the body; skip

@@ -12,16 +12,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Squash alembic migrations from root up to and including a target revision
-into a single new migration file with the same revision ID.
+"""Squash alembic migrations into a single migration file.
 
-Usage:
-    python squash_migrations.py <target_revision>
+Two modes are supported:
+
+  root <target_revision> <message>
+      Squash from root up to and including <target_revision> into a single new
+      *root* migration (down_revision = None). The whole schema is reflected from
+      an empty DB, so the result is pure CREATE TABLE ops.
+
+  head <base_revision> <message>
+      Squash every migration *after* <base_revision> up to the current head into
+      a single delta migration whose down_revision = <base_revision>. The delta is
+      produced by alembic autogenerate against the ORM models (migrations/env.py),
+      which only matches the head when models == head schema — this is verified
+      before squashing.
 
 Must be run from server/py/services/api/ (where alembic.ini lives).
 PYTHONPATH and MLRUN_HTTPDB__DSN must be set (done by squash_migrations_mysql.sh).
 """
 
+import argparse
 import pathlib
 import sys
 from collections.abc import Iterable, Iterator
@@ -44,40 +55,73 @@ def _load_config() -> Config:
     return Config(ALEMBIC_INI)
 
 
+def _revision_exists(script_dir: ScriptDirectory, revision_id: str) -> bool:
+    try:
+        return script_dir.get_revision(revision_id) is not None
+    except Exception:
+        return False
+
+
 def _collect_ancestors(
-    script_dir: ScriptDirectory, target_revision: str
+    script_dir: ScriptDirectory,
+    target_revision: str,
+    base_revision: str | None = None,
 ) -> dict[str, pathlib.Path]:
     """
-    Collect the set of all ancestor revision IDs up to and including target_revision
-    via BFS, following down_revision links. Handles both linear chains and DAG
-    branch merge points (where down_revision is a tuple).
+    Collect the revision-id -> path map for the ancestors of target_revision via
+    BFS, following down_revision links. Handles both linear chains and DAG branch
+    merge points (where down_revision is a tuple).
+
+    If base_revision is None, walk all the way to the root (inclusive). Otherwise
+    base_revision acts as a wall: it is neither collected nor descended past, so
+    only revisions strictly after base up to and including target are returned.
+    In that case base must be an ancestor of target on *every* path — if the walk
+    reaches a root migration without passing through base (e.g. base sits on only
+    one side of a merge that target descends from), it is rejected.
+
+    Raises if target_revision is not found, or if base_revision is given but is
+    not found / not an ancestor of target_revision on every path.
     """
-    try:
-        root = script_dir.get_revision(target_revision)
-    except Exception:
-        root = None
-    if root is None:
+    if not _revision_exists(script_dir, target_revision):
         raise ValueError(
             f"Revision {target_revision!r} not found in migration scripts."
         )
+    if base_revision is not None and not _revision_exists(script_dir, base_revision):
+        raise ValueError(f"Base revision {base_revision!r} not found.")
 
     ancestors: dict[str, pathlib.Path] = {}
     to_visit = [target_revision]
 
     while to_visit:
         revision_id = to_visit.pop()
+        if revision_id == base_revision:
+            continue
         if revision_id in ancestors:
             continue
 
         revision = script_dir.get_revision(revision_id)
         ancestors[revision_id] = pathlib.Path(revision.path)
 
+        # down_revision is None or () for a root, a str for a single parent, or a
+        # tuple for a merge point — normalize to a tuple of parent revision ids.
         if revision.down_revision is None:
-            pass
+            down_revisions = ()
         elif isinstance(revision.down_revision, str):
-            to_visit.append(revision.down_revision)
+            down_revisions = (revision.down_revision,)
         else:
-            to_visit.extend(revision.down_revision)
+            down_revisions = tuple(revision.down_revision)
+
+        if not down_revisions:
+            # A root migration. With a base set, every path must terminate at the
+            # base wall; reaching a root means this path bypassed base.
+            if base_revision is not None:
+                raise ValueError(
+                    f"Reached root migration {revision_id!r} without passing "
+                    f"through base {base_revision!r}; base must be an ancestor of "
+                    f"{target_revision!r} on every path."
+                )
+        else:
+            to_visit.extend(down_revisions)
 
     return ancestors
 
@@ -204,7 +248,7 @@ def _skip_drop_index(ops: Iterable[MigrateOperation]) -> Iterator[MigrateOperati
             yield op
 
 
-def main(target_revision: str, message: str) -> None:
+def squash_from_root(target_revision: str, message: str) -> None:
     print(f"Squashing migrations up to and including: {target_revision}")
 
     # Step 1: Load config
@@ -284,8 +328,135 @@ def main(target_revision: str, message: str) -> None:
     print("=" * 60)
 
 
-if __name__ == "__main__":
-    if len(sys.argv) != 3:
-        print(f"Usage: {sys.argv[0]} <target_revision> <message>", file=sys.stderr)
+def _has_pending_changes(cfg: Config) -> bool:
+    """Return True if autogenerate against the ORM models would produce any ops.
+
+    Runs through migrations/env.py (so it uses the project's custom compare_type)
+    and discards the directives without writing a file. The DB must already be at
+    the script-directory head before calling.
+    """
+    captured: dict[str, bool] = {}
+
+    def _capture(context, revision, directives):
+        captured["empty"] = directives[0].upgrade_ops.is_empty()
+        # Clear directives so alembic does not write a migration file.
+        directives[:] = []
+
+    command.revision(cfg, autogenerate=True, process_revision_directives=_capture)
+    return not captured.get("empty", True)
+
+
+def squash_to_head(base_revision: str, message: str) -> None:
+    print(f"Squashing migrations after {base_revision!r} up to head")
+
+    # Step 1: Load config and resolve the single head; fail fast before the DB.
+    cfg = _load_config()
+    script_dir = ScriptDirectory.from_config(cfg)
+
+    heads = script_dir.get_heads()
+    if len(heads) != 1:
+        raise ValueError(
+            f"Expected exactly one head, found {len(heads)}: {sorted(heads)}. "
+            "Head squashing requires a single linear head."
+        )
+    old_head = heads[0]
+
+    if base_revision == old_head:
+        print(
+            f"Base revision {base_revision!r} is already the head. Nothing to squash.",
+            file=sys.stderr,
+        )
+        sys.exit(0)
+
+    range_files = _collect_ancestors(script_dir, old_head, base_revision=base_revision)
+    print(f"Found {len(range_files)} migrations to squash into one")
+
+    # Step 2: Upgrade a fresh DB to head and confirm the models match it. The
+    # squash derives its delta from the models, so if they differ from the head
+    # schema the result would not reproduce head — abort rather than bake in drift.
+    print(f"Upgrading to head {old_head} for drift check...")
+    command.upgrade(cfg, old_head)
+    if _has_pending_changes(cfg):
+        print(
+            "ERROR: ORM models differ from the head schema (autogenerate found "
+            "pending changes). A head squash is derived from the models, so it "
+            "would not reproduce the current head. Resolve the drift first.",
+            file=sys.stderr,
+        )
         sys.exit(1)
-    main(sys.argv[1], sys.argv[2])
+    print("Models match head schema.")
+
+    # Step 3: Rebuild the DB to the base revision (drop everything, upgrade to base).
+    # env.py has now set sqlalchemy.url from mlconf, so this reads the real DSN.
+    dsn = cfg.get_main_option("sqlalchemy.url")
+    engine = sqlalchemy.create_engine(dsn, poolclass=sqlalchemy.pool.NullPool)
+    print(f"Dropping all tables and rebuilding to base {base_revision}...")
+    _drop_all_tables(engine)
+    engine.dispose()
+    command.upgrade(cfg, base_revision)
+    print(f"DB is now at base {base_revision}.")
+
+    # Step 4: Delete the squashed-away migration files so base becomes the head.
+    print(f"Deleting {len(range_files)} old migration files...")
+    for path in range_files.values():
+        path.unlink()
+        print(f"  Deleted: {path.name}")
+
+    # Step 5: Autogenerate the squashed delta. With base as the sole head,
+    # down_revision = base; reuse the old head revision id so the head id is stable.
+    print("Generating squashed migration via autogenerate...")
+    command.revision(cfg, message=message, autogenerate=True, rev_id=old_head)
+    script_dir2 = ScriptDirectory.from_config(cfg)
+    squashed_path = pathlib.Path(script_dir2.get_revision(old_head).path)
+
+    print()
+    print("=" * 60)
+    print("Squash complete.")
+    print(f"New file: {squashed_path}")
+    print()
+    print("Next steps:")
+    print("  1. Review the generated migration file for correctness.")
+    print(f"  2. Confirm it has down_revision = {base_revision!r} and is the head.")
+    print("  3. Test: apply to a fresh DB with `alembic upgrade head` and verify")
+    print("     the schema matches the pre-squash schema.")
+    print()
+    print("WARNING: the migrations between the base and the head are removed, so a")
+    print("  DB at any of those squashed-away revisions will fail to upgrade.")
+    print("  Squashing is safe only when every deployed instance is at")
+    print(f"  {base_revision!r} or earlier (instances already at the head are")
+    print("  unaffected, since its revision id is preserved).")
+    print("=" * 60)
+
+
+def _build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    subparsers = parser.add_subparsers(dest="mode", required=True)
+
+    root_parser = subparsers.add_parser(
+        "root",
+        help="Squash from root up to and including a target revision into a new "
+        "root migration.",
+    )
+    root_parser.add_argument("target_revision")
+    root_parser.add_argument("message")
+    root_parser.set_defaults(
+        func=lambda args: squash_from_root(args.target_revision, args.message)
+    )
+
+    head_parser = subparsers.add_parser(
+        "head",
+        help="Squash all migrations after a base revision up to the current head "
+        "into a single migration.",
+    )
+    head_parser.add_argument("base_revision")
+    head_parser.add_argument("message")
+    head_parser.set_defaults(
+        func=lambda args: squash_to_head(args.base_revision, args.message)
+    )
+
+    return parser
+
+
+if __name__ == "__main__":
+    parsed_args = _build_parser().parse_args()
+    parsed_args.func(parsed_args)

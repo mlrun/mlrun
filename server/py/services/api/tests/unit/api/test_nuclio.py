@@ -32,8 +32,9 @@ from mlrun.common.types import AuthenticationMode
 import framework.utils.clients.async_nuclio
 import framework.utils.clients.iguazio.v3
 import services.api.crud
+import services.api.crud.runtimes.nuclio.function
 import services.api.tests.unit.api.utils
-from services.api.api.endpoints.nuclio import _deploy_nuclio_runtime
+from services.api.api.endpoints.nuclio import _deploy_function, _deploy_nuclio_runtime
 
 PROJECT = "project-name"
 
@@ -316,6 +317,117 @@ def test_with_http_async_spec(
                 assert trigger.get("async") == expected_async_struct
             else:
                 assert "async" not in trigger
+
+
+@pytest.mark.parametrize(
+    ("nuclio_state", "expected_state"),
+    [
+        # live state kept verbatim (a serving version survives a failed redeploy)
+        ("ready", "ready"),
+        # no function / query fails -> error
+        (None, mlrun.common.schemas.FunctionState.error),
+    ],
+)
+def test_deploy_function_failure_persists_nuclio_state(
+    db: sqlalchemy.orm.Session,
+    client: fastapi.testclient.TestClient,
+    nuclio_state,
+    expected_state,
+):
+    """A deploy failure persists Nuclio's live state, correcting the build phase's
+    premature "ready"; no function / unreachable -> error."""
+    services.api.tests.unit.api.utils.create_project(client, PROJECT)
+    func_name = "test-app"
+
+    fn = mlrun.new_function(name=func_name, kind="application", project=PROJECT)
+    fn.status.state = mlrun.common.schemas.FunctionState.ready
+    services.api.crud.Functions().store_function(
+        db, fn.to_dict(), func_name, PROJECT, tag="latest", versioned=False
+    )
+
+    if nuclio_state is None:
+        deploy_status_mock = patch(
+            "services.api.crud.runtimes.nuclio.function.get_nuclio_deploy_status",
+            side_effect=mlrun.errors.MLRunNotFoundError("function not found"),
+        )
+    else:
+        deploy_status_mock = patch(
+            "services.api.crud.runtimes.nuclio.function.get_nuclio_deploy_status",
+            return_value=(nuclio_state, None, func_name, 0, "", None),
+        )
+
+    with (
+        patch(
+            "services.api.launcher.ServerSideLauncher.enrich_runtime",
+            side_effect=mlrun.errors.MLRunNotFoundError("code artifact not found"),
+        ),
+        deploy_status_mock,
+    ):
+        with pytest.raises(fastapi.HTTPException) as exc_info:
+            _deploy_function(
+                db_session=db,
+                auth_info=mlrun.common.schemas.AuthInfo(),
+                project=PROJECT,
+                name=func_name,
+                function={
+                    "kind": "application",
+                    "metadata": {"name": func_name, "project": PROJECT},
+                },
+                builder_env=None,
+                client_version=None,
+                client_python_version=None,
+            )
+
+    assert exc_info.value.status_code == HTTPStatus.BAD_REQUEST.value
+    stored = services.api.crud.Functions().get_function(
+        db, func_name, PROJECT, tag="latest"
+    )
+    assert stored["status"]["state"] == expected_state
+
+
+def test_deploy_function_failure_status_update_error_is_swallowed(
+    db: sqlalchemy.orm.Session,
+    client: fastapi.testclient.TestClient,
+):
+    """A failed status write must not mask the original deploy error."""
+    services.api.tests.unit.api.utils.create_project(client, PROJECT)
+    func_name = "test-app"
+    fn = mlrun.new_function(name=func_name, kind="application", project=PROJECT)
+    services.api.crud.Functions().store_function(
+        db, fn.to_dict(), func_name, PROJECT, tag="latest", versioned=False
+    )
+
+    with (
+        patch(
+            "services.api.launcher.ServerSideLauncher.enrich_runtime",
+            side_effect=mlrun.errors.MLRunNotFoundError("code artifact not found"),
+        ),
+        patch(
+            "services.api.crud.runtimes.nuclio.function.get_nuclio_deploy_status",
+            side_effect=mlrun.errors.MLRunNotFoundError("function not found"),
+        ),
+        patch(
+            "services.api.crud.Functions.store_function",
+            side_effect=Exception("db unavailable"),
+        ),
+    ):
+        with pytest.raises(fastapi.HTTPException) as exc_info:
+            _deploy_function(
+                db_session=db,
+                auth_info=mlrun.common.schemas.AuthInfo(),
+                project=PROJECT,
+                name=func_name,
+                function={
+                    "kind": "application",
+                    "metadata": {"name": func_name, "project": PROJECT},
+                },
+                builder_env=None,
+                client_version=None,
+                client_python_version=None,
+            )
+
+    assert exc_info.value.status_code == HTTPStatus.BAD_REQUEST.value
+    assert "code artifact not found" in str(exc_info.value.detail)
 
 
 @pytest.mark.parametrize(

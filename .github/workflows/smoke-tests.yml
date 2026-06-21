@@ -160,7 +160,7 @@ jobs:
     permissions:
       pull-requests: write
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           sparse-checkout: automation/scripts
 
@@ -254,7 +254,7 @@ jobs:
           echo "status=${STATUS}" >> $GITHUB_OUTPUT
           echo "source=${SOURCE}" >> $GITHUB_OUTPUT
 
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           sparse-checkout: automation/scripts
 

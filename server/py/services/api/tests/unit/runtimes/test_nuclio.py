@@ -1534,6 +1534,33 @@ class TestNuclioRuntime(TestRuntimeBase):
             },
         }
 
+    def test_load_function_with_source_archive_azure_blob(self):
+        """az:// sources resolve to a datastore-minted read-only HTTPS URL."""
+        fn = self._generate_runtime(self.runtime_kind)
+        fn.with_source_archive(
+            "az://data/projects/x/src.tar.gz", handler="main:handler", workdir="wd"
+        )
+        minted = (
+            "https://acct.blob.core.windows.net/data/projects/x/src.tar.gz?sig=fake"
+        )
+        with unittest.mock.patch(
+            "mlrun.datastore.azure_blob.AzureBlobStore.get_read_only_https_url",
+            return_value=minted,
+        ) as mock_url:
+            archive = get_archive_spec(fn, {"AZURE_STORAGE_ACCOUNT_NAME": "acct"})
+        assert archive == {
+            "spec": {
+                "handler": "main:handler",
+                "build": {
+                    "path": minted,
+                    "codeEntryType": "archive",
+                    "codeEntryAttributes": {"workDir": "wd"},
+                },
+            },
+        }
+        mock_url.assert_called_once()
+        assert mock_url.call_args.args[0].lstrip("/") == "projects/x/src.tar.gz"
+
     @pytest.mark.parametrize(
         "image_pull_secret_name,build_secret_name,default_image_pull_secret_name,"
         "default_build_secret_name,expected_secret_name",

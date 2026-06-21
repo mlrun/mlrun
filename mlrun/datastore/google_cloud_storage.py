@@ -131,9 +131,11 @@ class GoogleCloudStorageStore(DataStore):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Append mode not supported for Google cloud storage datastore"
             )
-        data, mode = self._prepare_put_data(data, append)
-        with self.filesystem.open(path, mode) as f:
-            f.write(data)
+        data, _ = self._prepare_put_data(data, append)
+        if isinstance(data, str):
+            data = data.encode("utf-8")
+        # pipe_file streams in chunks; write() buffers the whole body.
+        self.filesystem.pipe_file(path, data)
 
     def upload(self, key, src_path):
         file_size = os.path.getsize(src_path)

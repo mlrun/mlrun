@@ -154,12 +154,6 @@ endif
 # Change to `--upgrade-package <package-name>` to upgrade only a specific package
 MLRUN_UV_UPGRADE_FLAG ?= --upgrade
 
-# Optional constraints file used to pin versions during installs (e.g. a locked-requirements
-# file). Empty by default so local development installs stay upgradable; CI sets it to a lock
-# so dependency releases can't silently drift into the test environment.
-MLRUN_PIP_CONSTRAINTS_FILE ?=
-MLRUN_PIP_CONSTRAINTS_FLAG := $(if $(MLRUN_PIP_CONSTRAINTS_FILE),-c $(MLRUN_PIP_CONSTRAINTS_FILE),)
-
 # absolute path to this Makefile
 THIS_MAKEFILE := $(abspath $(lastword $(MAKEFILE_LIST)))
 # its directory
@@ -183,7 +177,6 @@ install-requirements: ## Install all requirements needed for development
 
 	$(MLRUN_PYTHON_VENV_PIP_INSTALL) \
 		$(MLRUN_PIP_NO_CACHE_FLAG) \
-		$(MLRUN_PIP_CONSTRAINTS_FLAG) \
 		-r requirements.txt \
 		-r extras-requirements.txt \
 		-r dev-requirements.txt \
@@ -220,7 +213,7 @@ install-docs-requirements: ## Install all requirements needed for compiling mlru
 install-complete-requirements: ## Install all requirements needed for development and testing
 	$(MLRUN_PYTHON_VENV_PIP_INSTALL) --upgrade $(MLRUN_PIP_NO_CACHE_FLAG) pip~=$(MLRUN_PIP_VERSION)
 	$(eval MLRUN_PIP_INSTALL_FLAG := $(if $(and $(MLRUN_PYTHON_PACKAGE_INSTALLER),$(filter -m pip,$(MLRUN_PYTHON_PACKAGE_INSTALLER))),--ignore-requires-python,))
-	$(MLRUN_PYTHON_VENV_PIP_INSTALL) $(MLRUN_PIP_CONSTRAINTS_FLAG) .[complete,kfp18,dev-postgres] $(MLRUN_PIP_INSTALL_FLAG)
+	$(MLRUN_PYTHON_VENV_PIP_INSTALL) .[complete,kfp18,dev-postgres] $(MLRUN_PIP_INSTALL_FLAG)
 
 .PHONY: install-all-requirements
 install-all-requirements: ## Install all requirements needed for development and testing

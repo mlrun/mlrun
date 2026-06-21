@@ -317,6 +317,7 @@ class MonitoringApplicationController:
         self.tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
             project=self.project
         )
+        self._legacy_endpoints_warned = False
 
     @property
     def controller_stream(
@@ -580,17 +581,14 @@ class MonitoringApplicationController:
                         last_request=last_stream_timestamp,
                         endpoint_mode=endpoint_mode,
                     ):
-                        data_in_window = False
                         # Get the relevant window data from the TSDB
                         prediction_metric = self.tsdb_connector.read_predictions(
                             start=start_infer_time,
                             end=end_infer_time,
                             endpoint_id=endpoint_id,
                         )
-                        if prediction_metric.data:
-                            data_in_window = True
 
-                        if not data_in_window:
+                        if not prediction_metric.data:
                             logger.info(
                                 "No data found for the given interval",
                                 start=start_infer_time,
@@ -731,17 +729,19 @@ class MonitoringApplicationController:
             modes=[mm_constants.EndpointMode.REAL_TIME],
         ).endpoints
 
-        legacy_endpoints = self.project_obj.list_model_endpoints(
-            tsdb_metrics=False,
-            modes=[mm_constants.EndpointMode.BATCH_LEGACY],
-        ).endpoints
-        if legacy_endpoints:
-            logger.warning(
-                "Legacy batch model endpoints are no longer monitored by the controller; "
-                "re-create them via job-based serving to resume monitoring",
-                project=self.project,
-                count=len(legacy_endpoints),
-            )
+        if not self._legacy_endpoints_warned:
+            legacy_endpoints = self.project_obj.list_model_endpoints(
+                tsdb_metrics=False,
+                modes=[mm_constants.EndpointMode.BATCH_LEGACY],
+            ).endpoints
+            if legacy_endpoints:
+                logger.warning(
+                    "Legacy batch model endpoints are no longer monitored by the controller; "
+                    "re-create them via job-based serving to resume monitoring",
+                    project=self.project,
+                    count=len(legacy_endpoints),
+                )
+            self._legacy_endpoints_warned = True
 
         if not endpoints:
             logger.info("No model endpoints found", project=self.project)

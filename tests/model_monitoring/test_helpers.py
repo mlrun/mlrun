@@ -404,6 +404,7 @@ class TestControllerLegacyEndpoints:
             MonitoringApplicationController
         )
         controller.project = "test-project"
+        controller._legacy_endpoints_warned = False
 
         def _list_model_endpoints(*, modes, **kwargs):
             is_legacy = modes == [EndpointMode.BATCH_LEGACY]
@@ -419,12 +420,16 @@ class TestControllerLegacyEndpoints:
             lambda msg, *args, **kwargs: warnings_seen.append((msg, kwargs)),
         )
 
+        # The warning is throttled to once per controller process, so running
+        # multiple cycles still produces a single warning.
+        controller.push_regular_event_to_controller_stream()
         controller.push_regular_event_to_controller_stream()
 
         assert len(warnings_seen) == 1
         message, fields = warnings_seen[0]
         assert "no longer monitored" in message
         assert fields["count"] == 1
+        assert controller._legacy_endpoints_warned is True
         # No real-time endpoints -> the scan returns before processing any endpoint
         controller.project_obj.list_model_monitoring_functions.assert_not_called()
 

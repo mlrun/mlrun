@@ -340,18 +340,14 @@ async def test_hub_get_asset_from_default_source(
                 async with sem:
                     retryable_statuses = {500, 502, 503, 504}
                     max_attempts = 3
-                    for attempt in range(max_attempts):
+                    # Retry transient upstream errors from the live hub. A persistent
+                    # failure still fails the test after max_attempts.
+                    for _ in range(max_attempts):
                         response = await async_client.get(
                             f"/hub/sources/{source_name}/items/{item_name}/assets/{asset_name}"
                         )
-                        # Retry transient upstream errors from the live hub; a persistent failure still
-                        # fails the test.
-                        if (
-                            response.status_code not in retryable_statuses
-                            or attempt == max_attempts - 1
-                        ):
+                        if response.status_code not in retryable_statuses:
                             break
-                        await asyncio.sleep(2**attempt)  # 1s, 2s backoff
                     return (
                         item_name,
                         response.status_code,

@@ -1221,8 +1221,14 @@ def _process_single_response(context, response, get_body):
 
 
 async def _process_single_async_response(context, event, response, get_body):
-    # Post-process the resolved coroutine value (ML-12777), then JSON-wrap.
-    response = _post_process_response(context, event, await response)
+    # Catch exceptions raised while resolving the coroutine so async handler
+    # errors get the same precise status_code mapping that sync ones get
+    # (ML-12777). Without this they'd bubble out to Nuclio as a generic 500.
+    try:
+        response = await response
+    except Exception as exc:
+        return _exception_to_response(context, context._server.context, event, exc)
+    response = _post_process_response(context, event, response)
     return _process_single_response(context, response, get_body)
 
 

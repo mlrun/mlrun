@@ -406,12 +406,12 @@ class TestControllerLegacyEndpoints:
         controller.project = "test-project"
         controller._legacy_endpoints_warned = False
 
-        def _list_model_endpoints(*, modes, **kwargs):
-            is_legacy = modes == [EndpointMode.BATCH_LEGACY]
-            return Mock(endpoints=[Mock()] if is_legacy else [])
-
+        legacy_endpoint = Mock()
+        legacy_endpoint.metadata.mode = EndpointMode.BATCH_LEGACY
         controller.project_obj = Mock()
-        controller.project_obj.list_model_endpoints.side_effect = _list_model_endpoints
+        controller.project_obj.list_model_endpoints.return_value = Mock(
+            endpoints=[legacy_endpoint]
+        )
 
         warnings_seen: list[tuple[str, dict]] = []
         monkeypatch.setattr(

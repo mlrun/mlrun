@@ -726,21 +726,30 @@ class MonitoringApplicationController:
         applications_names = []
         endpoints = self.project_obj.list_model_endpoints(
             tsdb_metrics=False,
-            modes=[mm_constants.EndpointMode.REAL_TIME],
+            modes=[
+                mm_constants.EndpointMode.REAL_TIME,
+                mm_constants.EndpointMode.BATCH_LEGACY,
+            ],
         ).endpoints
 
-        if not self._legacy_endpoints_warned:
-            legacy_endpoints = self.project_obj.list_model_endpoints(
-                tsdb_metrics=False,
-                modes=[mm_constants.EndpointMode.BATCH_LEGACY],
-            ).endpoints
-            if legacy_endpoints:
-                logger.warning(
-                    "Legacy batch model endpoints are no longer monitored by the controller; "
-                    "re-create them via job-based serving to resume monitoring",
-                    project=self.project,
-                    count=len(legacy_endpoints),
-                )
+        legacy_endpoints = [
+            endpoint
+            for endpoint in endpoints
+            if endpoint.metadata.mode == mm_constants.EndpointMode.BATCH_LEGACY
+        ]
+        endpoints = [
+            endpoint
+            for endpoint in endpoints
+            if endpoint.metadata.mode != mm_constants.EndpointMode.BATCH_LEGACY
+        ]
+
+        if legacy_endpoints and not self._legacy_endpoints_warned:
+            logger.warning(
+                "Legacy batch model endpoints are no longer monitored by the controller; "
+                "re-create them via job-based serving to resume monitoring",
+                project=self.project,
+                count=len(legacy_endpoints),
+            )
             self._legacy_endpoints_warned = True
 
         if not endpoints:

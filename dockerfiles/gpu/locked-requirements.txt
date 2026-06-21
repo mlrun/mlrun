@@ -3654,8 +3654,8 @@ stack-data==0.6.3 \
     --hash=sha256:836a778de4fec4dcd1dcd89ed8abff8a221f58308462e1c4aa2a3cf30148f0b9 \
     --hash=sha256:d5558e0c25a4cb0853cddad3d77da9891a08cb85dd9f9f91b9f8cd66e511e695
     # via ipython
-storey==1.12.3 \
-    --hash=sha256:845a937e614a9343d395df1280d86cc56e27cb3d2e727ad7d7be65e6a680c2d9
+storey==1.12.4 \
+    --hash=sha256:b5152b2bc482a4456d76ba9ef336228d1317e9aa9ddea6fe6d0f6d5d482f67a9
     # via
     #   -r extras-requirements.txt
     #   -r requirements.txt

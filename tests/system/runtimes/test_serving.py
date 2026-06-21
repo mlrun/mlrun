@@ -20,6 +20,7 @@ import pytest
 import mlrun
 import tests.system.base
 from mlrun.common.schemas.serving import APIHandlerAction
+from mlrun.runtimes.nuclio.function import AsyncSpec
 from mlrun.serving.endpoint_mapping import APIHandlerConfig, BodyMappings
 from mlrun.serving.openai_mappings import OpenAIEndpoint
 
@@ -625,6 +626,59 @@ class TestServingAPIHandler(tests.system.base.TestMLRunSystem):
         assert resp.json() == {"output_id": "resp_1", "output_object": "response"}
 
         self._logger.info("Response wrapper success test passed")
+
+    def test_async_response_wrapper_status_codes(self) -> None:
+        """ML-12777: async (engine='async' + AsyncSpec) + APIHandlerConfig must
+        post-process the awaited response correctly — mapping runs, status codes
+        are precise, raised exceptions are not masked as 500.
+
+        One deploy, three invocations, three branches in the async post-processing:
+          - /missing_mandatory : dict missing mandatory mapping → 422
+          - /raising            : handler raises MLRunNotFoundError → precise 404
+          - /success            : Response(200) + reshape → 200 with mapped body
+        """
+        out_bm = BodyMappings()
+        out_bm.add_mapping("$.id", destination_path="output_id", mandatory=True)
+        out_bm.add_mapping("$.object", destination_path="output_object", mandatory=True)
+
+        config = APIHandlerConfig(include_url_info=True)
+        for path in ("/missing_mandatory", "/raising", "/success"):
+            config.add_endpoint_handler(
+                path,
+                HTTPMethod.GET,
+                APIHandlerAction.ALLOW,
+                output_body_mappings=out_bm,
+            )
+
+        function = self._create_serving_function(
+            name="async-response-wrapper-status-codes",
+            api_config=config,
+            func=str(self.assets_path / "response_wrapper_handler.py"),
+        )
+        function.with_http(workers=None, async_spec=AsyncSpec())
+        graph = function.set_topology("flow", engine="async", exist_ok=True)
+        graph.to(name="handler", handler="async_dispatcher_handler").respond()
+        function.deploy()
+
+        # dict missing mandatory mapping in async path → mapping actually ran → 422
+        with pytest.raises(
+            RuntimeError,
+            match=r"bad function response 422.*Mandatory field 'output_id' not found",
+        ):
+            function.invoke(path="/missing_mandatory", method="GET")
+
+        # raised MLRunHTTPStatusError in async path → precise 404 (not generic 500)
+        with pytest.raises(
+            RuntimeError,
+            match=r"bad function response 404.*MLRunNotFoundError",
+        ):
+            function.invoke(path="/raising", method="GET")
+
+        # Response(200) in async path → mapping reshapes, status preserved
+        response = function.invoke(path="/success", method="GET")
+        assert response == {"output_id": "resp_1", "output_object": "response"}
+
+        self._logger.info("Async response wrapper status-codes test passed")
 
     # ---------------------------------------------------------------------------
     # OpenAI frontend tests (set_openai_frontend)

@@ -1184,10 +1184,7 @@ def _post_process_response(context, event, response):
         if (
             server.http_trigger
             and server.result_handler
-            and (
-                explicit_response is None
-                or explicit_response.status_code < 300
-            )
+            and (explicit_response is None or explicit_response.status_code < 300)
         ):
             method = getattr(event, "method", None)
             path = getattr(event, "path", None)

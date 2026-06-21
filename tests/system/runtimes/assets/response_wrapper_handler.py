@@ -11,8 +11,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Handlers that return mlrun Response wrappers — for ML-12706 system tests."""
+"""Handlers that return mlrun Response wrappers — for ML-12706 / ML-12777 system tests."""
 
+import mlrun.errors
 from mlrun.serving.server import Response
 
 
@@ -37,3 +38,32 @@ def success_response_handler(body, **kwargs):
         status_code=200,
         content_type="application/json",
     )
+
+
+def async_dispatcher_handler(body, mlrun_request_path, **kwargs):
+    """Dispatch based on request path — for ML-12777 async system test.
+
+    Used inside a single deploy to exercise multiple async post-processing
+    paths from one test (avoids deploying per scenario).
+    """
+    if mlrun_request_path == "/missing_mandatory":
+        # Dict missing the mandatory $.id mapping → result_handler should raise 422.
+        return {"no_id": "value"}
+    if mlrun_request_path == "/raising":
+        # Raised exception in async path → precise 404 (not generic 500).
+        raise mlrun.errors.MLRunNotFoundError("resource missing")
+    if mlrun_request_path == "/success":
+        # Response(200) + dict body matching the success contract → mapping reshapes.
+        return Response(
+            body={"id": "resp_1", "object": "response", "extra_field": "filter"},
+            status_code=200,
+            content_type="application/json",
+        )
+    raise mlrun.errors.MLRunBadRequestError(
+        f"unknown dispatcher path: {mlrun_request_path}"
+    )
+
+
+def raising_handler(body, **kwargs):
+    """Raise MLRunNotFoundError — for ML-12777 generic precise-status-code test."""
+    raise mlrun.errors.MLRunNotFoundError("resource missing")

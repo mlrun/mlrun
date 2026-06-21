@@ -51,7 +51,9 @@ on:
           - 'false'
   workflow_run:
     workflows: ["CI"]
-    types: [requested]
+    # in_progress (not requested): CI reaches this state only after approval, so smoke
+    # won't run on PRs from non-members until a maintainer approves their CI.
+    types: [in_progress]
 
 jobs:
   should-run:

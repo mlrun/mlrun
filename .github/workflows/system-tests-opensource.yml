@@ -291,6 +291,8 @@ jobs:
       with:
         ref: refs/pull/${{ inputs.pr_number }}/head
         fetch-depth: 0
+        # We smoke-test PR code in this trusted context (base repo's GITHUB_TOKEN) by design, so opt in explicitly.
+        allow-unsafe-pr-checkout: true
 
     - name: Merge base branch into PR
       if: inputs.pr_number != ''

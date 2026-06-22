@@ -128,8 +128,8 @@ def test_requirement_specifiers_convention():
 
     ignored_invalid_map = {
         # See comment near requirement for why we're limiting to patch changes only for all of these
-        "storey": {"~=1.12.3"},
-        # No specifier — pip resolves against the base `storey~=1.12.3` pin
+        "storey": {"~=1.12.4"},
+        # No specifier — pip resolves against the base `storey~=1.12.4` pin
         # in requirements.txt, so we don't duplicate the version constraint.
         "storey[otel]": {""},
         "pydantic": {">=1.10.15", ">=1,<2"},

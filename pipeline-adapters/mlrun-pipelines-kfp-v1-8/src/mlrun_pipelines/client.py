@@ -477,6 +477,17 @@ class Client(
                 experiment.id for experiment in candidate_experiments
             ]
 
+            if not candidate_experiment_ids:
+                # Pipeline runs always live under a project-prefixed experiment, so an
+                # empty experiment list means the project has no runs. Without this
+                # short-circuit, the empty filter falls through to an unscoped cluster
+                # scan that can time out callers such as project deletion.
+                self.logger.debug(
+                    "No experiments match the requested project(s), returning no runs",
+                    project=project,
+                )
+                return
+
         filter_json = create_list_runs_filter(
             filter_=filter_json,
             experiment_ids=candidate_experiment_ids,

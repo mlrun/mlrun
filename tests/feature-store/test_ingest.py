@@ -208,8 +208,8 @@ def test_run_spark_graph_closes_resource_cache():
     mock_close_sync.assert_called_once()
 
 
-def test_online_vector_service_close_closes_resource_cache():
-    """Verify that OnlineVectorService.close() closes its resource cache."""
+def test_online_vector_service_close_terminates_controller():
+    """`close()` uses `terminate(wait=True)` and does not call `close_sync()`."""
     from mlrun.feature_store.feature_vector_utils import OnlineVectorService
 
     mock_cache = unittest.mock.MagicMock()
@@ -223,7 +223,8 @@ def test_online_vector_service_close_closes_resource_cache():
     )
     service.close()
 
-    mock_cache.close_sync.assert_called_once()
+    mock_graph.controller.terminate.assert_called_once_with(wait=True)
+    mock_cache.close_sync.assert_not_called()
 
 
 def test_online_vector_service_close_without_cache():

@@ -118,7 +118,7 @@ jobs:
       pr_base_ref: ${{ steps.pr_base.outputs.pr_base_ref }}
       base_commits_since_sync: ${{ steps.pr_base.outputs.base_commits_since_sync }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Extract git hashes from upstream and latest version
         id: git_upstream_info
@@ -283,14 +283,16 @@ jobs:
       needs.prepare-inputs.result == 'success' &&
       (needs.build-mlrun.result == 'success' || needs.build-mlrun.result == 'skipped')
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
       if: inputs.pr_number == ''
 
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
       if: inputs.pr_number != ''
       with:
         ref: refs/pull/${{ inputs.pr_number }}/head
         fetch-depth: 0
+        # We smoke-test PR code in this trusted context (base repo's GITHUB_TOKEN) by design, so opt in explicitly.
+        allow-unsafe-pr-checkout: true
 
     - name: Merge base branch into PR
       if: inputs.pr_number != ''
@@ -327,11 +329,7 @@ jobs:
         sudo chmod +x /usr/local/bin/yq
         uv venv venv --seed --clear
         source venv/bin/activate
-        # Constrain installs to the locked requirements so dependency releases can't silently
-        # drift into the smoke environment (this job installs from the requirement files, not
-        # the test docker images).
-        make install-requirements install-complete-requirements install-automation-requirements \
-          MLRUN_PIP_CONSTRAINTS_FILE=dockerfiles/test-system/locked-requirements.txt
+        make install-requirements install-complete-requirements install-automation-requirements
 
         # Pin cffi below 2.0.0 to avoid wheels without _cffi_backend on the runner
         # python -m pip install --upgrade --force-reinstall "cffi<2.0.0" cryptography bcrypt paramiko orjson

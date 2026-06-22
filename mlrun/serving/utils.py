@@ -15,6 +15,8 @@
 import inspect
 from typing import Any
 
+import nuclio_sdk
+
 import mlrun.errors
 from mlrun.utils import get_in, update_in
 
@@ -23,6 +25,19 @@ from mlrun.utils import get_in, update_in
 # more info https://github.com/benoitc/gunicorn/issues/2799, this comment can be removed once old keys are removed
 event_id_key = "MLRUN-EVENT-ID"
 event_path_key = "MLRUN-EVENT-PATH"
+
+
+def is_event_like(obj: Any) -> bool:
+    """Return True if obj looks like a graph event wrapper — has a `.body`
+    attribute and is not a Response. Duck-typed on `.body` so any event-like
+    class (current or future) is recognized; Response (mlrun + nuclio variants)
+    is excluded because it also has `.body` but means a final HTTP response.
+    """
+    # Response is imported lazily to avoid a circular import between
+    # mlrun.serving.server (which transitively depends on this module) and utils.
+    from mlrun.serving.server import Response
+
+    return hasattr(obj, "body") and not isinstance(obj, (Response, nuclio_sdk.Response))
 
 
 def _extract_input_data(input_path, body):

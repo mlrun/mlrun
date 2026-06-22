@@ -77,6 +77,26 @@ def test_dataset_upload_with_src_path_filling_hash():
     assert artifact.hash is not None
 
 
+def test_dataset_size_reflects_real_bytes_for_directory_target(tmp_path):
+    """A non-.parquet/.pq target is written as a directory; spec.size must be the real byte
+    total, not the directory entry's own (~0) length ("0 B" on v3io, "N/A" on Azure)."""
+    data_frame = pandas.DataFrame({"x": list(range(100))})
+    # ".txt" suffix => directory write
+    target_path = tmp_path / "mydata.txt"
+    artifact = mlrun.artifacts.dataset.DatasetArtifact(
+        df=data_frame,
+        target_path=str(target_path),
+    )
+    artifact.upload()
+
+    assert target_path.is_dir()
+    real_total = sum(
+        part.stat().st_size for part in target_path.rglob("*") if part.is_file()
+    )
+    assert real_total > 0
+    assert artifact.spec.size == real_total
+
+
 def test_dataset_upload_without_df_or_body():
     artifact = mlrun.artifacts.dataset.DatasetArtifact(
         target_path=str(pathlib.Path(tests.conftest.results) / "target-dataset"),

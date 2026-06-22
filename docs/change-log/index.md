@@ -51,7 +51,7 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 ### Model monitoring
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-9954|You can now generate an alert when lags in stream processing are detected in model monitoring writer/application pods. Lags usually indicate perfoemance issues. See [Lag detection alerts](../model-monitoring/running-applications.md#lag-detection-alerts).|
+|ML-9954|You can now generate an alert when lags in stream processing are detected in model monitoring writer/application pods. Lags usually indicate performance issues. See [Lag detection alerts](../model-monitoring/running-applications.md#lag-detection-alerts).|
 |ML-10919|Model monitoring supports TimescaleDB PostgreSQL with TimescaleDB extension as a TSDB platform. See [Configuring data store profiles](../install-mlrun-ce/mlrun-ce-development-notes.md#configuring-data-store-profiles) and {py:meth}`~mlrun.projects.MlrunProject.set_model_monitoring_credentials`.|
 |ML-10331|The writer pod performance is increased by utilizing async processing.|
 
@@ -292,7 +292,7 @@ TDEngine will be replaced with TimescaleDB. Model monitoring data in TDEngine wi
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |NA|Workflow engine types and the interdependencies with Python are fully described in {ref}`local-remote`.|
-|ML-10367|Improved the description of creating an alert, including `run-id`. See [Creating an alert](../concepts/alerts.md#creating-an-alert).|
+|ML-10367|Improved the description of creating an alert, including `run-id`. See [Create an alert](../concepts/alerts.md#create-an-alert).|
 
 
 
@@ -349,7 +349,7 @@ You must use the v1.8.0 client or higher to utilize model monitoring on a v1.9.0
 |ML-8281|MLRun now supports experiment tracking for document-based models, integrating management of LangChain documents using the new artifact type {py:class}`mlrun.artifacts.document.DocumentArtifact`. Additionally, it provides a mechanism for provisioning third-party configuration keys and settings ({py:class}`mlrun.datastore.datastore_profile.ConfigProfile`). The UI has a new Projects > Documents page supporting this feature. See additional new SDK classes: {py:class}`mlrun.artifacts.document.MLRunLoader`, and {py:class}`mlrun.datastore.vectorstore.VectorStoreCollection`. See the new tutorial {ref}`genai-03-vectordb`.
 |ML-8537|You can now run and evaluate models before deploying them, saving time and resources. See [Testing your application before deploying it](../model-monitoring/applications.md#testing-your-application-before-deploying-it).|
 |ML-7688|You can now give model endpoints a name of your choice.|
-||The SDK for creating model monitoring alerts is much simpler than previously. See [Creating a model monitoring alert](../concepts/alerts.md#creating-a-model-monitoring-alert).|
+||The SDK for creating model monitoring alerts is much simpler than previously. See [Create a model monitoring alert](../concepts/alerts.md#create-a-model-monitoring-alert).|
 
 (mm-upgrade)=
 ### Upgrading the MLRun server if model monitoring is deployed in v1.7.x
@@ -1607,7 +1607,6 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | v1.12.0| v1.10.0 |`artifact_path` and `out_path` in `BaseRuntime.run`| `output path`|
 | v1.12.0| v1.10.0 |When using underscores as a name, the code no longer replaces them with dashes. |Use dashes|
 | v1.12.0| v1.10.0 |`any `mlrun.api.schemas.*`  import |`mlrun.common.schemas.*`| 
-| v1.12.0| v1.10.0 |processing old batch model endpoint in `mlrun.model_monitoring.controller `  |NA|
 
 
 
@@ -1622,6 +1621,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | v1.12.0 (deprecated v1.10.0)|`record_results` in `mlrun.model_monitoring.api`|run a monitored serving function as a job|
 | v1.12.0 (deprecated v1.10.0)|`GET /projects/{project}/model-endpoints/metrics`|`GET /projects/{project}/model-monitoring/metrics`|
 | v1.12.0 (deprecated v1.10.0)|`fetch_credentials_from_sys_config` param in `enable_model_monitoring`|Set model-monitoring credentials explicitly via `set_model_monitoring_credentials`|
+| v1.12.0 (deprecated v1.10.0)|Monitoring old batch model endpoints via the real-time controller path (parquet windows) in `mlrun.model_monitoring.controller`|Run job-based serving to invoke and analyze offline batch model endpoints|
 | v1.11.0|TDEngine support is removed in v1.11.0. Data is not migrated.|MLRun supports TimescaleDB instead.|
 | v1.11.0|`get_cached_artifact` of MLClientCtx                                              |`get_artifact`|
 | v1.11.0|`remove_function` of MLrunProject                            |`delete_function`|

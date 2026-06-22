@@ -15,7 +15,7 @@
 import datetime
 from collections.abc import Iterator
 from typing import NamedTuple, Union
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import nuclio
 import numpy as np
@@ -33,8 +33,7 @@ from mlrun.common.model_monitoring.helpers import (
     pad_features_hist,
     pad_hist,
 )
-from mlrun.common.schemas import EndpointMode, EndpointType, ModelEndpoint
-from mlrun.common.schemas.model_monitoring.constants import EventFieldType
+from mlrun.common.schemas import EndpointMode
 from mlrun.datastore import KafkaOutputStream, OutputStream
 from mlrun.datastore.datastore_profile import (
     DatastoreProfile,
@@ -44,6 +43,7 @@ from mlrun.datastore.datastore_profile import (
 )
 from mlrun.db.nopdb import NopDB
 from mlrun.model_monitoring.controller import (
+    MonitoringApplicationController,
     _BatchWindow,
     _BatchWindowGenerator,
     _Interval,
@@ -57,7 +57,6 @@ from mlrun.model_monitoring.helpers import (
     get_invocations_fqn,
     get_output_stream,
     get_start_end,
-    update_model_endpoint_last_request,
 )
 
 TIMESTAMP_RESOLUTION_MICRO = 1e-6  # 0.000001 seconds or 1 microsecond
@@ -381,7 +380,6 @@ class TestBatchWindowGenerator:
         last_updated = _BatchWindowGenerator._get_last_updated_time(
             last_request=last_request,
             endpoint_mode=EndpointMode.REAL_TIME,
-            not_old_batch_endpoint=True,
         )
         assert last_updated
         assert last_updated < last_request.timestamp(), (
@@ -391,7 +389,6 @@ class TestBatchWindowGenerator:
         last_updated = _BatchWindowGenerator._get_last_updated_time(
             last_request=last_request,
             endpoint_mode=EndpointMode.BATCH,
-            not_old_batch_endpoint=False,
         )
 
         assert last_updated
@@ -400,7 +397,44 @@ class TestBatchWindowGenerator:
         )
 
 
-class TestBumpModelEndpointLastRequest:
+class TestControllerLegacyEndpoints:
+    @staticmethod
+    def test_legacy_batch_endpoints_warn_and_are_not_processed(monkeypatch) -> None:
+        controller = MonitoringApplicationController.__new__(
+            MonitoringApplicationController
+        )
+        controller.project = "test-project"
+        controller._legacy_endpoints_warned = False
+
+        legacy_endpoint = Mock()
+        legacy_endpoint.metadata.mode = EndpointMode.BATCH_LEGACY
+        controller.project_obj = Mock()
+        controller.project_obj.list_model_endpoints.return_value = Mock(
+            endpoints=[legacy_endpoint]
+        )
+
+        warnings_seen: list[tuple[str, dict]] = []
+        monkeypatch.setattr(
+            mlrun.model_monitoring.controller.logger,
+            "warning",
+            lambda msg, *args, **kwargs: warnings_seen.append((msg, kwargs)),
+        )
+
+        # The warning is throttled to once per controller process, so running
+        # multiple cycles still produces a single warning.
+        controller.push_regular_event_to_controller_stream()
+        controller.push_regular_event_to_controller_stream()
+
+        assert len(warnings_seen) == 1
+        message, fields = warnings_seen[0]
+        assert "no longer monitored" in message
+        assert fields["count"] == 1
+        assert controller._legacy_endpoints_warned is True
+        # No real-time endpoints -> the scan returns before processing any endpoint
+        controller.project_obj.list_model_monitoring_functions.assert_not_called()
+
+
+class TestGetMonitoringTimeWindow:
     @staticmethod
     @pytest.fixture
     def project() -> str:
@@ -413,67 +447,8 @@ class TestBumpModelEndpointLastRequest:
 
     @staticmethod
     @pytest.fixture
-    def empty_model_endpoint() -> ModelEndpoint:
-        return ModelEndpoint(
-            metadata=mlrun.common.schemas.ModelEndpointMetadata(
-                name="test", project="test-project"
-            ),
-            spec=mlrun.common.schemas.ModelEndpointSpec(),
-            status=mlrun.common.schemas.ModelEndpointStatus(),
-        )
-
-    @staticmethod
-    @pytest.fixture
-    def last_request() -> str:
-        return "2023-12-05 18:17:50.255143"
-
-    @staticmethod
-    @pytest.fixture
-    def model_endpoint(
-        empty_model_endpoint: ModelEndpoint, last_request: str
-    ) -> ModelEndpoint:
-        empty_model_endpoint.status.last_request = last_request
-        return empty_model_endpoint
-
-    @staticmethod
-    @pytest.fixture
     def function() -> mlrun.runtimes.ServingRuntime:
         return TemplateFunction()
-
-    @staticmethod
-    def test_update_last_request(
-        project: str,
-        model_endpoint: ModelEndpoint,
-        db: NopDB,
-        last_request: str,
-        function: mlrun.runtimes.ServingRuntime,
-    ) -> None:
-        with patch.object(db, "patch_model_endpoint") as patch_patch_model_endpoint:
-            with patch.object(db, "get_function", return_value=function):
-                update_model_endpoint_last_request(
-                    project=project,
-                    model_endpoint=model_endpoint,
-                    current_request=datetime.datetime.fromisoformat(last_request),
-                    db=db,
-                )
-        patch_patch_model_endpoint.assert_called_once()
-        assert patch_patch_model_endpoint.call_args.kwargs["attributes"][
-            EventFieldType.LAST_REQUEST
-        ] == datetime.datetime.fromisoformat(last_request)
-        model_endpoint.metadata.endpoint_type = EndpointType.BATCH_EP
-
-        with patch.object(db, "patch_model_endpoint") as patch_patch_model_endpoint:
-            with patch.object(db, "get_function", return_value=function):
-                update_model_endpoint_last_request(
-                    project=project,
-                    model_endpoint=model_endpoint,
-                    current_request=datetime.datetime.fromisoformat(last_request),
-                    db=db,
-                )
-        patch_patch_model_endpoint.assert_called_once()
-        assert patch_patch_model_endpoint.call_args.kwargs["attributes"][
-            EventFieldType.LAST_REQUEST
-        ] == datetime.datetime.fromisoformat(last_request)
 
     @staticmethod
     def test_get_monitoring_time_window_from_controller_run(

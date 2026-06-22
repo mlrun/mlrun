@@ -35,6 +35,40 @@ Serving graphs are built on top of the [Nuclio real-time serverless engine](http
 
 By default, all steps of the serving graph run on the same pod. It is possible to run different steps on different pods using distributed pipelines. Typically you run steps that require CPU on one pod, and steps that require a GPU on a different pod that is running on a potentially different node that has GPU support. See {ref}`distributed-graph-oview`.
 
+## Returning custom HTTP responses
+
+A graph handler can control the HTTP response by returning a `Response` wrapper instead of a plain dict. The runtime preserves `status_code`, `content_type`, and `headers` end-to-end.
+
+Two ways to construct it, both supported:
+
+```python
+# A) Use context.Response — picks the right class for the runtime
+#    (mlrun.serving.server.Response in MockServer; nuclio_sdk.Response in deployed Nuclio).
+class MyStep:
+    def do(self, body):
+        return self.context.Response(
+            body={"error": {"message": "not found"}},
+            status_code=404,
+            content_type="application/json",
+        )
+
+
+# B) Import the class directly — works the same way; the SDK normalizes it on the way out.
+from mlrun.serving.server import Response
+
+
+def my_handler(body, **kwargs):
+    return Response(
+        body={"id": "resp_1", "object": "response"},
+        status_code=200,
+        content_type="application/json",
+    )
+```
+
+If you simply return a `dict`, the runtime treats the response as `200 OK` — no change from previous behavior.
+
+When using the {ref}`API handler<api-handler>` with `output_body_mappings`, the mapping runs only when `status_code < 300`; see [Returning a custom HTTP status code](./api-handler.md#returning-a-custom-http-status-code) for details.
+
 ## Serving graph UI
 The realtime pipelines UI page displays: 
 - A table of serving graphs with a few parameters that can be filtered

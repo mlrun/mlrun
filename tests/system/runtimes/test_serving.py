@@ -552,6 +552,80 @@ class TestServingAPIHandler(tests.system.base.TestMLRunSystem):
 
         self._logger.info("Output mandatory missing field test passed")
 
+    def test_response_wrapper_error_skips_output_mapping(self) -> None:
+        """Handler returns Response(status_code=404) — error body and status code
+        must reach the caller intact (ML-12706). Without the fix, the output
+        mapping rejects the error envelope and rewrites the response to 422.
+        """
+        out_bm = BodyMappings()
+        out_bm.add_mapping("$.id", destination_path="output_id", mandatory=True)
+        out_bm.add_mapping("$.object", destination_path="output_object", mandatory=True)
+
+        config = APIHandlerConfig()
+        config.add_endpoint_handler(
+            "/predict",
+            HTTPMethod.GET,
+            APIHandlerAction.ALLOW,
+            output_body_mappings=out_bm,
+        )
+
+        function = self._create_serving_function(
+            name="response-wrapper-error",
+            api_config=config,
+            func=str(self.assets_path / "response_wrapper_handler.py"),
+        )
+        graph = function.set_topology("flow", engine="sync", exist_ok=True)
+        graph.to(name="handler", handler="error_response_handler").respond()
+        function.deploy()
+
+        url = function.get_url() + "/predict"
+        resp = httpx.get(url, verify=mlrun.mlconf.httpdb.http.verify)
+
+        assert resp.status_code == 404
+        assert resp.json() == {
+            "error": {
+                "message": "Response with id resp_x not found",
+                "type": "invalid_request_error",
+            }
+        }
+
+        self._logger.info("Response wrapper error test passed")
+
+    def test_response_wrapper_success_preserves_status_code(self) -> None:
+        """Handler returns Response(status_code=200) — output mapping still
+        reshapes the body and the explicit 200 status code is preserved (ML-12706).
+        Distinct ``output_*`` destinations prove the mapping actually ran.
+        """
+        out_bm = BodyMappings()
+        out_bm.add_mapping("$.id", destination_path="output_id", mandatory=True)
+        out_bm.add_mapping("$.object", destination_path="output_object", mandatory=True)
+
+        config = APIHandlerConfig()
+        config.add_endpoint_handler(
+            "/predict",
+            HTTPMethod.GET,
+            APIHandlerAction.ALLOW,
+            output_body_mappings=out_bm,
+        )
+
+        function = self._create_serving_function(
+            name="response-wrapper-success",
+            api_config=config,
+            func=str(self.assets_path / "response_wrapper_handler.py"),
+        )
+        graph = function.set_topology("flow", engine="sync", exist_ok=True)
+        graph.to(name="handler", handler="success_response_handler").respond()
+        function.deploy()
+
+        url = function.get_url() + "/predict"
+        resp = httpx.get(url, verify=mlrun.mlconf.httpdb.http.verify)
+
+        assert resp.status_code == 200
+        # Output mapping ran: keys renamed to output_*, extra_field filtered
+        assert resp.json() == {"output_id": "resp_1", "output_object": "response"}
+
+        self._logger.info("Response wrapper success test passed")
+
     # ---------------------------------------------------------------------------
     # OpenAI frontend tests (set_openai_frontend)
     # ---------------------------------------------------------------------------

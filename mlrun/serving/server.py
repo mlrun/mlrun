@@ -29,6 +29,7 @@ from datetime import UTC, datetime
 from http import HTTPMethod
 from typing import Any, Optional, Union
 
+import nuclio_sdk
 import pandas as pd
 import storey
 from nuclio import Context as NuclioContext
@@ -66,7 +67,7 @@ from .states import (
     get_function,
     graph_root_setter,
 )
-from .utils import event_id_key, event_path_key
+from .utils import event_id_key, event_path_key, is_event_like
 
 DUMMY_STREAM = "dummy://"
 
@@ -344,14 +345,36 @@ class GraphServer(ModelObj):
             response = self.graph.run(event, **(extra_args or {}))
 
             # TODO: this is only relevant in certain flows (MockServer, sync...)
-            if hasattr(response, "body"):
+            # Peel one Event wrapper if present. Positive event-type check avoids
+            # the .body ambiguity with Response (which is captured below).
+            if is_event_like(response):
                 response = response.body
 
-            if self.http_trigger and self.result_handler:
+            # Unwrap an explicit Response so result_handler sees the body; skip
+            # output mapping on non-2xx (success-shape contract, ML-12706).
+            # context.Response is adapter-aware — mlrun's in MockServer, nuclio_sdk's in Nuclio.
+            explicit_response: Any = None
+            if isinstance(response, (Response, nuclio_sdk.Response)):
+                explicit_response = response
+                response = explicit_response.body
+
+            if (
+                self.http_trigger
+                and self.result_handler
+                and (explicit_response is None or explicit_response.status_code < 300)
+            ):
                 method = getattr(event, "method", None)
                 path = getattr(event, "path", None)
                 if method and path:
                     response = self.result_handler.apply(method, path, response)
+
+            if explicit_response is not None:
+                return context.Response(
+                    body=response,
+                    status_code=explicit_response.status_code,
+                    content_type=explicit_response.content_type,
+                    headers=explicit_response.headers,
+                )
         except Exception as exc:
             # Extract appropriate status code from MLRunHTTPStatusError exceptions
             # For backwards compatibility, default to 400 for other exceptions

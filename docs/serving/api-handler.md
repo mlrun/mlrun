@@ -231,6 +231,14 @@ def responses_router(
 
 The handler signature must accept these names (explicitly or via `**kwargs`); otherwise Python raises `TypeError: unexpected keyword argument`.
 
+## Returning a custom HTTP status code
+
+A handler can return a `Response(body, status_code, ...)` wrapper to set a custom HTTP response. See [Returning custom HTTP responses](./serving-graph.md#returning-custom-http-responses) for the construction patterns — this section covers the **interaction with `output_body_mappings`**.
+
+`output_body_mappings` describes the *success-shape* contract, so the mapping runs **only when `status_code < 300`**. Non-2xx responses pass through with their body and status code intact, so the caller sees the original error envelope instead of a synthetic 422 from a failed mandatory-field check.
+
+If you simply return a `dict`, the runtime treats the response as `200 OK` and runs the output mapping as usual — no change from previous behavior.
+
 ## How downstream steps receive parameters
 
 Extracted parameters are passed as keyword arguments to the handler function or `do()` method. For example, given the endpoint `/v1/chat/completions/{completion_id}` with `include_url_info=True`, a `GET /v1/chat/completions/abc123?limit=10` request calls the next step as:

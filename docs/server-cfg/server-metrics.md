@@ -1,6 +1,5 @@
-(counters)=
-
-# Counters: Server metrics
+(server-metrics)=
+# Server metrics
 
 MLRun collects anonymized system-size statistics, for example, project counts, artifact counts, run activity, serving endpoints, etc., and exports them to Prometheus via OpenTelemetry. 
 
@@ -58,7 +57,7 @@ To enable the metrics collection:
 MLRUN_TELEMETRY__ENABLED=true
 ```
 
-## Set the Shared OTLP endpoint
+## Set the shared OTLP endpoint
 The shared OTLP endpoint (gRPC or HTTP) is used by every OpenTelemetry feature. 
 To set the endpoint:
 ```

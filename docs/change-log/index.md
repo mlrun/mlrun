@@ -29,6 +29,8 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 (v1-12-0)=
 ## v1.12.0 (July 2026)
 
+### Server configuration
+|ML-16|MLRun collects anonymized system-size statistics, for example, project counts, artifact counts, run activity, serving endpoints, etc., and exports them to Prometheus via OpenTelemetry. See {ref}`server-metrics`.|
 
 
 (v1110)=

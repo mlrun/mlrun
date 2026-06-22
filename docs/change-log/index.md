@@ -1607,7 +1607,6 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | v1.12.0| v1.10.0 |`artifact_path` and `out_path` in `BaseRuntime.run`| `output path`|
 | v1.12.0| v1.10.0 |When using underscores as a name, the code no longer replaces them with dashes. |Use dashes|
 | v1.12.0| v1.10.0 |`any `mlrun.api.schemas.*`  import |`mlrun.common.schemas.*`| 
-| v1.12.0| v1.10.0 |processing old batch model endpoint in `mlrun.model_monitoring.controller `  |NA|
 
 
 
@@ -1622,6 +1621,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | v1.12.0 (deprecated v1.10.0)|`record_results` in `mlrun.model_monitoring.api`|run a monitored serving function as a job|
 | v1.12.0 (deprecated v1.10.0)|`GET /projects/{project}/model-endpoints/metrics`|`GET /projects/{project}/model-monitoring/metrics`|
 | v1.12.0 (deprecated v1.10.0)|`fetch_credentials_from_sys_config` param in `enable_model_monitoring`|Set model-monitoring credentials explicitly via `set_model_monitoring_credentials`|
+| v1.12.0 (deprecated v1.10.0)|Monitoring old batch model endpoints via the real-time controller path (parquet windows) in `mlrun.model_monitoring.controller`|Run job-based serving to invoke and analyze offline batch model endpoints|
 | v1.11.0|TDEngine support is removed in v1.11.0. Data is not migrated.|MLRun supports TimescaleDB instead.|
 | v1.11.0|`get_cached_artifact` of MLClientCtx                                              |`get_artifact`|
 | v1.11.0|`remove_function` of MLrunProject                            |`delete_function`|

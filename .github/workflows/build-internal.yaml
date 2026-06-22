@@ -112,6 +112,7 @@ jobs:
       with:
         fetch-depth: 0
         ref: refs/pull/${{ inputs.pr_number }}/head
+        allow-unsafe-pr-checkout: true
 
     - name: Merge base branch into PR
       if: inputs.pr_number != ''

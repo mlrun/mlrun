@@ -17,6 +17,7 @@
 from http import HTTPMethod
 from typing import cast
 
+import nuclio_sdk
 import pytest
 
 import mlrun
@@ -24,6 +25,7 @@ from mlrun.common.schemas.serving import APIHandlerAction
 from mlrun.runtimes.nuclio.serving import ServingRuntime
 from mlrun.serving.endpoint_mapping import APIHandlerConfig, BodyMappings
 from mlrun.serving.result_handler import ResultHandler
+from mlrun.serving.server import Response
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -272,7 +274,11 @@ class TestResultHandlerHttpTriggerGuard:
     """
 
     @staticmethod
-    def _make_fn(output_bm: BodyMappings) -> ServingRuntime:
+    def _make_fn(
+        output_bm: BodyMappings,
+        handler=None,
+        method: HTTPMethod = HTTPMethod.POST,
+    ) -> ServingRuntime:
         fn = cast(
             ServingRuntime,
             mlrun.new_function("test-result-handler", kind="serving"),
@@ -280,13 +286,16 @@ class TestResultHandlerHttpTriggerGuard:
         config = APIHandlerConfig()
         config.add_endpoint_handler(
             "/predict",
-            HTTPMethod.POST,
+            method,
             APIHandlerAction.ALLOW,
             output_body_mappings=output_bm,
         )
         fn.set_api_handler_config(config)
         graph = fn.set_topology("flow", engine="sync")
-        graph.to(name="passthrough", handler=lambda body, **kwargs: body).respond()
+        graph.to(
+            name="handler",
+            handler=handler or (lambda body, **kwargs: body),
+        ).respond()
         return fn
 
     def test_http_trigger_true_applies_exit_mapping(self) -> None:
@@ -429,5 +438,82 @@ class TestResultHandlerHttpTriggerGuard:
         try:
             resp = server.test(request_path, method="POST", body={"any": "input"})
             assert resp == {"answer": 42}
+        finally:
+            server.wait_for_completion()
+
+    # ML-12706 — skip output mapping on error responses.
+    # Parameterized over both Response classes the fix accepts (mlrun.serving.server.Response
+    # and nuclio_sdk.Response). In real Nuclio, context.Response is nuclio_sdk.Response;
+    # both must be unwrapped correctly.
+    @pytest.mark.parametrize(
+        "response_cls",
+        [Response, nuclio_sdk.Response],
+        ids=["mlrun_response", "nuclio_response"],
+    )
+    def test_e2e_error_response_skips_output_mapping(self, response_cls) -> None:
+        """Response(status_code=404) — error body passes through with original status (ML-12706)."""
+        error_body = {
+            "error": {
+                "message": "Response with id resp_x not found",
+                "type": "invalid_request_error",
+            }
+        }
+
+        def error_handler(body, **kwargs):
+            return response_cls(
+                body=error_body,
+                status_code=404,
+                content_type="application/json",
+            )
+
+        bm = BodyMappings()
+        bm.add_mapping("$.id", destination_path="id", mandatory=True)
+        bm.add_mapping("$.object", destination_path="object", mandatory=True)
+
+        server = self._make_fn(
+            bm, handler=error_handler, method=HTTPMethod.GET
+        ).to_mock_server()
+        try:
+            resp = server.test("/predict", method="GET", body=None, silent=True)
+            # Upstream status code must reach the caller — not be masked as 422
+            assert resp.status_code == 404
+            # Error body must be returned verbatim — output mapping must NOT have run
+            assert resp.body == error_body
+        finally:
+            server.wait_for_completion()
+
+    @pytest.mark.parametrize(
+        "response_cls",
+        [Response, nuclio_sdk.Response],
+        ids=["mlrun_response", "nuclio_response"],
+    )
+    def test_e2e_response_wrapper_preserves_status_code_on_success(
+        self, response_cls
+    ) -> None:
+        """Response(status_code=200) — output mapping applies, status_code preserved (ML-12706)."""
+        success_body = {"id": "resp_1", "object": "response", "extra_field": "filter"}
+
+        def success_handler(body, **kwargs):
+            return response_cls(
+                body=success_body,
+                status_code=200,
+                content_type="application/json",
+            )
+
+        # Distinct "output_*" destination names so a "mapping ran" verdict is unambiguous —
+        # if the mapping is skipped the body stays {"id": ..., "object": ..., "extra_field": ...}.
+        bm = BodyMappings()
+        bm.add_mapping("$.id", destination_path="output_id", mandatory=True)
+        bm.add_mapping("$.object", destination_path="output_object", mandatory=True)
+
+        server = self._make_fn(
+            bm, handler=success_handler, method=HTTPMethod.GET
+        ).to_mock_server()
+        try:
+            resp = server.test("/predict", method="GET", body=None, silent=True)
+            # Explicit Response from the handler must keep the status code
+            assert resp.status_code == 200
+            # Output mapping ran: keys renamed to output_*, extra_field filtered
+            assert resp.body == {"output_id": "resp_1", "output_object": "response"}
         finally:
             server.wait_for_completion()

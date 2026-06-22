@@ -27,7 +27,7 @@ import mlrun.serving.endpoint_mapping as endpoint_mapping
 import mlrun.serving.server
 import mlrun.serving.states
 import mlrun.utils
-from mlrun.serving.utils import _RequestContext
+from mlrun.serving.utils import _RequestContext, is_event_like
 
 
 class _APIHandlerStep(mlrun.serving.states.TaskStep):
@@ -233,7 +233,7 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
 
                 body_params = {}
                 if effective_map:
-                    body = event.body if hasattr(event, "body") else event
+                    body = event.body if is_event_like(event) else event
                     body_params = endpoint_mapping.apply_body_map_with_dict_check(
                         body,
                         effective_map,
@@ -266,7 +266,7 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
                         query_params=query_params,
                         url_params=url_params,
                     )
-                    original_body = event.body if hasattr(event, "body") else None
+                    original_body = event.body if is_event_like(event) else None
                     event.body = _RequestContext(
                         original_body=original_body,
                         body_params=body_params,

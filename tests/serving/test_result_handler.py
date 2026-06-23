@@ -278,7 +278,6 @@ class TestResultHandlerHttpTriggerGuard:
         output_bm: BodyMappings,
         handler=None,
         method: HTTPMethod = HTTPMethod.POST,
-        engine: str = "sync",
     ) -> ServingRuntime:
         fn = cast(
             ServingRuntime,
@@ -292,7 +291,7 @@ class TestResultHandlerHttpTriggerGuard:
             output_body_mappings=output_bm,
         )
         fn.set_api_handler_config(config)
-        graph = fn.set_topology("flow", engine=engine)
+        graph = fn.set_topology("flow", engine="sync")
         graph.to(
             name="handler",
             handler=handler or (lambda body, **kwargs: body),
@@ -442,17 +441,13 @@ class TestResultHandlerHttpTriggerGuard:
         finally:
             server.wait_for_completion()
 
-    # ML-12706 — skip output mapping on error responses, across both Response
-    # classes and both engines.
-    @pytest.mark.parametrize("engine", ["sync", "async"])
+    # ML-12706 — skip output mapping on error responses, across both Response classes.
     @pytest.mark.parametrize(
         "response_cls",
         [Response, nuclio_sdk.Response],
         ids=["mlrun_response", "nuclio_response"],
     )
-    def test_e2e_error_response_skips_output_mapping(
-        self, response_cls, engine
-    ) -> None:
+    def test_e2e_error_response_skips_output_mapping(self, response_cls) -> None:
         """Response(status_code=404) — error body passes through with original status (ML-12706)."""
         error_body = {
             "error": {
@@ -473,7 +468,7 @@ class TestResultHandlerHttpTriggerGuard:
         bm.add_mapping("$.object", destination_path="object", mandatory=True)
 
         server = self._make_fn(
-            bm, handler=error_handler, method=HTTPMethod.GET, engine=engine
+            bm, handler=error_handler, method=HTTPMethod.GET
         ).to_mock_server()
         try:
             resp = server.test("/predict", method="GET", body=None, silent=True)
@@ -484,14 +479,13 @@ class TestResultHandlerHttpTriggerGuard:
         finally:
             server.wait_for_completion()
 
-    @pytest.mark.parametrize("engine", ["sync", "async"])
     @pytest.mark.parametrize(
         "response_cls",
         [Response, nuclio_sdk.Response],
         ids=["mlrun_response", "nuclio_response"],
     )
     def test_e2e_response_wrapper_preserves_status_code_on_success(
-        self, response_cls, engine
+        self, response_cls
     ) -> None:
         """Response(status_code=200) — output mapping applies, status_code preserved (ML-12706)."""
         success_body = {"id": "resp_1", "object": "response", "extra_field": "filter"}
@@ -510,7 +504,7 @@ class TestResultHandlerHttpTriggerGuard:
         bm.add_mapping("$.object", destination_path="output_object", mandatory=True)
 
         server = self._make_fn(
-            bm, handler=success_handler, method=HTTPMethod.GET, engine=engine
+            bm, handler=success_handler, method=HTTPMethod.GET
         ).to_mock_server()
         try:
             resp = server.test("/predict", method="GET", body=None, silent=True)

@@ -639,17 +639,30 @@ class TestServingAPIHandler(tests.system.base.TestMLRunSystem):
           - /success            : Response(200) + reshape → 200 with mapped body
         """
         out_bm = BodyMappings()
-        out_bm.add_mapping("$.id", destination_path="output_id", mandatory=True)
-        out_bm.add_mapping("$.object", destination_path="output_object", mandatory=True)
+        out_bm.add_mapping("$.input_id", destination_path="output_id", mandatory=True)
+        out_bm.add_mapping(
+            "$.input_object", destination_path="output_object", mandatory=True
+        )
+
+        in_bm = BodyMappings()
+        in_bm.add_mapping("$.id", destination_path="input_id")
+        in_bm.add_mapping("$.object", destination_path="input_object")
 
         config = APIHandlerConfig(include_url_info=True)
-        for path in ("/missing_mandatory", "/raising", "/error_response", "/success"):
+        for path in ("/missing_mandatory", "/raising", "/error_response"):
             config.add_endpoint_handler(
                 path,
                 HTTPMethod.GET,
                 APIHandlerAction.ALLOW,
                 output_body_mappings=out_bm,
             )
+        config.add_endpoint_handler(
+            "/success",
+            HTTPMethod.GET,
+            APIHandlerAction.ALLOW,
+            input_body_mappings=in_bm,
+            output_body_mappings=out_bm,
+        )
 
         function = self._create_serving_function(
             name="async-response-wrapper-status-codes",
@@ -686,8 +699,13 @@ class TestServingAPIHandler(tests.system.base.TestMLRunSystem):
             }
         }
 
-        # Response(200) in async path → mapping reshapes, status preserved
-        response = function.invoke(path="/success", method="GET")
+        # Response(200) in async path → input bm extracts id/object as input_*,
+        # handler returns them, output bm renames to output_*; status preserved.
+        response = function.invoke(
+            path="/success",
+            method="GET",
+            body={"id": "resp_1", "object": "response"},
+        )
         assert response == {"output_id": "resp_1", "output_object": "response"}
 
         self._logger.info("Async response wrapper status-codes test passed")

@@ -66,8 +66,13 @@ def async_dispatcher_handler(body, mlrun_request_path, **kwargs):
         )
     if mlrun_request_path == "/success":
         # Response(200) + dict body matching the success contract → mapping reshapes.
+        # input_id / input_object come from input_body_mappings on this endpoint.
         return Response(
-            body={"id": "resp_1", "object": "response", "extra_field": "filter"},
+            body={
+                "input_id": kwargs.get("input_id"),
+                "input_object": kwargs.get("input_object"),
+                "extra_field": "filter",
+            },
             status_code=200,
             content_type="application/json",
         )

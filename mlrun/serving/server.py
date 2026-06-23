@@ -347,7 +347,7 @@ class GraphServer(ModelObj):
             return _exception_to_response(context, server_context, event, exc)
 
         # Sync post-processing here (MockServer bypasses _process_single_response).
-        # Coroutines are post-processed after await in _process_single_async_response (ML-12777).
+        # Coroutines are post-processed after await in _process_single_async_response.
         if not asyncio.iscoroutine(response):
             response = _post_process_response(context, event, response)
 
@@ -1142,7 +1142,7 @@ def _preprocess_event(context, event):
 
 def _exception_to_response(context, server_context, event, exc):
     """Convert any serving exception into an HTTP Response, preserving
-    MLRunHTTPStatusError's status_code (defaults to 400 otherwise).
+    MLRunHTTPStatusError's status_code (otherwise defaults to 400).
     """
     if isinstance(exc, mlrun.errors.MLRunHTTPStatusError):
         status_code = exc.error_status_code
@@ -1160,9 +1160,8 @@ def _exception_to_response(context, server_context, event, exc):
 
 def _post_process_response(context, event, response):
     """Apply Event peel, explicit-Response unwrap, result_handler.apply, and
-    re-wrap on the (already resolved) graph response. Runs at the single funnel
-    both sync and async paths converge on (ML-12777). Pass-through when event
-    or server are unavailable (e.g. MLClientCtx batch path).
+    re-wrap to the (already resolved) graph response. Returns the response
+    unchanged when event or server is unavailable (e.g. MLClientCtx batch path).
     """
     server = getattr(context, "_server", None)
     if event is None or server is None:
@@ -1221,9 +1220,7 @@ def _process_single_response(context, response, get_body):
 
 
 async def _process_single_async_response(context, event, response, get_body):
-    # Catch exceptions raised while resolving the coroutine so async handler
-    # errors get the same precise status_code mapping that sync ones get
-    # (ML-12777). Without this they'd bubble out to Nuclio as a generic 500.
+    """Resolve the coroutine and post-process the result; map exceptions to a precise status code (ML-12777)."""
     try:
         response = await response
     except Exception as exc:

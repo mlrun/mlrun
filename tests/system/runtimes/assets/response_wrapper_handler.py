@@ -11,7 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Handlers that return mlrun Response wrappers — for ML-12706 / ML-12777 system tests."""
+"""Handlers that return mlrun Response wrappers — for ML-12706 system tests."""
 
 import mlrun.errors
 from mlrun.serving.server import Response
@@ -65,5 +65,4 @@ def async_dispatcher_handler(body, mlrun_request_path, **kwargs):
 
 
 def raising_handler(body, **kwargs):
-    """Raise MLRunNotFoundError — for ML-12777 generic precise-status-code test."""
     raise mlrun.errors.MLRunNotFoundError("resource missing")

@@ -442,10 +442,8 @@ class TestResultHandlerHttpTriggerGuard:
         finally:
             server.wait_for_completion()
 
-    # ML-12706 / ML-12777 — skip output mapping on error responses, across both
-    # Response classes and both engines. Note: MockServer's async branch blocks on
-    # await_result(), so the async variant is a structural guard, not a real-Nuclio
-    # async repro (that lives in the system tests).
+    # ML-12706 — skip output mapping on error responses, across both Response
+    # classes and both engines.
     @pytest.mark.parametrize("engine", ["sync", "async"])
     @pytest.mark.parametrize(
         "response_cls",

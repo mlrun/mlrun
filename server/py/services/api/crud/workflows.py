@@ -37,12 +37,6 @@ import framework.utils.singletons.db
 import services.api.crud
 import services.api.utils.singletons.scheduler
 
-# The client's `load_and_run_workflow` gained the `run_setup` parameter in #9548, which first
-# shipped in 1.12.0-rc8. Compared with packaging.version (PEP 440) so pre-release tags order
-# numerically — validate_component_version_compatibility orders them lexically ("rc10" < "rc8")
-# and would misclassify rc10+ clients.
-_RUN_SETUP_MIN_CLIENT_VERSION = packaging.version.Version("1.12.0rc8")
-
 
 class BaseRunner(metaclass=mlrun.utils.singleton.Singleton):
     """
@@ -649,11 +643,14 @@ class WorkflowRunners(BaseRunner, metaclass=mlrun.utils.singleton.Singleton):
         # Dev builds (e.g. "0.0.0+unstable") are built from current source.
         if client_version.startswith("0.0.0+") or "unstable" in client_version:
             return True
+        # `run_setup` first shipped to the client in 1.12.0-rc8 (#9548). Compared with
+        # packaging.version (PEP 440) so pre-release tags order numerically —
+        # validate_component_version_compatibility orders them lexically ("rc10" < "rc8")
+        # and would misclassify rc10+ clients.
         try:
-            return (
-                packaging.version.Version(client_version)
-                >= _RUN_SETUP_MIN_CLIENT_VERSION
-            )
+            return packaging.version.Version(
+                client_version
+            ) >= packaging.version.Version("1.12.0rc8")
         except packaging.version.InvalidVersion:
             return False
 

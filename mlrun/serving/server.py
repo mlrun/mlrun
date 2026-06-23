@@ -1159,22 +1159,18 @@ def _exception_to_response(context, server_context, event, exc):
 
 
 def _post_process_response(context, event, response):
-    """Apply Event peel, explicit-Response unwrap, result_handler.apply, and
-    re-wrap to the (already resolved) graph response. Returns the response
-    unchanged when event or server is unavailable (e.g. MLClientCtx batch path).
+    """Post-process the resolved graph response (Event/Response unwrap, output
+    mapping, re-wrap). No-op when event or server is unavailable.
     """
     server = getattr(context, "_server", None)
     if event is None or server is None:
         return response
 
     try:
-        # Peel one Event wrapper if present. Positive event-type check avoids
-        # the .body ambiguity with Response (which is captured below).
         if is_event_like(response):
             response = response.body
 
-        # Unwrap an explicit Response so result_handler sees the body; skip
-        # output mapping on non-2xx (success-shape contract, ML-12706).
+        # Skip output mapping on non-2xx (success-shape contract, ML-12706).
         explicit_response: Any = None
         if isinstance(response, (Response, nuclio_sdk.Response)):
             explicit_response = response
@@ -1190,7 +1186,6 @@ def _post_process_response(context, event, response):
             if method and path:
                 response = server.result_handler.apply(method, path, response)
 
-        # Re-wrap so the explicit status code reaches the caller.
         if explicit_response is not None:
             return context.Response(
                 body=response,
@@ -1220,7 +1215,7 @@ def _process_single_response(context, response, get_body):
 
 
 async def _process_single_async_response(context, event, response, get_body):
-    """Resolve the coroutine and post-process the result; map exceptions to a precise status code (ML-12777)."""
+    """Await the coroutine, run post-processing, map any raised exception to its status code (ML-12777)."""
     try:
         response = await response
     except Exception as exc:

@@ -638,10 +638,8 @@ class WorkflowRunners(BaseRunner, metaclass=mlrun.utils.singleton.Singleton):
         """
         Whether the submitting client's ``load_and_run_workflow`` accepts ``run_setup``.
 
-        The parameter was introduced by #9548 and first released in 1.12.0-rc8. Dev/unstable
-        builds are built from current source and are treated as supporting it. An unknown or
-        unparseable client version is treated as unsupported so the parameter is safely
-        omitted (the workflow-runner job runs in the client image — see ML-12790).
+        Dev/unstable builds are treated as supporting it; an unknown or unparseable version is
+        treated as unsupported so the parameter is safely omitted.
 
         :param client_version: MLRun SDK version reported by the submitting client.
         :return: True if the client accepts the ``run_setup`` parameter.

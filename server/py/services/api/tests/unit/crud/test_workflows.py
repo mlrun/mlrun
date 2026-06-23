@@ -84,7 +84,6 @@ class TestWorkflows(services.api.tests.unit.conftest.MockedK8sHelper):
         [
             # `run_setup` shipped to the client in 1.12.0-rc8 (#9548); >= rc8 clients accept
             # the kwarg, so it is forwarded.
-            # rc8 is the boundary: the first release that has the parameter.
             ("1.12.0-rc8", {"run_setup": True}, True),
             # default: setup is skipped on the runner pod (DB is the source of truth)
             ("1.12.0-rc14", {}, False),

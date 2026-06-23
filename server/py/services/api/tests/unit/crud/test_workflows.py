@@ -18,10 +18,15 @@ import unittest.mock
 import pytest
 import sqlalchemy.orm
 
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 
 import services.api.crud
 import services.api.tests.unit.conftest
+
+# Sentinel marking that the `run_setup` parameter is expected to be absent from the
+# workflow-runner parameters (older clients can't accept the kwarg — ML-12790).
+_RUN_SETUP_ABSENT = object()
 
 
 class TestWorkflows(services.api.tests.unit.conftest.MockedK8sHelper):
@@ -75,21 +80,32 @@ class TestWorkflows(services.api.tests.unit.conftest.MockedK8sHelper):
             ].startswith("mlrun.notifications.")
 
     @pytest.mark.parametrize(
-        "run_setup_kwargs, expected_run_setup",
+        "client_version, run_setup_kwargs, expected_run_setup",
         [
+            # >= 1.12 clients accept the `run_setup` kwarg, so it is forwarded.
             # default: setup is skipped on the runner pod (DB is the source of truth)
-            ({}, False),
-            ({"run_setup": False}, False),
+            ("1.12.0-rc14", {}, False),
+            ("1.12.0-rc14", {"run_setup": False}, False),
             # users can opt-in to running the setup script on the runner pod
-            ({"run_setup": True}, True),
+            ("1.12.0-rc14", {"run_setup": True}, True),
+            ("1.12.0", {"run_setup": True}, True),
+            # dev/unstable clients are built from current source and accept the kwarg
+            ("0.0.0+unstable", {"run_setup": True}, True),
+            # < 1.12 clients have no `run_setup` parameter on load_and_run_workflow, so the
+            # key must be omitted entirely rather than passed (ML-12790 regression).
+            ("1.10.2", {"run_setup": True}, _RUN_SETUP_ABSENT),
+            ("1.11.0", {"run_setup": True}, _RUN_SETUP_ABSENT),
+            # unknown client version -> assume incompatible -> omit (safe default).
+            (None, {"run_setup": True}, _RUN_SETUP_ABSENT),
         ],
     )
     def test_run_workflow_run_setup_flag(
         self,
         db: sqlalchemy.orm.Session,
         k8s_secrets_mock,
+        client_version: str | None,
         run_setup_kwargs: dict,
-        expected_run_setup: bool,
+        expected_run_setup,
     ):
         project = mlrun.common.schemas.ProjectOut(
             metadata=mlrun.common.schemas.ProjectMetadata(name="project-name"),
@@ -105,6 +121,12 @@ class TestWorkflows(services.api.tests.unit.conftest.MockedK8sHelper):
             auth_info=mlrun.common.schemas.AuthInfo(),
             image="mlrun/mlrun",
         )
+        # The workflows endpoint stamps the submitting client's SDK version onto the runner;
+        # emulate that here so the version gating can read it.
+        if client_version is not None:
+            runner.metadata.labels[
+                mlrun_constants.MLRunInternalLabels.client_version
+            ] = client_version
 
         run = services.api.crud.WorkflowRunners().run(
             runner=runner,
@@ -122,7 +144,76 @@ class TestWorkflows(services.api.tests.unit.conftest.MockedK8sHelper):
             auth_info=mlrun.common.schemas.AuthInfo(username="test-user"),
         )
 
-        assert run.spec.parameters["run_setup"] == expected_run_setup
+        if expected_run_setup is _RUN_SETUP_ABSENT:
+            assert "run_setup" not in run.spec.parameters
+        else:
+            assert run.spec.parameters["run_setup"] == expected_run_setup
+
+    @pytest.mark.parametrize(
+        "client_version, expected_present",
+        [
+            ("1.12.0-rc14", True),
+            ("1.10.2", False),
+            (None, False),
+        ],
+    )
+    def test_schedule_workflow_gates_run_setup_by_client_version(
+        self,
+        db: sqlalchemy.orm.Session,
+        k8s_secrets_mock,
+        client_version: str | None,
+        expected_present: bool,
+    ):
+        # The scheduled-workflow path builds the workflow-runner parameters independently of
+        # the immediate-run path, so it must gate `run_setup` on the client version too.
+        project = mlrun.common.schemas.ProjectOut(
+            metadata=mlrun.common.schemas.ProjectMetadata(name="project-name"),
+            spec=mlrun.common.schemas.ProjectSpecOut(),
+        )
+        services.api.crud.Projects().create_project(db, project)
+
+        run_name = "run-name"
+        runner = services.api.crud.WorkflowRunners().create_runner(
+            run_name=run_name,
+            project=project.metadata.name,
+            db_session=db,
+            auth_info=mlrun.common.schemas.AuthInfo(),
+            image="mlrun/mlrun",
+        )
+        if client_version is not None:
+            runner.metadata.labels[
+                mlrun_constants.MLRunInternalLabels.client_version
+            ] = client_version
+
+        with unittest.mock.patch(
+            "services.api.utils.singletons.scheduler.get_scheduler"
+        ) as get_scheduler_mock:
+            services.api.crud.WorkflowRunners().schedule(
+                runner=runner,
+                project=project,
+                workflow_request=mlrun.common.schemas.WorkflowRequest(
+                    spec=mlrun.common.schemas.WorkflowSpec(
+                        name=run_name,
+                        engine="remote",
+                        image="mlrun/mlrun",
+                        run_setup=True,
+                    ),
+                    source="/home/mlrun/project-name/",
+                    artifact_path="/home/mlrun/artifacts",
+                ),
+                auth_info=mlrun.common.schemas.AuthInfo(username="test-user"),
+            )
+
+        scheduled_object = (
+            get_scheduler_mock.return_value.store_schedule.call_args.kwargs[
+                "scheduled_object"
+            ]
+        )
+        parameters = scheduled_object["task"]["spec"]["parameters"]
+        if expected_present:
+            assert parameters["run_setup"] is True
+        else:
+            assert "run_setup" not in parameters
 
     @pytest.mark.parametrize(
         "source_code_target_dir",

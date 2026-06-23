@@ -3,8 +3,10 @@
 # Running the model monitoring application
 
 This page explains how to run your model monitoring application on demand, as a "batch"
-application, using MLRun's `evaluate` and `to_job` methods on existing model endpoint data.
-This allows you to execute your application's monitoring logic as an MLRun job, either
+application, and it describes exporting results and metrics via OTel.
+
+Use MLRun's `evaluate` and `to_job` methods on existing model endpoint data to run a model monitoring application:
+this allows you to execute your application's monitoring logic as an MLRun job, either
 locally or remotely, with flexible input and configuration options, including writing the
 outputs to the databases.
 
@@ -18,6 +20,7 @@ You can also import model monitoring applications from the [MLRun hub](https://w
 **In this section**
 
 - [Overview](#overview)
+- [Export results and metrics via OTel](#export-results-and-metrics-via-otel)
 - [Usage](#usage)
 - [Lag detection alerts](#lag-detection-alerts)
 
@@ -34,6 +37,16 @@ directly to customize the job configuration.
 
 After testing your application with external data, as described in {ref}`testing-application-evaluate`,
 you can run it on the actual model endpoint data and write the outputs with `write_output=True`.
+
+## Export results and metrics via OTel
+You can add an external OTel-collector to receive the same results and metrics that are sent to the MLRun TSDB.
+When configured, the results and metrics returned by `do_tracking()` in every monitoring window
+are exported via OTLP to your configured endpoint.
+Each result becomes a named gauge: `mlrun.model_monitoring.result.<name>`. 
+To export results:
+1. Set the default collector using `mlrun.mlconf.telemetry.otlp_endpoint` on the API server.
+2. Enable system-wide OTel collection by setting `otlp_enabled=True` when you run {py:class}`mlrun.projects.MlrunProject.enable_model_monitoring`: 
+3. You can disable exporting metrics per project by setting the parameter `oltp_enabled=False` in {py:meth}`mlrun.projects.MlrunProject.set_model_monitoring_function` 
 
 ## Usage
 

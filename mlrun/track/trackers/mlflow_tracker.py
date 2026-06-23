@@ -458,7 +458,7 @@ class MLFlowTracker(Tracker):
                     current=i,
                     total=total,
                 )
-                zip_file.write(filename=path, arcname=path.relative_to(model_uri))
+                zip_file.write(filename=path, arcname=path.relative_to(model_path))
 
         # Get inputs and outputs info:
         inputs = outputs = None

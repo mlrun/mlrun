@@ -24,10 +24,6 @@ import mlrun.common.schemas
 import services.api.crud
 import services.api.tests.unit.conftest
 
-# Sentinel marking that the `run_setup` parameter is expected to be absent from the
-# workflow-runner parameters (older clients can't accept the kwarg — ML-12790).
-_RUN_SETUP_ABSENT = object()
-
 
 class TestWorkflows(services.api.tests.unit.conftest.MockedK8sHelper):
     def test_schedule_workflow_with_local_source(
@@ -94,13 +90,14 @@ class TestWorkflows(services.api.tests.unit.conftest.MockedK8sHelper):
             # dev/unstable clients are built from current source and accept the kwarg
             ("0.0.0+unstable", {"run_setup": True}, True),
             # clients without the `run_setup` parameter on load_and_run_workflow: the key must
-            # be omitted entirely rather than passed (ML-12790 regression).
+            # be omitted entirely rather than passed (ML-12790 regression). Omitted is
+            # expressed as None, i.e. parameters.get("run_setup") is None.
             # rc7 is the boundary: the last 1.12 release before #9548 landed.
-            ("1.12.0-rc7", {"run_setup": True}, _RUN_SETUP_ABSENT),
-            ("1.10.2", {"run_setup": True}, _RUN_SETUP_ABSENT),
-            ("1.11.0", {"run_setup": True}, _RUN_SETUP_ABSENT),
+            ("1.12.0-rc7", {"run_setup": True}, None),
+            ("1.10.2", {"run_setup": True}, None),
+            ("1.11.0", {"run_setup": True}, None),
             # unknown client version -> assume incompatible -> omit (safe default).
-            (None, {"run_setup": True}, _RUN_SETUP_ABSENT),
+            (None, {"run_setup": True}, None),
         ],
     )
     def test_run_workflow_run_setup_flag(
@@ -109,7 +106,7 @@ class TestWorkflows(services.api.tests.unit.conftest.MockedK8sHelper):
         k8s_secrets_mock,
         client_version: str | None,
         run_setup_kwargs: dict,
-        expected_run_setup,
+        expected_run_setup: bool | None,
     ):
         project = mlrun.common.schemas.ProjectOut(
             metadata=mlrun.common.schemas.ProjectMetadata(name="project-name"),
@@ -148,17 +145,14 @@ class TestWorkflows(services.api.tests.unit.conftest.MockedK8sHelper):
             auth_info=mlrun.common.schemas.AuthInfo(username="test-user"),
         )
 
-        if expected_run_setup is _RUN_SETUP_ABSENT:
-            assert "run_setup" not in run.spec.parameters
-        else:
-            assert run.spec.parameters["run_setup"] == expected_run_setup
+        assert run.spec.parameters.get("run_setup") == expected_run_setup
 
     @pytest.mark.parametrize(
-        "client_version, expected_present",
+        "client_version, expected_run_setup",
         [
             ("1.12.0-rc14", True),
-            ("1.10.2", False),
-            (None, False),
+            ("1.10.2", None),
+            (None, None),
         ],
     )
     def test_schedule_workflow_gates_run_setup_by_client_version(
@@ -166,7 +160,7 @@ class TestWorkflows(services.api.tests.unit.conftest.MockedK8sHelper):
         db: sqlalchemy.orm.Session,
         k8s_secrets_mock,
         client_version: str | None,
-        expected_present: bool,
+        expected_run_setup: bool | None,
     ):
         # The scheduled-workflow path builds the workflow-runner parameters independently of
         # the immediate-run path, so it must gate `run_setup` on the client version too.
@@ -214,10 +208,7 @@ class TestWorkflows(services.api.tests.unit.conftest.MockedK8sHelper):
             ]
         )
         parameters = scheduled_object["task"]["spec"]["parameters"]
-        if expected_present:
-            assert parameters["run_setup"] is True
-        else:
-            assert "run_setup" not in parameters
+        assert parameters.get("run_setup") == expected_run_setup
 
     @pytest.mark.parametrize(
         "source_code_target_dir",

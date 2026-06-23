@@ -17,6 +17,7 @@ import uuid
 from abc import abstractmethod
 from typing import Union
 
+import packaging.version
 from sqlalchemy.orm import Session
 
 import mlrun.common.constants as mlrun_constants
@@ -35,6 +36,12 @@ import framework.utils.notifications.notification_pusher
 import framework.utils.singletons.db
 import services.api.crud
 import services.api.utils.singletons.scheduler
+
+# The client's `load_and_run_workflow` gained the `run_setup` parameter in #9548, which first
+# shipped in 1.12.0-rc8. Compared with packaging.version (PEP 440) so pre-release tags order
+# numerically — validate_component_version_compatibility orders them lexically ("rc10" < "rc8")
+# and would misclassify rc10+ clients.
+_RUN_SETUP_MIN_CLIENT_VERSION = packaging.version.Version("1.12.0rc8")
 
 
 class BaseRunner(metaclass=mlrun.utils.singleton.Singleton):
@@ -600,15 +607,12 @@ class WorkflowRunners(BaseRunner, metaclass=mlrun.utils.singleton.Singleton):
             url=source,
         )
 
-        # `run_setup` was added to the client's `load_and_run_workflow` in 1.12 (#9548). The
-        # workflow-runner job executes in the *client* image, so passing this parameter to an
-        # older client raises `TypeError: ... unexpected keyword argument 'run_setup'`
-        # (ML-12790). Only forward it when the client is known and new enough to accept it;
-        # otherwise omit it so the client falls back to its own default (the pre-1.12
-        # behavior). An unknown client version is treated as incompatible.
-        if client_version and mlrun_utils.helpers.validate_component_version_compatibility(
-            "mlrun-client", "1.12.0-rc0", mlrun_client_version=client_version
-        ):
+        # The workflow-runner job executes in the *client* image, so passing `run_setup` to a
+        # client whose `load_and_run_workflow` predates it raises `TypeError: ... unexpected
+        # keyword argument 'run_setup'` (ML-12790). Only forward it when the client supports
+        # it; otherwise omit it so the client falls back to its own default (the pre-#9548
+        # behavior).
+        if self._client_supports_run_setup(client_version):
             parameters["run_setup"] = workflow_request.spec.run_setup
 
         run_object = self._create_run_object(
@@ -628,6 +632,32 @@ class WorkflowRunners(BaseRunner, metaclass=mlrun.utils.singleton.Singleton):
         )
 
         return run_object
+
+    @staticmethod
+    def _client_supports_run_setup(client_version: str | None) -> bool:
+        """
+        Whether the submitting client's ``load_and_run_workflow`` accepts ``run_setup``.
+
+        The parameter was introduced by #9548 and first released in 1.12.0-rc8. Dev/unstable
+        builds are built from current source and are treated as supporting it. An unknown or
+        unparseable client version is treated as unsupported so the parameter is safely
+        omitted (the workflow-runner job runs in the client image — see ML-12790).
+
+        :param client_version: MLRun SDK version reported by the submitting client.
+        :return: True if the client accepts the ``run_setup`` parameter.
+        """
+        if not client_version:
+            return False
+        # Dev builds (e.g. "0.0.0+unstable") are built from current source.
+        if client_version.startswith("0.0.0+") or "unstable" in client_version:
+            return True
+        try:
+            return (
+                packaging.version.Version(client_version)
+                >= _RUN_SETUP_MIN_CLIENT_VERSION
+            )
+        except packaging.version.InvalidVersion:
+            return False
 
     @staticmethod
     def _validate_source(

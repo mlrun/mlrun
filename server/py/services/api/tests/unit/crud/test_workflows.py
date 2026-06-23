@@ -82,7 +82,10 @@ class TestWorkflows(services.api.tests.unit.conftest.MockedK8sHelper):
     @pytest.mark.parametrize(
         "client_version, run_setup_kwargs, expected_run_setup",
         [
-            # >= 1.12 clients accept the `run_setup` kwarg, so it is forwarded.
+            # `run_setup` shipped to the client in 1.12.0-rc8 (#9548); >= rc8 clients accept
+            # the kwarg, so it is forwarded.
+            # rc8 is the boundary: the first release that has the parameter.
+            ("1.12.0-rc8", {"run_setup": True}, True),
             # default: setup is skipped on the runner pod (DB is the source of truth)
             ("1.12.0-rc14", {}, False),
             ("1.12.0-rc14", {"run_setup": False}, False),
@@ -91,8 +94,10 @@ class TestWorkflows(services.api.tests.unit.conftest.MockedK8sHelper):
             ("1.12.0", {"run_setup": True}, True),
             # dev/unstable clients are built from current source and accept the kwarg
             ("0.0.0+unstable", {"run_setup": True}, True),
-            # < 1.12 clients have no `run_setup` parameter on load_and_run_workflow, so the
-            # key must be omitted entirely rather than passed (ML-12790 regression).
+            # clients without the `run_setup` parameter on load_and_run_workflow: the key must
+            # be omitted entirely rather than passed (ML-12790 regression).
+            # rc7 is the boundary: the last 1.12 release before #9548 landed.
+            ("1.12.0-rc7", {"run_setup": True}, _RUN_SETUP_ABSENT),
             ("1.10.2", {"run_setup": True}, _RUN_SETUP_ABSENT),
             ("1.11.0", {"run_setup": True}, _RUN_SETUP_ABSENT),
             # unknown client version -> assume incompatible -> omit (safe default).

@@ -735,8 +735,22 @@ test-integration: clean ## Run mlrun integration tests
 		-rf \
 		tests/integration \
 		server/py/services/api/tests/integration \
-		tests/rundb/test_httpdb.py && \
-	$(COMBINE_COVERAGE) && \
+		tests/rundb/test_httpdb.py ; \
+	pytest_exit=$$? ; \
+	mkdir -p $$(dirname $$COVERAGE_FILE)/diagnostics ; \
+	echo "=== ML-12766 diag: pytest_exit=$$pytest_exit ===" ; \
+	echo "=== ML-12766 diag: files matching $$COVERAGE_FILE.* BEFORE combine ===" \
+		| tee $$(dirname $$COVERAGE_FILE)/diagnostics/files_before_combine.txt ; \
+	ls -la $$COVERAGE_FILE.* 2>&1 \
+		| tee -a $$(dirname $$COVERAGE_FILE)/diagnostics/files_before_combine.txt ; \
+	if [ $$pytest_exit -ne 0 ]; then $(CHECK_COVERAGE_ERROR) ; exit $$pytest_exit ; fi ; \
+	$(COMBINE_COVERAGE) ; \
+	combine_exit=$$? ; \
+	echo "=== ML-12766 diag: files matching $$COVERAGE_FILE.* AFTER combine (exit=$$combine_exit) ===" \
+		| tee $$(dirname $$COVERAGE_FILE)/diagnostics/files_after_combine.txt ; \
+	ls -la $$COVERAGE_FILE* 2>&1 \
+		| tee -a $$(dirname $$COVERAGE_FILE)/diagnostics/files_after_combine.txt ; \
+	if [ $$combine_exit -ne 0 ]; then exit $$combine_exit ; fi ; \
 	$(PRINT_COVERAGE_REPORT);
 
 .PHONY: test-migrations-dockerized

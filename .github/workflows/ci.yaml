@@ -217,6 +217,15 @@ jobs:
          path: ${{ github.workspace }}/coverage_reports/integration_tests/integration_tests.coverage
          retention-days: 30
 
+    - name: Upload ML-12766 coverage diagnostics
+      uses: actions/upload-artifact@v7
+      if: always() && env.RUN_COVERAGE == 'true'
+      with:
+         name: ml12766_diagnostics_${{ matrix.python-version }}_${{ matrix.test-db }}_${{ github.run_id }}
+         path: ${{ github.workspace }}/coverage_reports/integration_tests/diagnostics/
+         if-no-files-found: warn
+         retention-days: 30
+
   migrations-tests:
     name: Run Dockerized Migrations Tests
     runs-on: ubuntu-latest

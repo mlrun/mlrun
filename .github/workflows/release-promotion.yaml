@@ -105,7 +105,7 @@ jobs:
       make_latest: ${{ steps.resolve.outputs.make_latest }}
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: Resolve inputs
@@ -116,19 +116,18 @@ jobs:
           PREVIOUS_VERSION_INPUT="$(echo -n "$PREVIOUS_VERSION_INPUT" | xargs)"
           echo "version=$VERSION_INPUT" >> $GITHUB_OUTPUT
 
-          # previous_version drives the release-notes diff. When not supplied, pick the greatest
-          # tag below this version using packaging.Version (sort -V mis-orders pre-releases like
-          # 1.1.0-rc9 against 1.1.0). Pre-releases of the target's own line are skipped, so a GA
-          # diffs against the previous GA rather than its own rc, and an rc diffs against the last GA.
           if [ -n "$PREVIOUS_VERSION_INPUT" ]; then
             previous_version="$PREVIOUS_VERSION_INPUT"
           else
             python3 -m venv /tmp/pkgvenv
             /tmp/pkgvenv/bin/pip install --quiet packaging
-            previous_version="$(git tag --list 'v*' | sed 's/^v//' | /tmp/pkgvenv/bin/python -c "
-          import sys
+            if ! previous_version="$(git tag --list 'v*' | sed 's/^v//' | VERSION_INPUT="$VERSION_INPUT" /tmp/pkgvenv/bin/python -c "
+          import os, sys
           from packaging.version import Version, InvalidVersion
-          target = Version('$VERSION_INPUT')
+          try:
+              target = Version(os.environ['VERSION_INPUT'])
+          except InvalidVersion:
+              sys.exit(2)
           best = None
           for line in sys.stdin:
               candidate = line.strip()
@@ -145,7 +144,10 @@ jobs:
               if best is None or parsed > best:
                   best = parsed
           print(best if best is not None else '')
-          ")"
+          ")"; then
+              echo "❌ '$VERSION_INPUT' is not a valid version; cannot derive previous_version. Provide the previous_version input." >&2
+              exit 1
+            fi
             if [ -z "$previous_version" ]; then
               echo "❌ Could not derive previous_version (no tag below $VERSION_INPUT). Provide the previous_version input." >&2
               exit 1
@@ -153,8 +155,6 @@ jobs:
           fi
           echo "previous_version=$previous_version" >> $GITHUB_OUTPUT
 
-          # rc builds are prereleases and must never be "latest"; a GA is "latest" only
-          # when it is the greatest GA tag (a patch on an older minor must not win).
           if [[ "$VERSION_INPUT" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             prerelease=false
             greatest_ga="$(git tag --list 'v*' | sed -n 's/^v\([0-9]\+\.[0-9]\+\.[0-9]\+\)$/\1/p' | sort -V | tail -n1)"
@@ -178,8 +178,6 @@ jobs:
 
   derive-shas:
     name: Derive commit SHAs
-    # The private Artifactory (PyPI index + Docker registry) is only reachable from the
-    # self-hosted runner, so the wheel download and image inspection must run here.
     runs-on: mlrun-release
     if: github.event.inputs.skip_create_tag_release != 'true'
     needs: [prepare-inputs]
@@ -189,6 +187,7 @@ jobs:
     steps:
       - name: Setup Python venv
         run: |
+          rm -rf $GITHUB_WORKSPACE/.venv-derive
           python3.11 -m venv $GITHUB_WORKSPACE/.venv-derive
           echo "$GITHUB_WORKSPACE/.venv-derive/bin" >> $GITHUB_PATH
 
@@ -205,8 +204,6 @@ jobs:
             exit 0
           fi
 
-          # version.json inside the promoted wheel carries the full git_commit (git rev-parse HEAD),
-          # so the tagged commit always matches the artifact that was actually published.
           rm -rf dist-derive && mkdir -p dist-derive
           pip download \
             --no-deps \
@@ -441,6 +438,7 @@ jobs:
     steps:
       - name: Setup Python 3.11 venv
         run: |
+          rm -rf $GITHUB_WORKSPACE/.venv-promotion
           python3.11 -m venv $GITHUB_WORKSPACE/.venv-promotion
           echo "$GITHUB_WORKSPACE/.venv-promotion/bin" >> $GITHUB_PATH
 

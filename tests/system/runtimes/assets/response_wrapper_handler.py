@@ -52,6 +52,18 @@ def async_dispatcher_handler(body, mlrun_request_path, **kwargs):
     if mlrun_request_path == "/raising":
         # Raised exception in async path → precise 404 (not generic 500).
         raise mlrun.errors.MLRunNotFoundError("resource missing")
+    if mlrun_request_path == "/error_response":
+        # Explicit Response(404) → mapping skipped (non-2xx), body returned intact.
+        return Response(
+            body={
+                "error": {
+                    "message": "Response with id resp_x not found",
+                    "type": "invalid_request_error",
+                }
+            },
+            status_code=404,
+            content_type="application/json",
+        )
     if mlrun_request_path == "/success":
         # Response(200) + dict body matching the success contract → mapping reshapes.
         return Response(

@@ -632,9 +632,10 @@ class TestServingAPIHandler(tests.system.base.TestMLRunSystem):
         post-process the awaited response correctly — mapping runs, status codes
         are precise, raised exceptions are not masked as 500.
 
-        One deploy, three invocations, three branches in the async post-processing:
+        One deploy, four invocations, four branches in the async post-processing:
           - /missing_mandatory : dict missing mandatory mapping → 422
           - /raising            : handler raises MLRunNotFoundError → precise 404
+          - /error_response     : Response(404) → mapping skipped, body intact
           - /success            : Response(200) + reshape → 200 with mapped body
         """
         out_bm = BodyMappings()
@@ -642,7 +643,7 @@ class TestServingAPIHandler(tests.system.base.TestMLRunSystem):
         out_bm.add_mapping("$.object", destination_path="output_object", mandatory=True)
 
         config = APIHandlerConfig(include_url_info=True)
-        for path in ("/missing_mandatory", "/raising", "/success"):
+        for path in ("/missing_mandatory", "/raising", "/error_response", "/success"):
             config.add_endpoint_handler(
                 path,
                 HTTPMethod.GET,
@@ -673,6 +674,17 @@ class TestServingAPIHandler(tests.system.base.TestMLRunSystem):
             match=r"bad function response 404.*MLRunNotFoundError",
         ):
             function.invoke(path="/raising", method="GET")
+
+        # explicit Response(404) in async path → mapping skipped, error body intact
+        url = function.get_url() + "/error_response"
+        resp = httpx.get(url, verify=mlrun.mlconf.httpdb.http.verify)
+        assert resp.status_code == 404
+        assert resp.json() == {
+            "error": {
+                "message": "Response with id resp_x not found",
+                "type": "invalid_request_error",
+            }
+        }
 
         # Response(200) in async path → mapping reshapes, status preserved
         response = function.invoke(path="/success", method="GET")

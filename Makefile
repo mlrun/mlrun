@@ -724,6 +724,9 @@ test-integration: clean ## Run mlrun integration tests
 	COVERAGE_FILE=$(COVERAGE_FILE) && \
 	COVERAGE_FILE=$${COVERAGE_FILE:-"tests/coverage_reports/integration_tests.coverage"} && \
 	$(SETUP_COVERAGE) && \
+	DIAG_DIR=$$(dirname $$COVERAGE_FILE)/diagnostics && \
+	mkdir -p $$DIAG_DIR && \
+	set +e ; \
 	MLRUN_MYSQL_IMAGE=$(MLRUN_MYSQL_IMAGE) \
 	MLRUN_POSTGRES_IMAGE=$(MLRUN_POSTGRES_IMAGE) \
 	COVERAGE_FILE=$$COVERAGE_FILE \
@@ -737,19 +740,40 @@ test-integration: clean ## Run mlrun integration tests
 		server/py/services/api/tests/integration \
 		tests/rundb/test_httpdb.py ; \
 	pytest_exit=$$? ; \
-	mkdir -p $$(dirname $$COVERAGE_FILE)/diagnostics ; \
-	echo "=== ML-12766 diag: pytest_exit=$$pytest_exit ===" ; \
+	set -e ; \
+	echo "=== ML-12766 diag: pytest_exit=$$pytest_exit ===" \
+		| tee $$DIAG_DIR/files_before_combine.txt ; \
 	echo "=== ML-12766 diag: files matching $$COVERAGE_FILE.* BEFORE combine ===" \
-		| tee $$(dirname $$COVERAGE_FILE)/diagnostics/files_before_combine.txt ; \
+		| tee -a $$DIAG_DIR/files_before_combine.txt ; \
 	ls -la $$COVERAGE_FILE.* 2>&1 \
-		| tee -a $$(dirname $$COVERAGE_FILE)/diagnostics/files_before_combine.txt ; \
+		| tee -a $$DIAG_DIR/files_before_combine.txt ; \
 	if [ $$pytest_exit -ne 0 ]; then $(CHECK_COVERAGE_ERROR) ; exit $$pytest_exit ; fi ; \
-	$(COMBINE_COVERAGE) ; \
+	if command -v strace >/dev/null 2>&1; then \
+		STRACE_PREFIX="strace -f -e trace=file -o $$DIAG_DIR/strace_combine.txt" ; \
+		echo "=== ML-12766 diag: strace available, tracing combine ===" ; \
+	else \
+		STRACE_PREFIX="" ; \
+		echo "=== ML-12766 diag: strace NOT available ===" ; \
+	fi ; \
+	set +e ; \
+	$$STRACE_PREFIX sh -c "COVERAGE_FILE=$$COVERAGE_FILE coverage combine $$COVERAGE_FILE.*" \
+		> $$DIAG_DIR/combine_stdout.txt 2> $$DIAG_DIR/combine_stderr.txt ; \
 	combine_exit=$$? ; \
-	echo "=== ML-12766 diag: files matching $$COVERAGE_FILE.* AFTER combine (exit=$$combine_exit) ===" \
-		| tee $$(dirname $$COVERAGE_FILE)/diagnostics/files_after_combine.txt ; \
+	set -e ; \
+	echo "=== ML-12766 diag: combine_exit=$$combine_exit ===" \
+		| tee $$DIAG_DIR/files_after_combine.txt ; \
+	echo "=== ML-12766 diag: combine stdout ===" \
+		| tee -a $$DIAG_DIR/files_after_combine.txt ; \
+	cat $$DIAG_DIR/combine_stdout.txt \
+		| tee -a $$DIAG_DIR/files_after_combine.txt ; \
+	echo "=== ML-12766 diag: combine stderr ===" \
+		| tee -a $$DIAG_DIR/files_after_combine.txt ; \
+	cat $$DIAG_DIR/combine_stderr.txt \
+		| tee -a $$DIAG_DIR/files_after_combine.txt ; \
+	echo "=== ML-12766 diag: files matching $$COVERAGE_FILE.* AFTER combine ===" \
+		| tee -a $$DIAG_DIR/files_after_combine.txt ; \
 	ls -la $$COVERAGE_FILE* 2>&1 \
-		| tee -a $$(dirname $$COVERAGE_FILE)/diagnostics/files_after_combine.txt ; \
+		| tee -a $$DIAG_DIR/files_after_combine.txt ; \
 	if [ $$combine_exit -ne 0 ]; then exit $$combine_exit ; fi ; \
 	$(PRINT_COVERAGE_REPORT);
 

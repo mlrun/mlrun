@@ -640,8 +640,10 @@ class WorkflowRunners(BaseRunner, metaclass=mlrun.utils.singleton.Singleton):
         """
         if not client_version:
             return False
-        # Dev builds (e.g. "0.0.0+unstable") are built from current source.
-        if client_version.startswith("0.0.0+") or "unstable" in client_version:
+        # Dev builds report version "0.0.0+<sha>" and are built from current source. The
+        # client_version label is sanitized for k8s ("+" -> "-"), so match on the "0.0.0"
+        # prefix rather than the build-metadata suffix.
+        if client_version.startswith("0.0.0"):
             return True
         # `run_setup` first shipped to the client in 1.12.0-rc8 (#9548). Compared with
         # packaging.version (PEP 440) so pre-release tags order numerically —

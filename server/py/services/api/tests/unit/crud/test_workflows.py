@@ -20,6 +20,7 @@ import sqlalchemy.orm
 
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
+import mlrun.k8s_utils
 
 import services.api.crud
 import services.api.tests.unit.conftest
@@ -87,8 +88,10 @@ class TestWorkflows(services.api.tests.unit.conftest.MockedK8sHelper):
             # users can opt-in to running the setup script on the runner pod
             ("1.12.0-rc14", {"run_setup": True}, True),
             ("1.12.0", {"run_setup": True}, True),
-            # dev/unstable clients are built from current source and accept the kwarg
+            # dev clients are built from current source and accept the kwarg; the version is
+            # sanitized into the label ("+" -> "-"), so both forms must be recognised.
             ("0.0.0+unstable", {"run_setup": True}, True),
+            ("0.0.0+abc1234", {"run_setup": True}, True),
             # clients without the `run_setup` parameter on load_and_run_workflow: the key must
             # be omitted entirely rather than passed (ML-12790 regression). Omitted is
             # expressed as None, i.e. parameters.get("run_setup") is None.
@@ -122,12 +125,12 @@ class TestWorkflows(services.api.tests.unit.conftest.MockedK8sHelper):
             auth_info=mlrun.common.schemas.AuthInfo(),
             image="mlrun/mlrun",
         )
-        # The workflows endpoint stamps the submitting client's SDK version onto the runner;
-        # emulate that here so the version gating can read it.
+        # The workflows endpoint stamps the submitting client's SDK version onto the runner,
+        # sanitized for k8s labels; emulate that exactly so the gating sees the real value.
         if client_version is not None:
             runner.metadata.labels[
                 mlrun_constants.MLRunInternalLabels.client_version
-            ] = client_version
+            ] = mlrun.k8s_utils.sanitize_label_value(client_version)
 
         run = services.api.crud.WorkflowRunners().run(
             runner=runner,
@@ -181,7 +184,7 @@ class TestWorkflows(services.api.tests.unit.conftest.MockedK8sHelper):
         if client_version is not None:
             runner.metadata.labels[
                 mlrun_constants.MLRunInternalLabels.client_version
-            ] = client_version
+            ] = mlrun.k8s_utils.sanitize_label_value(client_version)
 
         with unittest.mock.patch(
             "services.api.utils.singletons.scheduler.get_scheduler"

@@ -1,5 +1,5 @@
 (building-graphs)=
-# Building graphs
+# Graph steps
 
 MLRun comes with pre-built steps that include data manipulation, readers, writers, and model serving.
 A step runs a function, class handler, or a REST API call.
@@ -14,6 +14,7 @@ basic-steps
 model-serving-steps
 remote-steps
 hub-steps
+otel-export-step
 writing-custom-steps
 router-steps
 router

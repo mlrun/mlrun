@@ -946,6 +946,7 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
 
 @TestMLRunSystemModelMonitoring.skip_test_if_env_not_configured
 @pytest.mark.enterprise
+@pytest.mark.collect_pod_logs
 class TestServingJobEndpoint(TestMLRunSystemModelMonitoring, _V3IORecordsChecker):
     """
     Demonstrates running a serving job with model monitoring enabled.  In this test, we deploy a simple serving model

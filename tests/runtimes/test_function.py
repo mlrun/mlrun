@@ -614,18 +614,30 @@ def test_with_sidecar(command: str, args: list, expected_sidecars: list):
 
 
 @pytest.mark.parametrize(
-    "external_url, expected_scheme",
+    "external_url, default_service_type, spec_service_type, expected_scheme",
     [
-        ("my-gateway.default-tenant.app.example.com", "https://"),
-        ("https://my-gateway.example.com", "https://"),
-        ("http://my-gateway.example.com", "http://"),
+        # scheme-less URL: scheme follows the service type. NodePort serves plain HTTP
+        # (no TLS termination), ClusterIP is fronted by TLS ingress. Regression for ML-12522:
+        # a NodePort host:port must resolve to http, not https.
+        ("192.168.238.32:32649", "NodePort", None, "http://"),
+        ("my-gateway.default-tenant.app.example.com", "ClusterIP", None, "https://"),
+        # the function's own service type overrides the cluster default
+        ("192.168.238.32:32649", "ClusterIP", "NodePort", "http://"),
+        ("my-gateway.example.com", "NodePort", "ClusterIP", "https://"),
+        # an explicit scheme on the URL is preserved regardless of service type
+        ("https://my-gateway.example.com", "NodePort", None, "https://"),
+        ("http://my-gateway.example.com", "ClusterIP", None, "http://"),
     ],
 )
-def test_resolve_invocation_url_uses_https_for_external_urls(
-    external_url, expected_scheme
+def test_resolve_invocation_url_scheme_for_external_urls(
+    monkeypatch, external_url, default_service_type, spec_service_type, expected_scheme
 ):
+    monkeypatch.setattr(
+        mlrun.mlconf.httpdb.nuclio, "default_service_type", default_service_type
+    )
     fn = mlrun.new_function("test-fn", kind="nuclio")
     fn.status.external_invocation_urls = [external_url]
+    fn.spec.service_type = spec_service_type
 
     resolved = fn._resolve_invocation_url("/test-path", force_external_address=False)
 

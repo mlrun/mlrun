@@ -20,6 +20,7 @@ import pytest
 import mlrun
 import tests.system.base
 from mlrun.common.schemas.serving import APIHandlerAction
+from mlrun.runtimes.nuclio.function import AsyncSpec
 from mlrun.serving.endpoint_mapping import APIHandlerConfig, BodyMappings
 from mlrun.serving.openai_mappings import OpenAIEndpoint
 
@@ -434,6 +435,9 @@ class TestServingAPIHandler(tests.system.base.TestMLRunSystem):
         assert response["matched_path"] == "/api/wildcard/v1/data", (
             "mlrun_request_path should reflect the exact request path"
         )
+        assert response["matched_method"] == "POST", (
+            "mlrun_request_method should reflect the request HTTP method"
+        )
 
         # Verify a different nested path also routes correctly
         self._logger.debug("Invoking /api/wildcard/users/42")
@@ -444,6 +448,9 @@ class TestServingAPIHandler(tests.system.base.TestMLRunSystem):
         )
         assert response2["matched_path"] == "/api/wildcard/users/42", (
             "mlrun_request_path should reflect the request path for a different sub-path"
+        )
+        assert response2["matched_method"] == "POST", (
+            "mlrun_request_method should reflect the request HTTP method"
         )
 
         self._logger.info("Wildcard path API handler test passed")
@@ -545,6 +552,163 @@ class TestServingAPIHandler(tests.system.base.TestMLRunSystem):
             function.invoke(path="/predict", body={"model": "gpt-4"})
 
         self._logger.info("Output mandatory missing field test passed")
+
+    def test_response_wrapper_error_skips_output_mapping(self) -> None:
+        """Handler returns Response(status_code=404) — error body and status code
+        must reach the caller intact (ML-12706). Without the fix, the output
+        mapping rejects the error envelope and rewrites the response to 422.
+        """
+        out_bm = BodyMappings()
+        out_bm.add_mapping("$.id", destination_path="output_id", mandatory=True)
+        out_bm.add_mapping("$.object", destination_path="output_object", mandatory=True)
+
+        config = APIHandlerConfig()
+        config.add_endpoint_handler(
+            "/predict",
+            HTTPMethod.GET,
+            APIHandlerAction.ALLOW,
+            output_body_mappings=out_bm,
+        )
+
+        function = self._create_serving_function(
+            name="response-wrapper-error",
+            api_config=config,
+            func=str(self.assets_path / "response_wrapper_handler.py"),
+        )
+        graph = function.set_topology("flow", engine="sync", exist_ok=True)
+        graph.to(name="handler", handler="error_response_handler").respond()
+        function.deploy()
+
+        url = function.get_url() + "/predict"
+        resp = httpx.get(url, verify=mlrun.mlconf.httpdb.http.verify)
+
+        assert resp.status_code == 404
+        assert resp.json() == {
+            "error": {
+                "message": "Response with id resp_x not found",
+                "type": "invalid_request_error",
+            }
+        }
+
+        self._logger.info("Response wrapper error test passed")
+
+    def test_response_wrapper_success_preserves_status_code(self) -> None:
+        """Handler returns Response(status_code=200) — output mapping still
+        reshapes the body and the explicit 200 status code is preserved (ML-12706).
+        Distinct ``output_*`` destinations prove the mapping actually ran.
+        """
+        out_bm = BodyMappings()
+        out_bm.add_mapping("$.id", destination_path="output_id", mandatory=True)
+        out_bm.add_mapping("$.object", destination_path="output_object", mandatory=True)
+
+        config = APIHandlerConfig()
+        config.add_endpoint_handler(
+            "/predict",
+            HTTPMethod.GET,
+            APIHandlerAction.ALLOW,
+            output_body_mappings=out_bm,
+        )
+
+        function = self._create_serving_function(
+            name="response-wrapper-success",
+            api_config=config,
+            func=str(self.assets_path / "response_wrapper_handler.py"),
+        )
+        graph = function.set_topology("flow", engine="sync", exist_ok=True)
+        graph.to(name="handler", handler="success_response_handler").respond()
+        function.deploy()
+
+        url = function.get_url() + "/predict"
+        resp = httpx.get(url, verify=mlrun.mlconf.httpdb.http.verify)
+
+        assert resp.status_code == 200
+        # Output mapping ran: keys renamed to output_*, extra_field filtered
+        assert resp.json() == {"output_id": "resp_1", "output_object": "response"}
+
+        self._logger.info("Response wrapper success test passed")
+
+    def test_async_response_wrapper_status_codes(self) -> None:
+        """ML-12777: async (engine='async' + AsyncSpec) + APIHandlerConfig must
+        post-process the awaited response correctly — mapping runs, status codes
+        are precise, raised exceptions are not masked as 500.
+
+        One deploy, four invocations, four branches in the async post-processing:
+          - /missing_mandatory : dict missing mandatory mapping → 422
+          - /raising            : handler raises MLRunNotFoundError → precise 404
+          - /error_response     : Response(404) → mapping skipped, body intact
+          - /success            : Response(200) + reshape → 200 with mapped body
+        """
+        out_bm = BodyMappings()
+        out_bm.add_mapping("$.input_id", destination_path="output_id", mandatory=True)
+        out_bm.add_mapping(
+            "$.input_object", destination_path="output_object", mandatory=True
+        )
+
+        in_bm = BodyMappings()
+        in_bm.add_mapping("$.id", destination_path="input_id")
+        in_bm.add_mapping("$.object", destination_path="input_object")
+
+        config = APIHandlerConfig(include_url_info=True)
+        for path in ("/missing_mandatory", "/raising", "/error_response"):
+            config.add_endpoint_handler(
+                path,
+                HTTPMethod.GET,
+                APIHandlerAction.ALLOW,
+                output_body_mappings=out_bm,
+            )
+        config.add_endpoint_handler(
+            "/success",
+            HTTPMethod.GET,
+            APIHandlerAction.ALLOW,
+            input_body_mappings=in_bm,
+            output_body_mappings=out_bm,
+        )
+
+        function = self._create_serving_function(
+            name="async-response-wrapper-status-codes",
+            api_config=config,
+            func=str(self.assets_path / "response_wrapper_handler.py"),
+        )
+        function.with_http(workers=None, async_spec=AsyncSpec())
+        graph = function.set_topology("flow", engine="async", exist_ok=True)
+        graph.to(name="handler", handler="async_dispatcher_handler").respond()
+        function.deploy()
+
+        # dict missing mandatory mapping in async path → mapping actually ran → 422
+        with pytest.raises(
+            RuntimeError,
+            match=r"bad function response 422.*Mandatory field 'output_id' not found",
+        ):
+            function.invoke(path="/missing_mandatory", method="GET")
+
+        # raised MLRunHTTPStatusError in async path → precise 404 (not generic 500)
+        with pytest.raises(
+            RuntimeError,
+            match=r"bad function response 404.*MLRunNotFoundError",
+        ):
+            function.invoke(path="/raising", method="GET")
+
+        # explicit Response(404) in async path → mapping skipped, error body intact
+        url = function.get_url() + "/error_response"
+        resp = httpx.get(url, verify=mlrun.mlconf.httpdb.http.verify)
+        assert resp.status_code == 404
+        assert resp.json() == {
+            "error": {
+                "message": "Response with id resp_x not found",
+                "type": "invalid_request_error",
+            }
+        }
+
+        # Response(200) in async path → input bm extracts id/object as input_*,
+        # handler returns them, output bm renames to output_*; status preserved.
+        response = function.invoke(
+            path="/success",
+            method="GET",
+            body={"id": "resp_1", "object": "response"},
+        )
+        assert response == {"output_id": "resp_1", "output_object": "response"}
+
+        self._logger.info("Async response wrapper status-codes test passed")
 
     # ---------------------------------------------------------------------------
     # OpenAI frontend tests (set_openai_frontend)

@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import concurrent.futures
-import ipaddress
 import json
 import pickle
 import tempfile
@@ -44,7 +43,6 @@ import mlrun.db.httpdb
 import mlrun.feature_store
 import mlrun.feature_store as fstore
 import mlrun.model_monitoring
-import mlrun.model_monitoring.api
 import mlrun.serving
 from mlrun.common.schemas.model_monitoring import ResultKindApp
 from mlrun.common.schemas.model_monitoring.model_endpoints import (
@@ -561,36 +559,7 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
             serving_fn.spec.image = serving_fn.spec.build.image = cls.image
 
         serving_fn.deploy()
-        cls._workaround_ml_12522_force_http_for_nodeport(serving_fn)
         return serving_fn
-
-    @staticmethod
-    def _workaround_ml_12522_force_http_for_nodeport(
-        fn: mlrun.runtimes.nuclio.serving.ServingRuntime,
-    ) -> None:
-        """Workaround for ML-12522.
-
-        Nuclio reports ``status.external_invocation_urls`` as scheme-less.
-        Since mlrun #9578, ``_resolve_invocation_url`` prepends ``https://``
-        to scheme-less external URLs, which breaks plain-HTTP NodePort
-        setups (open-source CE / k3s) with ``SSL: WRONG_VERSION_NUMBER``.
-        Iguazio setups expose functions via TLS-terminated ingress
-        (hostname/path form) and must keep the ``https://`` default.
-
-        Only rewrite the NodePort form (IPv4 ``host:port`` with no path)
-        to ``http://`` here. Remove once ML-12522 routes API-gateway
-        invocations through ``APIGateway.invoke_url`` and
-        ``_resolve_invocation_url`` defaults back to ``http://``.
-        """
-        for i, url in enumerate(fn.status.external_invocation_urls or []):
-            if "://" in url or "/" in url:
-                continue
-            host = url.split(":", 1)[0]
-            try:
-                ipaddress.ip_address(host)
-            except ValueError:
-                continue
-            fn.status.external_invocation_urls[i] = f"http://{url}"
 
     @classmethod
     def _infer(
@@ -973,144 +942,6 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
         self._test_error_alert()
         self._test_function_summaries()
         self._test_drift_over_time()
-
-
-@TestMLRunSystemModelMonitoring.skip_test_if_env_not_configured
-@pytest.mark.enterprise
-class TestRecordResults(TestMLRunSystemModelMonitoring, _V3IORecordsChecker):
-    project_name = "test-mm-record"
-    name_prefix = "infer-monitoring"
-    # Set image to "<repo>/mlrun:<tag>" for local testing
-    image: str | None = None
-
-    @classmethod
-    def custom_setup_class(cls) -> None:
-        # model
-        cls.classif = SVC()
-        cls.model_name = "svc"
-        # data
-        cls.columns = ["a1", "a2", "b"]
-        cls.y_name = "t"
-        cls.num_rows = 15
-        cls.num_cols = len(cls.columns)
-        cls.num_classes = 2
-        cls.x_train, cls.x_test, cls.y_train, cls.y_test = cls._generate_data()
-        cls.training_set = cls.x_train.join(cls.y_train)
-        cls.test_set = cls.x_test.join(cls.y_test)
-        cls.infer_results_df = cls.test_set
-        cls.function_name = f"{cls.name_prefix}-function"
-        # training
-        cls._train()
-
-        # model monitoring app
-        cls.app_data = _AppData(
-            class_=NoCheckDemoMonitoringApp,
-            rel_path="assets/application.py",
-            results={"data_drift_test", "model_perf"},
-        )
-
-        # model monitoring infra
-        cls.app_interval: int = 1  # every 1 minute
-        cls.app_interval_seconds = timedelta(minutes=cls.app_interval).total_seconds()
-        cls.apps_data = [_DefaultDataDriftAppData, cls.app_data]
-
-    def custom_setup(self) -> None:
-        self.set_mm_credentials()
-        super(TestMLRunSystem, self).custom_setup(project_name=self.project_name)
-
-    @classmethod
-    def _generate_data(cls) -> list[typing.Union[pd.DataFrame, pd.Series]]:
-        rng = np.random.default_rng(seed=1)
-        x = pd.DataFrame(rng.random((cls.num_rows, cls.num_cols)), columns=cls.columns)
-        y = pd.Series(np.arange(cls.num_rows) % cls.num_classes, name=cls.y_name)
-        assert cls.num_rows > cls.num_classes
-        return train_test_split(x, y, train_size=0.75, random_state=1)
-
-    @classmethod
-    def _train(cls) -> None:
-        cls.classif.fit(
-            cls.x_train,
-            cls.y_train,  # pyright: ignore[reportGeneralTypeIssues]
-        )
-
-    def _log_model(self) -> None:
-        self.project.log_model(  # pyright: ignore[reportOptionalMemberAccess]
-            self.model_name,
-            body=pickle.dumps(self.classif),
-            model_file="classif.pkl",
-            framework="sklearn",
-            training_set=self.training_set,
-            label_column=self.y_name,
-        )
-
-    def _deploy_monitoring_app(self) -> None:
-        self.project = typing.cast(mlrun.projects.MlrunProject, self.project)
-        fn = self.project.set_model_monitoring_function(
-            func=self.app_data.abs_path,
-            application_class=self.app_data.class_.__name__,
-            name=self.app_data.class_.NAME,
-            requirements=self.app_data.requirements,
-            image=mlrun.mlconf.function_defaults.image_by_kind.job
-            if self.image is None
-            else self.image,
-            **self.app_data.kwargs,
-        )
-        self.project.deploy_function(fn)
-
-    def _record_results(self) -> str:
-        model_endpoint = mlrun.model_monitoring.api.record_results(
-            project=self.project_name,
-            model_path=self.project.get_artifact_uri(  # pyright: ignore[reportOptionalMemberAccess]
-                key=self.model_name, category="model", tag="latest"
-            ),
-            model_endpoint_name=f"{self.name_prefix}-test",
-            function_name=self.function_name,
-            context=mlrun.get_or_create_ctx(name=f"{self.name_prefix}-context"),  # pyright: ignore[reportGeneralTypeIssues]
-            infer_results_df=self.infer_results_df,
-        )
-
-        return model_endpoint.metadata.uid
-
-    def _deploy_monitoring_infra(self) -> None:
-        self.project.enable_model_monitoring(  # pyright: ignore[reportOptionalMemberAccess]
-            base_period=self.app_interval,
-            **({} if self.image is None else {"image": self.image}),
-        )
-
-    def test_inference_feature_set(self) -> None:
-        self._log_model()
-
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            executor.submit(self._deploy_monitoring_app)
-            executor.submit(self._deploy_monitoring_infra)
-
-        endpoint_id = self._record_results()
-
-        # Wait for TSDB data to be processed with retry pattern
-        initial_wait = (
-            2 * self.app_interval_seconds
-            + mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs
-        )
-
-        def check_tsdb_data() -> None:
-            mep = mlrun.db.get_run_db().get_model_endpoint(
-                name=f"{self.name_prefix}-test",
-                project=self.project.name,
-                endpoint_id=endpoint_id,
-                feature_analysis=True,
-                tsdb_metrics=True,
-            )
-            self._test_v3io_records(
-                mep.metadata.uid,
-                apps_data=self.apps_data,
-            )
-            self._test_predictions_table(mep.metadata.uid, should_be_empty=True)
-
-        self.wait_for_condition(
-            condition_check=check_tsdb_data,
-            initial_wait=initial_wait,
-            condition_description="TSDB data to be available for batch endpoint",
-        )
 
 
 @TestMLRunSystemModelMonitoring.skip_test_if_env_not_configured
@@ -2112,6 +1943,69 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
             condition_check=check_parquet_with_labels,
             initial_wait=initial_wait,
             condition_description="parquet data with labels to be saved",
+        )
+
+    def test_histogram_drift_detected_on_real_data(self):
+        # The model is logged with its training set so the endpoint carries
+        # reference feature statistics; drifted inference then drives the real
+        # histogram data-drift app to a detected result_status on the endpoint.
+        self.function_name = "drift-runner-function"
+        self.project.enable_model_monitoring(
+            image=self.image or mlrun.mlconf.function_defaults.image_by_kind.job,
+            base_period=1,
+            deploy_histogram_data_drift_app=True,
+        )
+        self._log_iris_model()
+
+        function = self.project.set_function(
+            func=str(self.assets_path / "models.py"),
+            name=self.function_name,
+            kind="serving",
+            image=self.image,
+        )
+        graph = function.set_topology("flow", engine="async")
+        model_runner_step = mlrun.serving.ModelRunnerStep(name="my_model_runner")
+        model_runner_step.add_model(
+            endpoint_name="my_model",
+            model_class="MyModel",
+            execution_mechanism="naive",
+            model_artifact=f"store://models/{self.project_name}/classification:latest",
+            input_path="inputs",
+            result_path="outputs",
+        )
+        graph.to(model_runner_step)
+        function.set_tracking()
+        function.deploy()
+
+        serving_fn = self.project.get_function(self.function_name)
+        # Inference far outside the iris training distribution -> strong drift.
+        for _ in range(20):
+            serving_fn.invoke(
+                "/", body=json.dumps({"inputs": [[-500.0, -500.0, -500.0, -500.0]]})
+            )
+
+        initial_wait = (
+            mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs + 60
+        )
+
+        def check_drift_detected() -> None:
+            endpoint = next(
+                ep
+                for ep in mlrun.get_run_db()
+                .list_model_endpoints(self.project_name, tsdb_metrics=True)
+                .endpoints
+                if ep.metadata.name == "my_model"
+            )
+            assert (
+                endpoint.status.result_status == mm_constants.ResultStatusApp.detected
+            )
+
+        self.wait_for_condition(
+            condition_check=check_drift_detected,
+            initial_wait=initial_wait,
+            timeout=360.0,
+            retry_interval=20.0,
+            condition_description="histogram data-drift to be detected on the endpoint",
         )
 
 

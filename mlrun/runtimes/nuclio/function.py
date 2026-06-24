@@ -1677,7 +1677,13 @@ class RemoteRuntime(KubeResource):
         if self.status.external_invocation_urls:
             external_url = self.status.external_invocation_urls[0]
             if "://" not in external_url:
-                external_url = f"https://{external_url}"
+                # NodePort serves plain HTTP (no TLS termination); use http for NodePort and
+                # https for ClusterIP so we don't force TLS against an HTTP port.
+                service_type = (
+                    self.spec.service_type or mlconf.httpdb.nuclio.default_service_type
+                )
+                scheme = "http" if service_type == "NodePort" else "https"
+                external_url = f"{scheme}://{external_url}"
             return mlrun.utils.helpers.join_urls(external_url, path)
 
         if not self.status.address:
@@ -1748,24 +1754,14 @@ class RemoteRuntime(KubeResource):
     def get_url(
         self,
         force_external_address: bool = False,
-        # leaving auth_info for BC
-        # TODO: remove in 1.12.0
-        auth_info: AuthInfo = None,
     ):
         """
         This method returns function's url.
 
         :param force_external_address:   use the external ingress URL
-        :param auth_info:                service AuthInfo
 
         :return: returns function's url
         """
-        if auth_info:
-            warnings.warn(
-                "'auth_info' is deprecated in 1.10.0 and will be removed in 1.12.0.",
-                # TODO: Remove this in 1.12.0
-                FutureWarning,
-            )
         return self._resolve_invocation_url("", force_external_address)
 
     @staticmethod

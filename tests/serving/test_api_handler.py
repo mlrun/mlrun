@@ -838,11 +838,13 @@ class TestStarPatternMatching:
 
 
 class TestIncludeUrlInfo:
-    """Tests for include_url_info parameter (ML-11658)
+    """Tests for include_url_info parameter (ML-11658, ML-12695)
 
     When include_url_info=True, the API handler injects 'mlrun_request_path'
-    (the normalized request path, without query string) into the RequestContext
-    that is forwarded to the next step.
+    (the normalized request path, without query string) and 'mlrun_request_method'
+    (the HTTP method string) into the RequestContext that is forwarded to the next
+    step. Both kwargs together let a dispatcher handler distinguish endpoints that
+    share a path template but differ by method (e.g. GET vs DELETE on /responses/{id}).
     """
 
     def test_include_url_info_default_false(self) -> None:
@@ -873,7 +875,7 @@ class TestIncludeUrlInfo:
         assert config2.include_url_info is True
 
     def test_include_url_info_disabled_no_path_injected(self) -> None:
-        """When include_url_info=False, mlrun_request_path is NOT in the context"""
+        """When include_url_info=False, neither mlrun_request_path nor mlrun_request_method is injected"""
         config = APIHandlerConfig(include_url_info=False)
         config.add_endpoint_handler("/api/test", HTTPMethod.GET, APIHandlerAction.ALLOW)
         step = _APIHandlerStep(config=config)
@@ -885,7 +887,7 @@ class TestIncludeUrlInfo:
         assert result.body == "hello"
 
     def test_include_url_info_enabled_exact_path(self) -> None:
-        """When include_url_info=True the RequestContext contains mlrun_request_path"""
+        """When include_url_info=True the RequestContext contains mlrun_request_path and mlrun_request_method"""
         config = APIHandlerConfig(include_url_info=True)
         config.add_endpoint_handler("/api/test", HTTPMethod.GET, APIHandlerAction.ALLOW)
         step = _APIHandlerStep(config=config)
@@ -896,6 +898,7 @@ class TestIncludeUrlInfo:
         assert isinstance(result.body, _RequestContext)
         assert result.body.original_body == "hello"
         assert result.body["mlrun_request_path"] == "/api/test"
+        assert result.body["mlrun_request_method"] == "GET"
 
     def test_include_url_info_path_without_query_string(self) -> None:
         """mlrun_request_path must NOT include query string"""
@@ -914,6 +917,7 @@ class TestIncludeUrlInfo:
         assert result.body.original_body == "hello"
         # Path must be normalized (no query string)
         assert result.body["mlrun_request_path"] == "/api/items"
+        assert result.body["mlrun_request_method"] == "GET"
         # Query params are still extracted normally
         assert result.body["limit"] == "5"
         assert result.body["offset"] == "10"
@@ -935,6 +939,7 @@ class TestIncludeUrlInfo:
         assert result.body.original_body == "hello"
         # Actual request path, not the template pattern
         assert result.body["mlrun_request_path"] == "/api/users/abc-123"
+        assert result.body["mlrun_request_method"] == "GET"
         # Path param is also present
         assert result.body["user_id"] == "abc-123"
 
@@ -952,6 +957,7 @@ class TestIncludeUrlInfo:
         assert isinstance(result.body, _RequestContext)
         assert result.body.original_body == "hello"
         assert result.body["mlrun_request_path"] == "/api/deeply/nested/resource"
+        assert result.body["mlrun_request_method"] == "GET"
 
     def test_include_url_info_combined_with_existing_params(self) -> None:
         """mlrun_request_path is available alongside path, query, and body params"""
@@ -977,9 +983,75 @@ class TestIncludeUrlInfo:
         assert isinstance(result.body, _RequestContext)
         assert result.body.original_body == {"q": "Hello world"}
         assert result.body["mlrun_request_path"] == "/api/gpt4/ask"
+        assert result.body["mlrun_request_method"] == "POST"
         assert result.body["model_id"] == "gpt4"
         assert result.body["lang"] == "en"
         assert result.body["question"] == "Hello world"
+
+    def test_include_url_info_dispatch_get_vs_delete_same_path(self) -> None:
+        """A dispatcher handler can distinguish GET vs DELETE on the same path template (ML-12695)."""
+        config = APIHandlerConfig(include_url_info=True)
+        config.add_endpoint_handler(
+            "/responses/{response_id}", HTTPMethod.GET, APIHandlerAction.ALLOW
+        )
+        config.add_endpoint_handler(
+            "/responses/{response_id}", HTTPMethod.DELETE, APIHandlerAction.ALLOW
+        )
+        step = _APIHandlerStep(config=config)
+
+        get_event = MockEvent(
+            method=HTTPMethod.GET, path="/responses/resp-123", body=None
+        )
+        delete_event = MockEvent(
+            method=HTTPMethod.DELETE, path="/responses/resp-123", body=None
+        )
+
+        get_result = step.do(get_event)
+        delete_result = step.do(delete_event)
+
+        assert isinstance(get_result.body, _RequestContext)
+        assert isinstance(delete_result.body, _RequestContext)
+        # Same path template — only the injected method distinguishes them
+        assert get_result.body["mlrun_request_path"] == "/responses/resp-123"
+        assert delete_result.body["mlrun_request_path"] == "/responses/resp-123"
+        assert get_result.body["mlrun_request_method"] == "GET"
+        assert delete_result.body["mlrun_request_method"] == "DELETE"
+        assert get_result.body["response_id"] == "resp-123"
+        assert delete_result.body["response_id"] == "resp-123"
+
+    def test_mlrun_request_path_url_decoded(self) -> None:
+        """mlrun_request_path must be URL-decoded (ML-12732)."""
+        config = APIHandlerConfig(include_url_info=True)
+        config.add_endpoint_handler(
+            "/responses/{response_id}", HTTPMethod.GET, APIHandlerAction.ALLOW
+        )
+        step = _APIHandlerStep(config=config)
+
+        event = MockEvent(
+            method=HTTPMethod.GET,
+            path="/responses/resp%20url%20encoded",
+            body=None,
+        )
+        result = step.do(event)
+
+        assert isinstance(result.body, _RequestContext)
+        assert result.body["mlrun_request_path"] == "/responses/resp url encoded"
+        # path_param kwarg is also decoded — keeps both surfaces consistent
+        assert result.body["response_id"] == "resp url encoded"
+
+    def test_mlrun_request_path_decoded_for_wildcard(self) -> None:
+        """mlrun_request_path is decoded on star endpoints — %2F becomes '/' (ML-12732)."""
+        config = APIHandlerConfig(include_url_info=True)
+        config.add_endpoint_handler(
+            "/responses/*", HTTPMethod.GET, APIHandlerAction.ALLOW
+        )
+        step = _APIHandlerStep(config=config)
+
+        event = MockEvent(method=HTTPMethod.GET, path="/responses/abc%2Fdef", body=None)
+        result = step.do(event)
+
+        assert isinstance(result.body, _RequestContext)
+        assert result.body["mlrun_request_path"] == "/responses/abc/def"
 
 
 class TestAPIHandlerMockServer:
@@ -1145,7 +1217,7 @@ class TestAPIHandlerMockServer:
             server.wait_for_completion()
 
     def test_api_handler_url_encoded_path_params(self) -> None:
-        """Test that URL-encoded path parameters are properly decoded"""
+        """URL-encoded path parameters are decoded, and 405 errors show the decoded path (ML-12732)."""
 
         def handler(body, **kwargs):
             return {"filename": kwargs.get("filename")}
@@ -1174,6 +1246,50 @@ class TestAPIHandlerMockServer:
                 body={},
             )
             assert response == {"filename": "my document.pdf"}
+
+            # Wrong method on the same encoded path → 405 with the decoded path in the message.
+            error_response = server.test(
+                "/files/my%20document.pdf",
+                method="POST",
+                body={},
+                silent=True,
+            )
+            assert error_response.status_code == 405
+            assert "/files/my document.pdf" in error_response.body
+            assert "%20" not in error_response.body
+        finally:
+            server.wait_for_completion()
+
+    def test_dispatcher_pattern_url_encoded(self) -> None:
+        """Dispatcher that parses mlrun_request_path receives the decoded form (ML-12732)."""
+
+        def dispatcher(body, mlrun_request_path, mlrun_request_method, **kwargs):
+            # Mirrors the OpenAI router pattern — extract the id from the path itself
+            response_id = mlrun_request_path.removeprefix("/responses/")
+            return {"id": response_id, "method": mlrun_request_method}
+
+        fn = cast(
+            ServingRuntime,
+            mlrun.new_function("test-dispatcher-url-encoded", kind="serving"),
+        )
+
+        config = APIHandlerConfig(include_url_info=True)
+        config.add_endpoint_handler(
+            "/responses/{response_id}", HTTPMethod.GET, APIHandlerAction.ALLOW
+        )
+        fn.set_api_handler_config(config)
+
+        graph = fn.set_topology("flow", engine="sync")
+        graph.to(name="router", handler=dispatcher).respond()
+
+        server = fn.to_mock_server()
+        try:
+            response = server.test(
+                "/responses/resp%20url%20encoded",
+                method="GET",
+                body=None,
+            )
+            assert response == {"id": "resp url encoded", "method": "GET"}
         finally:
             server.wait_for_completion()
 
@@ -1501,6 +1617,64 @@ class TestAPIHandlerMockServer:
             }
         finally:
             server.wait_for_completion()
+
+    @pytest.mark.parametrize("with_body_mapping", [False, True], ids=["no-bm", "bm"])
+    def test_include_url_info_delivers_body_to_handler(
+        self, with_body_mapping: bool
+    ) -> None:
+        """ML-12647: with ``include_url_info=True`` the original body must reach
+        the handler — both with and without body_mapping. URL info and mapped
+        fields are additive kwargs, not a replacement for the positional body.
+        """
+        received: dict = {}
+
+        def chat_handler(
+            event=None,
+            mlrun_request_path=None,
+            mlrun_request_method=None,
+            model_name=None,
+            **kwargs,
+        ):
+            received["event"] = event
+            received["mlrun_request_path"] = mlrun_request_path
+            received["mlrun_request_method"] = mlrun_request_method
+            received["model_name"] = model_name
+            return "ok"
+
+        fn = cast(
+            ServingRuntime,
+            mlrun.new_function("test-include-url-info-body", kind="serving"),
+        )
+
+        config = APIHandlerConfig(include_url_info=True)
+        bm = None
+        if with_body_mapping:
+            bm = BodyMappings()
+            bm.add_mapping("$.model", destination_path="model_name")
+        config.add_endpoint_handler(
+            "/v1/chat/completions",
+            HTTPMethod.POST,
+            APIHandlerAction.ALLOW,
+            input_body_mappings=bm,
+        )
+        fn.set_api_handler_config(config)
+
+        graph = fn.set_topology("flow", engine="sync")
+        graph.to(name="chat", handler=chat_handler).respond()
+
+        body = {"model": "my-llm", "messages": [{"role": "user", "content": "Hello"}]}
+
+        server = fn.to_mock_server()
+        try:
+            server.test("/v1/chat/completions", method="POST", body=body)
+        finally:
+            server.wait_for_completion()
+
+        assert received["event"] == body
+        assert received["mlrun_request_path"] == "/v1/chat/completions"
+        assert received["mlrun_request_method"] == "POST"
+        if with_body_mapping:
+            assert received["model_name"] == "my-llm"
 
 
 class TestAPIHandlerConfig:

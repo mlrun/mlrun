@@ -417,7 +417,7 @@ def test_resource_cache_close_closes_all_tables():
 
     table1.close.assert_awaited_once()
     table2.close.assert_awaited_once()
-    assert len(cache._tabels) == 0
+    assert len(cache._tables) == 0
 
 
 def test_resource_cache_close_is_idempotent():
@@ -430,3 +430,19 @@ def test_resource_cache_close_is_idempotent():
     asyncio.run(cache.close())
 
     table.close.assert_awaited_once()
+
+
+def test_resource_cache_close_sync_within_running_loop():
+    """close_sync() must work when called from within a running event loop
+    (e.g. Jupyter cells, where ingest()/preview() run under a live loop). A bare
+    asyncio.run() here raises 'cannot be called from a running event loop'."""
+
+    async def run_close():
+        cache = ResourceCache()
+        table = AsyncMock(name="Table")
+        cache.cache_table("v3io://host/container/t1", table)
+        cache.close_sync()
+        table.close.assert_awaited_once()
+        assert len(cache._tables) == 0
+
+    asyncio.run(run_close())

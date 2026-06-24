@@ -45,7 +45,6 @@ from mlrun.artifacts.llm_prompt import LLMPromptArtifact, PlaceholderDefaultDict
 from mlrun.artifacts.model import ModelArtifact
 from mlrun.datastore.datastore_profile import (
     DatastoreProfileKafkaStream,
-    DatastoreProfileKafkaTarget,
     DatastoreProfileV3io,
     datastore_profile_read,
 )
@@ -78,6 +77,7 @@ from .utils import (
     _extract_input_data,
     _RequestContext,
     _update_result_body,
+    is_event_like,
 )
 
 callable_prefix = "_"
@@ -1889,7 +1889,7 @@ class ModelRunner(storey.ParallelExecution):
     def select_outlets(self, event) -> Collection[str] | None:
         is_batched = False
         if isinstance(event, list) and any(
-            hasattr(subevent, "body") for subevent in event
+            is_event_like(subevent) for subevent in event
         ):
             is_batched = True
             sys_outlets = [f"{self.name}_unpacker"]
@@ -1925,7 +1925,7 @@ class ModelRunner(storey.ParallelExecution):
                         return True
         elif isinstance(event, list):
             for sub_event in event:
-                if not hasattr(sub_event, "body"):
+                if not is_event_like(sub_event):
                     # a regular output, not a sub-event in a batch:
                     return False
                 #  batch case, event is list of sub events:
@@ -4104,7 +4104,7 @@ def _init_async_objects(context, steps, root):
                         datastore_profile = datastore_profile_read(stream_path)
                         if isinstance(
                             datastore_profile,
-                            DatastoreProfileKafkaTarget | DatastoreProfileKafkaStream,
+                            DatastoreProfileKafkaStream,
                         ):
                             step._async_object = KafkaStoreyTarget(
                                 name=step.name,

@@ -6,6 +6,8 @@ Collector, or any OTLP-compatible backend). When configured, the results and met
 are exported via OTLP to your configured endpoint. Each result becomes a named gauge:
 `mlrun.model_monitoring.result.<name>`. 
 
+This icon in the UI is used for OTel export steps: <img src="../_static/images/steps-custom.png" alt="steps-custom" width="30"/>.
+
 The OTel default collector is configured by `mlrun.mlconf.telemetry.otlp_endpoint` on the API server.
 You can modify it when running {py:class}`~mlrun.serving.OTelMetricsExporter`.
 

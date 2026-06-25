@@ -45,7 +45,8 @@ are exported via OTLP to your configured endpoint.
 Each result becomes a named gauge: `mlrun.model_monitoring.result.<name>`. 
 To export results:
 1. Set the default collector using `mlrun.mlconf.telemetry.otlp_endpoint` on the API server.
-2. Enable system-wide OTel collection by setting `otlp_enabled=True` when you run {py:class}`mlrun.projects.MlrunProject.enable_model_monitoring`: 
+2. Enable system-wide OTel collection by setting `otlp_enabled=True` when you run {py:class}`mlrun.projects.MlrunProject.enable_model_monitoring`.
+2. To export metrics from your serving graph, see {ref}`otel-export-step`.
 3. You can disable exporting metrics per project by setting the parameter `oltp_enabled=False` in {py:meth}`mlrun.projects.MlrunProject.set_model_monitoring_function` 
 
 ## Usage

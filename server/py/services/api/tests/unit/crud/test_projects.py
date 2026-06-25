@@ -21,6 +21,8 @@ import unittest.mock
 import pytest
 
 import mlrun
+import mlrun.common.schemas
+import mlrun.errors
 import mlrun.utils.singleton
 
 import services.api.crud.projects as projects_crud
@@ -338,11 +340,22 @@ async def test_inventory_functions_alerts_workflows_use_cached_counts(
         for call in set_count_mock.call_args_list
         if call.args[0] == "mlrun_functions"
     }
-    assert fn_calls == {
-        ("proj-a", "job"): 3,
-        ("proj-a", "serving"): 1,
-        ("proj-b", "nuclio"): 2,
+    # mlrun_functions zero-fills every known kind for every project so an
+    # empty project/kind reports 0 rather than vanishing — mirroring the other
+    # per-kind metrics. Cached counts override the 0 default for present kinds.
+    expected_fn = {
+        (project, kind): 0
+        for project in project_names
+        for kind in projects_crud._FUNCTION_INVENTORY_KINDS
     }
+    expected_fn[("proj-a", "job")] = 3
+    expected_fn[("proj-a", "serving")] = 1
+    expected_fn[("proj-b", "nuclio")] = 2
+    assert fn_calls == expected_fn
+    # The zero-filled kind set is exactly RuntimeKinds.all() — the persistable
+    # kinds (e.g. local), excluding the ephemeral, never-stored "handler".
+    assert ("proj-a", "local") in fn_calls
+    assert ("proj-a", "handler") not in fn_calls
 
     alert_calls = {
         call.kwargs["project"]: call.args[1]
@@ -357,3 +370,82 @@ async def test_inventory_functions_alerts_workflows_use_cached_counts(
         if call.args[0] == "mlrun_workflows"
     }
     assert workflow_calls == {"proj-a": 2, "proj-b": 4}
+
+
+@pytest.fixture
+def patched_nuclio_deletion_dependencies(
+    monkeypatch: pytest.MonkeyPatch,
+) -> unittest.mock.MagicMock:
+    """Stub the externals ``_wait_for_nuclio_project_deletion`` touches: Nuclio
+    reports the project already gone, no function pods remain, and the service
+    account client returns sentinel headers. Returns the Nuclio client mock."""
+    mlrun.mlconf.nuclio_dashboard_url = "http://nuclio-dashboard:8070"
+
+    nuclio_client_mock = unittest.mock.MagicMock()
+    nuclio_client_mock.get_project.side_effect = mlrun.errors.MLRunNotFoundError(
+        "not found"
+    )
+    monkeypatch.setattr(
+        "framework.utils.clients.nuclio.Client", lambda: nuclio_client_mock
+    )
+
+    k8s_helper_mock = unittest.mock.MagicMock()
+    k8s_helper_mock.list_pods.return_value = []
+    monkeypatch.setattr(
+        "framework.utils.singletons.k8s.get_k8s_helper", lambda: k8s_helper_mock
+    )
+
+    monkeypatch.setattr(
+        projects_crud.service_account_token.Client,
+        "escalate_request_headers",
+        lambda self, headers: {"Authorization": "Bearer sa-token"},
+    )
+    return nuclio_client_mock
+
+
+def test_wait_for_nuclio_project_deletion_polls_with_service_account_in_iguazio_v4(
+    reset_projects_singleton: None,
+    patched_nuclio_deletion_dependencies: unittest.mock.MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """In IG4 the deletion poll uses the service account token, not the user's
+    expiring one."""
+    monkeypatch.setattr(type(mlrun.mlconf), "is_iguazio_v4_mode", lambda self: True)
+    nuclio_client_mock = patched_nuclio_deletion_dependencies
+    user_auth_info = mlrun.common.schemas.AuthInfo(
+        request_headers={"Authorization": "Bearer user-token-that-will-expire"},
+    )
+
+    projects_crud.Projects()._wait_for_nuclio_project_deletion(
+        project_name="some-project",
+        session=unittest.mock.MagicMock(),
+        auth_info=user_auth_info,
+    )
+
+    polled_auth_info = nuclio_client_mock.get_project.call_args.kwargs["auth_info"]
+    assert polled_auth_info.request_headers == {"Authorization": "Bearer sa-token"}
+    # the caller's auth_info must remain untouched for downstream use
+    assert user_auth_info.request_headers == {
+        "Authorization": "Bearer user-token-that-will-expire"
+    }
+
+
+def test_wait_for_nuclio_project_deletion_keeps_user_auth_when_not_iguazio_v4(
+    reset_projects_singleton: None,
+    patched_nuclio_deletion_dependencies: unittest.mock.MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """Outside IG4 there is no service account escalation; the poll keeps using
+    the supplied auth_info unchanged."""
+    monkeypatch.setattr(type(mlrun.mlconf), "is_iguazio_v4_mode", lambda self: False)
+    nuclio_client_mock = patched_nuclio_deletion_dependencies
+    user_auth_info = mlrun.common.schemas.AuthInfo(session="user-session")
+
+    projects_crud.Projects()._wait_for_nuclio_project_deletion(
+        project_name="some-project",
+        session=unittest.mock.MagicMock(),
+        auth_info=user_auth_info,
+    )
+
+    polled_auth_info = nuclio_client_mock.get_project.call_args.kwargs["auth_info"]
+    assert polled_auth_info is user_auth_info

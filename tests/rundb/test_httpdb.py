@@ -679,6 +679,53 @@ def test_connect_invokes_init_token_provider_from_env():
         db.connect()
 
 
+def test_connect_preserves_explicit_credentials_in_iguazio_v4(monkeypatch):
+    """
+    Explicit ``Credentials(token=...)`` own auth for the instance: ``connect()``
+    must keep the StaticTokenProvider and must not fall back to the offline-token
+    (IGTokenProvider) flow or ``sync_secret_tokens()``, even in Iguazio V4 mode.
+    """
+    mlrun.mlconf.auth_with_client_id.enabled = False
+    mlrun.mlconf.auth_with_oauth_token.enabled = False
+    mlrun.mlconf.auth_token_endpoint = ""
+
+    server_cfg = {
+        "version": mlrun.mlconf.version,
+        "authentication_mode": mlrun.common.types.AuthenticationMode.IGUAZIO_V4.value,
+        "oauth_external_token_endpoint": "https://dashboard.example.com/refresh",
+    }
+    # deterministic endpoint selection
+    monkeypatch.setattr(
+        mlrun.k8s_utils, "is_running_inside_kubernetes_cluster", lambda: False
+    )
+
+    token = "sa-bearer-token"
+    credentials = mlrun.Credentials(token=token)
+
+    with (
+        patch.object(HTTPRunDB, "api_call") as api_call,
+        patch.object(mlrun.secrets, "sync_secret_tokens") as sync_secret_tokens,
+        patch.object(
+            mlrun.auth.utils, "load_offline_token", return_value=("offline", "default")
+        ) as load_offline_token,
+    ):
+        api_response = MagicMock()
+        api_response.json.return_value = server_cfg
+        api_call.return_value = api_response
+
+        db = HTTPRunDB("http://some-server:1919", credentials=credentials)
+        assert isinstance(db.token_provider, StaticTokenProvider)
+        assert db.token_provider.get_token() == token
+
+        db.connect()
+
+    # provider preserved, offline-token path untouched
+    assert isinstance(db.token_provider, StaticTokenProvider)
+    assert db.token_provider.get_token() == token
+    load_offline_token.assert_not_called()
+    sync_secret_tokens.assert_not_called()
+
+
 def test_init_token_provider_stores_username_and_password_from_add_or_refresh_credentials(
     monkeypatch,
 ):

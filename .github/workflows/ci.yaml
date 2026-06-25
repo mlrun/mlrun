@@ -47,7 +47,7 @@ jobs:
       matrix:
         python-version: ["3.11"]
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
     - name: Fetch base branch for copyright diff
       if: github.event_name == 'pull_request'
       run: git fetch origin ${{ github.base_ref }} --depth=1
@@ -103,7 +103,7 @@ jobs:
         python-version: ["3.11"]
         test-suite: ["server", "client"]
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
     - name: Set up python ${{ matrix.python-version }}
       uses: actions/setup-python@v6
       with:
@@ -166,7 +166,7 @@ jobs:
             test-db: postgres
 
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
 
     # since github-actions gives us 14G only, and fills it up with some garbage
     - name: Freeing up disk space
@@ -221,7 +221,7 @@ jobs:
     name: Run Dockerized Migrations Tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       # TODO: re-use the next 2 actions instead of duplicating
       - name: Extract git branch
         id: git_info
@@ -257,7 +257,7 @@ jobs:
     env:
       MLRUN_PYTHON_PACKAGE_INSTALLER: uv
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
 
     - name: Set up python ${{ matrix.python-version }}
       uses: actions/setup-python@v6
@@ -300,12 +300,12 @@ jobs:
         run: |
             echo "branch=$(echo ${GITHUB_BASE_REF#refs/heads/})" >> $GITHUB_OUTPUT
       - name: Checkout PR Base (target) Branch
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ steps.resolve_base_branch.outputs.branch }}
           path: base/mlrun
       - name: Checkout Merge Commit (requested branch merged with the target branch)
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           path: head/mlrun
       - name: Resolve docker cache tag
@@ -328,7 +328,7 @@ jobs:
       matrix:
         python-version: ["3.11"]
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
     - name: Set up python ${{ matrix.python-version }}
       uses: actions/setup-python@v6
       with:
@@ -349,7 +349,7 @@ jobs:
         python-version: [ "3.11"]
     needs: [tests, integration-tests, migrations-tests]
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: Set up Python

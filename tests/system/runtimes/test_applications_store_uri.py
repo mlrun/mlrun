@@ -14,6 +14,8 @@
 
 import os
 
+import pytest
+
 import mlrun.common.constants
 import tests.system.base
 
@@ -121,3 +123,43 @@ class TestApplicationStoreUri(tests.system.base.TestMLRunSystem):
         # sidecar wouldn't have the module and Flask would 500.
         response = function.invoke("/", verify=False)
         assert response.content.decode("utf-8") == "version-1"
+
+    def test_e2e_application_missing_store_artifact_marks_error(self):
+        """ML-12562: a deploy whose store:// source can't be resolved must not leave
+        the function stuck "ready". The build phase stamps a premature "ready"; the
+        deploy then fails at enrich (before Nuclio), and the status is reconciled to
+        "error" since no Nuclio function is running.
+        """
+        bad_uri = f"store://artifacts/{self.project_name}/does-not-exist"
+
+        function = self.project.set_function(
+            func=bad_uri,
+            name="app-missing-artifact",
+            kind="application",
+            # the requirement forces the image build that stamps the premature "ready"
+            requirements=["Flask==3.0.0"],
+            image=self._function_image,
+        )
+        function.set_internal_application_port(5000)
+        function.spec.command = "python"
+        function.spec.args = [
+            "-m",
+            "flask",
+            "--app=does_not_exist",
+            "run",
+            "--host=0.0.0.0",
+            "--port=5000",
+        ]
+        function.set_probe(type="readiness", http_path="/", period_seconds=2)
+
+        with pytest.raises(Exception):
+            function.deploy(with_mlrun=False)
+
+        # ignore_cache=True forces a DB read - the in-memory object still holds the
+        # build phase's premature "ready".
+        db_function = self.project.get_function(
+            "app-missing-artifact", ignore_cache=True
+        )
+        assert db_function.status.state == "error", (
+            f"expected 'error', got {db_function.status.state!r}"
+        )

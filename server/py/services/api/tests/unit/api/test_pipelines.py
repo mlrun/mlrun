@@ -275,13 +275,20 @@ def test_list_pipelines_name_contains(
         return_value="test-project"
     )
     runs = _generate_list_runs_project_name_mocks()
-    _mock_list_runs(
-        kfp_client_mock,
-        runs,
-        expected_filter=mlrun_pipelines.client.create_list_runs_filter()
-        if project_name != "*"
-        else "",
-    )
+    # For a specific project the adapter resolves the project's experiments and scopes
+    # the KFP query to them, so provide one matching experiment (an empty resolution
+    # correctly short-circuits to no runs). For "*" the adapter skips experiment
+    # resolution entirely and lists unfiltered.
+    if project_name != "*":
+        kfp_client_mock._get_candidate_experiments_for_projects = unittest.mock.Mock(
+            return_value=[unittest.mock.Mock(id="experiment-id")]
+        )
+        expected_filter = mlrun_pipelines.client.create_list_runs_filter(
+            experiment_ids=["experiment-id"]
+        )
+    else:
+        expected_filter = ""
+    _mock_list_runs(kfp_client_mock, runs, expected_filter=expected_filter)
     response = client.get(
         f"projects/{project_name}/pipelines",
         params={
@@ -317,6 +324,11 @@ def test_list_pipelines_specific_project(
     runs = _generate_list_runs_mocks()
     expected_runs = [run.name for run in runs]
     _mock_list_runs_with_one_run_per_page(kfp_client_mock, runs)
+    # Provide a matching experiment so the project-scoped listing isn't short-circuited
+    # to "no runs" by the empty-experiment guard.
+    kfp_client_mock._get_candidate_experiments_for_projects = unittest.mock.Mock(
+        return_value=[unittest.mock.Mock(id="experiment-id")]
+    )
     services.api.crud.Pipelines()._resolve_project_from_pipeline = unittest.mock.Mock(
         return_value=project
     )

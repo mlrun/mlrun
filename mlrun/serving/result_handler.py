@@ -17,6 +17,7 @@
 from http import HTTPMethod
 from re import Pattern
 from typing import Any
+from urllib.parse import urlsplit
 
 from mlrun.serving.endpoint_mapping import (
     APIHandlerConfig,
@@ -81,6 +82,9 @@ class ResultHandler:
                 method = HTTPMethod(method.upper())
             except ValueError:
                 return response
+
+        # Strip query string before route matching (ML-12735).
+        path = urlsplit(path).path or "/"
 
         matches: list[EndpointMatch] = collect_endpoint_matches(
             method,

@@ -34,6 +34,8 @@ Call sites:
     cache refresh, once per (metric, attribute-set) tuple.
 """
 
+import os
+import socket
 from typing import TypeVar
 
 from opentelemetry import metrics
@@ -41,11 +43,17 @@ from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExp
 from opentelemetry.metrics import Meter, Synchronous
 from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
+from opentelemetry.sdk.resources import Resource
 
 import mlrun
 import mlrun.errors
 import mlrun.utils
 import mlrun.utils.telemetry
+
+# OTel ``service.name`` for the API server's inventory metrics. The OTLP →
+# Prometheus pipeline maps ``service.name`` onto the ``job`` label, so without
+# this the series surface as ``job="unknown_service"`` (the SDK default).
+_SERVICE_NAME = "mlrun-api"
 
 # The concrete synchronous Gauge class is private (`_Gauge`) in
 # opentelemetry-api 1.42, so bind the TypeVar to its public base instead.
@@ -147,7 +155,17 @@ def init() -> None:
     reader = PeriodicExportingMetricReader(
         exporter, export_interval_millis=export_interval_ms
     )
-    _provider = MeterProvider(metric_readers=[reader])
+    # ``service.name`` → Prometheus ``job`` label, ``service.instance.id`` →
+    # ``instance`` label. Pod name comes from the MLRUN_POD_NAME downward-API
+    # env var, falling back to the hostname (which K8s sets to the pod name).
+    pod_name = os.getenv("MLRUN_POD_NAME") or socket.gethostname()
+    resource = Resource.create(
+        {
+            "service.name": _SERVICE_NAME,
+            "service.instance.id": pod_name,
+        }
+    )
+    _provider = MeterProvider(metric_readers=[reader], resource=resource)
     metrics.set_meter_provider(_provider)
 
     _meter = _provider.get_meter("mlrun.system")
@@ -156,6 +174,8 @@ def init() -> None:
 
     mlrun.utils.logger.info(
         "Telemetry inventory gauges registered",
+        service_name=_SERVICE_NAME,
+        pod_name=pod_name,
         otlp_endpoint=cfg.otlp_endpoint,
         insecure=insecure,
         cache_interval_seconds=cache_interval_seconds,

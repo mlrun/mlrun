@@ -16,7 +16,7 @@ memray~=1.12; sys_platform != 'win32'
 aiosmtplib~=3.0
 # until https://github.com/fastapi/fastapi/issues/10360 is solved
 pydantic>=1,<2
-mlrun-pipelines-kfp-v1-8~=0.7.1
+mlrun-pipelines-kfp-v1-8~=0.7.2
 iguazio~=0.0.1
 opentelemetry-sdk~=1.42
 opentelemetry-exporter-otlp-proto-grpc~=1.42

@@ -32,7 +32,7 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 ### Model Monitoring
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-12344|You can now export model monitoring metrics and results from a serving-graph via OpenTelemetry to a user-configured endpoint. See {ref}`otel-export-step`. |
+|ML-12344|You can now export model monitoring metrics and results from a serving-graph via OpenTelemetry to a user-configured endpoint. See [](../model-monitoring/running-applications.md#export-results-and-metrics-via-otel) and {ref}`otel-export-step`. |
 
 ### Serving graph
 | ID    |Description                                                                 |

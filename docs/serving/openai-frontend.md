@@ -81,6 +81,8 @@ See {ref}`URL info <api-handler>` for the full `include_url_info` contract.
 
 ## Invoking from the OpenAI Python SDK
 
+The endpoint paths, input/output body mappings, and mandatory-field expectations registered by `set_openai_frontend()` are kept in sync with the `openai` SDK version pinned in MLRun's `dev-requirements.txt`. Other SDK versions may introduce request/response fields that the bundled mappings don't yet cover.
+
 Point the SDK at the deployed function's URL — no other changes needed:
 
 ```python

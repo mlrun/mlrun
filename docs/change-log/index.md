@@ -29,12 +29,33 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 (v1-12-0)=
 ## v1.12.0 (July 2026)
 
-### Model MOnitoring
-|ML-12344|You can now export model monitoring metrics and results via OpenTelemetry to a user-configured endpoint, configured per project. See ????? |
+### Model Monitoring
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-12344|You can now export model monitoring metrics and results from a serving-graph via OpenTelemetry to a user-configured endpoint. See {ref}`otel-export-step`. |
 
-### Server configuration
+### Serving graph
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-12439|API handler improvements: a new per-endpoint BodyMappings object attached directly to each EndpointConfig replaces the global body_map mechanism ; new exit-mapping configuration; `include_url_info` now also injects `mlrun_request_method`; handlers can return a custom HTTP status code. API handler is no longer TechPreview. See [Breaking changes](v1-12-0-breaks) and [API handler](../serving/api-handler.md).|
+|ML-11839|MLRun jobs now supports `async` function handlers (for batch execution). See [](../concepts/submitting-tasks-jobs-to-functions.html#async-handlers).|
+
+### Metrics
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
 |ML-16|MLRun collects anonymized system-size statistics, for example, project counts, artifact counts, run activity, serving endpoints, etc., and exports them to Prometheus via OpenTelemetry. See {ref}`server-metrics`.|
 
+### Alerts
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-11994|The new `cooldown_period` parameter of the AlertConfig can be used to delay resetting an alert. See [Cooldown preiod](.../concepts/alerts.html#cooldown-period)|
+
+
+(v1-12-0-breaks)=
+### Breaking changes
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-12439|`APIHandlerConfig.body_map`, `add_body_mapping()` and `remove_body_mapping()` are removed. Callers must migrate to attaching a BodyMappings instance via `input_body_mappings` on `add_endpoint_handler`. The old global body map was applied to all endpoints uniformly — the new model requires explicit attachment per endpoint.|
 
 (v1110)=
 ## v1.11.0 (May 2026)
@@ -1608,6 +1629,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 
 | Version|API                                       |Use instead                       |
 |---------|------------------------------------------|------------------------------------|
+|v1.12.0|`APIHandlerConfig.body_map`, `add_body_mapping()` and `remove_body_mapping()` are removed.|Callers must migrate to attaching a BodyMappings instance via `input_body_mappings` on `add_endpoint_handler`. |
 | v1.10.0|Parameter: `mlrun.projects.MlrunProject.list_runs` `state`                     |`states`      |
 | v1.10.0|Parameter: `mlrun.db.httpdb.HTTPRunDB.list_runs` `state`                       |`states`      |
 | v1.10.0 |Function: `record_results()`                             |Run monitored serving function as a job|

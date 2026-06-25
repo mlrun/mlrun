@@ -1,5 +1,5 @@
 (otel-export-step)=
-# Configure export of model monitoring metrics to OpenTelemetry
+# Export model monitoring metrics to OpenTelemetry
 
 Export drift and performance signals from a serving graph to an external system (Datadog, Grafana Cloud, a user-hosted OpenTelemetry
 Collector, or any OTLP-compatible backend). When configured, the results and metrics returned by `do_tracking()` in every monitoring window

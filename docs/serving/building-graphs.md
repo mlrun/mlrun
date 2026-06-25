@@ -14,7 +14,7 @@ basic-steps
 model-serving-steps
 remote-steps
 hub-steps
-otel-export-step
+OTelMetricsExporter
 writing-custom-steps
 router-steps
 router

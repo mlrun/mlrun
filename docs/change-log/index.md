@@ -57,6 +57,11 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 |-------|----------------------------------------------------------------------------|
 |ML-12439|`APIHandlerConfig.body_map`, `add_body_mapping()` and `remove_body_mapping()` are removed. Callers must migrate to attaching a BodyMappings instance via `input_body_mappings` on `add_endpoint_handler`. The old global body map was applied to all endpoints uniformly — the new model requires explicit attachment per endpoint.|
 
+### Documentation
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|NA|The updated {ref}`guardrails-data` page now showcases a guardrail step from the MLRun hub, and a ModelRunnerStep that runs  theLLMModel.|
+
 (v1110)=
 ## v1.11.0 (May 2026)
 

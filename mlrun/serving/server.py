@@ -343,54 +343,13 @@ class GraphServer(ModelObj):
                     )
         try:
             response = self.graph.run(event, **(extra_args or {}))
-
-            # TODO: this is only relevant in certain flows (MockServer, sync...)
-            # Peel one Event wrapper if present. Positive event-type check avoids
-            # the .body ambiguity with Response (which is captured below).
-            if is_event_like(response):
-                response = response.body
-
-            # Unwrap an explicit Response so result_handler sees the body; skip
-            # output mapping on non-2xx (success-shape contract, ML-12706).
-            # context.Response is adapter-aware — mlrun's in MockServer, nuclio_sdk's in Nuclio.
-            explicit_response: Any = None
-            if isinstance(response, (Response, nuclio_sdk.Response)):
-                explicit_response = response
-                response = explicit_response.body
-
-            if (
-                self.http_trigger
-                and self.result_handler
-                and (explicit_response is None or explicit_response.status_code < 300)
-            ):
-                method = getattr(event, "method", None)
-                path = getattr(event, "path", None)
-                if method and path:
-                    response = self.result_handler.apply(method, path, response)
-
-            if explicit_response is not None:
-                return context.Response(
-                    body=response,
-                    status_code=explicit_response.status_code,
-                    content_type=explicit_response.content_type,
-                    headers=explicit_response.headers,
-                )
         except Exception as exc:
-            # Extract appropriate status code from MLRunHTTPStatusError exceptions
-            # For backwards compatibility, default to 400 for other exceptions
-            if isinstance(exc, mlrun.errors.MLRunHTTPStatusError):
-                status_code = exc.error_status_code
-            else:
-                status_code = 400
+            return _exception_to_response(context, server_context, event, exc)
 
-            message = f"{exc.__class__.__name__}: {err_to_str(exc)}"
-            if server_context.verbose:
-                message += "\n" + str(traceback.format_exc())
-            context.logger.error(f"run error, {traceback.format_exc()}")
-            server_context.push_error(event, message, source="_handler")
-            return context.Response(
-                body=message, content_type="text/plain", status_code=status_code
-            )
+        # Sync post-processing here (MockServer bypasses _process_single_response).
+        # Coroutines are post-processed after await in _process_single_async_response.
+        if not asyncio.iscoroutine(response):
+            response = _post_process_response(context, event, response)
 
         return response
 
@@ -1181,6 +1140,64 @@ def _preprocess_event(context, event):
         event.path = "/"
 
 
+def _exception_to_response(context, server_context, event, exc):
+    """Convert any serving exception into an HTTP Response, preserving
+    MLRunHTTPStatusError's status_code (otherwise defaults to 400).
+    """
+    if isinstance(exc, mlrun.errors.MLRunHTTPStatusError):
+        status_code = exc.error_status_code
+    else:
+        status_code = 400
+    message = f"{exc.__class__.__name__}: {err_to_str(exc)}"
+    if server_context.verbose:
+        message += "\n" + str(traceback.format_exc())
+    context.logger.error(f"run error, {traceback.format_exc()}")
+    server_context.push_error(event, message, source="_handler")
+    return context.Response(
+        body=message, content_type="text/plain", status_code=status_code
+    )
+
+
+def _post_process_response(context, event, response):
+    """Post-process the resolved graph response (Event/Response unwrap, output
+    mapping, re-wrap). No-op when event or server is unavailable.
+    """
+    server = getattr(context, "_server", None)
+    if event is None or server is None:
+        return response
+
+    try:
+        if is_event_like(response):
+            response = response.body
+
+        # Skip output mapping on non-2xx (success-shape contract, ML-12706).
+        explicit_response: Any = None
+        if isinstance(response, (Response, nuclio_sdk.Response)):
+            explicit_response = response
+            response = explicit_response.body
+
+        if (
+            server.http_trigger
+            and server.result_handler
+            and (explicit_response is None or explicit_response.status_code < 300)
+        ):
+            method = getattr(event, "method", None)
+            path = getattr(event, "path", None)
+            if method and path:
+                response = server.result_handler.apply(method, path, response)
+
+        if explicit_response is not None:
+            return context.Response(
+                body=response,
+                status_code=explicit_response.status_code,
+                content_type=explicit_response.content_type,
+                headers=explicit_response.headers,
+            )
+        return response
+    except Exception as exc:
+        return _exception_to_response(context, server.context, event, exc)
+
+
 def _process_single_response(context, response, get_body):
     if (
         isinstance(context, MLClientCtx)
@@ -1197,8 +1214,14 @@ def _process_single_response(context, response, get_body):
     return response
 
 
-async def _process_single_async_response(context, response, get_body):
-    return _process_single_response(context, await response, get_body)
+async def _process_single_async_response(context, event, response, get_body):
+    """Await the coroutine, run post-processing, map any raised exception to its status code (ML-12777)."""
+    try:
+        response = await response
+    except Exception as exc:
+        return _exception_to_response(context, context._server.context, event, exc)
+    response = _post_process_response(context, event, response)
+    return _process_single_response(context, response, get_body)
 
 
 def v2_serving_handler(context, event, get_body=False):
@@ -1206,7 +1229,7 @@ def v2_serving_handler(context, event, get_body=False):
     _preprocess_event(context, event)
     response = context._server.run(event, context, get_body)
     if asyncio.iscoroutine(response):
-        return _process_single_async_response(context, response, get_body)
+        return _process_single_async_response(context, event, response, get_body)
 
     return _process_single_response(context, response, get_body)
 

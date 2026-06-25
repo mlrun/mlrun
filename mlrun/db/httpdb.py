@@ -744,7 +744,10 @@ class HTTPRunDB(RunDBInterface):
                 traceback=traceback.format_exc(),
             )
 
-        # Initialize token provider after syncing config from server
+        # Explicit credentials own auth; don't override with env/config providers.
+        if self._apply_explicit_credentials():
+            return self
+
         self._init_token_provider_from_env()
 
         if config.is_iguazio_v4_mode() and config.auth_with_oauth_token.enabled:

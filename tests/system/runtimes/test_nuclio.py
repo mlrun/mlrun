@@ -953,6 +953,32 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
             f"running serving async mode took {timing} seconds should be < 7"
         )
 
+    def test_async_serving_raises_returns_precise_status_code(self) -> None:
+        """ML-12777 (incidental fix): when a serving graph handler raises an
+        MLRunHTTPStatusError in async mode (engine='async' + AsyncSpec), the
+        precise HTTP status_code must reach the caller — not be masked as a
+        generic 500 by the async coroutine bubbling out unhandled.
+        """
+        code_path = str(self.assets_path / "response_wrapper_handler.py")
+
+        function = mlrun.code_to_function(
+            name="async-serving-raises-precise-status",
+            kind="serving",
+            project=self.project_name,
+            filename=code_path,
+            image=self.image,
+        )
+        graph = function.set_topology("flow", engine="async")
+        graph.to(name="handler", handler="raising_handler").respond()
+        function.with_http(async_spec=AsyncSpec())
+
+        function.deploy()
+
+        with pytest.raises(
+            RuntimeError, match=r"bad function response 404.*MLRunNotFoundError"
+        ):
+            function.invoke(path="/", method="POST", body={"any": "input"})
+
     def test_invoke_head_method_does_not_raise(self) -> None:
         """Regression test for ML-12228.
 

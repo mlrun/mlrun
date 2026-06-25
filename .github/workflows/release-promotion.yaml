@@ -129,6 +129,7 @@ jobs:
           except InvalidVersion:
               sys.exit(2)
           best = None
+          best_raw = ''
           for line in sys.stdin:
               candidate = line.strip()
               if not candidate:
@@ -139,11 +140,12 @@ jobs:
                   continue
               if parsed >= target:
                   continue
-              if parsed.is_prerelease and parsed.release == target.release:
+              if parsed.is_prerelease:
                   continue
               if best is None or parsed > best:
                   best = parsed
-          print(best if best is not None else '')
+                  best_raw = candidate
+          print(best_raw)
           ")"; then
               echo "❌ '$VERSION_INPUT' is not a valid version; cannot derive previous_version. Provide the previous_version input." >&2
               exit 1
@@ -157,12 +159,7 @@ jobs:
 
           if [[ "$VERSION_INPUT" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             prerelease=false
-            greatest_ga="$(git tag --list 'v*' | sed -n 's/^v\([0-9]\+\.[0-9]\+\.[0-9]\+\)$/\1/p' | sort -V | tail -n1)"
-            if [[ -z "$greatest_ga" || "$(printf '%s\n%s\n' "$greatest_ga" "$VERSION_INPUT" | sort -V | tail -n1)" == "$VERSION_INPUT" ]]; then
-              make_latest=true
-            else
-              make_latest=false
-            fi
+            make_latest=true
           else
             prerelease=true
             make_latest=false

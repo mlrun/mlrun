@@ -310,7 +310,7 @@ class MyStep:
 
 ## Complete example
 
-The following example configures a serving function with an API handler that supports an OpenAI-compatible `POST /v1/chat/completions` endpoint. It extracts the `model` field and `messages` array from the request body, and makes the request path available to downstream steps.
+The following example configures a serving function with an API handler that supports an OpenAI-compatible `POST /v1/chat/completions` endpoint. It extracts the `model` field and `messages` array from the request body, makes the request path available to downstream steps, and reshapes the handler's response (filtering and renaming fields) before returning it to the caller.
 
 ```python
 import mlrun
@@ -332,7 +332,11 @@ serving_fn = project.set_function(
 # model_name and messages are passed as keyword arguments by the API handler
 def chat_handler(model_name, messages, mlrun_request_path, **kwargs):
     reply = f"Received {len(messages)} message(s) for model '{model_name}'"
-    return {"reply": reply, "path": mlrun_request_path}
+    return {
+        "reply": reply,
+        "path": mlrun_request_path,
+        "internal_debug": "trace-id-123",  # will be filtered by output_body_mappings
+    }
 
 
 graph = serving_fn.set_topology("flow", engine="sync")
@@ -350,6 +354,16 @@ bm.add_mapping(
     destination_path="messages", source_json_path="$.messages", mandatory=True
 )
 
+# Reshape the handler's response on the way out — keep only `reply` and rename
+# `path` to `request_path`. `internal_debug` is dropped (not declared).
+output_bm = BodyMappings()
+output_bm.add_mapping(
+    destination_path="reply", source_json_path="$.reply", mandatory=True
+)
+output_bm.add_mapping(
+    destination_path="request_path", source_json_path="$.path"
+)
+
 # Allow the OpenAI-compatible chat completion endpoint
 config.add_endpoint_handler(
     "/v1/chat/completions",
@@ -357,6 +371,7 @@ config.add_endpoint_handler(
     APIHandlerAction.ALLOW,
     description="OpenAI-compatible chat completion",
     input_body_mappings=bm,
+    output_body_mappings=output_bm,
 )
 
 # Block all admin paths
@@ -369,13 +384,16 @@ serving_fn.set_api_handler_config(config)
 # --- Test locally with the mock server ---
 server = serving_fn.to_mock_server()
 
-# Allowed endpoint: body mappings extract model_name and messages; chat_handler receives them as kwargs
+# Allowed endpoint:
+#   input bm extracts model_name + messages → chat_handler receives them as kwargs.
+#   output bm filters the handler's return: keeps `reply`, renames `path` →
+#   `request_path`, and drops `internal_debug` (not declared).
 result = server.test(
     "/v1/chat/completions",
     method="POST",
     body={"model": "my-llm", "messages": [{"role": "user", "content": "Hello"}]},
 )
-# result: {"reply": "Received 1 message(s) for model 'my-llm'", "path": "/v1/chat/completions"}
+# result: {"reply": "Received 1 message(s) for model 'my-llm'", "request_path": "/v1/chat/completions"}
 
 # Forbidden endpoint: raises 403
 try:

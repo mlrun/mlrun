@@ -65,7 +65,7 @@ graph = fn.set_topology("flow", engine="sync")
 graph.to(...)
 ```
 
-The router accepts `mlrun_request_path` and `mlrun_request_method` (plus the request body and any kwarg injected by input body mappings) and branches to the right handler. See {ref}`URL info <api-handler>` for the full `include_url_info` contract.
+The next step receives `mlrun_request_path` and `mlrun_request_method` as keyword arguments (alongside any kwargs from input body mappings, path templates, and query strings). See {ref}`URL info <api-handler>` for the full `include_url_info` contract.
 
 ## Invoking from the OpenAI Python SDK
 

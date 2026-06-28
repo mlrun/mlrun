@@ -659,10 +659,6 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                 sample_df=sample_data,
             )
 
-            # A window with no inference data is a normal state we skip rather than
-            # fail on (e.g. `skip_overlap` once all data was already processed). A
-            # fetched empty window raises `MLRunEmptySampleDFError`; a directly
-            # provided `sample_data` is returned as-is and may also be empty.
             try:
                 sample_df_empty = ctx.sample_df.empty
             except mlrun.errors.MLRunEmptySampleDFError:

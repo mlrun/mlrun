@@ -3654,8 +3654,8 @@ stack-data==0.6.3 \
     --hash=sha256:836a778de4fec4dcd1dcd89ed8abff8a221f58308462e1c4aa2a3cf30148f0b9 \
     --hash=sha256:d5558e0c25a4cb0853cddad3d77da9891a08cb85dd9f9f91b9f8cd66e511e695
     # via ipython
-storey==1.12.4 \
-    --hash=sha256:b5152b2bc482a4456d76ba9ef336228d1317e9aa9ddea6fe6d0f6d5d482f67a9
+storey==1.12.5 \
+    --hash=sha256:adc2ea259e21ccd0b11dbfebab28554fd937b1d72102b1ef97f1136bf67c4aac
     # via
     #   -r extras-requirements.txt
     #   -r requirements.txt
@@ -3804,9 +3804,7 @@ v3io==0.7.2 \
 v3io-frames==0.13.13 \
     --hash=sha256:3fe8847394e32b6e23ab134356b28f9dca7466392778d6805f68735f6d8b4271 \
     --hash=sha256:c9c7d7f01c0289eeac069de5d380bb001bbe517b208d2af1f2f01eceec82aa4e
-    # via
-    #   -r requirements.txt
-    #   storey
+    # via -r extras-requirements.txt
 v3iofs==0.1.18 \
     --hash=sha256:b628588905becd70f546e700c1ec06c027cb001fe58e2a56ab1be840fd4ec5fd \
     --hash=sha256:dc52cda02573bcab5d6fd5919753c24321f50b150a44681790ae5797ac10a648

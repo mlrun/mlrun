@@ -9,7 +9,7 @@ Built on top of the {ref}`API handler<api-handler>` — `set_openai_frontend()` 
 
 Selected via the `OpenAIEndpoint` enum:
 
-| Enum value | OpenAI operation group | Paths registered                                                                                                                                                                                          |
+| Value | OpenAI operation group | Paths registered                                                                                                                                                                                          |
 |---|---|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `OpenAIEndpoint.CHAT_COMPLETIONS` | `/chat/completions` | POST `/chat/completions`, GET `/chat/completions`, GET / POST / DELETE `/chat/completions/{completion_id}`, GET `/chat/completions/{completion_id}/messages`                                              |
 | `OpenAIEndpoint.RESPONSES` | `/responses` | POST `/responses`, GET / DELETE `/responses/{response_id}`, GET `/responses/{response_id}/input_items`, POST `/responses/input_tokens`, POST `/responses/{response_id}/cancel`, POST `/responses/compact` |

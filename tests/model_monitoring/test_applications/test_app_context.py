@@ -120,7 +120,7 @@ def test_sample_df_raises_when_endpoint_details_missing(missing_attr: str) -> No
     stub = _make_sample_df_stub(df=pd.DataFrame({"feature_a": [1, 2, 3]}))
     setattr(stub, missing_attr, None if "endpoint" in missing_attr else pd.NaT)
     with pytest.raises(
-        MLRunEmptySampleDFError,
+        MLRunValueError,
         match="have not provided it directly",
     ):
         MonitoringApplicationContext.sample_df.fget(stub)

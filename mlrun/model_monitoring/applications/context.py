@@ -211,12 +211,13 @@ class MonitoringApplicationContext:
     def sample_df(self) -> pd.DataFrame:
         """The new sample DataFrame for the monitored window.
 
-        :raises mlrun.errors.MLRunEmptySampleDFError: if the sample DataFrame cannot be
-            provided - either because the model endpoint's details and times were not
-            supplied (and no ``sample_data`` was given directly), or because there is no
-            inference data logged in the requested time window. The dedicated error type
-            lets callers iterating over monitoring windows skip empty windows without
-            swallowing unrelated value errors.
+        :raises mlrun.errors.MLRunValueError: if the sample DataFrame cannot be provided
+            because the model endpoint's details and times were not supplied (and no
+            ``sample_data`` was given directly).
+        :raises mlrun.errors.MLRunEmptySampleDFError: if there is no inference data
+            logged in the requested time window. This dedicated error type lets callers
+            iterating over monitoring windows skip empty windows without swallowing
+            unrelated value errors (e.g. the missing-details case above).
         """
         if self._sample_df is None:
             if (
@@ -225,7 +226,7 @@ class MonitoringApplicationContext:
                 or pd.isnull(self.start_infer_time)
                 or pd.isnull(self.end_infer_time)
             ):
-                raise mlrun.errors.MLRunEmptySampleDFError(
+                raise mlrun.errors.MLRunValueError(
                     "You have tried to access `monitoring_context.sample_df`, but have not provided it directly "
                     "through `sample_data`, nor have you provided the model endpoint's name, ID, and the start and "
                     f"end times: `endpoint_name`={self.endpoint_name}, `endpoint_uid`={self.endpoint_id}, "

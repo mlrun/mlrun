@@ -62,22 +62,10 @@ fn.set_api_handler_config(APIHandlerConfig(include_url_info=True))
 fn.set_openai_frontend()  # merged into the existing config
 
 graph = fn.set_topology("flow", engine="sync")
-graph.to(name="router", handler="openai_router").respond()
+graph.to(...)
 ```
 
-The router selects the right handler per path + method:
-
-```python
-# openai_handler.py
-def openai_router(body, mlrun_request_path, mlrun_request_method, **kwargs):
-    if mlrun_request_method == "POST" and mlrun_request_path == "/chat/completions":
-        return chat_completion_handler(body, **kwargs)
-    if mlrun_request_method == "POST" and mlrun_request_path == "/responses":
-        return response_handler(body, **kwargs)
-    raise RuntimeError(f"no handler for {mlrun_request_method} {mlrun_request_path}")
-```
-
-See {ref}`URL info <api-handler>` for the full `include_url_info` contract.
+The router accepts `mlrun_request_path` and `mlrun_request_method` (plus the request body and any kwarg injected by input body mappings) and branches to the right handler. See {ref}`URL info <api-handler>` for the full `include_url_info` contract.
 
 ## Invoking from the OpenAI Python SDK
 

@@ -726,6 +726,8 @@ test-integration: clean ## Run mlrun integration tests
 	$(SETUP_COVERAGE) && \
 	DIAG_DIR=$$(dirname $$COVERAGE_FILE)/diagnostics && \
 	mkdir -p $$DIAG_DIR && \
+	export COVERAGE_DEBUG=process,dataio && \
+	export COVERAGE_DEBUG_FILE=$$DIAG_DIR/coverage_debug.log && \
 	set +e ; \
 	MLRUN_MYSQL_IMAGE=$(MLRUN_MYSQL_IMAGE) \
 	MLRUN_POSTGRES_IMAGE=$(MLRUN_POSTGRES_IMAGE) \

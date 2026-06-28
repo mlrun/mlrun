@@ -360,9 +360,7 @@ output_bm = BodyMappings()
 output_bm.add_mapping(
     destination_path="reply", source_json_path="$.reply", mandatory=True
 )
-output_bm.add_mapping(
-    destination_path="request_path", source_json_path="$.path"
-)
+output_bm.add_mapping(destination_path="request_path", source_json_path="$.path")
 
 # Allow the OpenAI-compatible chat completion endpoint
 config.add_endpoint_handler(

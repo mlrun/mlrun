@@ -14,6 +14,7 @@
 import abc
 import os
 
+import mlrun.errors
 from mlrun.config import config
 from mlrun.runtimes.kubejob import KubejobRuntime
 from mlrun.runtimes.pod import KubeResourceSpec
@@ -58,7 +59,7 @@ class MPIResourceSpec(KubeResourceSpec):
         parameters=None,
         track_models=None,
         env_from=None,
-        otlp_enabled: bool = False,
+        mount_otlp_secret: bool = False,
     ):
         super().__init__(
             command=command,
@@ -93,7 +94,7 @@ class MPIResourceSpec(KubeResourceSpec):
             graph=graph,
             parameters=parameters,
             track_models=track_models,
-            otlp_enabled=otlp_enabled,
+            mount_otlp_secret=mount_otlp_secret,
         )
         self.mpi_args = mpi_args or [
             "-x",
@@ -117,6 +118,15 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
     @spec.setter
     def spec(self, spec):
         self._spec = self._verify_dict(spec, "spec", MPIResourceSpec)
+
+    def validate(self):
+        super().validate()
+        # The MPIJob runtime is not supported on Iguazio v4 (IG4) systems, where the mpi-operator is
+        # no longer deployed. Submitting one would otherwise fail with an opaque Kubernetes 404.
+        if config.is_iguazio_v4_mode():
+            raise mlrun.errors.MLRunBadRequestError(
+                "The MPIJob runtime is not supported on this system."
+            )
 
     @staticmethod
     def _get_run_completion_updates(run: dict) -> dict:

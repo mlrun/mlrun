@@ -85,7 +85,9 @@ from .events import (
     DBConnectionEventActions,
     EventClientKinds,
     EventsModes,
+    LogCollectorEventActions,
     MigrationEventActions,
+    ProjectLifecycleEventActions,
     SecretEventActions,
 )
 from .feature_store import (
@@ -188,6 +190,7 @@ from .project import (
     Project,
     ProjectDesiredState,
     ProjectMetadata,
+    ProjectMonitoringSpec,
     ProjectOut,
     ProjectOutput,
     ProjectOwner,

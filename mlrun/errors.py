@@ -172,6 +172,10 @@ class MLRunMethodNotAllowedError(MLRunHTTPStatusError):
     error_status_code = HTTPStatus.METHOD_NOT_ALLOWED.value
 
 
+class MLRunUnprocessableEntityError(MLRunHTTPStatusError):
+    error_status_code = HTTPStatus.UNPROCESSABLE_ENTITY.value
+
+
 class MLRunInvalidArgumentError(MLRunHTTPStatusError, ValueError):
     error_status_code = HTTPStatus.BAD_REQUEST.value
 
@@ -248,6 +252,17 @@ class MLRunTaskCancelledError(Exception):
 
 
 class MLRunValueError(ValueError):
+    pass
+
+
+class MLRunEmptySampleDFError(MLRunValueError):
+    """Raised when a model monitoring application's sample DataFrame is empty.
+
+    Distinct from a generic :class:`MLRunValueError` so that callers iterating over
+    monitoring windows can skip windows with no inference data without swallowing
+    unrelated value errors (e.g. missing endpoint details or storage failures).
+    """
+
     pass
 
 

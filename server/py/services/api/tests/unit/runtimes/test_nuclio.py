@@ -1479,10 +1479,35 @@ class TestNuclioRuntime(TestRuntimeBase):
                         "s3AccessKeyId": "some-id",
                         "s3SecretAccessKey": "some-secret",
                         "s3SessionToken": "",
+                        "s3Endpoint": "",
                     },
                 },
             },
         }
+
+    def test_load_function_with_source_archive_s3_with_custom_endpoint(self):
+        """
+        AWS_ENDPOINT_URL_S3 in project secrets must flow through
+        codeEntryAttributes.s3Endpoint so nuclio's source fetcher can talk to
+        S3-compatible backends (e.g. minio) instead of falling through to its
+        own pod env via the AWS SDK default loader.
+        """
+        fn = self._generate_runtime(self.runtime_kind)
+        fn.with_source_archive(
+            "s3://my-bucket/path/in/bucket/my-functions-archive.tar.gz",
+            handler="main:Handler",
+            workdir="path/inside/functions/archive",
+        )
+        secrets = {
+            "AWS_ACCESS_KEY_ID": "some-id",
+            "AWS_SECRET_ACCESS_KEY": "some-secret",
+            "AWS_ENDPOINT_URL_S3": "https://minio.example.com",
+        }
+        archive = get_archive_spec(fn, secrets)
+        assert (
+            archive["spec"]["build"]["codeEntryAttributes"]["s3Endpoint"]
+            == "https://minio.example.com"
+        )
 
     def test_load_function_with_source_archive_v3io(self):
         fn = self._generate_runtime(self.runtime_kind)
@@ -1508,6 +1533,33 @@ class TestNuclioRuntime(TestRuntimeBase):
                 },
             },
         }
+
+    def test_load_function_with_source_archive_azure_blob(self):
+        """az:// sources resolve to a datastore-minted read-only HTTPS URL."""
+        fn = self._generate_runtime(self.runtime_kind)
+        fn.with_source_archive(
+            "az://data/projects/x/src.tar.gz", handler="main:handler", workdir="wd"
+        )
+        minted = (
+            "https://acct.blob.core.windows.net/data/projects/x/src.tar.gz?sig=fake"
+        )
+        with unittest.mock.patch(
+            "mlrun.datastore.azure_blob.AzureBlobStore.get_read_only_https_url",
+            return_value=minted,
+        ) as mock_url:
+            archive = get_archive_spec(fn, {"AZURE_STORAGE_ACCOUNT_NAME": "acct"})
+        assert archive == {
+            "spec": {
+                "handler": "main:handler",
+                "build": {
+                    "path": minted,
+                    "codeEntryType": "archive",
+                    "codeEntryAttributes": {"workDir": "wd"},
+                },
+            },
+        }
+        mock_url.assert_called_once()
+        assert mock_url.call_args.args[0].lstrip("/") == "projects/x/src.tar.gz"
 
     @pytest.mark.parametrize(
         "image_pull_secret_name,build_secret_name,default_image_pull_secret_name,"

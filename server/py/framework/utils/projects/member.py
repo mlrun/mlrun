@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import abc
+import datetime
 
 import sqlalchemy.orm
 
@@ -21,6 +22,7 @@ import mlrun.common.schemas
 import mlrun.k8s_utils
 import mlrun.utils.singleton
 
+import framework.db.sqldb.models
 import framework.utils.auth.verifier
 import framework.utils.project_formats
 import services.api.crud
@@ -72,16 +74,9 @@ class Member(abc.ABC):
         # This mitigates the OPA manifest propagation race condition on multi-pod deployments:
         # when a request is routed to a pod that hasn't received the OPA manifest yet,
         # the cache allows the owner to proceed without waiting for OPA propagation.
-        if (
-            auth_info.username
-            and hasattr(project, "spec")
-            and project.spec
-            and project.spec.owner
-            and auth_info.username == project.spec.owner
-        ):
-            framework.utils.auth.verifier.AuthVerifier().add_allowed_project_for_owner(
-                name, auth_info
-            )
+        verifier = framework.utils.auth.verifier.AuthVerifier()
+        if verifier.is_project_owner(auth_info, project):
+            verifier.add_allowed_project_for_owner(name, auth_info)
 
     @abc.abstractmethod
     def create_project(
@@ -151,6 +146,7 @@ class Member(abc.ABC):
         labels: list[str] | None = None,
         state: mlrun.common.schemas.ProjectState = None,
         names: list[str] | None = None,
+        updated_after: datetime.datetime | None = None,
     ) -> mlrun.common.schemas.ProjectsOutput:
         pass
 
@@ -198,6 +194,31 @@ class Member(abc.ABC):
     def _validate_project(self, project: mlrun.common.schemas.Project):
         mlrun.projects.ProjectMetadata.validate_project_name(project.metadata.name)
         mlrun.projects.ProjectMetadata.validate_project_labels(project.metadata.labels)
+        self._validate_project_field_length("source", project.spec.source)
+        self._validate_project_field_length("description", project.spec.description)
+        self._validate_project_field_length("owner", project.spec.owner)
         mlrun.k8s_utils.validate_node_selectors(
             project.spec.default_function_node_selector
         )
+
+    @staticmethod
+    def _validate_project_field_length(field_name: str, value: str | None) -> None:
+        """Validate a project text field against the backing DB column's max length.
+
+        The limit is read from the ``Project`` model column itself, so it stays in sync
+        with the schema instead of duplicating the size. A longer value would otherwise
+        reach the DB and fail with an opaque 500; reject it up front with a clear 400.
+
+        :param field_name: name of the project field (must match the model column name)
+        :param value:      the value to validate (``None``/empty is a no-op)
+        :raises mlrun.errors.MLRunInvalidArgumentError: if the value exceeds the column limit
+        """
+        if not value:
+            return
+        column = getattr(framework.db.sqldb.models.Project, field_name)
+        max_length = column.type.max_length
+        if len(value) > max_length:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Project '{field_name}' length ({len(value)}) exceeds the maximum allowed "
+                f"length of {max_length} characters"
+            )

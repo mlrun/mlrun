@@ -170,9 +170,9 @@ class MonitoringDeployment:
         base_period: int = 10,
         image: str | None = None,
         deploy_histogram_data_drift_app: bool = True,
-        fetch_credentials_from_sys_config: bool = False,
         lag_threshold: int | None = None,
         lag_event_cooldown: int | None = None,
+        otlp_enabled: bool = False,
     ) -> None:
         """
         Deploy model monitoring application controller, writer and stream functions.
@@ -183,15 +183,26 @@ class MonitoringDeployment:
                                                   stream functions, which are real time nuclio function.
                                                   Defaults to ``mlrun.mlconf.function_defaults.image_by_kind.nuclio``.
         :param deploy_histogram_data_drift_app:   If true, deploy the default histogram-based data drift application.
-        :param fetch_credentials_from_sys_config: If true, fetch the credentials from the system configuration.
         :param lag_threshold:                     Lag threshold in minutes for writer lag detection.
         :param lag_event_cooldown:                Cooldown in minutes between consecutive lag events per worker.
+        :param otlp_enabled:                      If true, persist OTel export opt-in to the project spec.
         """
         if image is None:
             image = mlrun.mlconf.function_defaults.image_by_kind.nuclio
-        # check if credentials should be fetched from the system configuration or if they are already been set.
-        if fetch_credentials_from_sys_config:
-            self.set_credentials()
+
+        if otlp_enabled:
+            if not mlrun.mlconf.telemetry.enabled:
+                raise mlrun.errors.MLRunBadRequestError(
+                    "Cannot enable model monitoring OTel export: operator has "
+                    "disabled telemetry (mlconf.telemetry.enabled is not true)."
+                )
+            if not mlrun.mlconf.telemetry.otlp_endpoint:
+                raise mlrun.errors.MLRunBadRequestError(
+                    "Cannot enable model monitoring OTel export: operator has "
+                    "not configured an OTLP endpoint "
+                    "(mlconf.telemetry.otlp_endpoint is blank)."
+                )
+
         # reject the request if controller and/or writer pods are already deployed.
         # stream-pod is not checked since by default it is not deleted by disable_model_monitoring.
         if deployed_functions := [
@@ -233,7 +244,46 @@ class MonitoringDeployment:
         )
         ModelMonitoringSchedulesFileChief(project=self.project).get_or_create()
         if deploy_histogram_data_drift_app:
-            self.deploy_histogram_data_drift_app(image=image)
+            self.deploy_histogram_data_drift_app(image=image, otlp_enabled=otlp_enabled)
+
+        self._persist_model_monitoring_spec(enabled=True, otlp_enabled=otlp_enabled)
+
+    def _persist_model_monitoring_spec(
+        self,
+        *,
+        enabled: bool | None = None,
+        otlp_enabled: bool | None = None,
+        stream_type: mm_constants.StreamTarget | None = None,
+        tsdb_type: mm_constants.TSDBTarget | None = None,
+    ) -> None:
+        """Patch ``project.spec.model_monitoring`` with the current MM state.
+
+        Each field is optional: only fields whose value is non-None are included
+        in the patch, so callers update one concern at a time:
+          - ``deploy_monitoring_functions``: enabled=True, otlp_enabled=<param>
+          - ``disable_model_monitoring``: enabled=False, otlp_enabled=False
+          - ``set_credentials``: stream_type=<derived>, tsdb_type=<derived>
+
+        Uses additive patch so other fields are preserved.
+        """
+        fields: dict = {}
+        if enabled is not None:
+            fields["enabled"] = bool(enabled)
+        if otlp_enabled is not None:
+            fields["otlp_enabled"] = bool(otlp_enabled)
+        if stream_type is not None:
+            fields["stream_type"] = stream_type.value
+        if tsdb_type is not None:
+            fields["tsdb_type"] = tsdb_type.value
+        if not fields:
+            return
+
+        services.api.crud.Projects().patch_project(
+            session=self.db_session,
+            name=self.project,
+            project={"spec": {"model_monitoring": fields}},
+            patch_mode=mlrun.common.schemas.PatchMode.additive,
+        )
 
     def deploy_model_monitoring_stream_processing(
         self, stream_image: str | None = None, overwrite: bool = False
@@ -310,9 +360,7 @@ class MonitoringDeployment:
                 f"Deploying {mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER} function",
                 project=self.project,
             )
-            fn = self._get_model_monitoring_controller_function(
-                image=controller_image, ignore_stream_already_exists_failure=overwrite
-            )
+            fn = self._get_model_monitoring_controller_function(image=controller_image)
 
             minutes = base_period
             hours = days = 0
@@ -406,7 +454,6 @@ class MonitoringDeployment:
         function: mlrun.runtimes.ServingRuntime,
         function_name: str,
         stream_args: mlrun.config.Config,
-        ignore_stream_already_exists_failure: bool = False,
     ) -> mlrun.runtimes.ServingRuntime:
         """
         Add stream source for the nuclio serving function. The function's stream trigger can be
@@ -421,8 +468,6 @@ class MonitoringDeployment:
                                                      trigger.
         :param function_name:                        The name of the function that be applied with the stream trigger.
         :param stream_args:                          Stream args from the config.
-        :param ignore_stream_already_exists_failure: If True, ignores `TopicAlreadyExistsError` error on
-                                                     MM-infra-functions deployment when using kafka.
 
         :return: `ServingRuntime` object with stream trigger.
         """
@@ -436,7 +481,6 @@ class MonitoringDeployment:
                 function=function,
                 function_name=function_name,
                 stream_args=stream_args,
-                ignore_stream_already_exists_failure=ignore_stream_already_exists_failure,
             )
 
         elif isinstance(
@@ -471,7 +515,6 @@ class MonitoringDeployment:
         function: mlrun.runtimes.ServingRuntime,
         function_name: str,
         stream_args: mlrun.config.Config,
-        ignore_stream_already_exists_failure: bool,
     ) -> None:
         # Generate Kafka stream source
         topic = mlrun.common.model_monitoring.helpers.get_kafka_topic(
@@ -508,8 +551,7 @@ class MonitoringDeployment:
                 num_partitions=num_partitions, replication_factor=replication_factor
             )
         except kafka.errors.TopicAlreadyExistsError as exc:
-            if not ignore_stream_already_exists_failure:
-                raise exc
+            # Idempotent: topic persists across deploys. Other errors propagate.
             logger.info(
                 "Kafka topic of model monitoring stream already exists. "
                 "Skipping topic creation",
@@ -793,9 +835,15 @@ class MonitoringDeployment:
             secret_provider=self._secret_provider,
         )
 
+        monitoring_stream_uri = mlrun.model_monitoring.get_stream_path(
+            project=self.project,
+            function_name=mm_constants.MonitoringFunctionNames.STREAM,
+            secret_provider=self._secret_provider,
+        )
+
         # Create monitoring serving graph
         stream_processor.apply_monitoring_serving_graph(
-            function, self._tsdb_connector, controller_stream_uri
+            function, self._tsdb_connector, controller_stream_uri, monitoring_stream_uri
         )
 
         # Set the project to the serving function
@@ -806,7 +854,6 @@ class MonitoringDeployment:
             function=function,
             function_name=mm_constants.MonitoringFunctionNames.STREAM,
             stream_args=config.model_endpoint_monitoring.serving_stream,
-            ignore_stream_already_exists_failure=True,
         )
 
         # Add an explicit HTTP trigger so the stream pod is reachable via HTTP.
@@ -819,16 +866,12 @@ class MonitoringDeployment:
 
         return function
 
-    def _get_model_monitoring_controller_function(
-        self, image: str, ignore_stream_already_exists_failure: bool
-    ):
+    def _get_model_monitoring_controller_function(self, image: str):
         """
         Initialize model monitoring controller function.
 
-        :param image:                               Base docker image to use for building the function container.
-        :param ignore_stream_already_exists_failure: If True, ignores `TopicAlreadyExistsError` error on
-                                                     MM-infra-functions deployment when using kafka.
-        :return:                                    A function object from a mlrun runtime class.
+        :param image: Base docker image to use for building the function container.
+        :return:      A function object from a mlrun runtime class.
         """
         # Create job function runtime for the controller
         function = mlrun.code_to_function(
@@ -854,7 +897,6 @@ class MonitoringDeployment:
             function=function,
             function_name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
             stream_args=config.model_endpoint_monitoring.controller_stream_args,
-            ignore_stream_already_exists_failure=ignore_stream_already_exists_failure,
         )
 
         function = self._apply_access_key_and_mount_function(
@@ -997,7 +1039,6 @@ class MonitoringDeployment:
             function=function,
             function_name=mm_constants.MonitoringFunctionNames.WRITER,
             stream_args=config.model_endpoint_monitoring.writer_stream_args,
-            ignore_stream_already_exists_failure=True,
         )
 
         # Apply feature store run configurations on the serving function
@@ -1045,13 +1086,21 @@ class MonitoringDeployment:
         )
 
     def deploy_histogram_data_drift_app(
-        self, image: str, overwrite: bool = False
+        self,
+        image: str,
+        overwrite: bool = False,
+        otlp_enabled: bool = False,
     ) -> None:
         """
         Deploy the histogram data drift application.
 
-        :param image:       The image on with the function will run.
-        :param overwrite:   If True, the function will be overwritten.
+        :param image:        The image on with the function will run.
+        :param overwrite:    If True, the function will be overwritten.
+        :param otlp_enabled: If True, append the OTel branch
+                             (``_PrepareOTelEvent`` → ``OTelMetricsExporter``)
+                             and set ``func.spec.mount_otlp_secret`` so the
+                             runtime injector mounts the OTLP headers secret
+                             onto the function pod.
         """
         if overwrite or self._should_deploy_function(
             function_name=mm_constants.HistogramDataDriftApplicationConstants.NAME
@@ -1063,6 +1112,7 @@ class MonitoringDeployment:
                 name=mm_constants.HistogramDataDriftApplicationConstants.NAME,
                 application_class="HistogramDataDriftApplication",
                 image=image,
+                otlp_enabled=otlp_enabled,
             )
 
             if mlrun.mlconf.is_using_v3io():
@@ -1618,6 +1668,12 @@ class MonitoringDeployment:
                 )
                 tasks.append(task)
 
+        await run_in_threadpool(
+            self._persist_model_monitoring_spec,
+            enabled=False,
+            otlp_enabled=False,
+        )
+
         return mlrun.common.schemas.BackgroundTaskList(background_tasks=tasks)
 
     def _get_monitoring_application_to_delete(
@@ -1948,7 +2004,9 @@ class MonitoringDeployment:
 
         return tsdb_profile
 
-    def _validate_stream_profile(self, stream_profile_name: str) -> None:
+    def _validate_stream_profile(
+        self, stream_profile_name: str
+    ) -> mlrun.datastore.datastore_profile.DatastoreProfile:
         try:
             stream_profile = mlrun.datastore.datastore_profile.datastore_profile_read(
                 url=f"ds://{stream_profile_name}",
@@ -1975,6 +2033,37 @@ class MonitoringDeployment:
                 f"The model monitoring stream profile is of an unexpected type: '{type(stream_profile)}'\n"
                 "Expects `DatastoreProfileV3io` or `DatastoreProfileKafkaStream`."
             )
+        return stream_profile
+
+    @staticmethod
+    def _resolve_stream_target(
+        stream_profile: mlrun.datastore.datastore_profile.DatastoreProfile,
+    ) -> mm_constants.StreamTarget | None:
+        if isinstance(
+            stream_profile,
+            mlrun.datastore.datastore_profile.DatastoreProfileKafkaStream,
+        ):
+            return mm_constants.StreamTarget.KAFKA
+        if isinstance(
+            stream_profile, mlrun.datastore.datastore_profile.DatastoreProfileV3io
+        ):
+            return mm_constants.StreamTarget.V3IO
+        return None
+
+    @staticmethod
+    def _resolve_tsdb_target(
+        tsdb_profile: mlrun.datastore.datastore_profile.DatastoreProfile,
+    ) -> mm_constants.TSDBTarget | None:
+        if isinstance(
+            tsdb_profile,
+            mlrun.datastore.datastore_profile.DatastoreProfilePostgreSQL,
+        ):
+            return mm_constants.TSDBTarget.TimescaleDB
+        if isinstance(
+            tsdb_profile, mlrun.datastore.datastore_profile.DatastoreProfileV3io
+        ):
+            return mm_constants.TSDBTarget.V3IO_TSDB
+        return None
 
     def _validate_kafka_stream(
         self,
@@ -2095,11 +2184,14 @@ class MonitoringDeployment:
         secrets_dict = {}
         old_secrets_dict = self._get_monitoring_mandatory_project_secrets()
 
+        stream_profile = None
+        tsdb_profile = None
+
         stream_profile_name = stream_profile_name or old_secrets_dict.get(
             mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PROFILE_NAME
         )
         if stream_profile_name:
-            self._validate_stream_profile(stream_profile_name)
+            stream_profile = self._validate_stream_profile(stream_profile_name)
             secrets_dict[
                 mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PROFILE_NAME
             ] = stream_profile_name
@@ -2131,6 +2223,11 @@ class MonitoringDeployment:
                 provider=mlrun.common.schemas.SecretProviderName.kubernetes,
                 secrets=secrets_dict,
             ),
+        )
+
+        self._persist_model_monitoring_spec(
+            stream_type=self._resolve_stream_target(stream_profile),
+            tsdb_type=self._resolve_tsdb_target(tsdb_profile),
         )
 
     def _is_the_same_cred(
@@ -2330,6 +2427,7 @@ class MonitoringDeployment:
         db_session: sqlalchemy.orm.Session,
         function: dict,
         function_name: str,
+        function_tag: str,
         project: str,
     ) -> tuple[
         list[
@@ -2390,8 +2488,6 @@ class MonitoringDeployment:
                 project=project,
             )
 
-        function_tag = (function.get("metadata") or {}).get("tag") or "latest"
-
         model_endpoints_dict: dict[str, str] = await run_in_threadpool(
             framework.utils.singletons.db.get_db().list_model_endpoints,
             project=project,
@@ -2404,12 +2500,10 @@ class MonitoringDeployment:
 
         model_endpoints_instructions = []
         for instruction in instructions:
-            effective_function_name = instruction.function_name or function_name
-            effective_function_tag = instruction.function_tag or function_tag
             uid = self._get_or_create_uid(
                 project=project,
-                function_name=effective_function_name,
-                function_tag=effective_function_tag,
+                function_name=function_name,
+                function_tag=function_tag,
                 model_endpoints_dict=model_endpoints_dict,
                 creation_strategy=instruction.creation_strategy,
                 endpoint_name=instruction.name,
@@ -2418,8 +2512,8 @@ class MonitoringDeployment:
                 name=instruction.name,
                 endpoint_type=mm_constants.EndpointType.USER_EP,
                 model_class=None,
-                function_name=effective_function_name,
-                function_tag=effective_function_tag,
+                function_name=function_name,
+                function_tag=function_tag,
                 track_models=True,
                 uid=uid,
                 label_names=instruction.output_schema,
@@ -2755,12 +2849,18 @@ class MonitoringDeployment:
             env_updates[mm_constants.NuclioMonitoringEnvVars.MODEL_MONITORING_URL] = (
                 stream_url
             )
-        first_uid = (
-            model_endpoints_instructions[0][0].metadata.uid
+        first_uid, first_name = (
+            (
+                model_endpoints_instructions[0][0].metadata.uid,
+                model_endpoints_instructions[0][0].metadata.name,
+            )
             if len(model_endpoints_instructions[0]) > 1
-            else ""
+            else ("", "")
         )
         env_updates[mm_constants.NuclioMonitoringEnvVars.MODEL_ENDPOINT_UID] = first_uid
+        env_updates[mm_constants.NuclioMonitoringEnvVars.MODEL_ENDPOINT_NAME] = (
+            first_name
+        )
         if len(model_endpoints_instructions) > 1:
             env_updates[mm_constants.NuclioMonitoringEnvVars.MODEL_ENDPOINTS_MAP] = (
                 json.dumps(
@@ -2778,6 +2878,7 @@ class MonitoringDeployment:
         background_tasks: BackgroundTasks,
         function: dict,
         function_name: str,
+        function_tag: str,
         project: str,
     ) -> tuple[
         list[
@@ -2805,6 +2906,7 @@ class MonitoringDeployment:
             db_session=db_session,
             function=function,
             function_name=function_name,
+            function_tag=function_tag,
             project=project,
         )
 

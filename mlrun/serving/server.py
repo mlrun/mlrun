@@ -29,6 +29,7 @@ from datetime import UTC, datetime
 from http import HTTPMethod
 from typing import Any, Optional, Union
 
+import nuclio_sdk
 import pandas as pd
 import storey
 from nuclio import Context as NuclioContext
@@ -46,6 +47,8 @@ import mlrun.utils
 from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.secrets import SecretsStore
+from mlrun.serving.endpoint_mapping import APIHandlerConfig
+from mlrun.serving.result_handler import ResultHandler
 
 from ..common.helpers import parse_versioned_object_uri
 from ..common.schemas.model_monitoring.constants import FileTargetKind
@@ -64,7 +67,7 @@ from .states import (
     get_function,
     graph_root_setter,
 )
-from .utils import event_id_key, event_path_key
+from .utils import event_id_key, event_path_key, is_event_like
 
 DUMMY_STREAM = "dummy://"
 
@@ -131,7 +134,7 @@ class GraphServer(ModelObj):
         function_tag=None,
         project=None,
         model_endpoint_creation_task_name=None,
-        api_handler_config: "mlrun.runtimes.nuclio.serving.APIHandlerConfig | None" = None,
+        api_handler_config: "APIHandlerConfig | None" = None,
     ):
         self._graph = None
         self.graph: Union[RouterStep, RootFlowStep] = graph
@@ -159,6 +162,17 @@ class GraphServer(ModelObj):
         self.model_endpoint_creation_task_name = model_endpoint_creation_task_name
         self.streaming = False
         self.api_handler_config = api_handler_config
+
+    @property
+    def api_handler_config(self) -> "APIHandlerConfig | None":
+        return self._api_handler_config
+
+    @api_handler_config.setter
+    def api_handler_config(self, value: "APIHandlerConfig | dict | None") -> None:
+        if isinstance(value, dict):
+            value = APIHandlerConfig.from_dict(value)
+        self._api_handler_config = value
+        self.result_handler = ResultHandler(value) if value else None
 
     def set_current_function(self, function):
         """set which child function this server is currently running on"""
@@ -330,25 +344,12 @@ class GraphServer(ModelObj):
         try:
             response = self.graph.run(event, **(extra_args or {}))
         except Exception as exc:
-            # Extract appropriate status code from MLRunHTTPStatusError exceptions
-            # For backwards compatibility, default to 400 for other exceptions
-            if isinstance(exc, mlrun.errors.MLRunHTTPStatusError):
-                status_code = exc.error_status_code
-            else:
-                status_code = 400
+            return _exception_to_response(context, server_context, event, exc)
 
-            message = f"{exc.__class__.__name__}: {err_to_str(exc)}"
-            if server_context.verbose:
-                message += "\n" + str(traceback.format_exc())
-            context.logger.error(f"run error, {traceback.format_exc()}")
-            server_context.push_error(event, message, source="_handler")
-            return context.Response(
-                body=message, content_type="text/plain", status_code=status_code
-            )
-
-        # TODO: this is only relevant in certain flows (MockServer, sync...)
-        if hasattr(response, "body"):
-            response = response.body
+        # Sync post-processing here (MockServer bypasses _process_single_response).
+        # Coroutines are post-processed after await in _process_single_async_response.
+        if not asyncio.iscoroutine(response):
+            response = _post_process_response(context, event, response)
 
         return response
 
@@ -678,15 +679,33 @@ def v2_serving_init(context, namespace=None):
 
 async def async_execute_graph(
     context: MLClientCtx,
-    data: DataItem,
-    timestamp_column: str | None,
-    batching: bool,
-    batch_size: int | None,
-    read_as_lists: bool,
-    nest_under_inputs: bool,
-) -> None:
+    data: DataItem | None = None,
+    data_object: dict | None = None,
+    timestamp_column: str | None = None,
+    batching: bool = False,
+    batch_size: int | None = None,
+    read_as_lists: bool = False,
+    nest_under_inputs: bool = False,
+) -> Any:
+    """See :func:`execute_graph` for parameter documentation."""
+    # Fail-fast argument validation
+    if data is None and data_object is None:
+        raise MLRunInvalidArgumentError(
+            "exactly one of 'data' or 'data_object' must be provided"
+        )
+    if data is not None and data_object is not None:
+        raise MLRunInvalidArgumentError(
+            "'data' and 'data_object' are mutually exclusive — provide exactly one"
+        )
+    if data_object is not None and not isinstance(data_object, dict):
+        raise MLRunInvalidArgumentError(
+            f"data_object must be a dict, got {type(data_object).__name__}. "
+            f"If you have a Pydantic model, call .model_dump(); "
+            f"if you have a JSON string, json.loads() it before passing."
+        )
     # Validate that data parameter is a DataItem and not passed via params
-    if not isinstance(data, DataItem):
+    # (only enforced when data_object is None — the data_object path bypasses the DataItem contract).
+    if data_object is None and not isinstance(data, DataItem):
         raise MLRunInvalidArgumentError(
             f"Parameter 'data' has type hint 'DataItem' but got {type(data).__name__} instead. "
             f"Data files and artifacts must be passed via the 'inputs' parameter, not 'params'. "
@@ -694,6 +713,8 @@ async def async_execute_graph(
             f"while 'inputs' is for data files that need to be loaded. "
             f"Example: run_function(..., inputs={{'data': 'path/to/data.csv'}}, params={{other_config: value}})"
         )
+
+    is_dict_path = data_object is not None
     run_call_count = 0
     spec = mlrun.utils.get_serving_spec()
     modname = None
@@ -749,38 +770,54 @@ async def async_execute_graph(
                 f"(status='{task_state}')"
             )
 
-    df = data.as_df()
-
-    if df.empty:
-        context.logger.warn("Job terminated due to empty inputs (0 rows)")
-        return
-
     track_models = spec.get("track_models")
 
-    if track_models and timestamp_column:
-        context.logger.info(f"Sorting dataframe by {timestamp_column}")
-        df[timestamp_column] = pd.to_datetime(  # in case it's a string
-            df[timestamp_column]
-        )
-        df.sort_values(by=timestamp_column, inplace=True)
-        if len(df) > 1:
-            start_time = df[timestamp_column].iloc[0]
-            end_time = df[timestamp_column].iloc[-1]
-            time_range = end_time - start_time
-            start_time = start_time.isoformat()
-            end_time = end_time.isoformat()
-            # TODO: tie this to the controller's base period
-            if time_range > pd.Timedelta(MAX_BATCH_JOB_DURATION):
+    # end_time may be overwritten further down (in the dict branch or from batch_completion_time)
+    end_time = None
+
+    if is_dict_path:
+        # Single-event path: no DataFrame, no sort, no MAX_BATCH_JOB_DURATION guard.
+        if track_models and timestamp_column:
+            if timestamp_column not in data_object:
                 raise mlrun.errors.MLRunRuntimeError(
-                    f"Dataframe time range is too long: {time_range}. "
-                    "Please disable tracking or reduce the input dataset's time range below the defined limit "
-                    f"of {MAX_BATCH_JOB_DURATION}."
+                    f"Event body '{data_object}' did not contain timestamp column '{timestamp_column}'"
                 )
+            # Single event => first_timestamp == last_timestamp.
+            start_time = end_time = str(data_object[timestamp_column])
         else:
-            start_time = end_time = df["timestamp"].iloc[0].isoformat()
+            # end_time will be set from clock time when the batch completes (same as the batch path).
+            start_time = datetime.now(tz=UTC).isoformat()
     else:
-        # end time will be set from clock time when the batch completes
-        start_time = datetime.now(tz=UTC).isoformat()
+        df = data.as_df()
+
+        if df.empty:
+            context.logger.warn("Job terminated due to empty inputs (0 rows)")
+            return
+
+        if track_models and timestamp_column:
+            context.logger.info(f"Sorting dataframe by {timestamp_column}")
+            df[timestamp_column] = pd.to_datetime(  # in case it's a string
+                df[timestamp_column]
+            )
+            df.sort_values(by=timestamp_column, inplace=True)
+            if len(df) > 1:
+                start_time = df[timestamp_column].iloc[0]
+                end_time = df[timestamp_column].iloc[-1]
+                time_range = end_time - start_time
+                start_time = start_time.isoformat()
+                end_time = end_time.isoformat()
+                # TODO: tie this to the controller's base period
+                if time_range > pd.Timedelta(MAX_BATCH_JOB_DURATION):
+                    raise mlrun.errors.MLRunRuntimeError(
+                        f"Dataframe time range is too long: {time_range}. "
+                        "Please disable tracking or reduce the input dataset's time range below the defined limit "
+                        f"of {MAX_BATCH_JOB_DURATION}."
+                    )
+            else:
+                start_time = end_time = df["timestamp"].iloc[0].isoformat()
+        else:
+            # end time will be set from clock time when the batch completes
+            start_time = datetime.now(tz=UTC).isoformat()
 
     server.graph = add_system_steps_to_graph(
         server.project,
@@ -809,9 +846,9 @@ async def async_execute_graph(
     if server.verbose:
         context.logger.info(server.to_yaml())
 
-    async def run(body):
+    async def run(body, idx):
         nonlocal run_call_count
-        event = storey.Event(id=index, body=body)
+        event = storey.Event(id=idx, body=body)
         if timestamp_column:
             if batching:
                 # we use the first row in the batch to determine the timestamp for the whole batch
@@ -828,25 +865,38 @@ async def async_execute_graph(
         run_call_count += 1
         return await server.run(event, context)
 
-    if batching and not batch_size:
-        batch_size = len(df)
-
-    batch = []
     tasks = []
-    for index, row in df.iterrows():
-        data = row.to_list() if read_as_lists else row.to_dict()
+    if is_dict_path:
+        # `batching` / `batch_size` are ignored on the data_object path.
+        if batching or batch_size:
+            context.logger.debug(
+                "ignoring batch params on data_object path",
+                batching=batching,
+                batch_size=batch_size,
+            )
+        body = list(data_object.values()) if read_as_lists else data_object
         if nest_under_inputs:
-            data = {"inputs": data}
-        if batching:
-            batch.append(data)
-            if len(batch) == batch_size:
-                tasks.append(asyncio.create_task(run(batch)))
-                batch = []
-        else:
-            tasks.append(asyncio.create_task(run(data)))
+            body = {"inputs": body}
+        tasks.append(asyncio.create_task(run(body, 0)))
+    else:
+        if batching and not batch_size:
+            batch_size = len(df)
 
-    if batch:
-        tasks.append(asyncio.create_task(run(batch)))
+        batch = []
+        for index, row in df.iterrows():
+            body = row.to_list() if read_as_lists else row.to_dict()
+            if nest_under_inputs:
+                body = {"inputs": body}
+            if batching:
+                batch.append(body)
+                if len(batch) == batch_size:
+                    tasks.append(asyncio.create_task(run(batch, index)))
+                    batch = []
+            else:
+                tasks.append(asyncio.create_task(run(body, index)))
+
+        if batch:
+            tasks.append(asyncio.create_task(run(batch, index)))
 
     responses = await asyncio.gather(*tasks)
 
@@ -878,7 +928,8 @@ async def async_execute_graph(
         output_stream.push(mm_stream_record, partition_key=mep_uid)
 
     context.logger.info(
-        f"Job completed processing {len(df)} rows",
+        "Job completed",
+        rows=run_call_count,
         timestamp_column=timestamp_column,
         model_endpoint_uids=model_endpoint_uids,
     )
@@ -928,6 +979,9 @@ async def async_execute_graph(
 
     context.log_result("num_rows", run_call_count)
 
+    if is_dict_path:
+        return responses[0]
+
 
 def _is_inside_asyncio_loop():
     try:
@@ -951,28 +1005,59 @@ def _workaround_asyncio_nesting():
 
 def execute_graph(
     context: MLClientCtx,
-    data: DataItem,
+    data: DataItem | None = None,
+    data_object: dict | None = None,
     timestamp_column: str | None = None,
     batching: bool = False,
     batch_size: int | None = None,
     read_as_lists: bool = False,
     nest_under_inputs: bool = False,
-) -> tuple[list[Any], Any]:
+) -> Any:
     """
     Execute graph as a job, from start to finish.
 
-    :param context: The job's execution client context.
-    :param data: The input data to the job, to be pushed into the graph row by row, or in batches.
-    :param timestamp_column: The name of the column that will be used as the timestamp for model monitoring purposes.
-        when timestamp_column is used in conjunction with batching, the first timestamp will be used for the entire
-        batch.
-    :param batching: Whether to push one or more batches into the graph rather than row by row.
-    :param batch_size: The number of rows to push per batch. If not set, and batching=True, the entire dataset will
-        be pushed into the graph in one batch.
-    :param read_as_lists: Whether to read each row as a list instead of a dictionary.
-    :param nest_under_inputs: Whether to wrap each row with {"inputs": ...}.
+    Exactly one of ``data`` or ``data_object`` must be provided. The two modes
+    are mutually exclusive:
 
-    :return: A tuple containing a list of responses and any additional data.
+    - **Batch mode** (``data``): the existing ``DataItem`` path — loads a
+      DataFrame from the input artifact and feeds it into the graph row by row
+      (or batched). Returns ``None``; the responses are surfaced as the
+      ``prediction`` (and per-model ``prediction_<model>``) dataset artifacts.
+    - **Single-instance mode** (``data_object``): runs the graph **exactly
+      once** with the provided dict as the event body. Returns the graph
+      response as-is so the caller can read it.
+      ``batching`` and ``batch_size`` are ignored (a DEBUG log entry is emitted
+      when they are set). If ``timestamp_column`` is set, the value is read
+      from the root of ``data_object`` (e.g. ``timestamp_column="ts"`` with
+      ``data_object={"value": 8, "ts": "2020-01-01T00:00:00"}``); a missing key
+      raises :class:`mlrun.errors.MLRunRuntimeError`. If ``read_as_lists=True``
+      the body is ``list(data_object.values())`` (insertion order). If
+      ``nest_under_inputs=True`` the body is wrapped as ``{"inputs": body}``.
+
+    :param context: The job's execution client context.
+    :param data: The input data (``DataItem``) to be pushed into the graph row
+        by row, or in batches. Mutually exclusive with ``data_object``.
+    :param data_object: A single dict instance to run the graph with exactly
+        once. Must be a ``dict`` (subclasses accepted). Mutually exclusive with
+        ``data``. If you have a Pydantic model, call ``.model_dump()`` first;
+        if you have a JSON string, ``json.loads()`` it before passing.
+    :param timestamp_column: The name of the column that will be used as the
+        timestamp for model monitoring purposes. On the ``data`` path, when
+        used in conjunction with ``batching``, the first timestamp will be
+        used for the entire batch. On the ``data_object`` path, the value is
+        read from the root of the dict - in this case it should be a string
+        that is a serialized ``datetime`` (for example using ``isoformat()``.
+    :param batching: Whether to push one or more batches into the graph rather
+        than row by row. Ignored on the ``data_object`` path.
+    :param batch_size: The number of rows to push per batch. If not set, and
+        ``batching=True``, the entire dataset will be pushed into the graph in
+        one batch. Ignored on the ``data_object`` path.
+    :param read_as_lists: Whether to read each row (or, on the ``data_object``
+        path, the dict's first-level values) as a list instead of a dictionary.
+    :param nest_under_inputs: Whether to wrap each event body with
+        ``{"inputs": ...}``.
+
+    :return: On the ``data_object`` path, the graph's response. On the ``data`` path, ``None``.
     """
     if _is_inside_asyncio_loop():
         _workaround_asyncio_nesting()
@@ -981,6 +1066,7 @@ def execute_graph(
         async_execute_graph(
             context,
             data,
+            data_object,
             timestamp_column,
             batching,
             batch_size,
@@ -1054,6 +1140,64 @@ def _preprocess_event(context, event):
         event.path = "/"
 
 
+def _exception_to_response(context, server_context, event, exc):
+    """Convert any serving exception into an HTTP Response, preserving
+    MLRunHTTPStatusError's status_code (otherwise defaults to 400).
+    """
+    if isinstance(exc, mlrun.errors.MLRunHTTPStatusError):
+        status_code = exc.error_status_code
+    else:
+        status_code = 400
+    message = f"{exc.__class__.__name__}: {err_to_str(exc)}"
+    if server_context.verbose:
+        message += "\n" + str(traceback.format_exc())
+    context.logger.error(f"run error, {traceback.format_exc()}")
+    server_context.push_error(event, message, source="_handler")
+    return context.Response(
+        body=message, content_type="text/plain", status_code=status_code
+    )
+
+
+def _post_process_response(context, event, response):
+    """Post-process the resolved graph response (Event/Response unwrap, output
+    mapping, re-wrap). No-op when event or server is unavailable.
+    """
+    server = getattr(context, "_server", None)
+    if event is None or server is None:
+        return response
+
+    try:
+        if is_event_like(response):
+            response = response.body
+
+        # Skip output mapping on non-2xx (success-shape contract, ML-12706).
+        explicit_response: Any = None
+        if isinstance(response, (Response, nuclio_sdk.Response)):
+            explicit_response = response
+            response = explicit_response.body
+
+        if (
+            server.http_trigger
+            and server.result_handler
+            and (explicit_response is None or explicit_response.status_code < 300)
+        ):
+            method = getattr(event, "method", None)
+            path = getattr(event, "path", None)
+            if method and path:
+                response = server.result_handler.apply(method, path, response)
+
+        if explicit_response is not None:
+            return context.Response(
+                body=response,
+                status_code=explicit_response.status_code,
+                content_type=explicit_response.content_type,
+                headers=explicit_response.headers,
+            )
+        return response
+    except Exception as exc:
+        return _exception_to_response(context, server.context, event, exc)
+
+
 def _process_single_response(context, response, get_body):
     if (
         isinstance(context, MLClientCtx)
@@ -1070,8 +1214,14 @@ def _process_single_response(context, response, get_body):
     return response
 
 
-async def _process_single_async_response(context, response, get_body):
-    return _process_single_response(context, await response, get_body)
+async def _process_single_async_response(context, event, response, get_body):
+    """Await the coroutine, run post-processing, map any raised exception to its status code (ML-12777)."""
+    try:
+        response = await response
+    except Exception as exc:
+        return _exception_to_response(context, context._server.context, event, exc)
+    response = _post_process_response(context, event, response)
+    return _process_single_response(context, response, get_body)
 
 
 def v2_serving_handler(context, event, get_body=False):
@@ -1079,7 +1229,7 @@ def v2_serving_handler(context, event, get_body=False):
     _preprocess_event(context, event)
     response = context._server.run(event, context, get_body)
     if asyncio.iscoroutine(response):
-        return _process_single_async_response(context, response, get_body)
+        return _process_single_async_response(context, event, response, get_body)
 
     return _process_single_response(context, response, get_body)
 

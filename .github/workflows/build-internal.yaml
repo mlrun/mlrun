@@ -54,7 +54,7 @@ on:
         type: string
         required: false
       pr_base_sha:
-        description: 'Pinned SHA of the PR base branch to rebase onto'
+        description: 'Pinned SHA of the PR base branch to merge into the PR'
         default: ''
         type: string
         required: false
@@ -81,7 +81,7 @@ jobs:
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - id: set-matrix
         uses: ./.github/actions/image-matrix-prep
         with:
@@ -104,16 +104,17 @@ jobs:
         if [ -d "$GITHUB_WORKSPACE/server" ]; then
           docker run --rm -v "$GITHUB_WORKSPACE:/workspace" alpine sh -c "rm -rf /workspace/server/common/proto/build /workspace/server/go/proto/build" || true
         fi       
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
       if: inputs.pr_number == ''
 
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
       if: inputs.pr_number != ''
       with:
         fetch-depth: 0
         ref: refs/pull/${{ inputs.pr_number }}/head
+        allow-unsafe-pr-checkout: true
 
-    - name: Rebase PR onto base branch
+    - name: Merge base branch into PR
       if: inputs.pr_number != ''
       run: |
         git config user.name "github-actions[bot]"
@@ -121,13 +122,13 @@ jobs:
         BASE_SHA="${{ inputs.pr_base_sha }}"
 
         git fetch origin "${BASE_SHA}"
-        if ! git rebase "${BASE_SHA}"; then
-          echo "::error::Rebase of PR #${{ inputs.pr_number }} onto ${BASE_SHA} failed due to conflicts. Please rebase your branch locally and push."
-          git rebase --abort
+        if ! git merge "${BASE_SHA}" --no-edit; then
+          echo "::error::Merge of ${BASE_SHA} into PR #${{ inputs.pr_number }} failed due to conflicts. Please merge or rebase your branch locally and push."
+          git merge --abort
           exit 1
         fi
 
-        echo "Rebased onto ${BASE_SHA}"
+        echo "Merged ${BASE_SHA} into PR"
 
     # since github-actions gives us 14G only, and fills it up with some garbage
     - name: Freeing up disk space
@@ -176,7 +177,7 @@ jobs:
 
         echo "mlrun_docker_registries=$( \
           if [ \"${{ inputs.is_private_release }}\" = \"true\" ]; then \
-            echo \"${{ secrets.ARTIFACTORY_URL }}/\"; \
+            echo \"${{ secrets.PRIVATE_ARTIFACTORY_DOCKER_URL }}/\"; \
           else \
             echo ${{ inputs.docker_registries || 'ghcr.io/' }}; \
           fi)" >> $GITHUB_OUTPUT
@@ -186,7 +187,7 @@ jobs:
         INPUT_DOCKER_REPO: ${{ inputs.docker_repo }}
 
     - name: Docker login (ghcr)
-      uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # 4.1.0
+      uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # 4.2.0
       with:
         registry: ghcr.io
         username: ${{ github.repository_owner }}
@@ -195,7 +196,7 @@ jobs:
     - name: Docker login (quay.io)
       continue-on-error: true
       if: inputs.pr_number == ''
-      uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # 4.1.0
+      uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # 4.2.0
       with:
         registry: quay.io
         username: ${{ secrets.QUAY_IO_DOCKER_REGISTRY_USERNAME }}
@@ -204,7 +205,7 @@ jobs:
     - name: Docker login (docker.com)
       if: inputs.pr_number == ''
       continue-on-error: true
-      uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # 4.1.0
+      uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # 4.2.0
       with:
         registry: registry.hub.docker.com
         username: ${{ secrets.DOCKER_HUB_DOCKER_REGISTRY_USERNAME }}
@@ -212,11 +213,11 @@ jobs:
 
     - name: Docker login (Artifactory)
       if: inputs.is_private_release == true
-      uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # 4.1.0
+      uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # 4.2.0
       with:
-        registry: ${{ secrets.ARTIFACTORY_URL }}
-        username: ${{ secrets.ARTIFACTORY_USERNAME }}
-        password: ${{ secrets.ARTIFACTORY_PASSWORD }}
+        registry: ${{ secrets.PRIVATE_ARTIFACTORY_DOCKER_URL }}
+        username: ${{ secrets.PRIVATE_ARTIFACTORY_USERNAME }}
+        password: ${{ secrets.PRIVATE_ARTIFACTORY_PASSWORD }}
 
     # We need to use a python venv to avoid conflicts with the system python packages (like docker etc.)
     # Also those self hosted runners are not ephemeral, so we need to make sure we have a clean env   
@@ -252,9 +253,13 @@ jobs:
 
     - name: Build and push unstable tag
 
-      # we don't need to have unstable tag for the test image
-      # And we don't need to run this when triggered manually (workflow dispatch)
-      if: matrix.image-name != 'test' && github.event_name != 'workflow_dispatch' && github.ref_name == 'development'
+      # Push the "unstable" tag only when building from a direct push to development:
+      # - skip the test image
+      # - skip PR-driven builds (fork PRs are unauthorized to push pacakges to mlrun-org)
+      # - skip workflow_dispatch (private-release.yaml uses MLRUN_DOCKER_REPO that doesn't own the
+      #   ghcr.io path being pushed to)
+      # - skip non-dev branches (e.g., 1.11.x backports)
+      if: matrix.image-name != 'test' && inputs.pr_number == '' && github.event_name != 'workflow_dispatch' && github.ref_name == 'development'
       run: |
         for registry in "ghcr.io/" "quay.io/" "registry.hub.docker.com/"; \
           do \

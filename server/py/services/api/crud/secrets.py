@@ -654,8 +654,9 @@ class Secrets(
         auth_info: mlrun.common.schemas.AuthInfo,
     ) -> mlrun.common.schemas.DeleteSecretTokensResponse:
         """
-        Delete all Kubernetes secrets storing tokens for a user.
+        Delete the Kubernetes secrets storing tokens for a user.
 
+        A single token is stored per user, so this deletes that token when present.
         Deletes each token's K8s secret in parallel (bounded by
         secret_stores.kubernetes.concurrent_token_deletions).
         Failures are collected and returned without stopping other deletions.
@@ -796,8 +797,12 @@ class Secrets(
         :return: The user_id, or "*" for all users.
         :raises mlrun.errors.MLRunNotFoundError: If the username cannot be found.
         """
-        # No username provided or matches self -> use authenticated user's user_id
-        if not username or username == auth_info.username:
+        # No username provided or matches self -> use authenticated user's user_id.
+        # Compare case-insensitively because Keycloak/Iguazio treat usernames as such.
+        if not username or (
+            auth_info.username is not None
+            and username.lower() == auth_info.username.lower()
+        ):
             return auth_info.user_id
 
         # Wildcard for all users (list operation)

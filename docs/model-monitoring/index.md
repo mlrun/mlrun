@@ -29,7 +29,7 @@ When you call {py:meth}`~mlrun.projects.MlrunProject.enable_model_monitoring`, y
 
 The model monitoring process flow starts with collecting operational data from a function in the model serving pod. The model 
 monitoring stream pod forwards data to a Parquet database. MLRun supports integers, float, strings, images.
-The controller periodically checks the Parquet DB for new data and forwards it to the relevant application. 
+The controller periodically queries the time series database (TSDB) for new prediction data and forwards it to the relevant application. 
 Each model monitoring application is a separate nuclio real-time function. Each one listens to a stream that is filled by 
 the monitoring controller at each `base_period` interval.
 The stream function examines the log entry, processes it into statistics which are then written to the statistics databases 

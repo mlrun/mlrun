@@ -15,7 +15,6 @@
 import unittest.mock
 
 import iguazio
-import iguazio.schemas
 import pytest
 
 import mlrun.common.schemas
@@ -36,40 +35,31 @@ def client(monkeypatch):
 
 
 @pytest.mark.parametrize(
-    "action,expected_config_name,expected_severity",
+    "action,expected_config_name",
     [
         (
             mlrun.common.schemas.MigrationEventActions.required,
             iguazio_v4_events.DB_MIGRATION_REQUIRED,
-            iguazio.schemas.Severity.CRITICAL,
         ),
         (
             mlrun.common.schemas.MigrationEventActions.started,
             iguazio_v4_events.DB_MIGRATION_STARTED,
-            iguazio.schemas.Severity.INFO,
         ),
         (
             mlrun.common.schemas.MigrationEventActions.completed,
             iguazio_v4_events.DB_MIGRATION_COMPLETED,
-            iguazio.schemas.Severity.INFO,
         ),
         (
             mlrun.common.schemas.MigrationEventActions.failed,
             iguazio_v4_events.DB_MIGRATION_FAILED,
-            iguazio.schemas.Severity.CRITICAL,
         ),
     ],
 )
-def test_generate_db_migration_event_basic(
-    client, action, expected_config_name, expected_severity
-):
+def test_generate_db_migration_event_basic(client, action, expected_config_name):
     event = client.generate_db_migration_event(action)
     assert event.config_name == expected_config_name
-    assert event.kind == "system"
-    assert event.class_ == "Application.Core"
-    assert event.severity == expected_severity
     assert event.entity_name == "mlrun-api-chief"
-    # source is left empty so the orca backend can derive it
+    # severity, class and kind are left unset so the orca catalog enriches them
     assert event.source == ""
     # description is the catalog default for non-failed actions
     if action != mlrun.common.schemas.MigrationEventActions.failed:
@@ -111,7 +101,6 @@ def test_completed_event_carries_duration(client):
         duration_seconds=12.3456,
     )
     assert event.details == {"duration_seconds": 12.346}
-    assert event.severity == iguazio.schemas.Severity.INFO
 
 
 @pytest.mark.parametrize(
@@ -191,9 +180,11 @@ def test_failed_event_with_exception_includes_summary_and_duration(client):
     assert event.details["error"] == "schema head mismatch"
     assert event.details["error_type"] == "RuntimeError"
     assert event.details["duration_seconds"] == 4.0
-    assert "schema head mismatch" in event.description
-    # description still contains the catalog wording
-    assert "MLRun database migration failed" in event.description
+    # description stays the generic catalog wording; per-instance error lives
+    # in details only (the events service enriches description from the catalog)
+    assert event.description == (
+        "MLRun database migration failed, functionality may be impaired"
+    )
 
 
 def test_failed_event_with_string_error(client):
@@ -204,7 +195,10 @@ def test_failed_event_with_string_error(client):
     assert event.details["error"] == "boom"
     # error_type is only set for exceptions, not raw strings
     assert "error_type" not in event.details
-    assert "boom" in event.description
+    # error is recorded in details, not appended to the generic description
+    assert event.description == (
+        "MLRun database migration failed, functionality may be impaired"
+    )
 
 
 def test_failed_event_truncates_long_error(client):
@@ -216,9 +210,10 @@ def test_failed_event_truncates_long_error(client):
     assert event.details["error"].endswith("...[truncated]")
     # Truncation budget is hard — output must not exceed the documented limit
     assert len(event.details["error"]) <= iguazio_v4_events.ERROR_DETAIL_LIMIT
-    # description summary is truncated more aggressively
-    assert event.description.endswith("...[truncated]")
-    assert len(event.description) < 350
+    # description is untouched by the error — stays the generic catalog text
+    assert event.description == (
+        "MLRun database migration failed, functionality may be impaired"
+    )
 
 
 @pytest.mark.parametrize("falsy_error", ["", None])
@@ -268,11 +263,8 @@ def test_generate_db_connection_event_basic(client):
         mlrun.common.schemas.DBConnectionEventActions.failed,
     )
     assert event.config_name == iguazio_v4_events.DB_CONNECTION_FAILED
-    assert event.kind == "system"
-    assert event.class_ == "Application.Core"
-    assert event.severity == iguazio.schemas.Severity.CRITICAL
     assert event.entity_name == "mlrun-api-chief"
-    # source is left empty so the orca backend can derive it
+    # severity, class and kind are left unset so the orca catalog enriches them
     assert event.source == ""
     assert event.description == "MLRun cannot connect to its database"
     assert event.details == {}
@@ -326,8 +318,8 @@ def test_db_connection_event_renders_error(
     assert event.details["error_code"] == 1205
     assert event.details["dialect"] == "mysql"
     assert expected_error_substring in event.details["error"]
-    assert expected_error_substring in event.description
-    assert "MLRun cannot connect to its database" in event.description
+    # error goes to details only; description stays the generic catalog text
+    assert event.description == "MLRun cannot connect to its database"
     if expected_error_type is None:
         assert "error_type" not in event.details
     else:
@@ -342,9 +334,156 @@ def test_db_connection_event_truncates_long_error(client):
     )
     assert event.details["error"].endswith("...[truncated]")
     assert len(event.details["error"]) <= iguazio_v4_events.ERROR_DETAIL_LIMIT
-    assert event.description.endswith("...[truncated]")
+    # description is untouched by the error
+    assert event.description == "MLRun cannot connect to its database"
 
 
 def test_db_connection_unsupported_action_raises(client):
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
         client.generate_db_connection_event("bogus")  # type: ignore[arg-type]
+
+
+def test_generate_log_collector_event_basic(client):
+    event = client.generate_log_collector_event(
+        mlrun.common.schemas.LogCollectorEventActions.failed,
+    )
+    assert event.config_name == iguazio_v4_events.LOG_COLLECTOR_FAILED
+    assert event.entity_name == "mlrun-api-chief"
+    # severity, class and kind are left unset so the orca catalog enriches them
+    assert event.source == ""
+    assert event.description == "MLRun log collector failed to retrieve logs"
+    assert event.details == {}
+
+
+def test_log_collector_event_renders_context(client):
+    event = client.generate_log_collector_event(
+        mlrun.common.schemas.LogCollectorEventActions.failed,
+        error=RuntimeError("collector unreachable"),
+        run_uid="run-7",
+        project="proj-a",
+    )
+    assert event.details["run_uid"] == "run-7"
+    assert event.details["project"] == "proj-a"
+    assert event.details["error_type"] == "RuntimeError"
+    assert "collector unreachable" in event.details["error"]
+    # Per-instance error lives in details only; description stays the generic
+    # catalog text (the events service enriches it from the catalog).
+    assert event.description == "MLRun log collector failed to retrieve logs"
+
+
+def test_log_collector_event_truncates_long_error(client):
+    long_err = "x" * 4096
+    event = client.generate_log_collector_event(
+        mlrun.common.schemas.LogCollectorEventActions.failed,
+        error=long_err,
+    )
+    assert event.details["error"].endswith("...[truncated]")
+    assert len(event.details["error"]) <= iguazio_v4_events.ERROR_DETAIL_LIMIT
+    # description is untouched by the error
+    assert event.description == "MLRun log collector failed to retrieve logs"
+
+
+def test_log_collector_unsupported_action_raises(client):
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+        client.generate_log_collector_event("bogus")  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize(
+    "action,expected_config_name",
+    [
+        (
+            mlrun.common.schemas.ProjectLifecycleEventActions.creation_succeeded,
+            iguazio_v4_events.PROJECT_CREATION_SUCCEEDED,
+        ),
+        (
+            mlrun.common.schemas.ProjectLifecycleEventActions.creation_failed,
+            iguazio_v4_events.PROJECT_CREATION_FAILED,
+        ),
+        (
+            mlrun.common.schemas.ProjectLifecycleEventActions.deletion_succeeded,
+            iguazio_v4_events.PROJECT_DELETION_SUCCEEDED,
+        ),
+        (
+            mlrun.common.schemas.ProjectLifecycleEventActions.deletion_failed,
+            iguazio_v4_events.PROJECT_DELETION_FAILED,
+        ),
+    ],
+)
+def test_generate_project_lifecycle_event_basic(client, action, expected_config_name):
+    event = client.generate_project_lifecycle_event(
+        action=action, project_name="my-project", actor="alice"
+    )
+    assert event.config_name == expected_config_name
+    # severity, class and kind are left unset so the orca catalog enriches them
+    assert event.entity_name == "mlrun-api-chief"
+    assert event.source == ""
+    assert event.details["project_name"] == "my-project"
+    assert event.details["actor"] == "alice"
+    # error is only included on failed actions, and only when supplied
+    assert "error" not in event.details
+
+
+def test_project_lifecycle_omits_actor_when_missing(client):
+    event = client.generate_project_lifecycle_event(
+        action=mlrun.common.schemas.ProjectLifecycleEventActions.creation_succeeded,
+        project_name="p",
+        actor=None,
+    )
+    assert event.details == {"project_name": "p"}
+
+
+@pytest.mark.parametrize(
+    "failed_action",
+    [
+        mlrun.common.schemas.ProjectLifecycleEventActions.creation_failed,
+        mlrun.common.schemas.ProjectLifecycleEventActions.deletion_failed,
+    ],
+)
+def test_project_lifecycle_failed_carries_error(client, failed_action):
+    err = RuntimeError("db unavailable")
+    event = client.generate_project_lifecycle_event(
+        action=failed_action,
+        project_name="my-project",
+        actor="alice",
+        error=err,
+    )
+    assert event.details["error"] == "db unavailable"
+    assert event.details["error_type"] == "RuntimeError"
+    # error in details only; description stays the generic per-action catalog text
+    _, expected_description = iguazio_v4_events.PROJECT_LIFECYCLE_EVENTS[failed_action]
+    assert event.description == expected_description
+
+
+def test_project_lifecycle_failed_truncates_long_error(client):
+    long_err = "y" * 4096
+    event = client.generate_project_lifecycle_event(
+        action=mlrun.common.schemas.ProjectLifecycleEventActions.deletion_failed,
+        project_name="my-project",
+        actor=None,
+        error=long_err,
+    )
+    assert event.details["error"].endswith("...[truncated]")
+    assert len(event.details["error"]) <= iguazio_v4_events.ERROR_DETAIL_LIMIT
+    # description is untouched by the error
+    assert event.description == "Project deletion failed"
+
+
+def test_project_lifecycle_succeeded_ignores_error(client):
+    # even if an `error` is passed for a succeeded action it must not leak into details
+    event = client.generate_project_lifecycle_event(
+        action=mlrun.common.schemas.ProjectLifecycleEventActions.creation_succeeded,
+        project_name="my-project",
+        actor="alice",
+        error=RuntimeError("should be ignored"),
+    )
+    assert "error" not in event.details
+    assert event.description == "Project was successfully created"
+
+
+def test_project_lifecycle_unsupported_action_raises(client):
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+        client.generate_project_lifecycle_event(
+            action="bogus",  # type: ignore[arg-type]
+            project_name="my-project",
+            actor=None,
+        )

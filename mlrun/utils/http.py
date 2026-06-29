@@ -130,6 +130,53 @@ class HTTPSessionWithRetry(requests.Session):
             self.mount("http://", self._http_adapter)
             self.mount("https://", self._http_adapter)
 
+    # Attributes set in __init__ that requests.Session.__attrs__ does not cover and
+    # that must survive copy/pickle. Extends the base allowlist rather than replacing
+    # it. _logger is intentionally absent: it is a named child logger, rebuilt in
+    # __setstate__ instead of serialized.
+    _EXTRA_PICKLE_ATTRS = (
+        "max_retries",
+        "retry_backoff_factor",
+        "retry_on_exception",
+        "verbose",
+        "_retry_methods",
+        "_http_adapter",
+    )
+
+    def __getstate__(self) -> dict:
+        """Return picklable state, extending ``requests.Session``'s allowlist.
+
+        ``requests.Session.__getstate__`` only serializes ``__attrs__`` (headers,
+        cookies, adapters, ...), which drops the retry-related attributes this
+        subclass adds in ``__init__``. A copied or pickled session would then raise
+        ``AttributeError`` the moment :meth:`update_retry_methods` reads
+        ``_retry_methods``. We add :attr:`_EXTRA_PICKLE_ATTRS` on top of the base
+        state, copying each only if present - ``_http_adapter`` is set only when
+        ``retry_on_status`` is enabled, and copying by presence (rather than the
+        base ``getattr(..., None)``) keeps it absent otherwise so the
+        ``hasattr`` guard in :meth:`update_retry_methods` stays correct.
+        ``_http_adapter`` is the same object as the mounted ``adapters`` entries;
+        ``requests.adapters.HTTPAdapter`` rebuilds a fresh connection pool on
+        restore, so the copy gets its own pool instead of sharing sockets.
+
+        :return: The instance state to pickle/copy.
+        """
+        state = super().__getstate__()
+        state.update(
+            (attr, self.__dict__[attr])
+            for attr in self._EXTRA_PICKLE_ATTRS
+            if attr in self.__dict__
+        )
+        return state
+
+    def __setstate__(self, state: dict) -> None:
+        """Restore instance state and rebuild the non-serialized logger.
+
+        :param state: The state produced by :meth:`__getstate__`.
+        """
+        super().__setstate__(state)
+        self._logger = logger.get_child("http-client")
+
     def request(self, method, url, **kwargs):
         retry_count = 0
         kwargs.setdefault("headers", {})

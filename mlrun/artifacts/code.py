@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import mlrun.common.types
+import mlrun.errors
 
 from .base import Artifact, ArtifactSpec
 
@@ -73,8 +74,11 @@ class CodeArtifactSpec(ArtifactSpec):
 class CodeArtifact(Artifact):
     """Code Artifact
 
-    Store a code file or archive for use as a function or workflow source.
-    Supports a single code file or a single archive (.zip, .tar.gz).
+    Store source code for use as a function or workflow source. The artifact
+    payload is a source file or an archive (``.zip`` / ``.tar.gz``) whose
+    members are extracted on resolution. The payload may be carried inline
+    as ``body`` (subject to the inline-artifact size limit) or uploaded to
+    ``target_path`` like any other artifact.
     """
 
     kind = "code"
@@ -121,6 +125,7 @@ class CodeArtifact(Artifact):
         self.spec.code_type = CodeArtifactCodeType(
             code_type or CodeArtifactCodeType.function
         )
+        _validate_requirements(requirements)
         self.spec.requirements = requirements
 
     @property
@@ -147,3 +152,14 @@ def _derive_language_from_path(path: str | None) -> str | None:
     if path.lower().endswith(_PYTHON_SUFFIXES):
         return "python"
     return ""
+
+
+def _validate_requirements(requirements: list[str] | None) -> None:
+    if requirements is None:
+        return
+    if not isinstance(requirements, list) or any(
+        not isinstance(item, str) for item in requirements
+    ):
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"requirements must be a list of strings, got: {requirements!r}"
+        )

@@ -14,6 +14,7 @@
 
 """Unit tests for the API Handler implementation"""
 
+import json
 import logging
 import re
 from collections.abc import Iterator
@@ -25,21 +26,22 @@ import pytest
 
 import mlrun
 import mlrun.errors
-from mlrun.common.schemas.serving import APIHandlerAction, _APIEndpointKeys
-from mlrun.runtimes.nuclio.serving import APIHandlerConfig, ServingRuntime
+from mlrun.common.schemas.serving import APIHandlerAction
+from mlrun.runtimes.nuclio.serving import ServingRuntime
 from mlrun.serving import GraphContext
 from mlrun.serving.api_handler import _APIHandlerStep
+from mlrun.serving.endpoint_mapping import (
+    APIHandlerConfig,
+    BodyMappings,
+    combine_serving_endpoint_key,
+)
 from mlrun.serving.server import (
     GraphServer,
     MockEvent,
     RootFlowStep,
     _add_api_handler_step_to_graph,
 )
-from mlrun.serving.utils import (
-    _combine_serving_endpoint_key,
-    _RequestContext,
-    _split_serving_endpoint_key,
-)
+from mlrun.serving.utils import _RequestContext
 
 
 class EchoStep:
@@ -59,6 +61,77 @@ class EchoStep:
         else:
             body = event
         return f"{self.prefix}{body}" if self.prefix else body
+
+
+class TestBodyMappings:
+    """Tests for BodyMappings class"""
+
+    def test_empty_destination_path_raises(self) -> None:
+        """destination_path is always required; empty string raises an error"""
+        bm = BodyMappings()
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError,
+            match="destination_path must be a non-empty string",
+        ):
+            bm.add_mapping("$.model", destination_path="")
+
+    def test_empty_source_path_raises(self) -> None:
+        """Test that empty source_path raises an error"""
+        bm = BodyMappings()
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError,
+            match="source_path must be a non-empty string",
+        ):
+            bm.add_mapping("", destination_path="model")
+
+    def test_serialization_roundtrip(self) -> None:
+        """BodyMappings and APIHandlerConfig both survive to_dict / from_dict round-trips."""
+        bm = BodyMappings()
+        bm.add_mapping("$.model", destination_path="model", mandatory=True)
+        bm.add_mapping("$.messages", destination_path="messages", mandatory=False)
+
+        # BodyMappings standalone roundtrip
+        d = bm.to_dict()
+        assert d == {
+            "mappings": [
+                {
+                    "source_path": "$.model",
+                    "destination_path": "model",
+                    "mandatory": True,
+                },
+                {
+                    "source_path": "$.messages",
+                    "destination_path": "messages",
+                    "mandatory": False,
+                },
+            ]
+        }
+        bm2 = BodyMappings.from_dict(d)
+        assert bm2.mappings == bm.mappings
+
+        # APIHandlerConfig roundtrip — nested BodyMappings must survive deserialization
+        output_bm = BodyMappings()
+        output_bm.add_mapping("$.result", destination_path="output", mandatory=True)
+
+        config = APIHandlerConfig()
+        config.add_endpoint_handler(
+            "/users",
+            HTTPMethod.POST,
+            APIHandlerAction.ALLOW,
+            "Create user",
+            input_body_mappings=bm,
+            output_body_mappings=output_bm,
+        )
+        config_dict = config.to_dict()
+
+        # to_dict() must produce plain dicts only — no EndpointConfig objects —
+        # otherwise JSON serialization (e.g. for deploy API call) will fail
+        json.dumps(config_dict)  # raises TypeError if any value is not serializable
+
+        restored = APIHandlerConfig.from_dict(config_dict)
+        ep = restored.get_endpoint_config(HTTPMethod.POST, "/users")
+        assert ep.input_body_mappings.to_dict() == bm.to_dict()
+        assert ep.output_body_mappings.to_dict() == output_bm.to_dict()
 
 
 class TestRequestContext:
@@ -196,9 +269,9 @@ class TestPathTemplateRegex:
 
         # Should have one compiled pattern
         assert len(step._endpoint_patterns) == 1
-        method, pattern, key, _ = step._endpoint_patterns[0]
+        method, pattern, ep = step._endpoint_patterns[0]
         assert method == HTTPMethod.GET
-        assert key == "GET:/users/{user_id}"
+        assert ep.get_endpoint_key() == "GET:/users/{user_id}"
 
         # Test pattern match
         match = pattern.match("/users/123")
@@ -224,21 +297,26 @@ class TestPathTemplateRegex:
         assert len(step._endpoint_patterns) == 2
 
         # Test first pattern with 3 parameters
-        match, params = step._match_endpoint(
+        matches = step._collect_endpoint_matches(
             HTTPMethod.GET, "/orgs/mlrun/repos/mlrun/issues/42"
         )
-        assert match == "GET:/orgs/{org_id}/repos/{repo_id}/issues/{issue_id}"
-        assert params == {
-            "org_id": "mlrun",
-            "repo_id": "mlrun",
-            "issue_id": "42",
-        }
+        assert len(matches) == 1
+        m = matches[0]
+        ep, params = m.endpoint, m.path_params
+        assert (
+            ep.get_endpoint_key()
+            == "GET:/orgs/{org_id}/repos/{repo_id}/issues/{issue_id}"
+        )
+        assert params == {"org_id": "mlrun", "repo_id": "mlrun", "issue_id": "42"}
 
         # Test second pattern with 2 parameters
-        match, params = step._match_endpoint(
+        matches = step._collect_endpoint_matches(
             HTTPMethod.POST, "/api/users/123/posts/456"
         )
-        assert match == "POST:/api/users/{user_id}/posts/{post_id}"
+        assert len(matches) == 1
+        m = matches[0]
+        ep, params = m.endpoint, m.path_params
+        assert ep.get_endpoint_key() == "POST:/api/users/{user_id}/posts/{post_id}"
         assert params == {"user_id": "123", "post_id": "456"}
 
     def test_url_encoded_path_params(self) -> None:
@@ -252,8 +330,11 @@ class TestPathTemplateRegex:
         assert len(step._endpoint_patterns) == 1
 
         # Test with URL-encoded filename
-        match, params = step._match_endpoint(HTTPMethod.GET, "/files/my%20file.txt")
-        assert match == "GET:/files/{filename}"
+        matches = step._collect_endpoint_matches(HTTPMethod.GET, "/files/my%20file.txt")
+        assert len(matches) == 1
+        m = matches[0]
+        ep, params = m.endpoint, m.path_params
+        assert ep.get_endpoint_key() == "GET:/files/{filename}"
         assert params == {"filename": "my file.txt"}  # Decoded
 
     def test_special_characters_in_path(self) -> None:
@@ -275,8 +356,13 @@ class TestPathTemplateRegex:
         ]
 
         for path_value, expected in test_cases:
-            match, params = step._match_endpoint(HTTPMethod.GET, f"/items/{path_value}")
-            assert match == "GET:/items/{item_id}"
+            matches = step._collect_endpoint_matches(
+                HTTPMethod.GET, f"/items/{path_value}"
+            )
+            assert len(matches) == 1
+            m = matches[0]
+            ep, params = m.endpoint, m.path_params
+            assert ep.get_endpoint_key() == "GET:/items/{item_id}"
             assert params == {"item_id": expected}
 
     def test_regex_does_not_match_across_slashes(self) -> None:
@@ -290,13 +376,15 @@ class TestPathTemplateRegex:
         assert len(step._endpoint_patterns) == 1
 
         # Should NOT match - extra path segment
-        match, params = step._match_endpoint(HTTPMethod.GET, "/api/v1/v2/users")
-        assert match is None
-        assert params == {}
+        matches = step._collect_endpoint_matches(HTTPMethod.GET, "/api/v1/v2/users")
+        assert matches == []
 
         # Should match - single segment
-        match, params = step._match_endpoint(HTTPMethod.GET, "/api/v1/users")
-        assert match == "GET:/api/{version}/users"
+        matches = step._collect_endpoint_matches(HTTPMethod.GET, "/api/v1/users")
+        assert len(matches) == 1
+        m = matches[0]
+        ep, params = m.endpoint, m.path_params
+        assert ep.get_endpoint_key() == "GET:/api/{version}/users"
         assert params == {"version": "v1"}
 
     def test_exact_match_preferred_over_template(self) -> None:
@@ -312,14 +400,20 @@ class TestPathTemplateRegex:
         step = _APIHandlerStep(config=config)
         assert len(step._endpoint_patterns) == 1  # Only /users/{user_id} has template
 
-        # /users/me should match exact endpoint, not template
-        match, params = step._match_endpoint(HTTPMethod.GET, "/users/me")
-        assert match == "GET:/users/me"
+        # /users/me should match exact endpoint only, not template
+        matches = step._collect_endpoint_matches(HTTPMethod.GET, "/users/me")
+        assert len(matches) == 1
+        m = matches[0]
+        ep, params = m.endpoint, m.path_params
+        assert ep.get_endpoint_key() == "GET:/users/me"
         assert params == {}
 
-        # /users/123 should match template
-        match, params = step._match_endpoint(HTTPMethod.GET, "/users/123")
-        assert match == "GET:/users/{user_id}"
+        # /users/123 should match template only
+        matches = step._collect_endpoint_matches(HTTPMethod.GET, "/users/123")
+        assert len(matches) == 1
+        m = matches[0]
+        ep, params = m.endpoint, m.path_params
+        assert ep.get_endpoint_key() == "GET:/users/{user_id}"
         assert params == {"user_id": "123"}
 
     def test_no_pattern_for_exact_endpoints(self) -> None:
@@ -356,12 +450,18 @@ class TestPathTemplateRegex:
         assert len(step._endpoint_patterns) == 1
 
         # Exact matches work
-        match, params = step._match_endpoint(HTTPMethod.GET, "/api/health")
-        assert match == "GET:/api/health"
+        matches = step._collect_endpoint_matches(HTTPMethod.GET, "/api/health")
+        assert len(matches) == 1
+        m = matches[0]
+        ep, params = m.endpoint, m.path_params
+        assert ep.get_endpoint_key() == "GET:/api/health"
 
         # Template matches work
-        match, params = step._match_endpoint(HTTPMethod.GET, "/api/users/42")
-        assert match == "GET:/api/users/{id}"
+        matches = step._collect_endpoint_matches(HTTPMethod.GET, "/api/users/42")
+        assert len(matches) == 1
+        m = matches[0]
+        ep, params = m.endpoint, m.path_params
+        assert ep.get_endpoint_key() == "GET:/api/users/{id}"
         assert params == {"id": "42"}
 
     def test_regex_anchor_prevents_partial_match(self) -> None:
@@ -373,7 +473,7 @@ class TestPathTemplateRegex:
 
         step = _APIHandlerStep(config=config)
         assert len(step._endpoint_patterns) == 1
-        _, pattern, _, _ = step._endpoint_patterns[0]
+        _, pattern, _ = step._endpoint_patterns[0]
 
         # Should not match - extra prefix
         assert pattern.match("/prefix/api/v1") is None
@@ -385,12 +485,7 @@ class TestPathTemplateRegex:
         assert pattern.match("/api/v1") is not None
 
     def test_check_method_allowed_with_templates(self) -> None:
-        """Test 405 vs 404 error distinction with path templates.
-
-        Note: For performance, we only check exact paths when distinguishing 405 vs 404.
-        Templated paths that don't match the request method will return 404, not 405.
-        This is a reasonable trade-off for better performance on the error path.
-        """
+        """Test 405 vs 404 error distinction with path templates."""
         config = APIHandlerConfig()
         config.add_endpoint_handler(
             "/items/{id}", HTTPMethod.POST, APIHandlerAction.ALLOW
@@ -402,9 +497,11 @@ class TestPathTemplateRegex:
         step = _APIHandlerStep(config=config)
         assert len(step._endpoint_patterns) == 2  # Two methods for same path template
 
-        # GET not allowed for templated path → 404 (simplified logic, exact paths only)
+        # GET not allowed for templated path → 405 (template matching used for 405 vs 404)
         event = MockEvent(method=HTTPMethod.GET, path="/items/123", body={})
-        with pytest.raises(mlrun.errors.MLRunNotFoundError, match="Endpoint not found"):
+        with pytest.raises(
+            mlrun.errors.MLRunMethodNotAllowedError, match="Method not allowed"
+        ):
             step.do(event)
 
         # POST is allowed → should succeed
@@ -413,20 +510,30 @@ class TestPathTemplateRegex:
         assert result is not None  # Should return event successfully
 
     def test_empty_path_parameter_name(self) -> None:
-        """Test that empty parameter names in templates are handled"""
+        """Test that empty braces in a path are treated as a literal, not a template.
+
+        "/api/{}" contains "{}" but the substitution regex requires at least one
+        character inside the braces, so it is left as a literal escaped pattern.
+        It therefore compiles fine and only matches the exact string "/api/{}".
+        """
         config = APIHandlerConfig()
-        # This is malformed, but we handle it gracefully
-        config._endpoints["GET:/api/{}"] = {
-            _APIEndpointKeys.ACTION: "allow",
-            _APIEndpointKeys.DESCRIPTION: "Malformed",
-        }
+        config.add_endpoint_handler("/api/{}", HTTPMethod.GET, APIHandlerAction.ALLOW)
 
         step = _APIHandlerStep(config=config)
+        # Treated as a template path (has "{"), so it goes through compile — one pattern built
         assert len(step._endpoint_patterns) == 1
 
-        # Should not crash, and pattern should not match
-        match, params = step._match_endpoint(HTTPMethod.GET, "/api/test")
-        # The regex compilation should handle this gracefully
+        # Does NOT match "/api/test" — only matches the literal "/api/{}"
+        matches = step._collect_endpoint_matches(HTTPMethod.GET, "/api/test")
+        assert matches == []
+
+        # Matches the literal path exactly
+        matches = step._collect_endpoint_matches(HTTPMethod.GET, "/api/{}")
+        assert len(matches) == 1
+        m = matches[0]
+        ep, params = m.endpoint, m.path_params
+        assert ep.get_endpoint_key() == "GET:/api/{}"
+        assert params == {}
 
 
 class TestStarPatternMatching:
@@ -442,32 +549,42 @@ class TestStarPatternMatching:
         assert len(step._endpoint_patterns) == 0
 
         # Should match paths under /api/
-        match, params = step._match_endpoint(HTTPMethod.GET, "/api/users")
-        assert match == "GET:/api/*"
+        matches = step._collect_endpoint_matches(HTTPMethod.GET, "/api/users")
+        assert len(matches) == 1
+        m = matches[0]
+        ep, params = m.endpoint, m.path_params
+        assert ep.get_endpoint_key() == "GET:/api/*"
         assert params == {}
 
-        match, params = step._match_endpoint(HTTPMethod.GET, "/api/items/123")
-        assert match == "GET:/api/*"
+        matches = step._collect_endpoint_matches(HTTPMethod.GET, "/api/items/123")
+        assert len(matches) == 1
+        m = matches[0]
+        ep, params = m.endpoint, m.path_params
+        assert ep.get_endpoint_key() == "GET:/api/*"
         assert params == {}
 
-        match, params = step._match_endpoint(HTTPMethod.GET, "/api/deeply/nested/path")
-        assert match == "GET:/api/*"
+        matches = step._collect_endpoint_matches(
+            HTTPMethod.GET, "/api/deeply/nested/path"
+        )
+        assert len(matches) == 1
+        m = matches[0]
+        ep, params = m.endpoint, m.path_params
+        assert ep.get_endpoint_key() == "GET:/api/*"
         assert params == {}
 
     def test_star_at_end_validation(self) -> None:
         """Test that * must be at the end of the path"""
         config = APIHandlerConfig()
-        # Manually insert invalid endpoint with * not at end
-        config._endpoints["GET:/api/*/users"] = {
-            _APIEndpointKeys.ACTION: "allow",
-            _APIEndpointKeys.DESCRIPTION: "Invalid star position",
-        }
-
         with pytest.raises(
             mlrun.errors.MLRunValueError,
             match="wildcard.*must be at the end",
         ):
-            _APIHandlerStep(config=config)
+            config.add_endpoint_handler(
+                "/api/*/users",
+                HTTPMethod.GET,
+                APIHandlerAction.ALLOW,
+                "Invalid star position",
+            )
 
     def test_star_patterns_not_in_endpoint_patterns(self) -> None:
         """Test that star patterns are stored separately from template patterns"""
@@ -491,14 +608,24 @@ class TestStarPatternMatching:
 
         step = _APIHandlerStep(config=config)
 
-        # Exact match should win
-        match, params = step._match_endpoint(HTTPMethod.GET, "/api/health")
-        assert match == "GET:/api/health"
+        # Exact match should be highest priority, star match also present
+        matches = step._collect_endpoint_matches(HTTPMethod.GET, "/api/health")
+        assert len(matches) == 2
+        m = matches[0]
+        ep, params = m.endpoint, m.path_params
+        assert ep.get_endpoint_key() == "GET:/api/health"
+        assert params == {}
+        m = matches[1]
+        ep, params = m.endpoint, m.path_params
+        assert ep.get_endpoint_key() == "GET:/api/*"
         assert params == {}
 
-        # Non-exact path should fall through to star
-        match, params = step._match_endpoint(HTTPMethod.GET, "/api/other")
-        assert match == "GET:/api/*"
+        # Non-exact path matches star only
+        matches = step._collect_endpoint_matches(HTTPMethod.GET, "/api/other")
+        assert len(matches) == 1
+        m = matches[0]
+        ep, params = m.endpoint, m.path_params
+        assert ep.get_endpoint_key() == "GET:/api/*"
         assert params == {}
 
     def test_precedence_template_over_star(self) -> None:
@@ -511,13 +638,24 @@ class TestStarPatternMatching:
 
         step = _APIHandlerStep(config=config)
 
-        # Template match should win over star match
-        match, params = step._match_endpoint(HTTPMethod.GET, "/api/users")
-        assert match == "GET:/api/{resource}"
+        # Template match is highest priority, star match also present
+        matches = step._collect_endpoint_matches(HTTPMethod.GET, "/api/users")
+        assert len(matches) == 2
+        m = matches[0]
+        ep, params = m.endpoint, m.path_params
+        assert ep.get_endpoint_key() == "GET:/api/{resource}"
         assert params == {"resource": "users"}
+        m = matches[1]
+        ep, params = m.endpoint, m.path_params
+        assert ep.get_endpoint_key() == "GET:/api/*"
+        assert params == {}
 
     def test_precedence_all_three_types(self) -> None:
-        """Test full precedence: exact > template > star"""
+        """Test full precedence: exact > template > star.
+
+        When an exact match is found, templates are skipped (siblings, not parents).
+        Star patterns are always collected — they are true parent scopes.
+        """
         config = APIHandlerConfig()
         # Add in reverse precedence order to ensure ordering is correct
         config.add_endpoint_handler("/api/*", HTTPMethod.GET, APIHandlerAction.FORBID)
@@ -530,19 +668,36 @@ class TestStarPatternMatching:
 
         step = _APIHandlerStep(config=config)
 
-        # Exact match wins
-        match, params = step._match_endpoint(HTTPMethod.GET, "/api/v2/users")
-        assert match == "GET:/api/v2/users"
+        # Exact match found → template skipped, star still collected
+        matches = step._collect_endpoint_matches(HTTPMethod.GET, "/api/v2/users")
+        assert len(matches) == 2
+        m = matches[0]
+        ep, params = m.endpoint, m.path_params
+        assert ep.get_endpoint_key() == "GET:/api/v2/users"
+        assert params == {}
+        m = matches[1]
+        ep, params = m.endpoint, m.path_params
+        assert ep.get_endpoint_key() == "GET:/api/*"
         assert params == {}
 
-        # Template match wins over star
-        match, params = step._match_endpoint(HTTPMethod.GET, "/api/v1/users")
-        assert match == "GET:/api/{version}/users"
+        # No exact match → template + star both collected
+        matches = step._collect_endpoint_matches(HTTPMethod.GET, "/api/v1/users")
+        assert len(matches) == 2
+        m = matches[0]
+        ep, params = m.endpoint, m.path_params
+        assert ep.get_endpoint_key() == "GET:/api/{version}/users"
         assert params == {"version": "v1"}
+        m = matches[1]
+        ep, params = m.endpoint, m.path_params
+        assert ep.get_endpoint_key() == "GET:/api/*"
+        assert params == {}
 
-        # Star match for paths not covered by exact/template
-        match, params = step._match_endpoint(HTTPMethod.GET, "/api/v1/items")
-        assert match == "GET:/api/*"
+        # No exact, no template match → star only
+        matches = step._collect_endpoint_matches(HTTPMethod.GET, "/api/v1/items")
+        assert len(matches) == 1
+        m = matches[0]
+        ep, params = m.endpoint, m.path_params
+        assert ep.get_endpoint_key() == "GET:/api/*"
         assert params == {}
 
     def test_star_insertion_order(self) -> None:
@@ -555,14 +710,24 @@ class TestStarPatternMatching:
         step = _APIHandlerStep(config=config)
         assert len(step._star_patterns) == 2
 
-        # /api/v1/ prefix added first, should match first
-        match, params = step._match_endpoint(HTTPMethod.GET, "/api/v1/users")
-        assert match == "GET:/api/v1/*"
+        # More specific star matches first, less specific also present
+        matches = step._collect_endpoint_matches(HTTPMethod.GET, "/api/v1/users")
+        assert len(matches) == 2
+        m = matches[0]
+        ep, params = m.endpoint, m.path_params
+        assert ep.get_endpoint_key() == "GET:/api/v1/*"
+        assert params == {}
+        m = matches[1]
+        ep, params = m.endpoint, m.path_params
+        assert ep.get_endpoint_key() == "GET:/api/*"
         assert params == {}
 
-        # /api/other should fall through to second star pattern
-        match, params = step._match_endpoint(HTTPMethod.GET, "/api/v2/users")
-        assert match == "GET:/api/*"
+        # Only the less specific star matches
+        matches = step._collect_endpoint_matches(HTTPMethod.GET, "/api/v2/users")
+        assert len(matches) == 1
+        m = matches[0]
+        ep, params = m.endpoint, m.path_params
+        assert ep.get_endpoint_key() == "GET:/api/*"
         assert params == {}
 
     def test_star_method_isolation(self) -> None:
@@ -573,13 +738,16 @@ class TestStarPatternMatching:
         step = _APIHandlerStep(config=config)
 
         # GET should match
-        match, params = step._match_endpoint(HTTPMethod.GET, "/api/users")
-        assert match == "GET:/api/*"
+        matches = step._collect_endpoint_matches(HTTPMethod.GET, "/api/users")
+        assert len(matches) == 1
+        m = matches[0]
+        ep, params = m.endpoint, m.path_params
+        assert ep.get_endpoint_key() == "GET:/api/*"
+        assert params == {}
 
         # POST should not match GET star pattern
-        match, params = step._match_endpoint(HTTPMethod.POST, "/api/users")
-        assert match is None
-        assert params == {}
+        matches = step._collect_endpoint_matches(HTTPMethod.POST, "/api/users")
+        assert matches == []
 
     def test_star_no_match_outside_prefix(self) -> None:
         """Test that star patterns only match paths under their prefix"""
@@ -589,14 +757,12 @@ class TestStarPatternMatching:
         step = _APIHandlerStep(config=config)
 
         # Path not under /api/ should not match
-        match, params = step._match_endpoint(HTTPMethod.GET, "/other/path")
-        assert match is None
-        assert params == {}
+        matches = step._collect_endpoint_matches(HTTPMethod.GET, "/other/path")
+        assert matches == []
 
         # /apiv2 should not match /api/*
-        match, params = step._match_endpoint(HTTPMethod.GET, "/apiv2/users")
-        assert match is None
-        assert params == {}
+        matches = step._collect_endpoint_matches(HTTPMethod.GET, "/apiv2/users")
+        assert matches == []
 
     def test_star_prefix_slash_handling(self) -> None:
         """Test that star patterns: /api/* matches /api/something"""
@@ -607,18 +773,20 @@ class TestStarPatternMatching:
 
         # Verify prefix is correct
         assert len(step._star_patterns) == 1
-        star_method, prefix, star_key, _ = step._star_patterns[0]
+        star_method, prefix, star_ep = step._star_patterns[0]
         assert star_method == HTTPMethod.GET
         assert prefix == "/api/"  # Prefix should have trailing slash
 
         # /api alone should NOT match (it's the exact prefix, not under it)
-        match, params = step._match_endpoint(HTTPMethod.GET, "/api")
-        assert match is None
-        assert params == {}
+        matches = step._collect_endpoint_matches(HTTPMethod.GET, "/api")
+        assert matches == []
 
         # /api/anything should match
-        match, params = step._match_endpoint(HTTPMethod.GET, "/api/something")
-        assert match == "GET:/api/*"
+        matches = step._collect_endpoint_matches(HTTPMethod.GET, "/api/something")
+        assert len(matches) == 1
+        m = matches[0]
+        ep, params = m.endpoint, m.path_params
+        assert ep.get_endpoint_key() == "GET:/api/*"
         assert params == {}
 
     def test_star_with_allow_action(self) -> None:
@@ -641,27 +809,6 @@ class TestStarPatternMatching:
         with pytest.raises(mlrun.errors.MLRunAccessDeniedError):
             step.do(event)
 
-    def test_template_insertion_order(self) -> None:
-        """Within template patterns, the first registered pattern wins when multiple templates match."""
-        config = APIHandlerConfig()
-        # /api/{a}/resource is registered first
-        config.add_endpoint_handler(
-            "/api/{a}/resource", HTTPMethod.GET, APIHandlerAction.ALLOW
-        )
-        # Inject a second overlapping template with a different param name directly (same key structure)
-        config._endpoints["GET:/api/{b}/resource"] = {
-            _APIEndpointKeys.ACTION: "allow",
-            _APIEndpointKeys.DESCRIPTION: None,
-        }
-
-        step = _APIHandlerStep(config=config)
-        assert len(step._endpoint_patterns) == 2
-
-        # First-inserted template should win — params carry its name
-        match, params = step._match_endpoint(HTTPMethod.GET, "/api/foo/resource")
-        assert match == "GET:/api/{a}/resource"
-        assert params == {"a": "foo"}
-
     def test_multiple_star_patterns_different_methods(self) -> None:
         """Test multiple star patterns with different HTTP methods"""
         config = APIHandlerConfig()
@@ -672,43 +819,51 @@ class TestStarPatternMatching:
         assert len(step._star_patterns) == 2
 
         # GET /read should match /read/*
-        match, params = step._match_endpoint(HTTPMethod.GET, "/read/something")
-        assert match == "GET:/read/*"
+        matches = step._collect_endpoint_matches(HTTPMethod.GET, "/read/something")
+        assert len(matches) == 1
+        m = matches[0]
+        ep, params = m.endpoint, m.path_params
+        assert ep.get_endpoint_key() == "GET:/read/*"
 
         # POST /write should match /write/*
-        match, params = step._match_endpoint(HTTPMethod.POST, "/write/something")
-        assert match == "POST:/write/*"
-
+        matches = step._collect_endpoint_matches(HTTPMethod.POST, "/write/something")
+        assert len(matches) == 1
+        m = matches[0]
+        ep, params = m.endpoint, m.path_params
+        assert ep.get_endpoint_key() == "POST:/write/*"
+        assert params == {}
         # GET /write should NOT match (wrong method)
-        match, params = step._match_endpoint(HTTPMethod.GET, "/write/something")
-        assert match is None
+        matches = step._collect_endpoint_matches(HTTPMethod.GET, "/write/something")
+        assert matches == []
 
 
 class TestIncludeUrlInfo:
-    """Tests for include_url_info parameter (ML-11658)
+    """Tests for include_url_info parameter (ML-11658, ML-12695)
 
     When include_url_info=True, the API handler injects 'mlrun_request_path'
-    (the normalized request path, without query string) into the RequestContext
-    that is forwarded to the next step.
+    (the normalized request path, without query string) and 'mlrun_request_method'
+    (the HTTP method string) into the RequestContext that is forwarded to the next
+    step. Both kwargs together let a dispatcher handler distinguish endpoints that
+    share a path template but differ by method (e.g. GET vs DELETE on /responses/{id}).
     """
 
     def test_include_url_info_default_false(self) -> None:
         """include_url_info should default to False"""
-        from mlrun.runtimes.nuclio.serving import APIHandlerConfig
+        from mlrun.serving.endpoint_mapping import APIHandlerConfig
 
         config = APIHandlerConfig()
         assert config.include_url_info is False
 
     def test_include_url_info_can_be_set_true(self) -> None:
         """include_url_info should be settable to True"""
-        from mlrun.runtimes.nuclio.serving import APIHandlerConfig
+        from mlrun.serving.endpoint_mapping import APIHandlerConfig
 
         config = APIHandlerConfig(include_url_info=True)
         assert config.include_url_info is True
 
     def test_include_url_info_in_dict_fields(self) -> None:
         """include_url_info must round-trip through APIHandlerConfig.to_dict/from_dict"""
-        from mlrun.runtimes.nuclio.serving import APIHandlerConfig
+        from mlrun.serving.endpoint_mapping import APIHandlerConfig
 
         config = APIHandlerConfig(include_url_info=True)
         config.add_endpoint_handler("/api/test", HTTPMethod.GET, APIHandlerAction.ALLOW)
@@ -720,7 +875,7 @@ class TestIncludeUrlInfo:
         assert config2.include_url_info is True
 
     def test_include_url_info_disabled_no_path_injected(self) -> None:
-        """When include_url_info=False, mlrun_request_path is NOT in the context"""
+        """When include_url_info=False, neither mlrun_request_path nor mlrun_request_method is injected"""
         config = APIHandlerConfig(include_url_info=False)
         config.add_endpoint_handler("/api/test", HTTPMethod.GET, APIHandlerAction.ALLOW)
         step = _APIHandlerStep(config=config)
@@ -732,7 +887,7 @@ class TestIncludeUrlInfo:
         assert result.body == "hello"
 
     def test_include_url_info_enabled_exact_path(self) -> None:
-        """When include_url_info=True the RequestContext contains mlrun_request_path"""
+        """When include_url_info=True the RequestContext contains mlrun_request_path and mlrun_request_method"""
         config = APIHandlerConfig(include_url_info=True)
         config.add_endpoint_handler("/api/test", HTTPMethod.GET, APIHandlerAction.ALLOW)
         step = _APIHandlerStep(config=config)
@@ -743,6 +898,7 @@ class TestIncludeUrlInfo:
         assert isinstance(result.body, _RequestContext)
         assert result.body.original_body == "hello"
         assert result.body["mlrun_request_path"] == "/api/test"
+        assert result.body["mlrun_request_method"] == "GET"
 
     def test_include_url_info_path_without_query_string(self) -> None:
         """mlrun_request_path must NOT include query string"""
@@ -761,6 +917,7 @@ class TestIncludeUrlInfo:
         assert result.body.original_body == "hello"
         # Path must be normalized (no query string)
         assert result.body["mlrun_request_path"] == "/api/items"
+        assert result.body["mlrun_request_method"] == "GET"
         # Query params are still extracted normally
         assert result.body["limit"] == "5"
         assert result.body["offset"] == "10"
@@ -782,6 +939,7 @@ class TestIncludeUrlInfo:
         assert result.body.original_body == "hello"
         # Actual request path, not the template pattern
         assert result.body["mlrun_request_path"] == "/api/users/abc-123"
+        assert result.body["mlrun_request_method"] == "GET"
         # Path param is also present
         assert result.body["user_id"] == "abc-123"
 
@@ -799,15 +957,19 @@ class TestIncludeUrlInfo:
         assert isinstance(result.body, _RequestContext)
         assert result.body.original_body == "hello"
         assert result.body["mlrun_request_path"] == "/api/deeply/nested/resource"
+        assert result.body["mlrun_request_method"] == "GET"
 
     def test_include_url_info_combined_with_existing_params(self) -> None:
         """mlrun_request_path is available alongside path, query, and body params"""
-        config = APIHandlerConfig(
-            include_url_info=True,
-            body_map={"question": "$.q"},
-        )
+        bm = BodyMappings()
+        bm.add_mapping("$.q", destination_path="question")
+
+        config = APIHandlerConfig(include_url_info=True)
         config.add_endpoint_handler(
-            "/api/{model_id}/ask", HTTPMethod.POST, APIHandlerAction.ALLOW
+            "/api/{model_id}/ask",
+            HTTPMethod.POST,
+            APIHandlerAction.ALLOW,
+            input_body_mappings=bm,
         )
         step = _APIHandlerStep(config=config)
 
@@ -821,44 +983,101 @@ class TestIncludeUrlInfo:
         assert isinstance(result.body, _RequestContext)
         assert result.body.original_body == {"q": "Hello world"}
         assert result.body["mlrun_request_path"] == "/api/gpt4/ask"
+        assert result.body["mlrun_request_method"] == "POST"
         assert result.body["model_id"] == "gpt4"
         assert result.body["lang"] == "en"
         assert result.body["question"] == "Hello world"
+
+    def test_include_url_info_dispatch_get_vs_delete_same_path(self) -> None:
+        """A dispatcher handler can distinguish GET vs DELETE on the same path template (ML-12695)."""
+        config = APIHandlerConfig(include_url_info=True)
+        config.add_endpoint_handler(
+            "/responses/{response_id}", HTTPMethod.GET, APIHandlerAction.ALLOW
+        )
+        config.add_endpoint_handler(
+            "/responses/{response_id}", HTTPMethod.DELETE, APIHandlerAction.ALLOW
+        )
+        step = _APIHandlerStep(config=config)
+
+        get_event = MockEvent(
+            method=HTTPMethod.GET, path="/responses/resp-123", body=None
+        )
+        delete_event = MockEvent(
+            method=HTTPMethod.DELETE, path="/responses/resp-123", body=None
+        )
+
+        get_result = step.do(get_event)
+        delete_result = step.do(delete_event)
+
+        assert isinstance(get_result.body, _RequestContext)
+        assert isinstance(delete_result.body, _RequestContext)
+        # Same path template — only the injected method distinguishes them
+        assert get_result.body["mlrun_request_path"] == "/responses/resp-123"
+        assert delete_result.body["mlrun_request_path"] == "/responses/resp-123"
+        assert get_result.body["mlrun_request_method"] == "GET"
+        assert delete_result.body["mlrun_request_method"] == "DELETE"
+        assert get_result.body["response_id"] == "resp-123"
+        assert delete_result.body["response_id"] == "resp-123"
+
+    def test_mlrun_request_path_url_decoded(self) -> None:
+        """mlrun_request_path must be URL-decoded (ML-12732)."""
+        config = APIHandlerConfig(include_url_info=True)
+        config.add_endpoint_handler(
+            "/responses/{response_id}", HTTPMethod.GET, APIHandlerAction.ALLOW
+        )
+        step = _APIHandlerStep(config=config)
+
+        event = MockEvent(
+            method=HTTPMethod.GET,
+            path="/responses/resp%20url%20encoded",
+            body=None,
+        )
+        result = step.do(event)
+
+        assert isinstance(result.body, _RequestContext)
+        assert result.body["mlrun_request_path"] == "/responses/resp url encoded"
+        # path_param kwarg is also decoded — keeps both surfaces consistent
+        assert result.body["response_id"] == "resp url encoded"
+
+    def test_mlrun_request_path_decoded_for_wildcard(self) -> None:
+        """mlrun_request_path is decoded on star endpoints — %2F becomes '/' (ML-12732)."""
+        config = APIHandlerConfig(include_url_info=True)
+        config.add_endpoint_handler(
+            "/responses/*", HTTPMethod.GET, APIHandlerAction.ALLOW
+        )
+        step = _APIHandlerStep(config=config)
+
+        event = MockEvent(method=HTTPMethod.GET, path="/responses/abc%2Fdef", body=None)
+        result = step.do(event)
+
+        assert isinstance(result.body, _RequestContext)
+        assert result.body["mlrun_request_path"] == "/responses/abc/def"
 
 
 class TestAPIHandlerMockServer:
     """Test API handler with mock server integration"""
 
     def test_api_handler_minimal(self) -> None:
-        """Test minimal API handler functionality"""
+        """Minimal e2e: set_api_handler_config auto-injects _APIHandlerStep, body passes through unchanged."""
         fn = cast(
             ServingRuntime, mlrun.new_function("test-api-minimal", kind="serving")
         )
 
-        # Set API handler config using the set_api_handler_config method
         config = APIHandlerConfig()
         config.add_endpoint_handler(
-            "/some/path",  # Use a more realistic path
-            HTTPMethod.GET,
-            APIHandlerAction.ALLOW,
-            "Health check",
+            "/some/path", HTTPMethod.GET, APIHandlerAction.ALLOW, "Health check"
         )
 
-        # Set the config on the function - this should automatically add _APIHandlerStep
+        # set_api_handler_config should automatically add _APIHandlerStep — no manual wiring needed
         fn.set_api_handler_config(config)
 
-        # Set topology but don't manually add _APIHandlerStep - it should be automatic
         graph = fn.set_topology("flow", engine="sync")
-        # Add a responder step since we removed the respond() from the API handler
         graph.to(name="echo", handler="(event)").respond()
 
         server = fn.to_mock_server()
         try:
-            resp = server.test(
-                "/some/path",
-                method="GET",
-                body="ping",
-            )
+            # No input_body_mappings configured → body passed through as-is
+            resp = server.test("/some/path", method="GET", body="ping")
             assert resp == "ping"
         finally:
             server.wait_for_completion()
@@ -953,11 +1172,11 @@ class TestAPIHandlerMockServer:
             server.wait_for_completion()
 
     def test_api_handler_body_map_with_path_query(self) -> None:
-        """Test combining body_map, path params, and query params"""
+        """Test combining input_body_mappings, path params, and query params"""
 
         def handler(body, **kwargs):
             return {
-                "model": kwargs.get("model"),  # from body_map
+                "model": kwargs.get("model"),  # from input_body_mappings
                 "version": kwargs.get("version"),  # from path
                 "format": kwargs.get("format"),  # from query
             }
@@ -967,12 +1186,15 @@ class TestAPIHandlerMockServer:
             mlrun.new_function("test-all-param-sources", kind="serving"),
         )
 
+        bm = BodyMappings()
+        bm.add_mapping("$.model_name", destination_path="model")
+
         config = APIHandlerConfig()
-        config.add_body_mapping("model", "$.model_name")
         config.add_endpoint_handler(
             "/predict/{version}",
             HTTPMethod.POST,
             APIHandlerAction.ALLOW,
+            input_body_mappings=bm,
         )
         fn.set_api_handler_config(config)
 
@@ -995,7 +1217,7 @@ class TestAPIHandlerMockServer:
             server.wait_for_completion()
 
     def test_api_handler_url_encoded_path_params(self) -> None:
-        """Test that URL-encoded path parameters are properly decoded"""
+        """URL-encoded path parameters are decoded, and 405 errors show the decoded path (ML-12732)."""
 
         def handler(body, **kwargs):
             return {"filename": kwargs.get("filename")}
@@ -1024,6 +1246,50 @@ class TestAPIHandlerMockServer:
                 body={},
             )
             assert response == {"filename": "my document.pdf"}
+
+            # Wrong method on the same encoded path → 405 with the decoded path in the message.
+            error_response = server.test(
+                "/files/my%20document.pdf",
+                method="POST",
+                body={},
+                silent=True,
+            )
+            assert error_response.status_code == 405
+            assert "/files/my document.pdf" in error_response.body
+            assert "%20" not in error_response.body
+        finally:
+            server.wait_for_completion()
+
+    def test_dispatcher_pattern_url_encoded(self) -> None:
+        """Dispatcher that parses mlrun_request_path receives the decoded form (ML-12732)."""
+
+        def dispatcher(body, mlrun_request_path, mlrun_request_method, **kwargs):
+            # Mirrors the OpenAI router pattern — extract the id from the path itself
+            response_id = mlrun_request_path.removeprefix("/responses/")
+            return {"id": response_id, "method": mlrun_request_method}
+
+        fn = cast(
+            ServingRuntime,
+            mlrun.new_function("test-dispatcher-url-encoded", kind="serving"),
+        )
+
+        config = APIHandlerConfig(include_url_info=True)
+        config.add_endpoint_handler(
+            "/responses/{response_id}", HTTPMethod.GET, APIHandlerAction.ALLOW
+        )
+        fn.set_api_handler_config(config)
+
+        graph = fn.set_topology("flow", engine="sync")
+        graph.to(name="router", handler=dispatcher).respond()
+
+        server = fn.to_mock_server()
+        try:
+            response = server.test(
+                "/responses/resp%20url%20encoded",
+                method="GET",
+                body=None,
+            )
+            assert response == {"id": "resp url encoded", "method": "GET"}
         finally:
             server.wait_for_completion()
 
@@ -1069,7 +1335,7 @@ class TestAPIHandlerMockServer:
             server.wait_for_completion()
 
     def test_api_handler_body_map_path_conflict_at_init(self) -> None:
-        """Test that body_map vs path template conflicts are caught at init time"""
+        """Test that body_mappings destination_path vs path template conflicts are caught at init time"""
 
         def handler(**kwargs):
             return {"id": kwargs.get("id")}
@@ -1079,12 +1345,17 @@ class TestAPIHandlerMockServer:
             mlrun.new_function("test-param-conflict", kind="serving"),
         )
 
+        bm = BodyMappings()
+        bm.add_mapping(
+            "$.identifier", destination_path="id"
+        )  # destination_path="id" conflicts
+
         config = APIHandlerConfig()
-        config.add_body_mapping("id", "$.identifier")  # body_map extracts 'id'
         config.add_endpoint_handler(
             "/items/{id}",  # path also has 'id'
             HTTPMethod.POST,
             APIHandlerAction.ALLOW,
+            input_body_mappings=bm,
         )
         fn.set_api_handler_config(config)
 
@@ -1094,7 +1365,7 @@ class TestAPIHandlerMockServer:
         # Conflict should be raised at mock server init, not at request time
         with pytest.raises(
             mlrun.errors.MLRunValueError,
-            match="Configuration conflict.*body_map parameter.*id.*overlap with path template",
+            match="Configuration conflict.*input_body_mappings destination_path.*id.*overlap with path template",
         ):
             fn.to_mock_server()
 
@@ -1135,6 +1406,117 @@ class TestAPIHandlerMockServer:
                 )
         finally:
             server.wait_for_completion()
+
+    @pytest.mark.parametrize(
+        "bm_location",
+        [
+            pytest.param("star", id="bm_on_star_inherited"),
+            pytest.param("specific", id="bm_on_specific_endpoint"),
+        ],
+    )
+    def test_api_handler_body_param_conflicts_with_query_param(
+        self, bm_location: str
+    ) -> None:
+        """body_map destination 'limit' clashes with query param ?limit → 400.
+
+        The mapping is placed either on the star endpoint (inherited) or directly on
+        the specific endpoint — both must raise a conflict at request time.
+        """
+        conflict_bm = BodyMappings()
+        conflict_bm.add_mapping("$.batch_size", destination_path="limit")
+
+        non_conflict_bm = BodyMappings()
+        non_conflict_bm.add_mapping("$.model_name", destination_path="model")
+
+        config = APIHandlerConfig()
+        config.add_endpoint_handler(
+            "/v1/*",
+            HTTPMethod.POST,
+            APIHandlerAction.ALLOW,
+            input_body_mappings=conflict_bm
+            if bm_location == "star"
+            else non_conflict_bm,
+        )
+        config.add_endpoint_handler(
+            "/v1/predict",
+            HTTPMethod.POST,
+            APIHandlerAction.ALLOW,
+            input_body_mappings=conflict_bm
+            if bm_location == "specific"
+            else non_conflict_bm,
+        )
+
+        fn = cast(
+            ServingRuntime,
+            mlrun.new_function("test-body-map-query-conflict", kind="serving"),
+        )
+        fn.set_api_handler_config(config)
+        graph = fn.set_topology("flow", engine="sync")
+        graph.to(name="echo", handler="(event)").respond()
+
+        server = fn.to_mock_server()
+        try:
+            with pytest.raises(RuntimeError, match="400.*Parameter name conflict"):
+                server.test(
+                    "/v1/predict?limit=10",
+                    method="POST",
+                    body={"batch_size": 32, "model_name": "my-model"},
+                )
+        finally:
+            server.wait_for_completion()
+
+    @pytest.mark.parametrize(
+        "bm_location",
+        [
+            pytest.param("star", id="bm_on_star_inherited"),
+            pytest.param("specific", id="bm_on_specific_endpoint"),
+        ],
+    )
+    def test_api_handler_body_param_conflicts_with_path_param(
+        self, bm_location: str
+    ) -> None:
+        """body_map destination 'model' clashes with path param {model} → MLRunValueError at init.
+
+        The mapping is placed either on the star endpoint (inherited) or directly on
+        the specific endpoint — both must raise a conflict at config time.
+        """
+        conflict_bm = BodyMappings()
+        conflict_bm.add_mapping("$.batch_size", destination_path="model")
+
+        non_conflict_bm = BodyMappings()
+        non_conflict_bm.add_mapping("$.model_name", destination_path="name")
+
+        config = APIHandlerConfig()
+        config.add_endpoint_handler(
+            "/v1/*",
+            HTTPMethod.POST,
+            APIHandlerAction.ALLOW,
+            input_body_mappings=conflict_bm
+            if bm_location == "star"
+            else non_conflict_bm,
+        )
+        config.add_endpoint_handler(
+            "/v1/{model}/predict",
+            HTTPMethod.POST,
+            APIHandlerAction.ALLOW,
+            input_body_mappings=conflict_bm
+            if bm_location == "specific"
+            else non_conflict_bm,
+        )
+
+        fn = cast(
+            ServingRuntime,
+            mlrun.new_function("test-body-map-path-conflict", kind="serving"),
+        )
+        fn.set_api_handler_config(config)
+        graph = fn.set_topology("flow", engine="sync")
+        graph.to(name="echo", handler="(event)").respond()
+
+        with pytest.raises(
+            mlrun.errors.MLRunValueError,
+            match="Configuration conflict.*model.*overlap with path template",
+        ):
+            fn.to_mock_server()
 
     def test_api_handler_repeated_query_params(self) -> None:
         """Test that repeated query parameters are passed as lists"""
@@ -1236,6 +1618,64 @@ class TestAPIHandlerMockServer:
         finally:
             server.wait_for_completion()
 
+    @pytest.mark.parametrize("with_body_mapping", [False, True], ids=["no-bm", "bm"])
+    def test_include_url_info_delivers_body_to_handler(
+        self, with_body_mapping: bool
+    ) -> None:
+        """ML-12647: with ``include_url_info=True`` the original body must reach
+        the handler — both with and without body_mapping. URL info and mapped
+        fields are additive kwargs, not a replacement for the positional body.
+        """
+        received: dict = {}
+
+        def chat_handler(
+            event=None,
+            mlrun_request_path=None,
+            mlrun_request_method=None,
+            model_name=None,
+            **kwargs,
+        ):
+            received["event"] = event
+            received["mlrun_request_path"] = mlrun_request_path
+            received["mlrun_request_method"] = mlrun_request_method
+            received["model_name"] = model_name
+            return "ok"
+
+        fn = cast(
+            ServingRuntime,
+            mlrun.new_function("test-include-url-info-body", kind="serving"),
+        )
+
+        config = APIHandlerConfig(include_url_info=True)
+        bm = None
+        if with_body_mapping:
+            bm = BodyMappings()
+            bm.add_mapping("$.model", destination_path="model_name")
+        config.add_endpoint_handler(
+            "/v1/chat/completions",
+            HTTPMethod.POST,
+            APIHandlerAction.ALLOW,
+            input_body_mappings=bm,
+        )
+        fn.set_api_handler_config(config)
+
+        graph = fn.set_topology("flow", engine="sync")
+        graph.to(name="chat", handler=chat_handler).respond()
+
+        body = {"model": "my-llm", "messages": [{"role": "user", "content": "Hello"}]}
+
+        server = fn.to_mock_server()
+        try:
+            server.test("/v1/chat/completions", method="POST", body=body)
+        finally:
+            server.wait_for_completion()
+
+        assert received["event"] == body
+        assert received["mlrun_request_path"] == "/v1/chat/completions"
+        assert received["mlrun_request_method"] == "POST"
+        if with_body_mapping:
+            assert received["model_name"] == "my-llm"
+
 
 class TestAPIHandlerConfig:
     """Direct tests for APIHandlerConfig class"""
@@ -1248,13 +1688,10 @@ class TestAPIHandlerConfig:
 
     def test_init_with_parameters(self) -> None:
         """Test APIHandlerConfig initialization with parameters"""
-        endpoints = {
-            "GET:/health": {
-                _APIEndpointKeys.ACTION: "allow",
-                _APIEndpointKeys.DESCRIPTION: "Health",
-            }
-        }
-        config = APIHandlerConfig(enabled=False, endpoints=endpoints)
+        config = APIHandlerConfig(enabled=False)
+        config.add_endpoint_handler(
+            "/health", HTTPMethod.GET, APIHandlerAction.ALLOW, "Health"
+        )
         assert config.enabled is False
         assert "GET:/health" in config.endpoints
 
@@ -1267,8 +1704,8 @@ class TestAPIHandlerConfig:
 
         endpoint_config = config.get_endpoint_config(HTTPMethod.POST, "/api/predict")
         assert endpoint_config is not None
-        assert endpoint_config[_APIEndpointKeys.ACTION] == "allow"
-        assert endpoint_config[_APIEndpointKeys.DESCRIPTION] == "Prediction"
+        assert endpoint_config.action == APIHandlerAction.ALLOW
+        assert endpoint_config.description == "Prediction"
 
     def test_add_multiple_endpoints(self) -> None:
         """Test adding multiple endpoint handlers"""
@@ -1396,59 +1833,114 @@ class TestAPIHandlerConfig:
     def test_endpoints_property_setter(self) -> None:
         """Test setting endpoints via property"""
         config = APIHandlerConfig()
-        endpoints = {
-            "POST:/predict": {
-                _APIEndpointKeys.ACTION: "allow",
-                _APIEndpointKeys.DESCRIPTION: "Predict",
-            },
-            "GET:/health": {
-                _APIEndpointKeys.ACTION: "allow",
-                _APIEndpointKeys.DESCRIPTION: "Health",
-            },
-        }
-        config.endpoints = endpoints
+        config.add_endpoint_handler(
+            "/predict", HTTPMethod.POST, APIHandlerAction.ALLOW, "Predict"
+        )
+        config.add_endpoint_handler(
+            "/health", HTTPMethod.GET, APIHandlerAction.ALLOW, "Health"
+        )
 
         assert len(config.endpoints) == 2
         assert config.get_endpoint_config(HTTPMethod.POST, "/predict") is not None
         assert config.get_endpoint_config(HTTPMethod.GET, "/health") is not None
 
-    def test_parse_endpoint_key(self) -> None:
-        """Test parsing endpoint keys"""
-        config = APIHandlerConfig()
-        method, path = config._parse_endpoint_key("GET:/api/test")
-        assert method == HTTPMethod.GET
-        assert path == "/api/test"
-
-    def test_parse_endpoint_key_invalid(self) -> None:
-        """Test parsing invalid endpoint key"""
-        config = APIHandlerConfig()
-        with pytest.raises(ValueError, match="Invalid endpoint key format"):
-            config._parse_endpoint_key("invalid-format")
-
     def test_to_dict(self) -> None:
-        """Test serialization to dictionary"""
+        """Test serialization to dictionary, including both input and output body mappings."""
+        input_bm = BodyMappings()
+        input_bm.add_mapping("$.model", destination_path="model", mandatory=True)
+
+        output_bm = BodyMappings()
+        output_bm.add_mapping("$.result", destination_path="output", mandatory=False)
+
         config = APIHandlerConfig()
-        config.add_endpoint_handler("/test", HTTPMethod.POST, APIHandlerAction.ALLOW)
+        config.add_endpoint_handler(
+            "/test",
+            HTTPMethod.POST,
+            APIHandlerAction.ALLOW,
+            input_body_mappings=input_bm,
+            output_body_mappings=output_bm,
+        )
 
         config_dict = config.to_dict()
         assert "enabled" in config_dict
         assert "endpoints" in config_dict
         assert config_dict["enabled"] is True
 
+        ep_dict = config_dict["endpoints"]["POST:/test"]
+        expected_input = {
+            "mappings": [
+                {
+                    "source_path": "$.model",
+                    "destination_path": "model",
+                    "mandatory": True,
+                }
+            ]
+        }
+        expected_output = {
+            "mappings": [
+                {
+                    "source_path": "$.result",
+                    "destination_path": "output",
+                    "mandatory": False,
+                }
+            ]
+        }
+        assert ep_dict["input_body_mappings"] == expected_input
+        assert ep_dict["output_body_mappings"] == expected_output
+
     def test_from_dict(self) -> None:
-        """Test deserialization from dictionary"""
+        """Test deserialization from dictionary, including both input and output body mappings."""
         data = {
             "enabled": True,
             "endpoints": {
                 "POST:/predict": {
-                    _APIEndpointKeys.ACTION: "allow",
-                    _APIEndpointKeys.DESCRIPTION: "Prediction",
+                    "action": "allow",
+                    "description": "Prediction",
+                    "path": "/predict",
+                    "http_method": "POST",
+                    "input_body_mappings": {
+                        "mappings": [
+                            {
+                                "source_path": "$.model",
+                                "destination_path": "model",
+                                "mandatory": True,
+                            }
+                        ]
+                    },
+                    "output_body_mappings": {
+                        "mappings": [
+                            {
+                                "source_path": "$.result",
+                                "destination_path": "output",
+                                "mandatory": True,
+                            }
+                        ]
+                    },
                 }
             },
         }
         config = APIHandlerConfig.from_dict(data)
         assert config.enabled is True
-        assert config.get_endpoint_config(HTTPMethod.POST, "/predict") is not None
+        ep = config.get_endpoint_config(HTTPMethod.POST, "/predict")
+        assert ep is not None
+        assert ep.action == APIHandlerAction.ALLOW
+        assert ep.description == "Prediction"
+        assert ep.input_body_mappings is not None
+        assert ep.input_body_mappings.mappings == [
+            {
+                "source_path": "$.model",
+                "destination_path": "model",
+                "mandatory": True,
+            }
+        ]
+        assert ep.output_body_mappings is not None
+        assert ep.output_body_mappings.mappings == [
+            {
+                "source_path": "$.result",
+                "destination_path": "output",
+                "mandatory": True,
+            }
+        ]
 
     def test_add_endpoint_handler_override_warning(
         self, caplog: pytest.LogCaptureFixture
@@ -1475,8 +1967,8 @@ class TestAPIHandlerConfig:
 
         # Verify the endpoint was updated
         endpoint_config = config.get_endpoint_config(HTTPMethod.POST, "/api/test")
-        assert endpoint_config[_APIEndpointKeys.ACTION] == "forbid"
-        assert endpoint_config[_APIEndpointKeys.DESCRIPTION] == "Second config"
+        assert endpoint_config.action == APIHandlerAction.FORBID
+        assert endpoint_config.description == "Second config"
 
     def test_add_endpoint_star_not_at_end_raises(self) -> None:
         """SDK rejects '*' that is not at the tail of the path at config time."""
@@ -1500,6 +1992,26 @@ class TestAPIHandlerConfig:
         config.add_endpoint_handler("/api/v1/*", HTTPMethod.GET, APIHandlerAction.ALLOW)
         assert config.get_endpoint_config(HTTPMethod.GET, "/api/v1/*") is not None
 
+    @pytest.mark.parametrize(
+        "old_format_ep",
+        [
+            {"action": "allow", "description": "missing both path and http_method"},
+            {"action": "allow", "http_method": "POST", "description": "missing path"},
+            {
+                "action": "allow",
+                "path": "/predict",
+                "description": "missing http_method",
+            },
+        ],
+    )
+    def test_old_format_raises_clear_error(self, old_format_ep: dict) -> None:
+        """Old APIHandlerConfig dict format (missing path or http_method) raises a clear migration error."""
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError,
+            match="old APIHandlerConfig format.*path.*http_method",
+        ):
+            APIHandlerConfig.from_dict({"endpoints": {"POST:/predict": old_format_ep}})
+
 
 class TestSetAPIHandlerConfig:
     """Tests for ServingRuntime.set_api_handler_config method"""
@@ -1512,8 +2024,10 @@ class TestSetAPIHandlerConfig:
             "enabled": True,
             "endpoints": {
                 "POST:/predict": {
-                    _APIEndpointKeys.ACTION: "allow",
-                    _APIEndpointKeys.DESCRIPTION: "Prediction",
+                    "action": "allow",
+                    "description": "Prediction",
+                    "path": "/predict",
+                    "http_method": "POST",
                 }
             },
         }
@@ -1560,43 +2074,11 @@ class TestEndpointKeyHelpers:
 
     def test_combine_serving_endpoint_key(self) -> None:
         """Test combining method and path into endpoint key"""
-        key = _combine_serving_endpoint_key(HTTPMethod.GET, "/api/test")
+        key = combine_serving_endpoint_key(HTTPMethod.GET, "/api/test")
         assert key == "GET:/api/test"
 
-        key = _combine_serving_endpoint_key(HTTPMethod.POST, "/predict")
+        key = combine_serving_endpoint_key(HTTPMethod.POST, "/predict")
         assert key == "POST:/predict"
-
-    def test_split_serving_endpoint_key(self) -> None:
-        """Test splitting endpoint key into method and path"""
-        method, path = _split_serving_endpoint_key("GET:/api/test")
-        assert method == HTTPMethod.GET
-        assert path == "/api/test"
-
-        method, path = _split_serving_endpoint_key("POST:/predict")
-        assert method == HTTPMethod.POST
-        assert path == "/predict"
-
-    def test_split_serving_endpoint_key_with_colon_in_path(self) -> None:
-        """Test splitting endpoint key when path contains colon"""
-        method, path = _split_serving_endpoint_key("GET:/api/test:123")
-        assert method == HTTPMethod.GET
-        assert path == "/api/test:123"
-
-    def test_split_serving_endpoint_key_invalid(self) -> None:
-        """Test splitting invalid endpoint key"""
-        with pytest.raises(ValueError):
-            _split_serving_endpoint_key("invalid-key-without-colon")
-
-    def test_roundtrip_combine_split(self) -> None:
-        """Test roundtrip conversion"""
-        original_method = HTTPMethod.PUT
-        original_path = "/api/v1/resource/123"
-
-        key = _combine_serving_endpoint_key(original_method, original_path)
-        method, path = _split_serving_endpoint_key(key)
-
-        assert method == original_method
-        assert path == original_path
 
 
 class TestAPIHandlerStep:
@@ -1617,8 +2099,10 @@ class TestAPIHandlerStep:
             "enabled": True,
             "endpoints": {
                 "POST:/predict": {
-                    _APIEndpointKeys.ACTION: "allow",
-                    _APIEndpointKeys.DESCRIPTION: "Predict",
+                    "action": "allow",
+                    "description": "Predict",
+                    "path": "/predict",
+                    "http_method": "POST",
                 }
             },
         }
@@ -1632,18 +2116,21 @@ class TestAPIHandlerStep:
         assert isinstance(step.config, APIHandlerConfig)
         assert step.config.endpoints == {}
 
-    def test_match_endpoint_exact(self) -> None:
+    def test_collect_matches_exact(self) -> None:
         """Test exact endpoint matching"""
         config = APIHandlerConfig()
         config.add_endpoint_handler("/api/test", HTTPMethod.GET, APIHandlerAction.ALLOW)
 
         step = _APIHandlerStep(config=config)
 
-        match, path_params = step._match_endpoint(HTTPMethod.GET, "/api/test")
-        assert match == "GET:/api/test"
+        matches = step._collect_endpoint_matches(HTTPMethod.GET, "/api/test")
+        assert len(matches) == 1
+        m = matches[0]
+        ep, path_params = m.endpoint, m.path_params
+        assert ep.get_endpoint_key() == "GET:/api/test"
         assert path_params == {}
 
-    def test_match_endpoint_path_template(self) -> None:
+    def test_collect_matches_path_template(self) -> None:
         """Test endpoint matching for path-template endpoints"""
         config = APIHandlerConfig()
         config.add_endpoint_handler(
@@ -1652,31 +2139,25 @@ class TestAPIHandlerStep:
 
         step = _APIHandlerStep(config=config)
 
-        match, path_params = step._match_endpoint(HTTPMethod.GET, "/api/items/abc-123")
-        assert match == "GET:/api/items/{item_id}"
+        matches = step._collect_endpoint_matches(HTTPMethod.GET, "/api/items/abc-123")
+        assert len(matches) == 1
+        m = matches[0]
+        ep, path_params = m.endpoint, m.path_params
+        assert ep.get_endpoint_key() == "GET:/api/items/{item_id}"
         assert path_params == {"item_id": "abc-123"}
 
-    def test_match_endpoint_no_match(self) -> None:
+    def test_collect_matches_no_match(self) -> None:
         """Test endpoint matching when no match found"""
         config = APIHandlerConfig()
         config.add_endpoint_handler("/api/test", HTTPMethod.GET, APIHandlerAction.ALLOW)
 
         step = _APIHandlerStep(config=config)
 
-        match, path_params = step._match_endpoint(HTTPMethod.POST, "/api/test")
-        assert match is None
-        assert path_params == {}
-
-        match, path_params = step._match_endpoint(HTTPMethod.GET, "/different/path")
-        assert match is None
-        assert path_params == {}
+        assert step._collect_endpoint_matches(HTTPMethod.POST, "/api/test") == []
+        assert step._collect_endpoint_matches(HTTPMethod.GET, "/different/path") == []
 
     def test_run_path_template_method_not_allowed(self) -> None:
-        """Test that wrong method on path-template endpoint returns 404.
-
-        Note: For performance, we only check exact paths when distinguishing 405 vs 404.
-        Templated paths that don't match the request method will return 404, not 405.
-        """
+        """Test that wrong method on a path-template endpoint returns 405, not 404."""
         config = APIHandlerConfig()
         config.add_endpoint_handler(
             "/api/resource/{resource_id}",
@@ -1687,7 +2168,9 @@ class TestAPIHandlerStep:
         step = _APIHandlerStep(config=config)
         event = MockEvent(body={"data": "test"}, method="GET", path="/api/resource/42")
 
-        with pytest.raises(mlrun.errors.MLRunNotFoundError, match="Endpoint not found"):
+        with pytest.raises(
+            mlrun.errors.MLRunMethodNotAllowedError, match="Method not allowed"
+        ):
             step.do(event)
 
     def test_run_allowed_endpoint(self) -> None:
@@ -1786,14 +2269,18 @@ class TestAPIHandlerStep:
             step.do(event)
 
     def test_run_body_map_with_missing_body(self) -> None:
-        """body_map is silently skipped when the request body is not a dict.
+        """input_body_mappings is silently skipped when the request body is not a dict.
 
-        Different endpoints share the same body_map config, so endpoints whose
-        body format is not a dict (e.g. a GET with no body) must not fail.
+        Endpoints whose body format is not a dict (e.g. a POST with no body)
+        must not fail even when input_body_mappings is configured.
         """
+        bm = BodyMappings()
+        bm.add_mapping("$.name", destination_path="user_name")
+
         config = APIHandlerConfig()
-        config.body_map = {"$.name": "user_name"}
-        config.add_endpoint_handler("/test", HTTPMethod.POST, APIHandlerAction.ALLOW)
+        config.add_endpoint_handler(
+            "/test", HTTPMethod.POST, APIHandlerAction.ALLOW, input_body_mappings=bm
+        )
 
         step = _APIHandlerStep(config=config)
         event = MockEvent(body=None, method="POST", path="/test")
@@ -1803,17 +2290,21 @@ class TestAPIHandlerStep:
         assert result.body is None
 
     def test_run_body_map_dict_body_no_fields_match(self) -> None:
-        """body_map is silently skipped when the dict body has no matching fields.
+        """input_body_mappings is silently skipped when the dict body has no matching fields.
 
-        When body_map is configured globally but a particular endpoint's body does
-        not contain the mapped fields, the original body must be passed through
-        unchanged (not dropped). This covers the multi-endpoint case where different
-        endpoints have different body schemas.
+        When input_body_mappings is configured but the request body does not contain
+        the mapped fields, the original body must be passed through unchanged (not
+        dropped), alongside any extracted path params.
         """
+        bm = BodyMappings()
+        bm.add_mapping("$.user_name", destination_path="name")
+
         config = APIHandlerConfig()
-        config.add_body_mapping("name", "$.user_name")
         config.add_endpoint_handler(
-            "/test/{item_id}", HTTPMethod.POST, APIHandlerAction.ALLOW
+            "/test/{item_id}",
+            HTTPMethod.POST,
+            APIHandlerAction.ALLOW,
+            input_body_mappings=bm,
         )
 
         step = _APIHandlerStep(config=config)
@@ -2117,10 +2608,10 @@ class TestExtractQueryParams:
 
 
 class TestCompileEndpointPatterns:
-    """Tests for _compile_endpoint_patterns method"""
+    """Tests for _compile_patterns method"""
 
-    def test_compile_endpoint_patterns_no_templates(self) -> None:
-        """Test that endpoints without templates are skipped"""
+    def test_no_templates_produces_empty_pattern_list(self) -> None:
+        """Exact endpoints are not compiled — no template patterns produced."""
         config = APIHandlerConfig()
         config.add_endpoint_handler(
             "/api/users", HTTPMethod.GET, APIHandlerAction.ALLOW
@@ -2130,11 +2621,11 @@ class TestCompileEndpointPatterns:
         )
 
         handler = _APIHandlerStep(config=config)
-        # Should have no patterns (no path templates)
         assert len(handler._endpoint_patterns) == 0
+        assert len(handler._star_patterns) == 0
 
-    def test_compile_endpoint_patterns_with_templates(self) -> None:
-        """Test compiling patterns for endpoints with templates"""
+    def test_template_endpoints_produce_compiled_patterns(self) -> None:
+        """Template endpoints are compiled to regex patterns with named groups."""
         config = APIHandlerConfig()
         config.add_endpoint_handler(
             "/api/users/{user_id}", HTTPMethod.GET, APIHandlerAction.ALLOW
@@ -2144,23 +2635,126 @@ class TestCompileEndpointPatterns:
         )
 
         handler = _APIHandlerStep(config=config)
-        # Should have 2 patterns
         assert len(handler._endpoint_patterns) == 2
 
-        # Verify patterns are compiled
-        for (
-            method,
-            pattern,
-            endpoint_key,
-            endpoint_config,
-        ) in handler._endpoint_patterns:
+        for method, pattern, ep in handler._endpoint_patterns:
             assert isinstance(pattern, type(re.compile("")))
-            assert method in [
-                HTTPMethod.GET,
-                HTTPMethod.POST,
-                HTTPMethod.PUT,
-                HTTPMethod.DELETE,
-            ]
+            assert method in (HTTPMethod.GET, HTTPMethod.POST)
+
+    def test_star_endpoints_produce_star_patterns(self) -> None:
+        """Star endpoints are stored as prefix strings, not compiled regex."""
+        config = APIHandlerConfig()
+        config.add_endpoint_handler(
+            "/api/v1/*", HTTPMethod.POST, APIHandlerAction.ALLOW
+        )
+
+        handler = _APIHandlerStep(config=config)
+        assert len(handler._star_patterns) == 1
+        assert len(handler._endpoint_patterns) == 0
+
+        method, prefix, ep = handler._star_patterns[0]
+        assert prefix == "/api/v1/"
+        assert method == HTTPMethod.POST
+
+    def test_overlapping_template_endpoints_raises(self) -> None:
+        """Two template endpoints that match the same set of paths raise at init time.
+
+        /a/{key} and /a/{user_id} both normalize to /a/{*} — ambiguous for any
+        request to /a/<value>, so the second registration must be rejected.
+        """
+        config = APIHandlerConfig()
+        config.add_endpoint_handler("/a/{key}", HTTPMethod.GET, APIHandlerAction.ALLOW)
+        config.add_endpoint_handler(
+            "/a/{user_id}", HTTPMethod.GET, APIHandlerAction.FORBID
+        )
+
+        with pytest.raises(
+            mlrun.errors.MLRunValueError,
+            match="Overlapping template endpoints.*GET.*/a/\\{user_id\\}.*and.*\\/a\\/\\{key\\}",
+        ):
+            _APIHandlerStep(config=config)
+
+    def test_overlapping_template_different_methods_allowed(self) -> None:
+        """Same template shape on different HTTP methods is not a conflict."""
+        config = APIHandlerConfig()
+        config.add_endpoint_handler("/a/{key}", HTTPMethod.GET, APIHandlerAction.ALLOW)
+        config.add_endpoint_handler(
+            "/a/{user_id}", HTTPMethod.POST, APIHandlerAction.ALLOW
+        )
+
+        # Should not raise — different methods cannot overlap
+        step = _APIHandlerStep(config=config)
+        assert len(step._endpoint_patterns) == 2
+
+    def test_same_endpoint_body_mappings_conflict_raises(self) -> None:
+        """input_body_mappings destination_path conflicting with the same endpoint's path param raises at init."""
+        bm = BodyMappings()
+        bm.add_mapping("$.id", destination_path="user_id")
+
+        config = APIHandlerConfig()
+        config.add_endpoint_handler(
+            "/api/{user_id}",
+            HTTPMethod.POST,
+            APIHandlerAction.ALLOW,
+            input_body_mappings=bm,
+        )
+
+        with pytest.raises(
+            mlrun.errors.MLRunValueError,
+            match="Configuration conflict.*user_id.*overlap with path template",
+        ):
+            _APIHandlerStep(config=config)
+
+    def test_star_endpoint_body_mappings_conflict_with_template_raises(self) -> None:
+        """Star endpoint input_body_mappings conflicting with a sub-template's path param raises at init."""
+        bm = BodyMappings()
+        bm.add_mapping("$.user_id", destination_path="user_id")
+
+        config = APIHandlerConfig()
+        config.add_endpoint_handler(
+            "/api/*", HTTPMethod.POST, APIHandlerAction.ALLOW, input_body_mappings=bm
+        )
+        config.add_endpoint_handler(
+            "/api/{user_id}/data", HTTPMethod.POST, APIHandlerAction.ALLOW
+        )
+
+        with pytest.raises(
+            mlrun.errors.MLRunValueError,
+            match="Configuration conflict.*user_id.*overlap with path template",
+        ):
+            _APIHandlerStep(config=config)
+
+    def test_no_conflict_different_methods(self) -> None:
+        """No conflict when input_body_mappings and template path param are on different HTTP methods."""
+        bm = BodyMappings()
+        bm.add_mapping("$.user_id", destination_path="user_id")
+
+        config = APIHandlerConfig()
+        config.add_endpoint_handler(
+            "/api/*", HTTPMethod.GET, APIHandlerAction.ALLOW, input_body_mappings=bm
+        )
+        config.add_endpoint_handler(
+            "/api/{user_id}/data", HTTPMethod.POST, APIHandlerAction.ALLOW
+        )
+
+        # No conflict — different methods, so no raise
+        _APIHandlerStep(config=config)
+
+    def test_no_conflict_non_overlapping_names(self) -> None:
+        """No conflict when destination_path names don't overlap with path param names."""
+        bm = BodyMappings()
+        bm.add_mapping("$.model", destination_path="model")
+
+        config = APIHandlerConfig()
+        config.add_endpoint_handler(
+            "/api/{user_id}",
+            HTTPMethod.POST,
+            APIHandlerAction.ALLOW,
+            input_body_mappings=bm,
+        )
+
+        # No conflict — "model" != "user_id"
+        _APIHandlerStep(config=config)
 
     def test_compile_endpoint_patterns_invalid_regex(self) -> None:
         """Test that invalid regex patterns raise error during initialization"""
@@ -2233,11 +2827,16 @@ class TestBodyMapMappedBodyUnpacking:
 
     @staticmethod
     def _make_body_map_serving_fn(engine: str) -> ServingRuntime:
+        bm = BodyMappings()
+        bm.add_mapping("$.text", destination_path="message")
+
         config = APIHandlerConfig()
         config.add_endpoint_handler(
-            "/stream/data", HTTPMethod.POST, APIHandlerAction.ALLOW
+            "/stream/data",
+            HTTPMethod.POST,
+            APIHandlerAction.ALLOW,
+            input_body_mappings=bm,
         )
-        config.add_body_mapping("message", "$.text")
 
         fn = mlrun.new_function("test-body-map", kind="serving")
         fn.set_api_handler_config(config)

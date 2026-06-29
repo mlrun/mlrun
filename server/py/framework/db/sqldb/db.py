@@ -18,6 +18,7 @@ import functools
 import hashlib
 import inspect
 import pathlib
+import pickle
 import re
 import typing
 import urllib.parse
@@ -545,6 +546,10 @@ class SQLDB(DBInterface):
         offset: int | None = None,
         limit: int | None = None,
     ) -> RunList:
+        # Empty list (user with no accessible projects) matches nothing, so skip the
+        # DB query. A missing project (None / "") applies no filter, so it's an error.
+        if isinstance(project, list) and not project:
+            return RunList()
         if not project:
             raise mlrun.errors.MLRunMissingProjectError()
         query = self._find_runs(session, uid, project, labels)
@@ -2547,6 +2552,10 @@ class SQLDB(DBInterface):
         since: datetime | None = None,
         until: datetime | None = None,
     ) -> list[dict]:
+        # Empty list (user with no accessible projects) matches nothing, so skip the
+        # DB query. A missing project (None / "") applies no filter, so it's an error.
+        if isinstance(project, list) and not project:
+            return []
         if not project:
             raise mlrun.errors.MLRunMissingProjectError()
         functions = []
@@ -3482,6 +3491,7 @@ class SQLDB(DBInterface):
         labels: list[str] | None = None,
         state: mlrun.common.schemas.ProjectState = None,
         names: list[str] | None = None,
+        updated_after: datetime | None = None,
     ) -> mlrun.common.schemas.ProjectsOutput:
 
         # if format is a custom selection, query only the requested columns
@@ -3507,6 +3517,8 @@ class SQLDB(DBInterface):
             query = self._add_labels_filter(session, query, Project, labels)
         if names is not None:
             query = query.filter(Project.name.in_(names))
+        if updated_after is not None:
+            query = query.filter(Project.updated_at >= updated_after)
 
         project_records = query.all()
         return mlrun.common.schemas.ProjectsOutput(
@@ -3731,6 +3743,9 @@ class SQLDB(DBInterface):
         dict[str, int],
         dict[str, int],
         dict[str, int],
+        dict[str, list[tuple[str, int]]],
+        dict[str, int],
+        dict[str, int],
     ]:
         results = await asyncio.gather(
             fastapi.concurrency.run_in_threadpool(
@@ -3762,6 +3777,18 @@ class SQLDB(DBInterface):
                 framework.db.session.run_function_with_new_db_session,
                 self._calculate_mep_counters,
             ),
+            fastapi.concurrency.run_in_threadpool(
+                framework.db.session.run_function_with_new_db_session,
+                self._calculate_functions_counters,
+            ),
+            fastapi.concurrency.run_in_threadpool(
+                framework.db.session.run_function_with_new_db_session,
+                self._calculate_alert_configs_counters,
+            ),
+            fastapi.concurrency.run_in_threadpool(
+                framework.db.session.run_function_with_new_db_session,
+                self._calculate_workflow_counters,
+            ),
         )
         (
             category_to_project_artifact_count,
@@ -3790,6 +3817,9 @@ class SQLDB(DBInterface):
                 project_to_real_time_mep_count,
                 project_to_batch_mep_count,
             ),
+            project_to_function_kind_counts,
+            project_to_alert_config_count,
+            project_to_workflow_count,
         ) = results
         # TODO: counters by artifact categories should be expanded to include all categories (currently only models
         #       and other)
@@ -3829,6 +3859,9 @@ class SQLDB(DBInterface):
             project_to_failed_mm_functions_count,
             project_to_real_time_mep_count,
             project_to_batch_mep_count,
+            project_to_function_kind_counts,
+            project_to_alert_config_count,
+            project_to_workflow_count,
         )
 
     @staticmethod
@@ -3844,16 +3877,77 @@ class SQLDB(DBInterface):
         return query
 
     @staticmethod
-    def _calculate_functions_counters(session) -> dict[str, int]:
-        functions_count_per_project = (
-            session.query(Function.project, func.count(distinct(Function.name)))
-            .group_by(Function.project)
+    def _calculate_functions_counters(
+        session,
+    ) -> dict[str, list[tuple[str, int]]]:
+        """Count distinct functions per project, grouped by kind.
+
+        Versions/tags are collapsed via ``COUNT(DISTINCT name)`` so each
+        logical function is counted once per kind it appears under. Backed by
+        the ``idx_function_project_kind`` index on ``(project, kind)``.
+
+        :param session: The active DB session.
+
+        :return: Mapping of project name to a list of ``(kind, count)`` pairs.
+        """
+        rows = (
+            session.query(
+                Function.project,
+                Function.kind,
+                func.count(distinct(Function.name)),
+            )
+            .group_by(Function.project, Function.kind)
             .all()
         )
-        project_to_function_count = {
-            result[0]: result[1] for result in functions_count_per_project
-        }
-        return project_to_function_count
+        project_to_kind_counts: dict[str, list[tuple[str, int]]] = (
+            collections.defaultdict(list)
+        )
+        for project, kind, count in rows:
+            project_to_kind_counts[project].append((kind, count))
+        return project_to_kind_counts
+
+    @staticmethod
+    def _calculate_alert_configs_counters(session) -> dict[str, int]:
+        """Count distinct alert configurations per project.
+
+        Backed by the leftmost-prefix of the ``_alert_configs_uc``
+        ``(project, name)`` unique constraint, which a B-tree planner can use
+        for the GROUP BY without an extra index.
+
+        :param session: The active DB session.
+
+        :return: Mapping of project name to alert-configuration count.
+        """
+        counts = (
+            session.query(AlertConfig.project, func.count(distinct(AlertConfig.name)))
+            .group_by(AlertConfig.project)
+            .all()
+        )
+        return {project: count for project, count in counts}
+
+    @staticmethod
+    def _calculate_workflow_counters(session) -> dict[str, int]:
+        """Count workflow definitions per project.
+
+        Workflows are not a top-level table — they live inside the pickled
+        ``Project._full_object`` blob under ``spec.workflows``. We fetch only
+        the two columns we need (avoiding full ORM materialization) and
+        unpickle each row's blob to read the workflows list length.
+
+        :param session: The active DB session.
+
+        :return: Mapping of project name to workflow-definition count.
+        """
+        project_to_workflow_count: dict[str, int] = {}
+        rows = session.query(Project.name, Project._full_object).all()
+        for project_name, full_object_blob in rows:
+            if not full_object_blob:
+                project_to_workflow_count[project_name] = 0
+                continue
+            full_object = pickle.loads(full_object_blob)
+            workflows = (full_object.get("spec") or {}).get("workflows") or []
+            project_to_workflow_count[project_name] = len(workflows)
+        return project_to_workflow_count
 
     @staticmethod
     def _calculate_schedules_counters(
@@ -3992,6 +4086,11 @@ class SQLDB(DBInterface):
     def _calculate_artifact_counters_by_category(
         session: Session,
     ) -> dict[str, dict[str, int]]:
+        # These are approximate project-resource counts, not a consistent read.
+        # On scaled systems artifacts_v2 can be large and high-churn, where a
+        # consistent-read snapshot stalls InnoDB purge and amplifies the scan
+        # into a multi-hour wedge. Read under READ UNCOMMITTED (no read-view).
+        session.connection(execution_options={"isolation_level": "READ UNCOMMITTED"})
         query = session.query(
             ArtifactV2.project, ArtifactV2.kind, func.count(distinct(ArtifactV2.key))
         ).group_by(ArtifactV2.project, ArtifactV2.kind)
@@ -4026,6 +4125,11 @@ class SQLDB(DBInterface):
             - A dictionary of recently failed or aborted runs (last 24h) per project.
             - A dictionary of currently running runs (non-terminal states) per project.
         """
+        # On scaled systems ``runs`` can be large and high-churn, where a
+        # consistent-read snapshot stalls InnoDB purge and slows the scan.
+        # Approximate counts, so read under READ UNCOMMITTED (set once; covers
+        # all queries below).
+        session.connection(execution_options={"isolation_level": "READ UNCOMMITTED"})
         running_runs_count_per_project = (
             session.query(Run.project, func.count())
             .filter(Run.iteration == 0)
@@ -6373,7 +6477,15 @@ class SQLDB(DBInterface):
     def _transform_project_record_to_schema(
         self, project_record: Project
     ) -> mlrun.common.schemas.ProjectOut:
-        return mlrun.common.schemas.ProjectOut(**project_record.full_object)
+        # Source state/op_id/phase/updated_at from the model columns to avoid drift with the pickled full_object.
+        # Inject before constructing the schema so pydantic validates and coerces (e.g. str → UUID for op_id).
+        full = project_record.full_object
+        status = full.setdefault("status", {})
+        status["state"] = project_record.state
+        status["op_id"] = project_record.op_id
+        status["phase"] = project_record.phase
+        status["updated_at"] = project_record.updated_at
+        return mlrun.common.schemas.ProjectOut(**full)
 
     def _transform_notification_record_to_spec_and_status(
         self,

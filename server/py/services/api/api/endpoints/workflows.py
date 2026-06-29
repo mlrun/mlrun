@@ -93,6 +93,13 @@ async def submit_workflow(
         auth_info=auth_info,
     )
 
+    # If the requesting user is the project owner, populate the OPA owner
+    # cache so the permission checks below short-circuit. This mitigates the
+    # OPA manifest propagation race on multi-pod deployments.
+    verifier = framework.utils.auth.verifier.AuthVerifier()
+    if verifier.is_project_owner(auth_info, project):
+        verifier.add_allowed_project_for_owner(project.metadata.name, auth_info)
+
     # check permission CREATE run
     await (
         framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(

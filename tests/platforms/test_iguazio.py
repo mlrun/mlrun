@@ -22,7 +22,7 @@ import mlrun
 import mlrun.errors
 from mlrun import mlconf
 from mlrun.platforms import add_or_refresh_credentials
-from mlrun.platforms.iguazio import min_iguazio_versions
+from mlrun.platforms.iguazio import is_iguazio_session, min_iguazio_versions
 from mlrun.utils import logger
 
 
@@ -97,6 +97,17 @@ def test_is_iguazio_session_cookie():
         is True
     )
     assert mlrun.platforms.is_iguazio_session_cookie("dummy") is False
+
+
+def test_is_iguazio_session():
+    # JWTs are bearer tokens, not Iguazio sessions.
+    jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJzdmMtYWNjdCJ9.ab-cd_ef"
+    assert is_iguazio_session(jwt) is False
+    # UUID-like control sessions/access keys are sessions.
+    assert is_iguazio_session("946b0749-5c40-4837-a4ac-341d295bfaf7") is True
+    # Too short or missing hyphen -> not a session.
+    assert is_iguazio_session("short") is False
+    assert is_iguazio_session("nohyphenbutquitelongvalue123") is False
 
 
 @pytest.mark.parametrize(

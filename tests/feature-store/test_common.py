@@ -12,6 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import pytest
+
+from mlrun.feature_store.api import norm_column_name
 from mlrun.feature_store.common import parse_feature_string
 
 
@@ -30,3 +33,18 @@ def test_parse_feature_string_with_alias():
     assert feature_set == "fset"
     assert feature == "feature"
     assert alias == "alias"
+
+
+# ML-12672
+@pytest.mark.parametrize(
+    ("raw_name", "expected"),
+    [
+        ("feat 1", "feat_1"),
+        ("b (C)", "b_C"),
+        ("Last   for df ", "Last___for_df_"),
+        ("class (0-4) ", "class_0-4_"),
+        ("already_ok", "already_ok"),
+    ],
+)
+def test_norm_column_name_special_chars(raw_name, expected):
+    assert norm_column_name(raw_name) == expected

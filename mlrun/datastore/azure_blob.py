@@ -13,17 +13,26 @@
 # limitations under the License.
 
 import contextlib
+import datetime
 import time
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import quote, urlparse
 
-from azure.storage.blob import BlobServiceClient
+from azure.storage.blob import (
+    BlobSasPermissions,
+    BlobServiceClient,
+    generate_blob_sas,
+)
 from azure.storage.blob._shared.base_client import parse_connection_str
 from fsspec.registry import get_filesystem_class
 
 import mlrun.errors
 
 from .base import DataStore, FileStats, make_datastore_schema_sanitizer
+
+# Validity window for read-only SAS URLs.
+_SAS_CLOCK_SKEW = datetime.timedelta(minutes=5)
+_SAS_TTL = datetime.timedelta(hours=2)
 
 # Azure blobs will be represented with the following URL: az://<container name>. The storage account is already
 # pointed to by the connection string, so the user is not expected to specify it in any way.
@@ -60,7 +69,10 @@ class AzureBlobStore(DataStore):
     ======================
     - Account Key (connection_string or storage_options)
     - SAS Token (connection_string or storage_options)
-    - OAuth/Azure AD (storage_options: client_id, client_secret, tenant_id)
+    - OAuth/Azure AD service principal (storage_options: client_id, client_secret, tenant_id)
+    - Workload / managed identity (client_id without client_secret, e.g. AZURE_CLIENT_ID injected by
+      the azure-workload-identity webhook): routed to DefaultAzureCredential, which exchanges the
+      federated token (AZURE_FEDERATED_TOKEN_FILE)
 
     Accepted env-var names (in priority order):
     - account_name / AZURE_STORAGE_ACCOUNT_NAME / AZURE_STORAGE_ACCOUNT
@@ -147,6 +159,17 @@ class AzureBlobStore(DataStore):
                                     res["container"] = path_parts[0]
                                     break
 
+            # Workload / managed identity: a client_id arrives (e.g. AZURE_CLIENT_ID injected by the
+            # azure-workload-identity webhook) with no client_secret. adlfs treats any client_id as
+            # an explicit service principal and builds ClientSecretCredential(client_secret=None),
+            # which raises. Drop the partial (client_id, tenant_id) and force anon=False so adlfs
+            # falls back to DefaultAzureCredential, which exchanges AZURE_FEDERATED_TOKEN_FILE.
+            # When a client_secret is present, keep the full triple (explicit service principal wins).
+            if res.get("client_id") and not res.get("client_secret"):
+                res["client_id"] = None
+                res["tenant_id"] = None
+                res["anon"] = False
+
             self._storage_options = self._sanitize_options(res)
         return self._storage_options
 
@@ -159,13 +182,22 @@ class AzureBlobStore(DataStore):
             raise ImportError("Azure adlfs not installed") from exc
 
         if not self._filesystem:
+            storage_options = self.storage_options
+            if not storage_options.get("connection_string") and not storage_options.get(
+                "account_name"
+            ):
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Azure Blob storage requires an account_name "
+                    "(or AZURE_STORAGE_ACCOUNT_NAME) or a connection_string, but neither "
+                    "was found."
+                )
             # in order to support az and wasbs kinds
             filesystem_class = get_filesystem_class(protocol=self.kind)
             self._filesystem = make_datastore_schema_sanitizer(
                 filesystem_class,
                 using_bucket=self.using_bucket,
                 blocksize=self.max_blocksize,
-                **self.storage_options,
+                **storage_options,
             )
         return self._filesystem
 
@@ -180,6 +212,73 @@ class AzureBlobStore(DataStore):
             self._do_connect()
         return self._service_client
 
+    def get_read_only_https_url(self, key, *, ttl=_SAS_TTL, clock_skew=_SAS_CLOCK_SKEW):
+        """Return an ``https://`` URL for ``key`` with a short-lived read-only SAS."""
+        st = self.storage_options
+        account_name = st.get("account_name")
+        account_key = st.get("account_key")
+        sas_token = st.get("sas_token")
+        if not (account_key or sas_token) and (
+            connection_string := st.get("connection_string")
+        ):
+            _, _, parsed = parse_connection_str(
+                connection_string, credential=None, service="blob"
+            )
+            if isinstance(parsed, str):
+                parsed = {"sas_token": parsed}
+            account_name = account_name or parsed.get("account_name")
+            account_key = account_key or parsed.get("account_key")
+            sas_token = sas_token or parsed.get("sas_token")
+
+        container = st.get("container")
+        blob_name = key.lstrip("/")
+        if not container or not blob_name:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"could not resolve Azure container/blob for key {key!r}"
+            )
+
+        # primary_hostname carries no SAS.
+        host = self.service_client.primary_hostname
+        if sas_token:
+            sas = sas_token.lstrip("?")
+        else:
+            now = datetime.datetime.now(datetime.UTC)
+            start, expiry = now - clock_skew, now + ttl
+            sas_kwargs = dict(
+                # Prefer resolved account name; host-label fallback can be wrong on custom domains.
+                account_name=account_name or host.split(".", 1)[0],
+                container_name=container,
+                blob_name=blob_name,
+                permission=BlobSasPermissions(read=True),
+                start=start,
+                expiry=expiry,
+            )
+            try:
+                if account_key:
+                    sas = generate_blob_sas(account_key=account_key, **sas_kwargs)
+                else:
+                    # AAD: service principal or managed/workload identity
+                    sas = generate_blob_sas(
+                        user_delegation_key=self.service_client.get_user_delegation_key(
+                            start, expiry
+                        ),
+                        **sas_kwargs,
+                    )
+            except Exception as exc:
+                # Only identity-auth failures should include this role hint.
+                hint = (
+                    ""
+                    if account_key
+                    else " (identity auth requires 'Storage Blob Delegator')"
+                )
+                raise mlrun.errors.MLRunRuntimeError(
+                    f"failed to create read-only Azure SAS for {blob_name!r}{hint}: "
+                    f"{mlrun.errors.err_to_str(exc)}"
+                ) from exc
+
+        # Encode blob path for URL (keep '/'); SAS is signed over raw blob name.
+        return f"https://{host}/{container}/{quote(blob_name, safe='/')}?{sas}"
+
     def _do_connect(self):
         """
 
@@ -188,7 +287,7 @@ class AzureBlobStore(DataStore):
         based on do_connect in AzureBlobFileSystem:
         https://github.com/fsspec/adlfs/blob/2023.9.0/adlfs/spec.py#L422
         """
-        from azure.identity import ClientSecretCredential
+        from azure.identity import ClientSecretCredential, DefaultAzureCredential
 
         storage_options = self.storage_options
         connection_string = storage_options.get("connection_string")
@@ -196,20 +295,23 @@ class AzureBlobStore(DataStore):
         account_key = storage_options.get("account_key")
         sas_token = storage_options.get("sas_token")
         client_id = storage_options.get("client_id")
+        client_secret = storage_options.get("client_secret")
         credential = storage_options.get("credential")
 
-        credential_from_client_id = None
-        if (
-            credential is None
-            and account_key is None
-            and sas_token is None
-            and client_id is not None
-        ):
-            credential_from_client_id = ClientSecretCredential(
-                tenant_id=storage_options.get("tenant_id"),
-                client_id=client_id,
-                client_secret=storage_options.get("client_secret"),
-            )
+        # Resolve an identity-based credential only when no connection-string / account-key / SAS /
+        # explicit credential is supplied. A service principal needs both client_id and
+        # client_secret; for workload / managed identity the storage_options property has already
+        # dropped the secret-less client_id and set anon=False, routing us to DefaultAzureCredential.
+        identity_credential = None
+        if credential is None and account_key is None and sas_token is None:
+            if client_id is not None and client_secret is not None:
+                identity_credential = ClientSecretCredential(
+                    tenant_id=storage_options.get("tenant_id"),
+                    client_id=client_id,
+                    client_secret=client_secret,
+                )
+            elif storage_options.get("anon") is False:
+                identity_credential = DefaultAzureCredential()
         try:
             if connection_string is not None:
                 self._service_client = BlobServiceClient.from_connection_string(
@@ -219,7 +321,7 @@ class AzureBlobStore(DataStore):
                 )
             elif client_name is not None:
                 account_url = f"https://{client_name}.blob.core.windows.net"
-                cred = credential_from_client_id or credential or account_key
+                cred = identity_credential or credential or account_key
                 if not cred and sas_token is not None:
                     if not sas_token.startswith("?"):
                         sas_token = f"?{sas_token}"
@@ -283,9 +385,13 @@ class AzureBlobStore(DataStore):
                 "Append mode not supported for Azure blob datastore"
             )
         remote_path = self._convert_key_to_remote_path(key)
-        data, mode = self._prepare_put_data(data, append)
-        with self.filesystem.open(remote_path, mode) as f:
-            f.write(data)
+        data, _ = self._prepare_put_data(data, append)
+        if isinstance(data, str):
+            data = data.encode("utf-8")
+        # Bound concurrency; adlfs default is unbounded -> buffers whole body (ML-12754).
+        self.filesystem.pipe_file(
+            remote_path, data, max_concurrency=self.max_concurrency
+        )
 
     def stat(self, key):
         remote_path = self._convert_key_to_remote_path(key)

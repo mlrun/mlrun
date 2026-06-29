@@ -62,8 +62,8 @@ kubeconfig*
 
 # Coverage reports
 *.coverage
-**/coverage_reports/*.xml
-**/coverage_reports/*.html
+**/coverage_reports/*
+!**/coverage_reports/.gitkeep
 
 # AI markdown files
 CLAUDE.md

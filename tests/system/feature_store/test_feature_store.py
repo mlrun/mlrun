@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
 import json
 import math
 import os
@@ -45,7 +46,7 @@ import mlrun.runtimes.mounts
 from mlrun.config import config
 from mlrun.data_types.data_types import InferOptions, ValueType
 from mlrun.datastore.datastore_profile import (
-    DatastoreProfileKafkaTarget,
+    DatastoreProfileKafkaStream,
     DatastoreProfileRedis,
     DatastoreProfileV3io,
     register_temporary_client_datastore_profile,
@@ -2606,7 +2607,7 @@ class TestFeatureStore(TestMLRunSystem):
         reason="mlrun.mlconf.redis.url is not set, skipping until testing against real redis",
     )
     @pytest.mark.parametrize(
-        "target_redis, ", ["", "redis://:aaa@localhost:6379", "ds://dsname"]
+        "target_redis", ["", "redis://:aaa@localhost:6379", "ds://dsname"]
     )
     def test_purge_redis(self, target_redis):
         key = "patient_id"
@@ -3242,6 +3243,18 @@ class TestFeatureStore(TestMLRunSystem):
 
     @TestMLRunSystem.skip_test_if_env_not_configured
     @pytest.mark.enterprise
+    def test_get_online_feature_service_close_within_running_loop(self):
+        # ML-12632: close() under a running loop must not raise a cross-loop error.
+        vector = self._generate_vector()
+
+        async def _run():
+            with vector.get_online_feature_service() as svc:
+                assert svc.get([{"name": "ab"}])[0] == {"data": 10}
+
+        asyncio.run(_run())
+
+    @TestMLRunSystem.skip_test_if_env_not_configured
+    @pytest.mark.enterprise
     def test_allow_empty_vector(self):
         # test that we can pass an non materialized vector to function using special flag
         vector = fstore.FeatureVector("dummy-vec", [])
@@ -3535,8 +3548,8 @@ class TestFeatureStore(TestMLRunSystem):
         not kafka_brokers, reason="MLRUN_SYSTEM_TESTS_KAFKA_BROKERS must be set"
     )
     def test_kafka_target_datastore_profile(self, kafka_consumer):
-        profile = DatastoreProfileKafkaTarget(
-            name="dskafkatarget", brokers=kafka_brokers, topic=kafka_topic
+        profile = DatastoreProfileKafkaStream(
+            name="dskafkatarget", brokers=kafka_brokers, topics=[kafka_topic]
         )
         register_temporary_client_datastore_profile(profile)
 

@@ -2,6 +2,7 @@
 # Change log
 
 The change log lists updates per version, open issues, limitations, and deprecations.
+- [v1.12.0](#v1120)
 - [v1.11.0](#v1110)
 - [v1.10.3](#v1103) | [v1.10.2](#v1102) | [v1.10.1](#v1101) | [v1.10.0](#v1100)
 - [v1.9.2](#v192) | [v1.9.1](#v191) | [v1.9.0](#v190)
@@ -24,6 +25,15 @@ Upgrading these three MLRun dependencies spans several releases.  The upgrades a
 - Pydantic: from version 1 to 2.
 
 See a full description of KFP, Python, and the workflow engines in {ref}`local-remote`. Specific changes are listed under the relevant versions.
+(v1120)=
+## v1.12.0
+
+(1.12.0-breaking)=
+### Breaking Changes
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-12819|`v3io-frames` is now optional. Standard `pip install mlrun` installs no longer include it. If you use v3io Frames or v3io TSDB model monitoring, install `mlrun[v3io-frames]`. The dependency is still included in `mlrun[all]`, `mlrun[complete]`, and MLRun images.|
+
 (v1110)=
 ## v1.11.0 (May 2026)
 
@@ -51,7 +61,7 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 ### Model monitoring
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-9954|You can now generate an alert when lags in stream processing are detected in model monitoring writer/application pods. Lags usually indicate perfoemance issues. See [Lag detection alerts](../model-monitoring/running-applications.md#lag-detection-alerts).|
+|ML-9954|You can now generate an alert when lags in stream processing are detected in model monitoring writer/application pods. Lags usually indicate performance issues. See [Lag detection alerts](../model-monitoring/running-applications.md#lag-detection-alerts).|
 |ML-10919|Model monitoring supports TimescaleDB PostgreSQL with TimescaleDB extension as a TSDB platform. See [Configuring data store profiles](../install-mlrun-ce/mlrun-ce-development-notes.md#configuring-data-store-profiles) and {py:meth}`~mlrun.projects.MlrunProject.set_model_monitoring_credentials`.|
 |ML-10331|The writer pod performance is increased by utilizing async processing.|
 
@@ -292,7 +302,7 @@ TDEngine will be replaced with TimescaleDB. Model monitoring data in TDEngine wi
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |NA|Workflow engine types and the interdependencies with Python are fully described in {ref}`local-remote`.|
-|ML-10367|Improved the description of creating an alert, including `run-id`. See [Creating an alert](../concepts/alerts.md#creating-an-alert).|
+|ML-10367|Improved the description of creating an alert, including `run-id`. See [Create an alert](../concepts/alerts.md#create-an-alert).|
 
 
 
@@ -349,7 +359,7 @@ You must use the v1.8.0 client or higher to utilize model monitoring on a v1.9.0
 |ML-8281|MLRun now supports experiment tracking for document-based models, integrating management of LangChain documents using the new artifact type {py:class}`mlrun.artifacts.document.DocumentArtifact`. Additionally, it provides a mechanism for provisioning third-party configuration keys and settings ({py:class}`mlrun.datastore.datastore_profile.ConfigProfile`). The UI has a new Projects > Documents page supporting this feature. See additional new SDK classes: {py:class}`mlrun.artifacts.document.MLRunLoader`, and {py:class}`mlrun.datastore.vectorstore.VectorStoreCollection`. See the new tutorial {ref}`genai-03-vectordb`.
 |ML-8537|You can now run and evaluate models before deploying them, saving time and resources. See [Testing your application before deploying it](../model-monitoring/applications.md#testing-your-application-before-deploying-it).|
 |ML-7688|You can now give model endpoints a name of your choice.|
-||The SDK for creating model monitoring alerts is much simpler than previously. See [Creating a model monitoring alert](../concepts/alerts.md#creating-a-model-monitoring-alert).|
+||The SDK for creating model monitoring alerts is much simpler than previously. See [Create a model monitoring alert](../concepts/alerts.md#create-a-model-monitoring-alert).|
 
 (mm-upgrade)=
 ### Upgrading the MLRun server if model monitoring is deployed in v1.7.x
@@ -1605,13 +1615,8 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | v1.12.0| v1.10.0 |`artifact_path` in `MlrunProject.run_function`| `output path`|
 | v1.12.0| v1.10.0 |`artifact_path` in `mlrun.projects.operations.run_function`| `output path`|
 | v1.12.0| v1.10.0 |`artifact_path` and `out_path` in `BaseRuntime.run`| `output path`|
-| v1.12.0| v1.10.0 |`auth_info` in `RemoteRuntime.get_url`|NA|
 | v1.12.0| v1.10.0 |When using underscores as a name, the code no longer replaces them with dashes. |Use dashes|
 | v1.12.0| v1.10.0 |`any `mlrun.api.schemas.*`  import |`mlrun.common.schemas.*`| 
-| v1.12.0| v1.10.0 |key name `S3_ENDPOINT_URL`                                             |`AWS_ENDPOINT_URL_S3`|
-| v1.12.0| v1.10.0 |Datastore class: `DatastoreProfileKafkaSource`, `DatastoreProfileKafkaTarget`    |`DatastoreProfileKafkaStream`|
-| v1.12.0| v1.10.0 |processing old batch model endpoint in `mlrun.model_monitoring.controller `  |NA|
-| v1.12.0| v1.10.0 |`fetch_credentials_from_sys_config`                                       |NA|
 
 
 
@@ -1619,6 +1624,14 @@ with a drill-down to view the steps and their details. [Tech Preview]
 
 | Version|API                                                    |Use instead                                                                  |
 |---------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------|
+| v1.12.0|`auth_info` param in `RemoteRuntime.get_url`|NA|
+| v1.12.0|`S3_ENDPOINT_URL` env var in S3 datastore and `mount_s3`|`AWS_ENDPOINT_URL_S3`|
+| v1.12.0|Datastore classes `DatastoreProfileKafkaSource`, `DatastoreProfileKafkaTarget`|`DatastoreProfileKafkaStream`|
+| v1.12.0 (deprecated v1.10.0)|`get_or_create_model_endpoint` in `mlrun.model_monitoring.api`|deploy a monitored serving function or use `project.list_model_endpoints()`|
+| v1.12.0 (deprecated v1.10.0)|`record_results` in `mlrun.model_monitoring.api`|run a monitored serving function as a job|
+| v1.12.0 (deprecated v1.10.0)|`GET /projects/{project}/model-endpoints/metrics`|`GET /projects/{project}/model-monitoring/metrics`|
+| v1.12.0 (deprecated v1.10.0)|`fetch_credentials_from_sys_config` param in `enable_model_monitoring`|Set model-monitoring credentials explicitly via `set_model_monitoring_credentials`|
+| v1.12.0 (deprecated v1.10.0)|Monitoring old batch model endpoints via the real-time controller path (parquet windows) in `mlrun.model_monitoring.controller`|Run job-based serving to invoke and analyze offline batch model endpoints|
 | v1.11.0|TDEngine support is removed in v1.11.0. Data is not migrated.|MLRun supports TimescaleDB instead.|
 | v1.11.0|`get_cached_artifact` of MLClientCtx                                              |`get_artifact`|
 | v1.11.0|`remove_function` of MLrunProject                            |`delete_function`|
@@ -1637,8 +1650,6 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | v1.11.0|`mlrun.platforms.v3io_cred`                                            |`.mounts.v3io_cred
 | v1.10.0 |Class: `MLModelServer`                                        |`V2ModelServer` class|
 | v1.10.0 |`tracking_policy` in GraphServer and `ServingSpec` classes.   |NA|
-| v1.10.0 |Function: `get_or_create_model_endpoint()` in `mlrun.model_monitoring.api` |To create a new model endpoint, either deploy a monitored serving function as a real-time service or run it as an offline job.|
-| v1.10.0 |Function: `record_results()`                             |Serving as a job for offline model endpoints.|
 | v1.10.0|`labels` in`get_or_create_ctx` |`spec` |
 | v1.10.0|`overwrite_build_params` in `MlrunProject.build_function` |Default value changed to `True` |
 | v1.10.0|`overwrite_build_params` in `MlrunProject.build_config` |Default value changed to `True` |
@@ -1652,8 +1663,6 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | v1.10.0|`schema` in `mlrun.datastore.sources.SnowflakeSource`                   |`db_schema`|
 | v1.10.0|`credentials_prefix` in `mlrun.datastore.targets.BaseStoreTarget`       |Use datastore profiles for managing credentials|
 | v1.10.0|`kafka_bootstrap_servers` in `get_kafka_brokers_from_dict()`          |`kafka_brokers`|
-| v1.10.0|`drift_threshold`, `possible_drift_threshold` and `trigger_monitoring_job` in `mlrun.model_monitoring.api.record_results`|Enable the default histogram data drift application with `project.enable_model_monitoring()`|
-| v1.10.0|`artifacts_tag`, `default_batch_image` in `mlrun.model_monitoring.api.record_results`  |NA|
 | v1.10.0|`mlrun.model_monitoring.tracking_policy.TrackingPolicy`                          |NA| 
 | v1.10.0|`default_controller_image` in `MlrunProject.enable_model_monitoring()`            |`image`|
 | v1.10.0|`MlrunProject.remove_model_monitoring_function()`                               |`MlrunProject.delete_model_monitoring_function()`|
@@ -1669,7 +1678,6 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | v1.10.0|Parameter: `mlrun.db.httpdb.HTTPRunDB.list_runs` `state`                       |`states`      |
 | v1.10.0|Class: `mlrun.common.runtimes.constants.RunLabels`                             |`RunLabels.owner` => `MlrunInternalLabels.owner` <br><br> `RunLabels.v3io_user` => `MlrunInternalLabels.v3io_user`   |
 | v1.10.0|Parameter: `mlrun.runtimes.base.mlrun_op` `rundb`                              |MLRUN_DBPATH environment variable |
-| v1.10.0|`bootstrap_servers` in `mlrun.datastore.datastore_profile.DatastoreProfileKafkaTarget` |brokers|
 | v1.10.0|`FunctionSpec.clone_target_dir`                                                |`ImageBuilder.source_code_target_dir`|
 | v1.8.0 |`--watch` parameter of `mlrun logs`                                                        |NA|
 | v1.8.0 |datastore `get_filesystem`                                                                 |`filesystem` property|

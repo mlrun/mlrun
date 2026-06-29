@@ -24,6 +24,7 @@ from contextlib import nullcontext as does_not_raise
 import deepdiff
 import inflection
 import pytest
+import yaml
 
 import mlrun
 import mlrun.alerts.alert
@@ -42,13 +43,16 @@ from mlrun_pipelines.common.models import RunStatuses
 
 
 @pytest.fixture()
-def context():
-    context = pathlib.Path(tests.conftest.tests_root_directory) / "projects" / "test"
-    yield context
+def context(tmp_path):
+    return tmp_path / "test"
 
-    # clean up
-    if context.exists():
-        shutil.rmtree(context)
+
+@pytest.fixture
+def cwd_in_tmp_path(tmp_path, monkeypatch):
+    """``cwd == tmp_path`` — keeps cwd-relative writes (``log_*`` uploads,
+    local launcher per-run workdirs) out of the working tree."""
+    monkeypatch.chdir(tmp_path)
+    return tmp_path
 
 
 def assets_path():
@@ -167,19 +171,16 @@ def test_get_set_params():
     assert project.get_param("not-exist", default_value) == default_value
 
 
-def test_user_project():
+def test_user_project(monkeypatch):
     project_name = "project-name"
-    original_username = os.environ.get("V3IO_USERNAME")
     usernames = ["valid-username", "require_Normalization"]
     for username in usernames:
-        os.environ["V3IO_USERNAME"] = username
+        monkeypatch.setenv("V3IO_USERNAME", username)
         project = mlrun.new_project(project_name, user_project=True, save=False)
         assert (
             project.metadata.name
             == f"{project_name}-{inflection.dasherize(username.lower())}"
         ), "project name doesnt include user name"
-    if original_username is not None:
-        os.environ["V3IO_USERNAME"] = original_username
 
 
 def test_build_project_from_minimal_dict():
@@ -536,6 +537,53 @@ def test_project_with_setup(context, op):
         assert project.spec.params == {"p2": "123", "test123": "456"}  # no YAML
     else:
         assert project.spec.params == {"p1": "xyz", "p2": "123", "test123": "456"}
+
+
+@pytest.mark.parametrize("run_setup", [True, False])
+def test_load_project_run_setup_flag(context, run_setup):
+    # load_project should run the setup script only when run_setup is True, while the
+    # save/register_artifacts side effects (DB is the source of truth) always happen.
+    project_path = (
+        pathlib.Path(tests.conftest.tests_root_directory)
+        / "projects"
+        / "assets"
+        / "load_setup_test"
+    )
+    mlrun_project_cls = mlrun.projects.project.MlrunProject
+
+    # to_save = save and mlconf.dbpath, so a dbpath is required to exercise the save path
+    original_dbpath = mlrun.mlconf.dbpath
+    mlrun.mlconf.dbpath = "http://localhost:12345"
+    try:
+        with (
+            unittest.mock.patch.object(
+                mlrun_project_cls,
+                "setup",
+                autospec=True,
+                side_effect=lambda self, save=True: self,
+            ) as setup_mock,
+            unittest.mock.patch.object(
+                mlrun_project_cls, "save", autospec=True
+            ) as save_mock,
+            unittest.mock.patch.object(
+                mlrun_project_cls, "register_artifacts", autospec=True
+            ) as register_artifacts_mock,
+        ):
+            mlrun.load_project(
+                context=project_path,
+                name="projset-runsetup",
+                save=True,
+                parameters={"p2": "123"},
+                run_setup=run_setup,
+            )
+    finally:
+        mlrun.mlconf.dbpath = original_dbpath
+
+    # setup runs only when explicitly opted in
+    assert setup_mock.called is run_setup
+    # the project is still saved and its artifacts registered regardless of run_setup
+    save_mock.assert_called_once()
+    register_artifacts_mock.assert_called_once()
 
 
 @pytest.mark.parametrize(
@@ -999,7 +1047,7 @@ def test_set_function_from_object_override_tag():
     assert func.metadata.tag == "v3"
 
 
-def test_set_function_with_relative_path(context):
+def test_set_function_with_relative_path():
     project = mlrun.new_project("inline", context=str(assets_path()), save=False)
 
     project.set_function(
@@ -1044,15 +1092,15 @@ def test_set_artifact_validates_file_exists(
         )
 
 
-def test_import_artifact_using_relative_path():
-    project = mlrun.new_project("inline", context=str(assets_path()), save=False)
+def test_import_artifact_using_relative_path(tmp_path):
+    project = mlrun.new_project("inline", context=str(tmp_path), save=False)
 
     # log an artifact and save the content/body in the object (inline)
     artifact = project.log_artifact(
-        "x", body="123", is_inline=True, artifact_path=str(assets_path())
+        "x", body="123", is_inline=True, artifact_path=str(tmp_path)
     )
     assert artifact.spec.get_body() == "123"
-    artifact.export(f"{str(assets_path())}/artifact.yaml")
+    artifact.export(f"{tmp_path}/artifact.yaml")
 
     # importing the artifact using a relative path
     artifact = project.import_artifact("artifact.yaml", "y")
@@ -1177,12 +1225,13 @@ def test_replace_exported_artifact_producer(rundb_mock):
     ],
 )
 def test_artifact_owner(
-    rundb_mock, project_owner, username, monkeypatch: pytest.MonkeyPatch
+    rundb_mock, project_owner, username, tmp_path, monkeypatch: pytest.MonkeyPatch
 ):
     if username:
         monkeypatch.setenv("V3IO_USERNAME", username)
 
-    project = mlrun.new_project("artifact-owner", save=False)
+    project = mlrun.new_project("artifact-owner", save=False, context=str(tmp_path))
+    project.spec.artifact_path = str(tmp_path)
     project.spec.owner = project_owner
     artifact = project.log_artifact("x", body="123", format="txt")
     if username:
@@ -1298,9 +1347,391 @@ def test_export_to_zip(rundb_mock):
     assert mlrun.get_dataitem("memory://x.zip").stat().size
 
 
-def test_function_receives_project_artifact_path(rundb_mock):
+def test_export_to_zip_downloads_store_function_code(rundb_mock, cwd_in_tmp_path):
+    """Zip-export: store:// function source is downloaded into the project
+    context and project.yaml is rewritten to a local relative path inside
+    the zip."""
+    project_dir = cwd_in_tmp_path / "store-zip-project"
+    project_dir.mkdir(parents=True)
+
+    # Local source file that will be uploaded as a CodeArtifact.
+    handler_path = project_dir / "handler_source.py"
+    handler_body = "def my_func(context, p1=1):\n    return {'echo': p1}\n"
+    handler_path.write_text(handler_body)
+
+    project = mlrun.new_project(
+        "tozipstore", context=str(project_dir / "code"), save=False
+    )
+
+    # Log the code file so rundb_mock has a real artifact backing the
+    # store:// URI we hand to set_function. Use the artifact's canonical
+    # uri rather than reconstructing one with an f-string template.
+    code_artifact = project.log_code_file(
+        key="my_handler", local_path=str(handler_path)
+    )
+    store_uri = code_artifact.uri
+
+    project.set_function(
+        func=store_uri, name="my-func", kind="job", handler="handler_source:my_func"
+    )
+
+    zip_path = str(project_dir / "proj.zip")
+    project.export(zip_path)
+
+    # Unzip and inspect contents.
+    extract_dir = project_dir / "extracted"
+    extract_dir.mkdir()
+    with zipfile.ZipFile(zip_path, "r") as zipf:
+        zipf.extractall(extract_dir)
+
+    # The downloaded code file lives under .mlrun/code/<basename>_<hash16>.py.
+    code_files = list((extract_dir / ".mlrun" / "code").glob("*.py"))
+    assert len(code_files) == 1, (
+        f"expected exactly one downloaded code file, got {code_files}"
+    )
+    assert code_files[0].read_text() == handler_body, (
+        "downloaded file content must match original"
+    )
+
+    # Embedded project.yaml: function entry's url is rewritten to the
+    # local relative path, NOT the original store:// URI.
+    project_data = yaml.safe_load((extract_dir / "project.yaml").read_text())
+    function_entries = [
+        f for f in project_data["spec"]["functions"] if f["name"] == "my-func"
+    ]
+    assert len(function_entries) == 1
+    rewritten_url = function_entries[0]["url"]
+    assert not rewritten_url.startswith("store://"), (
+        f"function url must not be a store:// URI after rewrite, got {rewritten_url!r}"
+    )
+    assert rewritten_url.startswith(".mlrun/code/"), (
+        f"function url must point at the downloaded local path, got {rewritten_url!r}"
+    )
+    assert rewritten_url == f".mlrun/code/{code_files[0].name}", (
+        "function url must reference the actual downloaded file"
+    )
+
+
+def test_export_to_yaml_keeps_store_uri(rundb_mock, cwd_in_tmp_path):
+    """YAML-only export does NOT download or rewrite — store:// URIs are
+    preserved verbatim because same-cluster round-trip resolves them at
+    load time via _init_function_from_dict."""
+    project_dir = cwd_in_tmp_path / "store-yaml-project"
+    project_dir.mkdir(parents=True)
+
+    handler_path = project_dir / "handler_source.py"
+    handler_path.write_text("def my_func(context, p1=1):\n    return p1\n")
+
+    project = mlrun.new_project(
+        "toyamlstore", context=str(project_dir / "code"), save=False
+    )
+    code_artifact = project.log_code_file(
+        key="my_handler", local_path=str(handler_path)
+    )
+    store_uri = code_artifact.uri
+
+    project.set_function(
+        func=store_uri, name="my-func", kind="job", handler="handler_source:my_func"
+    )
+
+    yaml_path = str(project_dir / "project.yaml")
+    project.export(yaml_path)
+
+    yaml_content = pathlib.Path(yaml_path).read_text()
+    assert store_uri in yaml_content, (
+        "YAML-only export must preserve store:// URI verbatim (no download, no rewrite)"
+    )
+    # No .mlrun/code/ directory should be created for YAML-only exports.
+    # (export() would create it relative to the YAML file's parent if the
+    # zip branch were taken in error.)
+    assert not (project_dir / ".mlrun" / "code").exists(), (
+        "YAML-only export must not create .mlrun/code/ download directory"
+    )
+
+
+def test_export_to_zip_raises_on_unresolvable_store_uri(rundb_mock, tmp_path):
+    """Fail-fast: a store:// URI with no backing artifact aborts the export
+    with MLRunRuntimeError; the partial zip is not produced and the user's
+    in-memory project state is unchanged."""
+    project_dir = tmp_path / "store-zip-broken-project"
+    project_dir.mkdir(parents=True)
+
+    project = mlrun.new_project(
+        "tozipstorebroken", context=str(project_dir / "code"), save=False
+    )
+    # No log_code_file — the store:// URI below points at nothing.
+    broken_uri = f"store://artifacts/{project.metadata.name}/missing_handler"
+    project.set_function(
+        func=broken_uri, name="my-func", kind="job", handler="missing:fn"
+    )
+
+    zip_path = str(project_dir / "proj.zip")
+    with pytest.raises(mlrun.errors.MLRunRuntimeError, match="my-func"):
+        project.export(zip_path)
+
+    # In-memory state is unchanged after the failed export.
+    func_def = project.spec._function_definitions["my-func"]
+    assert func_def["url"] == broken_uri, (
+        f"in-memory function source must be unchanged after failed export, "
+        f"got {func_def.get('url')!r}"
+    )
+    # No partial zip should be produced when the export aborts.
+    assert not pathlib.Path(zip_path).exists(), (
+        "fail-fast export must not leave a partial zip on disk"
+    )
+
+
+def test_export_to_zip_raises_on_download_failure(
+    rundb_mock, cwd_in_tmp_path, monkeypatch
+):
+    """Different failure path from unresolvable-artifact: the artifact IS
+    resolvable but `mlrun.get_dataitem(target_path).download(...)` raises
+    OSError (network/permission failure). Same fail-fast contract —
+    MLRunRuntimeError aborts the export, in-memory state untouched."""
+    project_dir = cwd_in_tmp_path / "store-zip-download-failure"
+    project_dir.mkdir(parents=True)
+
+    handler_path = project_dir / "handler_source.py"
+    handler_path.write_text("def my_func(context):\n    return 1\n")
+
+    project = mlrun.new_project(
+        "tozipdlfail", context=str(project_dir / "code"), save=False
+    )
+    code_artifact = project.log_code_file(
+        key="my_handler", local_path=str(handler_path)
+    )
+    store_uri = code_artifact.uri
+    project.set_function(
+        func=store_uri, name="my-func", kind="job", handler="handler_source:my_func"
+    )
+
+    # Patch get_dataitem so its returned object's .download() raises.
+    # monkeypatch auto-restores after the test.
+    class _BoomDataItem:
+        def download(self, target):
+            raise OSError("simulated network or permission failure")
+
+    monkeypatch.setattr(
+        mlrun,
+        "get_dataitem",
+        lambda *args, **kwargs: _BoomDataItem(),
+    )
+
+    zip_path = str(project_dir / "proj.zip")
+    with pytest.raises(mlrun.errors.MLRunRuntimeError, match="my-func"):
+        project.export(zip_path)
+
+    # In-memory state unchanged.
+    func_def = project.spec._function_definitions["my-func"]
+    assert func_def["url"] == store_uri
+    assert not pathlib.Path(zip_path).exists(), (
+        "fail-fast export must not leave a partial zip on disk"
+    )
+
+
+def test_export_to_zip_downloads_store_workflow_code(rundb_mock, cwd_in_tmp_path):
+    """Zip-export: store:// workflow source is downloaded into the project
+    context and the embedded project.yaml's workflow path is rewritten to a
+    local relative path. Same behavior as functions, but on `_workflows`.
+
+    Note: `set_workflow(store://...)` requires a file suffix on the URI
+    (e.g. `.py`) — `_validate_file_path` rejects suffix-less remote URLs.
+    Tests that the export rewrite restores in-memory state on success.
+    """
+    project_dir = cwd_in_tmp_path / "store-zip-workflow-project"
+    project_dir.mkdir(parents=True)
+
+    workflow_source = project_dir / "workflow_source.py"
+    workflow_body = (
+        "from kfp import dsl\n\n@dsl.pipeline(name='p')\ndef pipeline():\n    pass\n"
+    )
+    workflow_source.write_text(workflow_body)
+
+    project = mlrun.new_project(
+        "tozipstoreworkflow", context=str(project_dir / "code"), save=False
+    )
+
+    workflow_artifact = project.log_code_file(
+        key="my_workflow.py",
+        local_path=str(workflow_source),
+        code_type="workflow",
+    )
+    workflow_store_uri = workflow_artifact.uri
+    project.set_workflow("main", workflow_store_uri)
+
+    zip_path = str(project_dir / "proj.zip")
+    project.export(zip_path)
+
+    # Unzip and confirm the workflow source landed under .mlrun/code/.
+    extract_dir = project_dir / "extracted"
+    extract_dir.mkdir()
+    with zipfile.ZipFile(zip_path, "r") as zipf:
+        zipf.extractall(extract_dir)
+
+    code_files = list((extract_dir / ".mlrun" / "code").glob("my_workflow*.py"))
+    assert len(code_files) == 1, (
+        f"expected exactly one downloaded workflow file, got {code_files}"
+    )
+    assert code_files[0].read_text() == workflow_body, (
+        "downloaded workflow content must match original"
+    )
+
+    # Embedded project.yaml: workflow entry's path is rewritten to the actual
+    # downloaded local path, NOT the original store:// URI.
+    project_data = yaml.safe_load((extract_dir / "project.yaml").read_text())
+    workflow_entries = [
+        w for w in project_data["spec"]["workflows"] if w["name"] == "main"
+    ]
+    assert len(workflow_entries) == 1
+    rewritten_path = workflow_entries[0]["path"]
+    assert rewritten_path == f".mlrun/code/{code_files[0].name}", (
+        f"workflow path must reference the downloaded local file, "
+        f"got {rewritten_path!r}"
+    )
+
+    # In-memory state restored on success — workflow_spec.path is back to
+    # the original store:// URI.
+    assert project.spec._workflows["main"].path == workflow_store_uri, (
+        f"in-memory workflow path must be restored after export, "
+        f"got {project.spec._workflows['main'].path!r}"
+    )
+
+
+def test_export_to_zip_downloads_store_function_code_for_runtime_object(
+    rundb_mock, cwd_in_tmp_path
+):
+    """Runtime-object branch of the export walker: function assigned via
+    `project.spec.functions = [runtime_obj]` stores a BaseRuntime whose
+    source lives at `spec.build.source` (separate code path from the
+    dict-form `set_function(func=store_uri)`).
+    """
+    project_dir = cwd_in_tmp_path / "store-zip-runtime"
+    project_dir.mkdir(parents=True)
+
+    handler_path = project_dir / "handler_source.py"
+    handler_path.write_text("def my_func(context):\n    return 1\n")
+
+    project = mlrun.new_project(
+        "toziprt", context=str(project_dir / "code"), save=False
+    )
+    code_artifact = project.log_code_file(
+        key="rt_handler", local_path=str(handler_path)
+    )
+    store_uri = code_artifact.uri
+
+    rt = mlrun.code_to_function(
+        name="rt-fn",
+        kind="job",
+        filename=str(handler_path),
+        handler="my_func",
+        image="mlrun/mlrun",
+    )
+    rt.spec.build.source = store_uri
+    project.spec.functions = [rt]
+
+    zip_path = str(project_dir / "proj.zip")
+    project.export(zip_path)
+
+    extract_dir = project_dir / "extracted"
+    extract_dir.mkdir()
+    with zipfile.ZipFile(zip_path, "r") as zipf:
+        zipf.extractall(extract_dir)
+
+    code_files = list((extract_dir / ".mlrun" / "code").glob("rt_handler*.py"))
+    assert len(code_files) == 1, (
+        f"expected exactly one downloaded code file, got {code_files}"
+    )
+
+    project_data = yaml.safe_load((extract_dir / "project.yaml").read_text())
+    function_entries = [
+        f for f in project_data["spec"]["functions"] if f["name"] == "rt-fn"
+    ]
+    assert len(function_entries) == 1
+    rewritten_source = function_entries[0]["spec"]["spec"]["build"]["source"]
+    assert rewritten_source == f".mlrun/code/{code_files[0].name}", (
+        f"runtime function spec.build.source must be rewritten to local "
+        f"arcname, got {rewritten_source!r}"
+    )
+
+    restored_rt = project.spec._function_definitions["rt-fn"]
+    assert restored_rt.spec.build.source == store_uri, (
+        f"in-memory runtime source must be restored after export, "
+        f"got {restored_rt.spec.build.source!r}"
+    )
+
+
+def test_export_to_zip_keeps_context_yaml_loadable(rundb_mock, cwd_in_tmp_path):
+    """After `export("proj.zip")`, the on-disk `<context>/project.yaml`
+    must still carry the ORIGINAL store:// URIs, not the .mlrun/code/...
+    arcnames that only resolve inside the zip. Otherwise
+    `load_project(<context>)` after the export would fail because those
+    local paths don't exist outside the zip.
+
+    Regression guard for: zip export rewriting the on-disk yaml in place.
+    """
+    project_dir = cwd_in_tmp_path / "store-zip-keepyaml"
+    project_dir.mkdir(parents=True)
+
+    handler_path = project_dir / "handler_source.py"
+    handler_path.write_text("def my_func(context):\n    return 1\n")
+
+    context_dir = project_dir / "code"
+    project = mlrun.new_project("tozipkeep", context=str(context_dir), save=False)
+    code_artifact = project.log_code_file(
+        key="my_handler", local_path=str(handler_path)
+    )
+    store_uri = code_artifact.uri
+    project.set_function(
+        func=store_uri, name="my-func", kind="job", handler="handler_source:my_func"
+    )
+
+    zip_path = str(project_dir / "proj.zip")
+    project.export(zip_path)
+
+    # Post-condition 1: on-disk project.yaml exists and preserves the
+    # original store:// URI.
+    on_disk_yaml = context_dir / "project.yaml"
+    assert on_disk_yaml.exists(), "on-disk project.yaml must be written"
+    on_disk_data = yaml.safe_load(on_disk_yaml.read_text())
+    on_disk_funcs = [
+        f for f in on_disk_data["spec"]["functions"] if f["name"] == "my-func"
+    ]
+    assert len(on_disk_funcs) == 1
+    assert on_disk_funcs[0]["url"] == store_uri, (
+        f"on-disk yaml must keep the original store:// URI so "
+        f"load_project(<context>) resolves it, got {on_disk_funcs[0]['url']!r}"
+    )
+
+    # Post-condition 2: zip's embedded project.yaml has the REWRITTEN path
+    # (so the zip is self-contained). Same export call, divergent content.
+    extract_dir = project_dir / "extracted"
+    extract_dir.mkdir()
+    with zipfile.ZipFile(zip_path, "r") as zipf:
+        zipf.extractall(extract_dir)
+    in_zip_data = yaml.safe_load((extract_dir / "project.yaml").read_text())
+    in_zip_funcs = [
+        f for f in in_zip_data["spec"]["functions"] if f["name"] == "my-func"
+    ]
+    assert in_zip_funcs[0]["url"].startswith(".mlrun/code/"), (
+        f"zip-embedded yaml must use the rewritten local arcname, "
+        f"got {in_zip_funcs[0]['url']!r}"
+    )
+
+    # Post-condition 3: load_project(<context>) still works after export.
+    reloaded = mlrun.load_project(str(context_dir), save=False)
+    reloaded_funcs = [f for f in reloaded.spec.functions if f["name"] == "my-func"]
+    assert len(reloaded_funcs) == 1
+    assert reloaded_funcs[0]["url"] == store_uri, (
+        f"load_project(<context>) after export must still see the original "
+        f"store:// URI, got {reloaded_funcs[0]['url']!r}"
+    )
+
+
+def test_function_receives_project_artifact_path(
+    rundb_mock, cwd_in_tmp_path, monkeypatch
+):
     func_path = str(pathlib.Path(__file__).parent / "assets" / "handler.py")
-    mlrun.mlconf.artifact_path = "/tmp"
+    monkeypatch.setattr(mlrun.mlconf, "artifact_path", "/tmp")
     proj1 = mlrun.new_project("proj1", save=False)
 
     # expected to call `get_project`
@@ -1322,7 +1753,7 @@ def test_function_receives_project_artifact_path(rundb_mock):
     run2 = func2.run(local=True)
     assert run2.spec.output_path == proj1.spec.artifact_path
 
-    run3 = func2.run(local=True, artifact_path="/not/tmp")
+    run3 = func2.run(local=True, output_path="/not/tmp")
     assert run3.spec.output_path == "/not/tmp"
 
     # expected to call `get_project`
@@ -1338,13 +1769,13 @@ def test_function_receives_project_artifact_path(rundb_mock):
     run = proj1.run_function("func", local=True)
     assert run.spec.output_path == proj1.spec.artifact_path
 
-    run = proj1.run_function("func", local=True, artifact_path="/not/tmp")
+    run = proj1.run_function("func", local=True, output_path="/not/tmp")
     assert run.spec.output_path == "/not/tmp"
 
 
-def test_function_receives_project_default_image():
+def test_function_receives_project_default_image(cwd_in_tmp_path, monkeypatch):
     func_path = str(pathlib.Path(__file__).parent / "assets" / "handler.py")
-    mlrun.mlconf.artifact_path = "/tmp"
+    monkeypatch.setattr(mlrun.mlconf, "artifact_path", "/tmp")
     proj1 = mlrun.new_project("proj1", save=False)
     default_image = "myrepo/myimage1"
 
@@ -1397,9 +1828,9 @@ def test_function_receives_project_default_image():
     assert enriched_function.spec.image == new_default_image
 
 
-def test_function_not_enriched_with_project_default_function_node_selector():
+def test_function_not_enriched_with_project_default_function_node_selector(monkeypatch):
     func_path = str(pathlib.Path(__file__).parent / "assets" / "handler.py")
-    mlrun.mlconf.artifact_path = "/tmp"
+    monkeypatch.setattr(mlrun.mlconf, "artifact_path", "/tmp")
     proj1 = mlrun.new_project("proj1", save=False)
     default_function_node_selector = {"gpu": "true"}
 
@@ -1457,9 +1888,11 @@ def test_project_exports_default_image():
     assert imported_project.default_image == default_image
 
 
-def test_run_function_passes_project_artifact_path(rundb_mock):
+def test_run_function_passes_project_artifact_path(
+    rundb_mock, cwd_in_tmp_path, monkeypatch
+):
     func_path = str(pathlib.Path(__file__).parent / "assets" / "handler.py")
-    mlrun.mlconf.artifact_path = "/tmp"
+    monkeypatch.setattr(mlrun.mlconf, "artifact_path", "/tmp")
 
     proj1 = mlrun.new_project("proj1", save=False)
     proj1.set_function(func_path, "f1", image="mlrun/mlrun", handler="myhandler")
@@ -1476,7 +1909,7 @@ def test_run_function_passes_project_artifact_path(rundb_mock):
     run2 = proj1.run_function("f1", local=True)
     assert run2.spec.output_path == proj1.spec.artifact_path
 
-    mlrun.pipeline_context.workflow_artifact_path = "/data"
+    monkeypatch.setattr(mlrun.pipeline_context, "workflow_artifact_path", "/data")
     run3 = proj1.run_function("f1", local=True)
     assert run3.spec.output_path == mlrun.pipeline_context.workflow_artifact_path
 
@@ -1579,6 +2012,377 @@ def test_set_workflow_local_engine():
         proj.set_workflow("main", "workflow.py", schedule="*/5 * * * *", engine="local")
 
 
+def _workflow_entry_path(project, workflow_name):
+    """Look up a workflow's path on the project via the public spec.workflows
+    list. Raises if the workflow is not present."""
+    for wf in project.spec.workflows:
+        if wf["name"] == workflow_name:
+            return wf["path"]
+    raise AssertionError(f"workflow {workflow_name!r} not found on project")
+
+
+def test_set_workflow_accepts_store_uri_with_workflow_code_type(
+    rundb_mock, cwd_in_tmp_path
+):
+    """log_code_file(code_type='workflow') → set_workflow(store_uri) succeeds."""
+    project = mlrun.new_project(
+        "set-wf-store-ok", context=str(cwd_in_tmp_path), save=False
+    )
+    workflow_src = cwd_in_tmp_path / "my_pipeline.py"
+    workflow_src.write_text("def pipeline(): pass\n")
+
+    artifact = project.log_code_file(
+        key="my_pipeline_code",
+        local_path=str(workflow_src),
+        code_type="workflow",
+    )
+
+    # Should not raise.
+    project.set_workflow("my_pipeline", workflow_path=artifact.uri, engine="kfp")
+    assert _workflow_entry_path(project, "my_pipeline") == artifact.uri
+
+
+def test_set_workflow_rejects_store_uri_with_wrong_code_type(
+    rundb_mock, cwd_in_tmp_path
+):
+    """log_code_file(code_type='function') → set_workflow(store_uri) raises."""
+    project = mlrun.new_project(
+        "set-wf-store-bad", context=str(cwd_in_tmp_path), save=False
+    )
+    func_src = cwd_in_tmp_path / "my_handler.py"
+    func_src.write_text("def handler(): pass\n")
+
+    artifact = project.log_code_file(
+        key="not_a_workflow",
+        local_path=str(func_src),
+        code_type="function",
+    )
+
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError, match="code_type"):
+        project.set_workflow("my_pipeline", workflow_path=artifact.uri, engine="kfp")
+
+
+def test_set_workflow_rejects_store_uri_with_non_code_artifact(
+    rundb_mock, cwd_in_tmp_path
+):
+    """A store:// URI pointing at a non-code artifact (e.g. a model/dataset)
+    must be rejected at set_workflow, not silently accepted."""
+    project = mlrun.new_project(
+        "set-wf-non-code", context=str(cwd_in_tmp_path), save=False
+    )
+    src = cwd_in_tmp_path / "model.pkl"
+    src.write_bytes(b"binary model bytes")
+    # log_artifact creates a generic Artifact (kind='artifact'), not a CodeArtifact.
+    artifact = project.log_artifact("not_a_code_artifact", local_path=str(src))
+
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError, match="expected a code artifact"
+    ):
+        project.set_workflow("my_pipeline", workflow_path=artifact.uri, engine="kfp")
+
+
+def test_set_workflow_propagates_resolver_error(monkeypatch):
+    """All resolver errors propagate (typo'd key → MLRunNotFoundError, DB
+    unreachable → MLRunRuntimeError, etc.). set_workflow has no deferral
+    fallback — get_store_resource is a metadata-only DB read and is
+    expected to work in any client setup with backend connectivity."""
+
+    def _raise(*args, **kwargs):
+        raise mlrun.errors.MLRunNotFoundError("artifact not found")
+
+    monkeypatch.setattr(mlrun.datastore, "get_store_resource", _raise)
+    project = mlrun.new_project("set-wf-typo", save=False)
+    store_uri = "store://artifacts/set-wf-typo/typoed_key"
+
+    with pytest.raises(mlrun.errors.MLRunNotFoundError, match="artifact not found"):
+        project.set_workflow("my_pipeline", workflow_path=store_uri, engine="kfp")
+
+
+@pytest.mark.parametrize(
+    "remote_path",
+    [
+        "store://artifacts/set-wf-embed-remote/some_key",
+        "s3://bucket/some/workflow.py",
+        "git://github.com/org/repo.git#main",
+    ],
+)
+def test_set_workflow_rejects_embed_with_remote_path(remote_path):
+    """embed=True opens workflow_path as a local file, so any "://" URL would
+    otherwise raise an opaque FileNotFoundError downstream. Reject up front
+    with a clear path-forward message."""
+    project = mlrun.new_project("set-wf-embed-remote", save=False)
+
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match="embed=True is not supported for remote workflow_path",
+    ):
+        project.set_workflow(
+            "my_pipeline", workflow_path=remote_path, embed=True, engine="kfp"
+        )
+
+
+def test_workflow_spec_get_source_file_resolves_store_uri(rundb_mock, cwd_in_tmp_path):
+    """WorkflowSpec(path='store://...').get_source_file resolves to local file."""
+    src = cwd_in_tmp_path / "pipeline_v1.py"
+    src.write_text("def pipeline(): return 'v1'\n")
+    project = mlrun.new_project(
+        "wf-spec-resolve", context=str(cwd_in_tmp_path), save=False
+    )
+    artifact = project.log_code_file(
+        key="my_workflow", local_path=str(src), code_type="workflow"
+    )
+
+    spec = mlrun.projects.pipelines.WorkflowSpec(path=artifact.uri)
+    workflow_file = spec.get_source_file(
+        context=str(cwd_in_tmp_path), project_name="wf-spec-resolve"
+    )
+
+    assert os.path.isfile(workflow_file)
+    assert pathlib.Path(workflow_file).read_text() == src.read_text()
+    # Resolved file lives under <context>/.mlrun/code/
+    assert ".mlrun/code" in workflow_file
+
+
+def test_workflow_spec_get_source_file_rejects_store_uri_with_wrong_code_type(
+    rundb_mock, cwd_in_tmp_path
+):
+    """get_source_file raises when the resolved artifact has wrong code_type."""
+    src = cwd_in_tmp_path / "handler.py"
+    src.write_text("def handler(): pass\n")
+    project = mlrun.new_project(
+        "wf-spec-bad-type", context=str(cwd_in_tmp_path), save=False
+    )
+    artifact = project.log_code_file(
+        key="not_a_workflow", local_path=str(src), code_type="function"
+    )
+    spec = mlrun.projects.pipelines.WorkflowSpec(path=artifact.uri)
+
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError, match="code_type"):
+        spec.get_source_file(
+            context=str(cwd_in_tmp_path), project_name="wf-spec-bad-type"
+        )
+
+
+def test_workflow_spec_get_source_file_rejects_non_code_artifact(
+    rundb_mock, cwd_in_tmp_path
+):
+    """get_source_file raises when the resolved artifact is not a code artifact
+    (e.g. user pointed at a model/dataset). Defense-in-depth on the runner-pod
+    side; mirrors set_workflow's client-side check."""
+    src = cwd_in_tmp_path / "model.pkl"
+    src.write_bytes(b"binary model bytes")
+    project = mlrun.new_project(
+        "wf-spec-non-code", context=str(cwd_in_tmp_path), save=False
+    )
+    artifact = project.log_artifact("not_a_code_artifact", local_path=str(src))
+    spec = mlrun.projects.pipelines.WorkflowSpec(path=artifact.uri)
+
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError, match="expected a code artifact"
+    ):
+        spec.get_source_file(
+            context=str(cwd_in_tmp_path), project_name="wf-spec-non-code"
+        )
+
+
+def test_validate_workflow_code_artifact_pure():
+    """The pure-validation helper handles the kind/code_type matrix in isolation.
+
+    This is the seam the integration tests above cover via set_workflow /
+    get_source_file end-to-end; testing it directly pins the matrix without
+    rebuilding rundb mocks.
+    """
+    validate = mlrun.projects.pipelines._validate_workflow_code_artifact
+
+    # accepted: kind='code' + code_type='workflow'
+    ok = mlrun.artifacts.CodeArtifact(
+        key="ok",
+        src_path="ok.py",
+        code_type=mlrun.artifacts.CodeArtifactCodeType.workflow,
+    )
+    validate(ok, "store://artifacts/p/ok")
+
+    # accepted: kind='code' + code_type=None (older clients, backward compat)
+    legacy = mlrun.artifacts.CodeArtifact(key="legacy", src_path="legacy.py")
+    legacy.spec.code_type = None
+    validate(legacy, "store://artifacts/p/legacy")
+
+    # rejected: kind='code' + code_type='function'
+    function_kind = mlrun.artifacts.CodeArtifact(
+        key="function_kind",
+        code_type=mlrun.artifacts.CodeArtifactCodeType.function,
+    )
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError, match="expected 'workflow'"
+    ):
+        validate(function_kind, "store://artifacts/p/function_kind")
+
+    # rejected: kind='artifact' (a generic non-code artifact)
+    not_code = mlrun.artifacts.Artifact(key="not_code")
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError, match="expected a code artifact"
+    ):
+        validate(not_code, "store://artifacts/p/not_code")
+
+
+@pytest.mark.parametrize(
+    "workflow_path, expected_after_rewrite",
+    [
+        # Local paths under the project code path get relativized.
+        ("/path/to/project/workflow.py", "./workflow.py"),
+        ("/path/to/project/subdir/workflow.py", "./subdir/workflow.py"),
+        # Local paths outside the project code path are left as-is.
+        ("/other/place/workflow.py", "/other/place/workflow.py"),
+        # URL paths must be left as-is — the runner pod resolves them verbatim.
+        (
+            "store://artifacts/some-proj/some_key",
+            "store://artifacts/some-proj/some_key",
+        ),
+        ("s3://bucket/dir/workflow.py", "s3://bucket/dir/workflow.py"),
+        ("git://github.com/org/repo.git#main", "git://github.com/org/repo.git#main"),
+        # Empty / None pass through unchanged.
+        ("", ""),
+        (None, None),
+    ],
+)
+def test_remote_runner_resolve_relative_workflow_path(
+    workflow_path, expected_after_rewrite
+):
+    """_RemoteRunner.resolve_relative_workflow_path: convert project-local paths
+    to ``./relative`` form; leave URL paths verbatim so the runner pod can
+    resolve them via WorkflowSpec.get_source_file."""
+    result = mlrun.projects.pipelines._RemoteRunner.resolve_relative_workflow_path(
+        workflow_path, "/path/to/project"
+    )
+    assert result == expected_after_rewrite
+
+
+@pytest.mark.parametrize("code_path", ["", None])
+def test_resolve_relative_workflow_path_passes_through_when_code_path_empty(code_path):
+    """Empty / None code_path must pass workflow_path through unchanged.
+    Without this guard, ``startswith("")`` is True for every path and every
+    input gets a stray ``./`` prefix.
+    """
+    workflow_path = "/some/abs/path.py"
+    result = mlrun.projects.pipelines._RemoteRunner.resolve_relative_workflow_path(
+        workflow_path, code_path
+    )
+    assert result == workflow_path
+
+
+def test_validate_workflow_code_artifact_rejects_none():
+    """get_store_resource can return None for link-kind artifacts whose target
+    re-read returns falsy; the validator must surface that as a typed
+    NotFound error rather than an opaque AttributeError on attribute access.
+    """
+    validate = mlrun.projects.pipelines._validate_workflow_code_artifact
+    with pytest.raises(
+        mlrun.errors.MLRunNotFoundError, match="did not resolve to an artifact"
+    ):
+        validate(None, "store://artifacts/p/missing_link_target")
+
+
+def test_validate_workflow_code_artifact_rejects_non_artifact():
+    """get_store_resource can also return FeatureSet / FeatureVector / DataItem
+    for non-artifact store URIs; the validator must reject those at the type
+    boundary before touching .kind / .spec.code_type.
+    """
+    validate = mlrun.projects.pipelines._validate_workflow_code_artifact
+
+    class _NotAnArtifact:
+        kind = "code"
+
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match="resolves to a _NotAnArtifact; expected an Artifact",
+    ):
+        validate(_NotAnArtifact(), "store://feature-sets/p/x")
+
+
+@pytest.mark.parametrize(
+    "src_path, target_path, key",
+    [
+        # archive suffixes are not .py
+        ("workflow.zip", None, "k"),
+        ("workflow.tar.gz", None, "k"),
+        # .tgz (the suffix a blacklist would miss) is rejected for free
+        ("workflow.tgz", None, "k"),
+        # non-python single file
+        ("workflow.sh", None, "k"),
+        # rejected via target_path fallback (src_path unset)
+        (None, "s3://b/archive.zip", "k"),
+        # rejected via metadata.key fallback (src_path + target_path unset)
+        (None, None, "archive.tar.gz"),
+        # no resolvable filename at all -> "" -> not .py -> rejected
+        (None, None, None),
+    ],
+)
+def test_validate_workflow_code_artifact_rejects_non_python_payloads(
+    src_path, target_path, key
+):
+    """KFP runs Python workflows, so a workflow code artifact must resolve
+    to a single .py file. The validator whitelists .py — archives (incl.
+    .tgz), other languages, and unresolvable filenames are all rejected.
+    """
+    artifact = mlrun.artifacts.CodeArtifact(
+        key=key,
+        code_type=mlrun.artifacts.CodeArtifactCodeType.workflow,
+        src_path=src_path,
+        target_path=target_path,
+    )
+    validate = mlrun.projects.pipelines._validate_workflow_code_artifact
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match="must be a single Python",
+    ):
+        validate(artifact, "store://artifacts/p/k")
+
+
+@pytest.mark.parametrize("src_path", ["workflow.py", "workflow.PY", "./sub/wf.py"])
+def test_validate_workflow_code_artifact_accepts_python_payload(src_path):
+    """A workflow code artifact resolving to a .py file passes (case-
+    insensitive) — pins that the whitelist doesn't over-reject.
+    """
+    artifact = mlrun.artifacts.CodeArtifact(
+        key="k",
+        code_type=mlrun.artifacts.CodeArtifactCodeType.workflow,
+        src_path=src_path,
+    )
+    mlrun.projects.pipelines._validate_workflow_code_artifact(
+        artifact, "store://artifacts/p/k"
+    )
+
+
+def test_remote_runner_run_relativizes_workflow_path(monkeypatch, tmp_path):
+    """_RemoteRunner.run must rewrite an absolute workflow_path under the
+    project code-path into a relative form before submitting it to the API.
+    Pins the in-place mutation contract on workflow_spec.path — the runner
+    pod mounts the project context, so absolute client-side paths don't
+    resolve on its filesystem.
+    """
+    proj = mlrun.new_project("relativize-proj", context=str(tmp_path), save=False)
+    workflow_spec = mlrun.projects.pipelines.WorkflowSpec(
+        engine="kfp",
+        path=str(tmp_path / "workflow.py"),
+    )
+
+    # submit_workflow raises so _RemoteRunner.run's outer except Exception
+    # swallows it; the path mutation already happened before that call.
+    fake_db = unittest.mock.Mock()
+    fake_db.submit_workflow.side_effect = RuntimeError("stop here")
+    monkeypatch.setattr(mlrun, "get_run_db", lambda *a, **kw: fake_db)
+
+    mlrun.projects.pipelines._RemoteRunner.run(
+        project=proj,
+        workflow_spec=workflow_spec,
+        name="wf",
+    )
+
+    assert workflow_spec.path == "./workflow.py"
+    submitted_spec = fake_db.submit_workflow.call_args.kwargs["workflow_spec"]
+    assert submitted_spec.path == "./workflow.py"
+
+
 def test_run_non_existing_workflow(rundb_mock):
     proj = mlrun.new_project("proj", save=False)
     proj.set_function("hub://describe", "describe")
@@ -1586,7 +2390,7 @@ def test_run_non_existing_workflow(rundb_mock):
         proj.run("non-existing-workflow")
 
 
-def test_project_ops():
+def test_project_ops(cwd_in_tmp_path):
     # verify that project ops (run_function, ..) will use the right project (and not the pipeline_context)
     func_path = str(pathlib.Path(__file__).parent / "assets" / "handler.py")
     proj1 = mlrun.new_project("proj1", save=False)
@@ -1638,7 +2442,12 @@ def test_project_ops():
     ],
 )
 def test_validating_large_int_params(
-    rundb_mock, parameters, hyperparameters, expectation, run_saved
+    rundb_mock,
+    parameters,
+    hyperparameters,
+    expectation,
+    run_saved,
+    cwd_in_tmp_path,
 ):
     func_path = str(pathlib.Path(__file__).parent / "assets" / "handler.py")
     proj1 = mlrun.new_project("proj1")
@@ -1740,8 +2549,8 @@ def test_unauthenticated_git_action_with_remote_pristine(mock_git_repo):
     project.spec.repo.remotes["origin"].set_url.assert_not_called()
 
 
-def test_get_or_create_project_no_db():
-    mlrun.mlconf.dbpath = ""
+def test_get_or_create_project_no_db(monkeypatch):
+    monkeypatch.setattr(mlrun.mlconf, "dbpath", "")
     project_name = "project-name"
     project = mlrun.get_or_create_project(project_name, allow_cross_project=True)
     assert project.name == project_name
@@ -1863,7 +2672,7 @@ def test_init_function_from_dict_function_in_spec():
                 },
                 "description": "",
                 "disable_auto_mount": False,
-                "otlp_enabled": False,
+                "mount_otlp_secret": False,
                 "replicas": 1,
                 "image_pull_policy": "Always",
                 "priority_class_name": "dummy-class",
@@ -1992,8 +2801,9 @@ def test_create_api_gateway_valid(
     canary,
     upstreams,
     authentication_mode,
+    monkeypatch,
 ):
-    mlrun.mlconf.igz_version = "3.6.0"
+    monkeypatch.setattr(mlrun.mlconf, "igz_version", "3.6.0")
     patched_create_api_gateway.return_value = mlrun.common.schemas.APIGateway(
         metadata=mlrun.common.schemas.APIGatewayMetadata(
             name="new-gw",
@@ -2537,8 +3347,10 @@ def test_run_project_sync_functions_fails_silently(rundb_mock):
         (None, True),
     ],
 )
-def test_run_remote_engine_not_syncing_functions(rundb_mock, engine, should_call):
-    mlrun.mlconf.force_run_local = False
+def test_run_remote_engine_not_syncing_functions(
+    rundb_mock, engine, should_call, monkeypatch
+):
+    monkeypatch.setattr(mlrun.mlconf, "force_run_local", False)
     proj = mlrun.new_project("proj", save=False)
     proj.spec._function_definitions = {
         "prep-data": {
@@ -2601,6 +3413,392 @@ class TestModelMonitoring:
         ):
             mlrun.projects.MlrunProject().create_model_monitoring_function(
                 name="my-invalid-app-name-batch", application_class="NoApp"
+            )
+
+    @staticmethod
+    def test_project_spec_accepts_model_monitoring_dict() -> None:
+        """ProjectSpec.model_monitoring accepts a dict and converts it to a
+        ProjectMonitoringSpec(ModelObj) instance via the property setter."""
+        spec = mlrun.projects.project.ProjectSpec()
+        # Default is a populated struct so callers don't need to None-guard.
+        assert isinstance(
+            spec.model_monitoring,
+            mlrun.projects.project.ProjectMonitoringSpec,
+        )
+
+        spec.model_monitoring = {
+            "enabled": True,
+            "otlp_enabled": True,
+            "stream_type": "kafka",
+            "tsdb_type": "v3io-tsdb",
+        }
+        assert isinstance(
+            spec.model_monitoring,
+            mlrun.projects.project.ProjectMonitoringSpec,
+        )
+        assert spec.model_monitoring.enabled is True
+        assert spec.model_monitoring.otlp_enabled is True
+        assert spec.model_monitoring.stream_type == "kafka"
+        assert spec.model_monitoring.tsdb_type == "v3io-tsdb"
+
+    @staticmethod
+    def test_project_spec_model_monitoring_setter_coerces_none() -> None:
+        """Assigning None back to the property yields a fresh default instance,
+        not None. Callers can rely on `project.spec.model_monitoring.<flag>`
+        working without None-guards.
+        """
+        spec = mlrun.projects.project.ProjectSpec(
+            model_monitoring=mlrun.projects.project.ProjectMonitoringSpec(enabled=True),
+        )
+        assert spec.model_monitoring.enabled is True
+
+        spec.model_monitoring = None
+        assert isinstance(
+            spec.model_monitoring,
+            mlrun.projects.project.ProjectMonitoringSpec,
+        )
+        assert spec.model_monitoring.enabled is False
+        assert spec.model_monitoring.otlp_enabled is False
+        assert spec.model_monitoring.stream_type is None
+        assert spec.model_monitoring.tsdb_type is None
+
+    @staticmethod
+    def test_project_spec_model_monitoring_round_trip() -> None:
+        """SDK ProjectSpec.model_monitoring round-trips through to_dict/from_dict."""
+        original = mlrun.projects.project.ProjectSpec(
+            model_monitoring=mlrun.projects.project.ProjectMonitoringSpec(
+                enabled=True, otlp_enabled=True
+            )
+        )
+        reparsed = mlrun.projects.project.ProjectSpec.from_dict(original.to_dict())
+        assert reparsed.model_monitoring is not None
+        assert reparsed.model_monitoring.enabled is True
+        assert reparsed.model_monitoring.otlp_enabled is True
+
+    @staticmethod
+    def test_enable_model_monitoring_forwards_otlp_enabled() -> None:
+        """MlrunProject.enable_model_monitoring forwards otlp_enabled to the DB layer."""
+        project = mlrun.projects.MlrunProject(metadata={"name": "p"})
+        # _enrich runs after the API call and needs a real project to merge.
+        server_view = mlrun.projects.MlrunProject(metadata={"name": "p"})
+
+        with unittest.mock.patch("mlrun.db.get_run_db") as get_db:
+            mock_db = unittest.mock.Mock()
+            mock_db.get_project.return_value = server_view
+            get_db.return_value = mock_db
+
+            project.enable_model_monitoring(otlp_enabled=True)
+
+        mock_db.enable_model_monitoring.assert_called_once()
+        kwargs = mock_db.enable_model_monitoring.call_args.kwargs
+        assert kwargs["otlp_enabled"] is True
+        # Default still False — sanity check on the param plumbing.
+        mock_db.reset_mock()
+        with unittest.mock.patch("mlrun.db.get_run_db") as get_db2:
+            mock_db2 = unittest.mock.Mock()
+            mock_db2.get_project.return_value = server_view
+            get_db2.return_value = mock_db2
+            project.enable_model_monitoring()
+        assert (
+            mock_db2.enable_model_monitoring.call_args.kwargs["otlp_enabled"] is False
+        )
+
+    @staticmethod
+    def test_enable_model_monitoring_refreshes_local_spec() -> None:
+        """After the server-side call, the SDK re-fetches the project and
+        merges the enriched spec (enabled=True, otlp_enabled=True) onto the
+        local object so callers don't see a stale None/False value.
+        """
+        project = mlrun.projects.MlrunProject(metadata={"name": "p"})
+
+        # Server-side post-enable state — what db.get_project returns.
+        server_view = mlrun.projects.MlrunProject(
+            metadata={"name": "p"},
+            spec={
+                "model_monitoring": {
+                    "enabled": True,
+                    "otlp_enabled": True,
+                    "stream_type": "kafka",
+                    "tsdb_type": "postgresql",
+                },
+            },
+        )
+
+        with unittest.mock.patch("mlrun.db.get_run_db") as get_db:
+            mock_db = unittest.mock.Mock()
+            mock_db.get_project.return_value = server_view
+            get_db.return_value = mock_db
+
+            project.enable_model_monitoring(otlp_enabled=True)
+
+        # The SDK must have re-fetched the project after the API call …
+        mock_db.get_project.assert_called_once_with("p")
+        # … and merged the enriched spec back onto the local object.
+        assert project.spec.model_monitoring.enabled is True
+        assert project.spec.model_monitoring.otlp_enabled is True
+        assert project.spec.model_monitoring.stream_type == "kafka"
+        assert project.spec.model_monitoring.tsdb_type == "postgresql"
+
+    @staticmethod
+    def test_disable_model_monitoring_refreshes_local_spec() -> None:
+        """After the server-side teardown, the SDK re-fetches the project and
+        merges the now-disabled spec back so the local object reflects
+        enabled=False / otlp_enabled=False without an extra get_project.
+        """
+        # Pre-populate as if monitoring was previously enabled.
+        project = mlrun.projects.MlrunProject(
+            metadata={"name": "p"},
+            spec={
+                "model_monitoring": {
+                    "enabled": True,
+                    "otlp_enabled": True,
+                    "stream_type": "kafka",
+                    "tsdb_type": "postgresql",
+                },
+            },
+        )
+        # Server-side post-disable state: server resets enabled/otlp_enabled
+        # but preserves stream/tsdb types so re-enabling doesn't need
+        # set_credentials again.
+        server_view = mlrun.projects.MlrunProject(
+            metadata={"name": "p"},
+            spec={
+                "model_monitoring": {
+                    "enabled": False,
+                    "otlp_enabled": False,
+                    "stream_type": "kafka",
+                    "tsdb_type": "postgresql",
+                },
+            },
+        )
+
+        with unittest.mock.patch("mlrun.db.get_run_db") as get_db:
+            mock_db = unittest.mock.Mock()
+            # Disable returns truthy to skip the lag-alert teardown path.
+            mock_db.disable_model_monitoring.return_value = False
+            mock_db.get_project.return_value = server_view
+            get_db.return_value = mock_db
+
+            project.disable_model_monitoring()
+
+        mock_db.disable_model_monitoring.assert_called_once()
+        mock_db.get_project.assert_called_once_with("p")
+        assert project.spec.model_monitoring.enabled is False
+        assert project.spec.model_monitoring.otlp_enabled is False
+        # Backend types preserved so a re-enable doesn't need credentials again.
+        assert project.spec.model_monitoring.stream_type == "kafka"
+        assert project.spec.model_monitoring.tsdb_type == "postgresql"
+
+    @staticmethod
+    def test_set_model_monitoring_credentials_refreshes_local_spec() -> None:
+        """After set_model_monitoring_credentials, the SDK re-fetches the
+        project so stream_type/tsdb_type derived server-side from the registered
+        profile classes land on the local spec.
+        """
+        project = mlrun.projects.MlrunProject(metadata={"name": "p"})
+
+        server_view = mlrun.projects.MlrunProject(
+            metadata={"name": "p"},
+            spec={
+                "model_monitoring": {
+                    "enabled": False,
+                    "otlp_enabled": False,
+                    "stream_type": "kafka",
+                    "tsdb_type": "postgresql",
+                },
+            },
+        )
+
+        with unittest.mock.patch("mlrun.db.get_run_db") as get_db:
+            mock_db = unittest.mock.Mock()
+            mock_db.get_project.return_value = server_view
+            get_db.return_value = mock_db
+
+            project.set_model_monitoring_credentials(
+                tsdb_profile_name="my-pg",
+                stream_profile_name="my-kafka",
+            )
+
+        # Server gets the canonical write …
+        mock_db.set_model_monitoring_credentials.assert_called_once()
+        # … and the local spec is refreshed from db.get_project.
+        mock_db.get_project.assert_called_once_with("p")
+        assert project.spec.model_monitoring.stream_type == "kafka"
+        assert project.spec.model_monitoring.tsdb_type == "postgresql"
+        # enable hasn't been called yet — the enable flag stays False.
+        assert project.spec.model_monitoring.enabled is False
+
+    # --- ML-12532: set_model_monitoring_function otlp_enabled wiring -------
+
+    @staticmethod
+    @pytest.mark.parametrize(
+        "param_value, project_spec_value, expected",
+        [
+            # Explicit True only allowed when the project has also opted in
+            # (see test_set_model_monitoring_function_otlp_true_raises_when_project_off
+            # for the rejection path).
+            (True, True, True),
+            # Explicit False pins the function to off regardless of project.
+            (False, True, False),
+            (False, False, False),
+            # None inherits the project-level value.
+            (None, True, True),
+            (None, False, False),
+        ],
+        ids=[
+            "explicit_true_project_true",
+            "explicit_false_overrides_project_true",
+            "explicit_false_project_false",
+            "none_inherits_project_true",
+            "none_inherits_project_false",
+        ],
+    )
+    def test_set_model_monitoring_function_otlp_resolution(
+        param_value: bool | None,
+        project_spec_value: bool,
+        expected: bool,
+        tmp_path,
+    ) -> None:
+        """`otlp_enabled` resolution truth table at set-time.
+
+        Side effects of the resolution:
+        - When resolved True, the graph contains an `OTelMetricsExporter`
+          step (parallel sibling of PushToMonitoringWriter).
+        - When resolved False, the OTel step is absent.
+        - `function.spec.mount_otlp_secret` reflects the resolved value so the
+          server-side runtime injector mounts the operator-managed headers
+          secret on True.
+        """
+        project = mlrun.new_project(
+            "otlp-resolution",
+            context=str(tmp_path),
+            save=False,
+        )
+        # Seed project-level otlp_enabled; SDK setter coerces None → default
+        # instance, so we can mutate the field directly.
+        project.spec.model_monitoring.otlp_enabled = project_spec_value
+
+        app_path = str(
+            pathlib.Path(__file__).parents[1]
+            / "model_monitoring"
+            / "assets"
+            / "application.py"
+        )
+
+        fn = project.set_model_monitoring_function(
+            name=f"resolution-{param_value}-{project_spec_value}",
+            func=app_path,
+            application_class="DemoMonitoringApp",
+            param_1=1,
+            param_2=2,
+            otlp_enabled=param_value,
+        )
+
+        assert fn.spec.mount_otlp_secret is expected
+        if expected:
+            assert "OTelMetricsExporter" in fn.spec.graph.steps
+        else:
+            assert "OTelMetricsExporter" not in fn.spec.graph.steps
+
+    @staticmethod
+    def test_set_model_monitoring_function_otlp_true_raises_when_project_off(
+        tmp_path,
+    ) -> None:
+        """Explicit `otlp_enabled=True` on a function whose project hasn't
+        opted into OTel raises `MLRunInvalidArgumentError`, preventing the
+        user from registering a function that exports OTel metrics into a
+        project the operator hasn't configured for that. The error message
+        points at the right escape hatch (`enable_model_monitoring`)."""
+        project = mlrun.new_project(
+            "otlp-raise",
+            context=str(tmp_path),
+            save=False,
+        )
+        # Project default — never opted into OTel.
+        assert project.spec.model_monitoring.otlp_enabled is False
+
+        app_path = str(
+            pathlib.Path(__file__).parents[1]
+            / "model_monitoring"
+            / "assets"
+            / "application.py"
+        )
+
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError,
+            match="project hasn't opted into OTel",
+        ):
+            project.set_model_monitoring_function(
+                name="must-raise",
+                func=app_path,
+                application_class="DemoMonitoringApp",
+                param_1=1,
+                param_2=2,
+                otlp_enabled=True,
+            )
+
+    @staticmethod
+    def test_create_model_monitoring_function_forwards_otlp_enabled(tmp_path) -> None:
+        """`create_model_monitoring_function` (which does not register the
+        function on the project) honors the same resolution rule.
+        """
+        project = mlrun.new_project(
+            "otlp-create",
+            context=str(tmp_path),
+            save=False,
+        )
+        project.spec.model_monitoring.otlp_enabled = True
+        app_path = str(
+            pathlib.Path(__file__).parents[1]
+            / "model_monitoring"
+            / "assets"
+            / "application.py"
+        )
+
+        fn = project.create_model_monitoring_function(
+            name="created-app",
+            func=app_path,
+            application_class="DemoMonitoringApp",
+            param_1=1,
+            param_2=2,
+            # otlp_enabled=None → inherit True from project spec
+        )
+        assert fn.spec.mount_otlp_secret is True
+        assert "OTelMetricsExporter" in fn.spec.graph.steps
+
+    @staticmethod
+    def test_create_model_monitoring_function_otlp_true_raises_when_project_off(
+        tmp_path,
+    ) -> None:
+        """`create_model_monitoring_function` goes through the same
+        `_instantiate_model_monitoring_function` as `set_…`, so the
+        project-not-opted-in raise applies here too.
+        """
+        project = mlrun.new_project(
+            "otlp-create-raise",
+            context=str(tmp_path),
+            save=False,
+        )
+        assert project.spec.model_monitoring.otlp_enabled is False
+
+        app_path = str(
+            pathlib.Path(__file__).parents[1]
+            / "model_monitoring"
+            / "assets"
+            / "application.py"
+        )
+
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError,
+            match="project hasn't opted into OTel",
+        ):
+            project.create_model_monitoring_function(
+                name="must-raise-create",
+                func=app_path,
+                application_class="DemoMonitoringApp",
+                param_1=1,
+                param_2=2,
+                otlp_enabled=True,
             )
 
 
@@ -2861,6 +4059,73 @@ def test_create_user_model_endpoint_instruction_and_params_conflict(
 
 
 @unittest.mock.patch.object(mlrun.db.nopdb.NopDB, "create_model_endpoint")
+def test_create_user_model_endpoint_monitoring_mode_default(mock_create, context):
+    """Without a monitoring_mode arg, status.monitoring_mode defaults to enabled."""
+    mock_create.return_value = _make_endpoint_response("ep1")
+    project = mlrun.new_project("project-name", context=str(context), save=False)
+
+    project.create_user_model_endpoint("ep1")
+
+    endpoint_arg = mock_create.call_args[1]["model_endpoint"]
+    assert endpoint_arg.status.monitoring_mode == mm_consts.ModelMonitoringMode.enabled
+
+
+@unittest.mock.patch.object(mlrun.db.nopdb.NopDB, "create_model_endpoint")
+def test_create_user_model_endpoint_monitoring_mode_from_param(mock_create, context):
+    """An explicit monitoring_mode param is written to status.monitoring_mode."""
+    mock_create.return_value = _make_endpoint_response("ep1")
+    project = mlrun.new_project("project-name", context=str(context), save=False)
+
+    project.create_user_model_endpoint(
+        "ep1",
+        monitoring_mode=mm_consts.ModelMonitoringMode.disabled,
+    )
+
+    endpoint_arg = mock_create.call_args[1]["model_endpoint"]
+    assert endpoint_arg.status.monitoring_mode == mm_consts.ModelMonitoringMode.disabled
+
+
+@unittest.mock.patch.object(mlrun.db.nopdb.NopDB, "create_model_endpoint")
+def test_create_user_model_endpoint_monitoring_mode_from_instruction(
+    mock_create, context
+):
+    """monitoring_mode on the instruction is written to status.monitoring_mode."""
+    from mlrun.common.schemas.model_monitoring.model_endpoints import (
+        ModelEndpointInstruction,
+    )
+
+    mock_create.return_value = _make_endpoint_response("ep1")
+    project = mlrun.new_project("project-name", context=str(context), save=False)
+    instruction = ModelEndpointInstruction(
+        name="ep1",
+        monitoring_mode=mm_consts.ModelMonitoringMode.disabled,
+    )
+
+    project.create_user_model_endpoint(model_endpoint_instruction=instruction)
+
+    endpoint_arg = mock_create.call_args[1]["model_endpoint"]
+    assert endpoint_arg.status.monitoring_mode == mm_consts.ModelMonitoringMode.disabled
+
+
+def test_create_user_model_endpoint_monitoring_mode_with_instruction_conflicts(
+    context,
+):
+    """Passing monitoring_mode together with an instruction raises."""
+    from mlrun.common.schemas.model_monitoring.model_endpoints import (
+        ModelEndpointInstruction,
+    )
+
+    project = mlrun.new_project("project-name", context=str(context), save=False)
+    instruction = ModelEndpointInstruction(name="ep1")
+
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+        project.create_user_model_endpoint(
+            model_endpoint_instruction=instruction,
+            monitoring_mode=mm_consts.ModelMonitoringMode.disabled,
+        )
+
+
+@unittest.mock.patch.object(mlrun.db.nopdb.NopDB, "create_model_endpoint")
 def test_create_user_model_endpoint_creation_strategy_forwarded(mock_create, context):
     """The creation_strategy kwarg is forwarded to the DB call."""
     mock_create.return_value = _make_endpoint_response("ep1")
@@ -2982,6 +4247,52 @@ def test_get_model_monitoring_url_module_level(mock_get):
     mock_get.return_value = "http://stream:8080"
     url = mlrun.get_model_monitoring_url("my-project")
     assert url == "http://stream:8080"
+    mock_get.assert_called_once_with("my-project")
+
+
+def _nuclio_stream_url(project: str) -> str:
+    return (
+        f"http://nuclio-{project}-model-monitoring-stream"
+        f".default-tenant.svc.cluster.local:8080"
+    )
+
+
+@unittest.mock.patch.object(mlrun.db.nopdb.NopDB, "get_model_monitoring_url")
+def test_project_get_model_monitoring_url_delegates_to_module(
+    mock_get, monkeypatch: pytest.MonkeyPatch
+):
+    """Project.get_model_monitoring_url() goes through mlrun.run.get_model_monitoring_url
+    and reaches the DB layer with the project name."""
+    monkeypatch.delenv(
+        mm_consts.NuclioMonitoringEnvVars.MODEL_MONITORING_URL, raising=False
+    )
+    expected = _nuclio_stream_url("my-project")
+    mock_get.return_value = expected
+
+    project = mlrun.new_project("my-project", save=False)
+    url = project.get_model_monitoring_url()
+
+    assert url == expected
+    mock_get.assert_called_once_with("my-project")
+
+
+@unittest.mock.patch.object(mlrun.db.nopdb.NopDB, "get_model_monitoring_url")
+def test_project_get_model_monitoring_url_caches_across_calls(
+    mock_get, monkeypatch: pytest.MonkeyPatch
+):
+    """Two Project.get_model_monitoring_url() calls for the same project hit the cache,
+    so the DB is only queried once."""
+    env_var = mm_consts.NuclioMonitoringEnvVars.MODEL_MONITORING_URL
+    monkeypatch.delenv(env_var, raising=False)
+    expected = _nuclio_stream_url("my-project")
+    mock_get.return_value = expected
+
+    project = mlrun.new_project("my-project", save=False)
+    first = project.get_model_monitoring_url()
+    second = project.get_model_monitoring_url()
+
+    assert first == second == expected
+    assert os.environ.get(env_var) == expected
     mock_get.assert_called_once_with("my-project")
 
 

@@ -14,6 +14,7 @@
 
 import datetime
 import unittest.mock
+import uuid
 
 import deepdiff
 import pytest
@@ -25,6 +26,8 @@ import mlrun.config
 import mlrun.errors
 
 import framework.utils.project_formats
+import framework.utils.singletons.db
+import services.api.crud
 from framework.db.sqldb.models import Project
 from framework.tests.unit.db.common_fixtures import TestDatabaseBase
 
@@ -349,7 +352,7 @@ class TestProjects(TestDatabaseBase):
             spec=mlrun.common.schemas.ProjectSpec(
                 description="banana", other_field="value"
             ),
-            status=mlrun.common.schemas.ObjectStatus(state="active"),
+            status=mlrun.common.schemas.ObjectStatus(state="online"),
         )
         self._db.create_project(self._db_session, project)
         project_output = self._db.get_project(
@@ -460,6 +463,123 @@ class TestProjects(TestDatabaseBase):
 
         returned_names = {p.metadata.name for p in projects_output.projects}
         assert returned_names == {"proj-a", "proj-c"}
+
+    def test_get_project_status_columns_take_precedence_over_full_object(self):
+        # Full _full_object pickle and the dedicated columns can drift; the schema must come from columns.
+        name = "drift-project"
+        self._db.create_project(
+            self._db_session,
+            mlrun.common.schemas.Project(
+                metadata=mlrun.common.schemas.ProjectMetadata(name=name),
+                status=mlrun.common.schemas.ProjectStatus(state="online"),
+            ),
+        )
+
+        record = self._db_session.query(Project).filter(Project.name == name).one()
+        # Confirm the seeded full_object reflects the original state we wrote with.
+        assert record.full_object["status"]["state"] == "online"
+
+        # Drift the columns away from the pickled object (no full_object update).
+        op_id = uuid.uuid4()
+        # SQLite drops tzinfo on DateTime round-trip — store naive UTC so equality holds without DB-specific shims.
+        updated_at = datetime.datetime.utcnow().replace(microsecond=0)
+        record.state = "deleting"
+        record.op_id = op_id
+        record.phase = 2
+        record.updated_at = updated_at
+        self._db_session.commit()
+
+        project_output = self._db.get_project(self._db_session, name)
+        assert project_output.status.state == "deleting"
+        assert project_output.status.op_id == op_id
+        assert project_output.status.phase == 2
+        assert project_output.status.updated_at == updated_at
+
+    def test_list_projects_filter_updated_after(self):
+        old_at = datetime.datetime.now(datetime.UTC) - datetime.timedelta(hours=2)
+        recent_at = datetime.datetime.now(datetime.UTC) - datetime.timedelta(minutes=5)
+
+        for name, updated_at in [("old", old_at), ("recent", recent_at)]:
+            self._db.create_project(
+                self._db_session,
+                mlrun.common.schemas.Project(
+                    metadata=mlrun.common.schemas.ProjectMetadata(name=name),
+                ),
+            )
+            record = self._db_session.query(Project).filter(Project.name == name).one()
+            record.updated_at = updated_at
+            self._db_session.commit()
+
+        # Cutoff between the two — only "recent" should remain.
+        cutoff = datetime.datetime.now(datetime.UTC) - datetime.timedelta(minutes=30)
+        output = self._db.list_projects(
+            self._db_session,
+            format_=mlrun.common.formatters.ProjectFormat.name_only,
+            updated_after=cutoff,
+        )
+        assert output.projects == ["recent"]
+
+        # Cutoff before both — both returned.
+        early_cutoff = datetime.datetime.now(datetime.UTC) - datetime.timedelta(days=1)
+        output = self._db.list_projects(
+            self._db_session,
+            format_=mlrun.common.formatters.ProjectFormat.name_only,
+            updated_after=early_cutoff,
+        )
+        assert set(output.projects) == {"old", "recent"}
+
+        # Cutoff in the future — none returned.
+        future_cutoff = datetime.datetime.now(datetime.UTC) + datetime.timedelta(
+            hours=1
+        )
+        output = self._db.list_projects(
+            self._db_session,
+            format_=mlrun.common.formatters.ProjectFormat.name_only,
+            updated_after=future_cutoff,
+        )
+        assert output.projects == []
+
+    def test_list_projects_custom_selection_status_columns(self):
+        # The new sync columns must be selectable through the custom format and
+        # populate project.status (not just metadata/spec).
+        name = "custom-sync-project"
+        self._db.create_project(
+            self._db_session,
+            mlrun.common.schemas.Project(
+                metadata=mlrun.common.schemas.ProjectMetadata(name=name),
+            ),
+        )
+        op_id = uuid.uuid4()
+        # SQLite drops tzinfo on DateTime round-trip — store naive UTC so equality holds without DB-specific shims.
+        updated_at = datetime.datetime.utcnow().replace(microsecond=0)
+        record = self._db_session.query(Project).filter(Project.name == name).one()
+        record.state = "creating"
+        record.op_id = op_id
+        record.phase = 1
+        record.updated_at = updated_at
+        self._db_session.commit()
+
+        custom_format = framework.utils.project_formats.ProjectFormatCustomSelection(
+            [
+                framework.utils.project_formats.ProjectFormatCustom.name,
+                framework.utils.project_formats.ProjectFormatCustom.state,
+                framework.utils.project_formats.ProjectFormatCustom.op_id,
+                framework.utils.project_formats.ProjectFormatCustom.phase,
+                framework.utils.project_formats.ProjectFormatCustom.updated_at,
+            ]
+        )
+        projects_output = self._db.list_projects(
+            self._db_session,
+            format_=custom_format,
+            names=[name],
+        )
+        assert len(projects_output.projects) == 1
+        project = projects_output.projects[0]
+        assert project.metadata.name == name
+        assert project.status.state == "creating"
+        assert project.status.op_id == op_id
+        assert project.status.phase == 1
+        assert project.status.updated_at == updated_at
 
     def test_list_stale_projects_empty(self):
         output = self._db.list_stale_projects(
@@ -600,6 +720,172 @@ class TestProjects(TestDatabaseBase):
         )
         assert all(isinstance(p, str) for p in output.projects)
         assert output.projects == ["x"]
+
+    # ---- project lifecycle event emission (crud layer) -------------------
+
+    def test_create_project_emits_success_event(self, monkeypatch):
+        client = self._mock_events_client(monkeypatch)
+        services.api.crud.Projects().create_project(
+            self._db_session,
+            self._generate_project_for_event_test("p-create", owner="alice"),
+            auth_info=mlrun.common.schemas.AuthInfo(username="alice"),
+        )
+        self._assert_lifecycle_emitted(
+            client,
+            action=mlrun.common.schemas.ProjectLifecycleEventActions.creation_succeeded,
+            project_name="p-create",
+            actor="alice",
+        )
+
+    def test_create_project_emits_failure_event_and_reraises(self, monkeypatch):
+        client = self._mock_events_client(monkeypatch)
+        fake_db = unittest.mock.MagicMock()
+        fake_db.create_project.side_effect = RuntimeError("create exploded")
+        monkeypatch.setattr("framework.utils.singletons.db.get_db", lambda: fake_db)
+
+        with pytest.raises(RuntimeError, match="create exploded"):
+            services.api.crud.Projects().create_project(
+                self._db_session,
+                self._generate_project_for_event_test("p-fail", owner="alice"),
+                auth_info=mlrun.common.schemas.AuthInfo(username="alice"),
+            )
+
+        self._assert_lifecycle_emitted(
+            client,
+            action=mlrun.common.schemas.ProjectLifecycleEventActions.creation_failed,
+            project_name="p-fail",
+            actor="alice",
+            error_type=RuntimeError,
+        )
+
+    def test_delete_project_emits_success_event_after_db_delete(self, monkeypatch):
+        services.api.crud.Projects().create_project(
+            self._db_session,
+            self._generate_project_for_event_test("p-delete", owner="alice"),
+        )
+        client = self._mock_events_client(monkeypatch)
+
+        services.api.crud.Projects().delete_project(
+            self._db_session,
+            "p-delete",
+            deletion_strategy=mlrun.common.schemas.DeletionStrategy.restricted,
+            auth_info=mlrun.common.schemas.AuthInfo(username="alice"),
+        )
+        self._assert_lifecycle_emitted(
+            client,
+            action=mlrun.common.schemas.ProjectLifecycleEventActions.deletion_succeeded,
+            project_name="p-delete",
+            actor="alice",
+        )
+
+    def test_delete_project_check_strategy_does_not_emit(self, monkeypatch):
+        services.api.crud.Projects().create_project(
+            self._db_session,
+            self._generate_project_for_event_test("p-check", owner="alice"),
+        )
+        client = self._mock_events_client(monkeypatch)
+
+        services.api.crud.Projects().delete_project(
+            self._db_session,
+            "p-check",
+            deletion_strategy=mlrun.common.schemas.DeletionStrategy.check,
+            auth_info=mlrun.common.schemas.AuthInfo(username="alice"),
+        )
+        client.generate_project_lifecycle_event.assert_not_called()
+        client.emit.assert_not_called()
+
+    def test_delete_project_missing_does_not_emit(self, monkeypatch):
+        client = self._mock_events_client(monkeypatch)
+        services.api.crud.Projects().delete_project(
+            self._db_session,
+            "no-such-project",
+            deletion_strategy=mlrun.common.schemas.DeletionStrategy.restricted,
+            auth_info=mlrun.common.schemas.AuthInfo(username="alice"),
+        )
+        client.generate_project_lifecycle_event.assert_not_called()
+        client.emit.assert_not_called()
+
+    def test_delete_project_emits_failure_event_and_reraises(self, monkeypatch):
+        services.api.crud.Projects().create_project(
+            self._db_session,
+            self._generate_project_for_event_test("p-fail-del", owner="alice"),
+        )
+        client = self._mock_events_client(monkeypatch)
+
+        real_db = framework.utils.singletons.db.get_db()
+        fake_db = unittest.mock.MagicMock(wraps=real_db)
+        fake_db.delete_project.side_effect = RuntimeError("delete exploded")
+        monkeypatch.setattr("framework.utils.singletons.db.get_db", lambda: fake_db)
+
+        with pytest.raises(RuntimeError, match="delete exploded"):
+            services.api.crud.Projects().delete_project(
+                self._db_session,
+                "p-fail-del",
+                deletion_strategy=mlrun.common.schemas.DeletionStrategy.restricted,
+                auth_info=mlrun.common.schemas.AuthInfo(username="alice"),
+            )
+
+        self._assert_lifecycle_emitted(
+            client,
+            action=mlrun.common.schemas.ProjectLifecycleEventActions.deletion_failed,
+            project_name="p-fail-del",
+            actor="alice",
+            error_type=RuntimeError,
+        )
+
+    def test_emit_helpers_are_best_effort(self, monkeypatch):
+        # If the events factory itself raises, the project operation must
+        # still succeed — emission is fire-and-forget.
+        def _boom(*_a, **_kw):
+            raise RuntimeError("events factory broken")
+
+        monkeypatch.setattr(
+            "services.api.utils.events.events_factory.EventsFactory.get_events_client",
+            _boom,
+        )
+        services.api.crud.Projects().create_project(
+            self._db_session,
+            self._generate_project_for_event_test("p-best-effort", owner="alice"),
+        )
+
+    # ---- helpers for the event-emission tests ----------------------------
+
+    @staticmethod
+    def _mock_events_client(monkeypatch) -> unittest.mock.MagicMock:
+        client = unittest.mock.MagicMock()
+        monkeypatch.setattr(
+            "services.api.utils.events.events_factory.EventsFactory.get_events_client",
+            lambda *args, **kwargs: client,
+        )
+        return client
+
+    @staticmethod
+    def _assert_lifecycle_emitted(
+        client: unittest.mock.MagicMock,
+        action: mlrun.common.schemas.ProjectLifecycleEventActions,
+        project_name: str,
+        actor: str | None,
+        error_type: type[BaseException] | None = None,
+    ) -> None:
+        client.generate_project_lifecycle_event.assert_called_once()
+        kwargs = client.generate_project_lifecycle_event.call_args.kwargs
+        assert kwargs["action"] == action
+        assert kwargs["project_name"] == project_name
+        assert kwargs["actor"] == actor
+        if error_type is None:
+            assert kwargs.get("error") is None
+        else:
+            assert isinstance(kwargs["error"], error_type)
+        client.emit.assert_called_once()
+
+    @staticmethod
+    def _generate_project_for_event_test(
+        name: str, owner: str | None = None
+    ) -> mlrun.common.schemas.Project:
+        return mlrun.common.schemas.Project(
+            metadata=mlrun.common.schemas.ProjectMetadata(name=name),
+            spec=mlrun.common.schemas.ProjectSpec(owner=owner),
+        )
 
     def _generate_and_insert_pre_060_record(self, project_name: str):
         pre_060_record = Project(name=project_name)

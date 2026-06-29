@@ -228,11 +228,12 @@ def test_get_offline_token_from_file(
 @pytest.mark.parametrize(
     "token_user_ids, auth_user_id, expected_count",
     [
+        # Only the token currently in use is synced, never more than one.
         # Case 1: one token, returns 1 token (same user)
         (["test-user-123"], "test-user-123", 1),
-        # Case 2: two tokens, returns 2 tokens (same user)
-        (["test-user-123", "test-user-123"], "test-user-123", 2),
-        # Case 3: two tokens, return 1 token (one different user)
+        # Case 2: two tokens of the same user, only the current one is synced
+        (["test-user-123", "test-user-123"], "test-user-123", 1),
+        # Case 3: two tokens, current one belongs to the authenticated user
         (["test-user-123", "other-user"], "test-user-123", 1),
         # Case 4: two tokens, return 0 tokens (both different users)
         (["other-user-1", "other-user-2"], "test-user-123", 0),
@@ -866,3 +867,26 @@ def test_load_and_prepare_secret_tokens_skips_invalid(tmp_path, monkeypatch):
     assert len(secret_tokens) == 1
     assert secret_tokens[0].name == "good_token"
     assert secret_tokens[0].token == valid_jwt
+
+
+def test_load_and_prepare_secret_tokens_syncs_only_token_in_use(tmp_path, monkeypatch):
+    """Only the token currently in use is synced. When ``token_name`` selects a
+    token other than the first, that named token is the one synced."""
+    first_jwt = _create_jwt_token({"sub": "user-123", "iat": 1, "exp": 9999999999})
+    named_jwt = _create_jwt_token({"sub": "user-123", "iat": 2, "exp": 9999999999})
+    tokens = [
+        {"name": "token1", "token": first_jwt},
+        {"name": "token2", "token": named_jwt},
+    ]
+
+    content = {"secretTokens": tokens}
+    path = _write_file(tmp_path, "tokens.yml", content)
+    monkeypatch.setattr(config.auth_with_oauth_token, "token_file", path)
+    monkeypatch.setattr(config.auth_with_oauth_token, "token_name", "token2")
+
+    secret_tokens = mlrun.auth.utils.load_and_prepare_secret_tokens(
+        auth_user_id="user-123"
+    )
+    assert len(secret_tokens) == 1
+    assert secret_tokens[0].name == "token2"
+    assert secret_tokens[0].token == named_jwt

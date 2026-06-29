@@ -15,12 +15,9 @@ import json
 import os
 from base64 import b64decode
 from copy import deepcopy
-from http import HTTPMethod
 from typing import Union
 
 import nuclio
-from jsonpath_ng import parse as jsonpath_parse
-from jsonpath_ng.exceptions import JsonPathLexerError, JsonPathParserError
 from nuclio import KafkaTrigger
 from nuclio.triggers import NuclioTrigger
 
@@ -31,12 +28,14 @@ import mlrun.datastore.datastore_profile as ds_profile
 import mlrun.runtimes.kubejob as kubejob_runtime
 import mlrun.runtimes.nuclio.function as nuclio_function
 import mlrun.runtimes.pod as pod_runtime
-import mlrun.serving.utils as serving_utils
-from mlrun.common.schemas.serving import _APIEndpointKeys
+import mlrun.serving.openai_mappings
 from mlrun.datastore import get_kafka_brokers_from_dict, parse_kafka_url
 from mlrun.model import ObjectList
 from mlrun.runtimes.function_reference import FunctionReference
 from mlrun.secrets import SecretsStore
+from mlrun.serving.endpoint_mapping import (
+    APIHandlerConfig,
+)
 from mlrun.serving.server import (
     GraphServer,
     add_system_steps_to_graph,
@@ -54,234 +53,6 @@ from mlrun.serving.states import (
 from mlrun.utils import get_caller_globals, logger, merge_requirements, set_paths
 
 serving_subkind = "serving_v2"
-
-
-class APIHandlerConfig(mlrun.model.ModelObj):
-    """Configuration for API handler in serving graph"""
-
-    _dict_fields = ["enabled", "endpoints", "body_map", "include_url_info"]
-
-    def __init__(
-        self,
-        enabled: bool = True,
-        endpoints: dict[str, dict] | None = None,
-        body_map: dict[str, str] | None = None,
-        include_url_info: bool = False,
-    ):
-        self.enabled = enabled
-        self._endpoints = endpoints or {}
-        self._body_map = body_map or {}
-        self.include_url_info = include_url_info
-
-    @property
-    def body_map(self) -> dict[str, str]:
-        """Get the body_map configuration as a dictionary."""
-        return self._body_map
-
-    @body_map.setter
-    def body_map(self, value: dict[str, str] | None) -> None:
-        """Set the body_map configuration from a dictionary."""
-        self._body_map = {}
-        if value:
-            for parameter_name, json_path in value.items():
-                self.add_body_mapping(parameter_name, json_path)
-
-    @property
-    def endpoints(self) -> dict[str, dict]:
-        """Get the endpoints configuration as a dictionary."""
-        return self._endpoints
-
-    @endpoints.setter
-    def endpoints(self, endpoints: dict[str, dict]) -> None:
-        """Set the endpoints configuration from a dictionary."""
-        self._endpoints = {}
-        for endpoint_key, config in endpoints.items():
-            method, path = self._parse_endpoint_key(endpoint_key)
-            self.add_endpoint_handler(
-                path=path,
-                http_method=method,
-                action=schemas.serving.APIHandlerAction(
-                    config.get(_APIEndpointKeys.ACTION)
-                ),
-                description=config.get(_APIEndpointKeys.DESCRIPTION),
-            )
-
-    def _parse_endpoint_key(self, endpoint_key: str) -> tuple[HTTPMethod, str]:
-        """Parse endpoint key 'METHOD:path' back to method and path components."""
-        try:
-            return serving_utils._split_serving_endpoint_key(endpoint_key)
-        except (ValueError, AttributeError) as e:
-            raise ValueError(
-                f"Invalid endpoint key format '{endpoint_key}'. Expected 'METHOD:path'"
-            ) from e
-
-    @staticmethod
-    def _normalize_path(path: str) -> str:
-        """Normalize path to ensure it starts with a forward slash.
-
-        :param path: URL path to normalize
-        :return: Normalized path with leading slash
-        """
-        if not path.startswith("/"):
-            return f"/{path}"
-        return path
-
-    @staticmethod
-    def _validate_path(path: str) -> None:
-        """Validate an endpoint path for structural correctness.
-
-        Currently enforces wildcard ``*`` rules:
-
-        * ``*`` may only appear once.
-        * ``*`` must be the last character in the path.
-
-        :param path: Normalized path (with leading ``/``) to validate.
-        :raises mlrun.errors.MLRunValueError: If the path contains an invalid ``*`` pattern.
-        """
-        star_count = path.count("*")
-        if star_count == 0:
-            return
-        # We know there is a wildcard, validate its position and count
-        if path[-1] != "*":
-            raise mlrun.errors.MLRunValueError(
-                f"Invalid endpoint path '{path}': "
-                f"wildcard '*' must be at the end of the path"
-            )
-        if star_count > 1:
-            raise mlrun.errors.MLRunValueError(
-                f"Invalid endpoint path '{path}': "
-                f"wildcard '*' must appear only once at the end of the path"
-            )
-
-    @staticmethod
-    def _validate_http_method(http_method: HTTPMethod | str) -> HTTPMethod:
-        """Validate and normalize the provided HTTP method.
-
-        :param http_method: HTTP method to validate (HTTPMethod enum or string)
-        :return: Normalized HTTPMethod enum value
-        :raises mlrun.errors.MLRunInvalidArgumentError: If method is not a valid HTTPMethod or string
-        """
-        if isinstance(http_method, HTTPMethod):
-            return http_method
-        if isinstance(http_method, str):
-            try:
-                return HTTPMethod(http_method.upper())
-            except ValueError:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"Invalid HTTP method string '{http_method}'. "
-                    f"Valid values are: {', '.join(m.value for m in HTTPMethod)}"
-                ) from None
-        # Not HTTPMethod or str - reject with helpful error
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            f"http_method must be an HTTPMethod enum or string, got {type(http_method).__name__} "
-            f"with value '{http_method}'. Valid values are: {', '.join(m.value for m in HTTPMethod)}"
-        )
-
-    def get_endpoint_config(self, method: HTTPMethod | str, path: str) -> dict | None:
-        """Get endpoint configuration for a specific method and path."""
-        method = self._validate_http_method(method)
-        path = self._normalize_path(path)
-        endpoint_key = serving_utils._combine_serving_endpoint_key(method, path)
-        return self._endpoints.get(endpoint_key)
-
-    def add_endpoint_handler(
-        self,
-        path: str,
-        http_method: HTTPMethod | str = HTTPMethod.POST,
-        action: schemas.serving.APIHandlerAction = schemas.serving.APIHandlerAction.ALLOW,
-        description: str | None = None,
-    ) -> None:
-        """Add an endpoint handler configuration.
-
-        :param path: URL path for the endpoint (e.g., ``/v1/models`` or ``/api/v1/*``)
-        :param http_method: HTTP method for the endpoint (``HTTPMethod`` enum or string like ``"GET"``, ``"POST"``)
-        :param action: Action to take for this endpoint (:py:class:`~mlrun.common.schemas.serving.APIHandlerAction`)
-        :param description: Optional description of the endpoint
-        :raises mlrun.errors.MLRunValueError: If the path contains an invalid wildcard ``*`` pattern
-        """
-        http_method = self._validate_http_method(http_method)
-        path = self._normalize_path(path)
-        self._validate_path(path)
-        endpoint_key = serving_utils._combine_serving_endpoint_key(http_method, path)
-
-        # Warn if overriding an existing endpoint
-        if endpoint_key in self._endpoints:
-            logger.warning(
-                "Overriding existing endpoint handler configuration",
-                method=http_method.value,
-                path=path,
-                old_action=self._endpoints[endpoint_key].get(_APIEndpointKeys.ACTION),
-                new_action=str(action),
-            )
-
-        self._endpoints[endpoint_key] = {
-            _APIEndpointKeys.ACTION: str(action),
-            _APIEndpointKeys.DESCRIPTION: description,
-        }
-
-    def remove_endpoint_handler(
-        self,
-        path: str,
-        http_method: HTTPMethod | str = HTTPMethod.POST,
-    ) -> None:
-        """Remove an endpoint handler configuration.
-
-        :param path: URL path for the endpoint to remove
-        :param http_method: HTTP method for the endpoint to remove (`HTTPMethod` enum or string like
-                            ``'GET'``, ``'POST'``)
-        """
-        http_method = self._validate_http_method(http_method)
-        path = self._normalize_path(path)
-        endpoint_key = serving_utils._combine_serving_endpoint_key(http_method, path)
-        self._endpoints.pop(endpoint_key, None)
-
-    def add_body_mapping(self, parameter_name: str, json_path: str) -> None:
-        """Add a JSONPath body mapping for extracting request parameters.
-
-        Maps a JSONPath expression to a parameter name. When a request is received,
-        the JSONPath will be evaluated against the request body and the result
-        will be passed as a named parameter to the handler function.
-
-        :param parameter_name: Name of the parameter to pass to the handler
-        :param json_path: JSONPath expression to extract the value from request body
-                         (e.g., ``'$.user.name'`` or ``'$.items[*].id'``)
-        :raises mlrun.errors.MLRunValueError: If json_path is not a valid JSONPath expression
-
-        Example::
-
-            config = APIHandlerConfig()
-            config.add_body_mapping("user_name", "$.user.name")
-            config.add_body_mapping("user_email", "$.user.contact.email")
-            config.add_body_mapping(
-                "item_ids", "$.items[*].id"
-            )  # Multiple matches return list
-        """
-        # Validate JSONPath expression by parsing it
-        try:
-            jsonpath_parse(json_path)
-        except (JsonPathLexerError, JsonPathParserError) as exc:
-            raise mlrun.errors.MLRunValueError(
-                f"Invalid JSON path expression for parameter '{parameter_name}': "
-                f"'{json_path}'. Error: {exc}"
-            ) from exc
-
-        # Warn if overriding an existing mapping
-        if parameter_name in self._body_map:
-            logger.warning(
-                "Overriding existing body mapping",
-                parameter_name=parameter_name,
-                old_json_path=self._body_map[parameter_name],
-                new_json_path=json_path,
-            )
-
-        self._body_map[parameter_name] = json_path
-
-    def remove_body_mapping(self, parameter_name: str) -> None:
-        """Remove a body mapping by parameter name.
-
-        :param parameter_name: Name of the parameter mapping to remove
-        """
-        self._body_map.pop(parameter_name, None)
 
 
 def new_v2_model_server(
@@ -395,7 +166,7 @@ class ServingSpec(nuclio_function.NuclioSpec):
         streaming: bool | None = None,
         api_handler_config: APIHandlerConfig | None = None,
         env_from=None,
-        otlp_enabled: bool = False,
+        mount_otlp_secret: bool = False,
     ):
         super().__init__(
             command=command,
@@ -441,7 +212,7 @@ class ServingSpec(nuclio_function.NuclioSpec):
             model_endpoints_instructions=model_endpoints_instructions,
             serving_spec=serving_spec,
             auth=auth,
-            otlp_enabled=otlp_enabled,
+            mount_otlp_secret=mount_otlp_secret,
         )
 
         self.models = models or {}
@@ -979,6 +750,8 @@ class ServingRuntime(nuclio_function.RemoteRuntime):
         verbose=False,
         builder_env: dict | None = None,
         force_build: bool = False,
+        wait: bool = True,
+        timeout: int | None = None,
     ):
         """deploy model serving function to a local/remote cluster
 
@@ -987,6 +760,10 @@ class ServingRuntime(nuclio_function.RemoteRuntime):
         :param verbose:   verbose logging
         :param builder_env: env vars dict for source archive config/credentials e.g. builder_env={"GIT_TOKEN": token}
         :param force_build: set True for force building the image
+        :param wait:      when True (default), block until ready and return the invocation command (``str``).
+            When ``False``, submit and return ``self`` so the caller can poll. See ``RemoteRuntime.deploy``.
+        :param timeout:   optional deadline in seconds for the readiness wait when ``wait=True``;
+            forwarded to ``RemoteRuntime.deploy``. ``None`` waits indefinitely. Ignored when ``wait=False``.
         """
 
         load_mode = self.spec.load_mode
@@ -1049,6 +826,8 @@ class ServingRuntime(nuclio_function.RemoteRuntime):
             verbose,
             builder_env=builder_env,
             force_build=force_build,
+            wait=wait,
+            timeout=timeout,
         )
 
     def _get_serving_spec(self):
@@ -1338,7 +1117,7 @@ class ServingRuntime(nuclio_function.RemoteRuntime):
         Example::
 
             # Using APIHandlerConfig object
-            from mlrun.runtimes.nuclio.serving import APIHandlerConfig
+            from mlrun.serving.endpoint_mapping import APIHandlerConfig
             from mlrun.common.schemas.serving import APIHandlerAction
             from http import HTTPMethod
 
@@ -1372,3 +1151,59 @@ class ServingRuntime(nuclio_function.RemoteRuntime):
 
         # Store the configuration in the spec for serialization
         self.spec.api_handler_config = config
+
+    def set_openai_frontend(
+        self,
+        endpoints: list[mlrun.serving.openai_mappings.OpenAIEndpoint] | None = None,
+        prefix: str | None = None,
+    ) -> None:
+        """Wire up OpenAI-compatible API handler endpoints in one call.
+
+        Registers pre-built input and output body mappings for each selected OpenAI
+        operation group. If ``endpoints`` is ``None``, all supported groups are registered.
+
+        **Validation scope — top-level only.** Mandatory field validation applies only to
+        the top-level keys of the request/response body. Full structural validation is
+        delegated to the OpenAI Python SDK, which deserializes responses into typed objects
+        and raises a ``ValidationError`` on any structural mismatch.
+
+        :param endpoints: Optional list of :class:`~mlrun.serving.openai_mappings.OpenAIEndpoint`
+            values selecting which operation groups to enable. Defaults to all groups.
+        :param prefix: Optional path prefix to prepend to every registered endpoint path.
+            Use this when clients send requests with a path prefix (e.g. ``prefix="/v1"``
+            registers ``/v1/chat/completions`` instead of ``/chat/completions``).
+            Defaults to ``None`` (no prefix).
+
+        Example::
+
+            from mlrun.serving.openai_mappings import OpenAIEndpoint
+
+            fn.set_openai_frontend()  # all groups, no prefix
+            fn.set_openai_frontend(prefix="/v1")  # all groups, /v1/ prefix
+            fn.set_openai_frontend([OpenAIEndpoint.RESPONSES], prefix="/v1")
+        """
+
+        if prefix is not None and not prefix.startswith("/"):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"OpenAI API prefix must start with '/': {prefix!r}"
+            )
+
+        existing = self.spec.api_handler_config
+        config = (
+            APIHandlerConfig.from_dict(existing) if existing else APIHandlerConfig()
+        )
+
+        groups = (
+            endpoints
+            if endpoints is not None
+            else list(mlrun.serving.openai_mappings.OpenAIEndpoint)
+        )
+        for ep_group in groups:
+            for ep in mlrun.serving.openai_mappings.ENDPOINT_CLASSES[
+                ep_group
+            ].endpoints():
+                if prefix:
+                    ep.path = prefix + ep.path
+                config.add_endpoint_config(ep)
+
+        self.set_api_handler_config(config)

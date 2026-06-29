@@ -13,10 +13,9 @@
 # limitations under the License.
 
 from datetime import datetime, timedelta
-from typing import Union
+from typing import TYPE_CHECKING, Union
 
 import pandas as pd
-import v3io_frames.client
 
 import mlrun
 import mlrun.common.schemas.model_monitoring as mm_schemas
@@ -31,6 +30,9 @@ from mlrun.model_monitoring.db.tsdb.timescaledb.utils.timescaledb_query_builder 
     TimescaleDBQueryBuilder,
 )
 from mlrun.model_monitoring.helpers import get_invocations_fqn
+
+if TYPE_CHECKING:
+    import v3io_frames.client
 
 
 class TimescaleDBPredictionsQueries:
@@ -286,7 +288,7 @@ class TimescaleDBPredictionsQueries:
         start: datetime | None = None,
         end: datetime | None = None,
         get_raw: bool = False,
-    ) -> Union[pd.DataFrame, list[v3io_frames.client.RawFrame]]:
+    ) -> Union[pd.DataFrame, "list[v3io_frames.client.RawFrame]"]:
         """Get average latency with automatic pre-aggregate optimization, returning single value per endpoint."""
 
         # Convert single endpoint to list for consistent handling

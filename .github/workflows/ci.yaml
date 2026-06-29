@@ -47,7 +47,7 @@ jobs:
       matrix:
         python-version: ["3.11"]
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
     - name: Fetch base branch for copyright diff
       if: github.event_name == 'pull_request'
       run: git fetch origin ${{ github.base_ref }} --depth=1
@@ -103,7 +103,7 @@ jobs:
         python-version: ["3.11"]
         test-suite: ["server", "client"]
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
     - name: Set up python ${{ matrix.python-version }}
       uses: actions/setup-python@v6
       with:
@@ -149,7 +149,7 @@ jobs:
       uses: actions/upload-artifact@v7
       with:
         name: coverage_unit_tests_report_${{ matrix.python-version }}_${{ github.run_id }}_${{ matrix.test-suite }}.coverage
-        path: /tmp/coverage_reports/unit_tests_${{ matrix.test-suite }}/unit_tests_${{ matrix.test-suite }}.coverage
+        path: ${{ github.workspace }}/coverage_reports/unit_tests_${{ matrix.test-suite }}/unit_tests_${{ matrix.test-suite }}.coverage
         retention-days: 30
 
 
@@ -166,7 +166,7 @@ jobs:
             test-db: postgres
 
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
 
     # since github-actions gives us 14G only, and fills it up with some garbage
     - name: Freeing up disk space
@@ -214,14 +214,14 @@ jobs:
       if: env.RUN_COVERAGE == 'true'
       with:
          name: coverage_integration_tests_report_${{ matrix.python-version }}_${{ matrix.test-db }}_${{ github.run_id }}.coverage
-         path: /tmp/coverage_reports/integration_tests/integration_tests.coverage
+         path: ${{ github.workspace }}/coverage_reports/integration_tests/integration_tests.coverage
          retention-days: 30
 
   migrations-tests:
     name: Run Dockerized Migrations Tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       # TODO: re-use the next 2 actions instead of duplicating
       - name: Extract git branch
         id: git_info
@@ -243,7 +243,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: coverage_migration_tests_report-${{ github.run_id }}.coverage
-          path: /tmp/coverage_reports/migration_tests/migration_tests.coverage
+          path: ${{ github.workspace }}/coverage_reports/migration_tests/migration_tests.coverage
           retention-days: 30
 
   package-tests:
@@ -257,14 +257,14 @@ jobs:
     env:
       MLRUN_PYTHON_PACKAGE_INSTALLER: uv
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
 
     - name: Set up python ${{ matrix.python-version }}
       uses: actions/setup-python@v6
       with:
         python-version: ${{ matrix.python-version }}
 
-    - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # 8.1.0
+    - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # 8.2.0
       with:
           python-version: ${{ matrix.python-version }}
           enable-cache: true
@@ -300,12 +300,12 @@ jobs:
         run: |
             echo "branch=$(echo ${GITHUB_BASE_REF#refs/heads/})" >> $GITHUB_OUTPUT
       - name: Checkout PR Base (target) Branch
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ steps.resolve_base_branch.outputs.branch }}
           path: base/mlrun
       - name: Checkout Merge Commit (requested branch merged with the target branch)
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           path: head/mlrun
       - name: Resolve docker cache tag
@@ -328,7 +328,7 @@ jobs:
       matrix:
         python-version: ["3.11"]
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
     - name: Set up python ${{ matrix.python-version }}
       uses: actions/setup-python@v6
       with:
@@ -349,7 +349,7 @@ jobs:
         python-version: [ "3.11"]
     needs: [tests, integration-tests, migrations-tests]
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: Set up Python

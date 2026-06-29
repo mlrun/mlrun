@@ -316,6 +316,9 @@ def is_iguazio_endpoint(endpoint_url: str) -> bool:
 
 
 def is_iguazio_session(value: str) -> bool:
+    # JWS-style JWTs are bearer tokens, not Iguazio sessions.
+    if value.count(".") == 2 and value.startswith("eyJ"):
+        return False
     # TODO: find a better heuristic
     return len(value) > 20 and "-" in value
 

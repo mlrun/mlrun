@@ -34,6 +34,7 @@ import yaml
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.formatters
 import mlrun.common.schemas
+import mlrun.datastore
 import mlrun.errors
 import mlrun.utils.helpers
 import mlrun_pipelines.utils
@@ -1315,18 +1316,6 @@ def wait_for_runs_completion(
         runs = running
 
     return completed
-
-
-def get_model_monitoring_url(project: str) -> str | None:
-    """
-    Retrieve the HTTP URL of the model monitoring stream pod for the given project.
-
-    :param project: name of the project
-    :return: HTTP URL of the model monitoring stream pod, or None if no HTTP trigger is configured
-    :raises mlrun.errors.MLRunNotFoundError: if the stream function is not deployed
-    :raises mlrun.errors.MLRunPreconditionFailedError: if the stream function is not in ready state
-    """
-    return mlrun.db.get_run_db().get_model_monitoring_url(project)
 
 
 def _ensure_path_confined_to_base_dir(

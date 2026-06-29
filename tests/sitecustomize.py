@@ -30,7 +30,12 @@ _DIAG_LOG_PATH = os.path.join(_DIAG_LOG_DIR, "fork_diagnostic.log")
 def _diag_log(tag, **fields):
     try:
         os.makedirs(_DIAG_LOG_DIR, exist_ok=True)
-        parts = [f"ts={time.time():.3f}", f"pid={os.getpid()}", f"ppid={os.getppid()}", f"tag={tag}"]
+        parts = [
+            f"ts={time.time():.3f}",
+            f"pid={os.getpid()}",
+            f"ppid={os.getppid()}",
+            f"tag={tag}",
+        ]
         for k, v in fields.items():
             parts.append(f"{k}={v}")
         with open(_DIAG_LOG_PATH, "a") as f:
@@ -59,7 +64,9 @@ def _coverage_saving_exit(status):
         current_coverage.save()
         if cov_file_env:
             matches = sorted(_glob.glob(cov_file_env + ".*"))
-            _diag_log("exit_post_save", matches_count=len(matches), matches="|".join(matches))
+            _diag_log(
+                "exit_post_save", matches_count=len(matches), matches="|".join(matches)
+            )
         else:
             _diag_log("exit_post_save_no_cov_file_env")
     except Exception as exc:

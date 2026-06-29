@@ -63,7 +63,9 @@ RUN_COVERAGE ?= false
 COVERAGE_FILE ?=
 COVERAGE_MOUNT_PATH ?=
 ifeq ("$(RUN_COVERAGE)","true")
-    COVERAGE_ADDITION = -m coverage run --data-file=$$COVERAGE_FILE
+    # pytest writes shards into $$SHARDS_FILE (set by SETUP_SHARDS, falls back
+    # to $$COVERAGE_FILE if SETUP_SHARDS wasn't called).
+    COVERAGE_ADDITION = -m coverage run --data-file=$${SHARDS_FILE:-$$COVERAGE_FILE}
 else
     COVERAGE_ADDITION =
 endif
@@ -82,14 +84,33 @@ SETUP_COVERAGE = if [ "$(RUN_COVERAGE)" = "true" ]; then \
 	export COVERAGE_PROCESS_START=$(ROOT_DIR)pyproject.toml; \
 fi
 
+# SETUP_SHARDS creates a dedicated shards directory per test suite, named
+# after the COVERAGE_FILE basename (e.g. shards_integration_tests).
+# Shell variables SHARDS_DIR and SHARDS_FILE are exposed to the rest of the
+# recipe so pytest writes shards there and COMBINE_COVERAGE reads from there.
+# This isolates each suite's shards so combine cannot pick up unrelated files.
+SETUP_SHARDS = if [ "$(RUN_COVERAGE)" = "true" ]; then \
+	SHARDS_DIR=$$(dirname $$COVERAGE_FILE)/shards_$$(basename $$COVERAGE_FILE .coverage) ; \
+	rm -rf $$SHARDS_DIR ; \
+	mkdir -p $$SHARDS_DIR ; \
+	SHARDS_FILE=$$SHARDS_DIR/$$(basename $$COVERAGE_FILE) ; \
+fi
+
+# Remove 0-byte shards left behind by subprocesses (e.g. multiprocessing Pool
+# workers) that died before saving any coverage data. Without this, combine
+# would try to read them and raise "no such table" errors. ML-12766.
+CLEANUP_ZERO_BYTE_SHARDS = if [ "$(RUN_COVERAGE)" = "true" ] && [ -n "$$SHARDS_DIR" ]; then \
+	find $$SHARDS_DIR -maxdepth 1 -name "$$(basename $$COVERAGE_FILE).*" -size 0 -print -delete ; \
+fi
+
 PRINT_COVERAGE_REPORT = if [ "$(RUN_COVERAGE)" = "true" ]; then \
     	echo "coverage report $$COVERAGE_FILE :"; \
 		COVERAGE_FILE=$$COVERAGE_FILE coverage report; \
 	fi
 
 COMBINE_COVERAGE = if [ "$(RUN_COVERAGE)" = "true" ]; then \
-	echo "Combining coverage files matching $${COVERAGE_FILE}.*" ; \
-	COVERAGE_FILE=$$COVERAGE_FILE coverage combine $${COVERAGE_FILE}.* ; \
+	echo "Combining coverage files in $$SHARDS_DIR" ; \
+	COVERAGE_FILE=$$COVERAGE_FILE coverage combine $$SHARDS_DIR ; \
 fi
 
 CHECK_COVERAGE_ERROR = if [ "$(RUN_COVERAGE)" = "true" ] && [ $$PYTEST_EXIT -ne 0 ] && ls $(ROOT_DIR)tests/coverage_reports/errors/coverage_error_*.log 2>/dev/null | grep -q .; then \
@@ -681,7 +702,8 @@ test: clean ## Run mlrun tests
 	COVERAGE_FILE=$(COVERAGE_FILE) && \
 	COVERAGE_FILE=$${COVERAGE_FILE:-"tests/coverage_reports/unit_tests.coverage"} && \
 	$(SETUP_COVERAGE) && \
-	COVERAGE_FILE=$$COVERAGE_FILE \
+	$(SETUP_SHARDS) && \
+	COVERAGE_FILE=$$SHARDS_FILE \
 	python \
 		-X faulthandler \
 		$(COVERAGE_ADDITION) \
@@ -696,6 +718,7 @@ test: clean ## Run mlrun tests
 		-rf \
 		$$UNIT_TESTS_PATH \
 	|| { PYTEST_EXIT=$$? ; $(CHECK_COVERAGE_ERROR) ; exit $$PYTEST_EXIT ; } ; \
+	$(CLEANUP_ZERO_BYTE_SHARDS) && \
 	$(COMBINE_COVERAGE) && \
 	$(PRINT_COVERAGE_REPORT) ;
 
@@ -724,6 +747,7 @@ test-integration: clean ## Run mlrun integration tests
 	COVERAGE_FILE=$(COVERAGE_FILE) && \
 	COVERAGE_FILE=$${COVERAGE_FILE:-"tests/coverage_reports/integration_tests.coverage"} && \
 	$(SETUP_COVERAGE) && \
+	$(SETUP_SHARDS) && \
 	DIAG_DIR=$$(dirname $$COVERAGE_FILE)/diagnostics && \
 	mkdir -p $$DIAG_DIR && \
 	export COVERAGE_DEBUG=process,dataio && \
@@ -731,14 +755,13 @@ test-integration: clean ## Run mlrun integration tests
 	set +e ; \
 	MLRUN_MYSQL_IMAGE=$(MLRUN_MYSQL_IMAGE) \
 	MLRUN_POSTGRES_IMAGE=$(MLRUN_POSTGRES_IMAGE) \
-	COVERAGE_FILE=$$COVERAGE_FILE \
+	COVERAGE_FILE=$$SHARDS_FILE \
 	python $(COVERAGE_ADDITION) \
 		-m pytest -v \
 		--capture=no \
 		--disable-warnings \
 		--durations=100 \
 		-rf \
-		--forked \
 		tests/integration \
 		server/py/services/api/tests/integration \
 		tests/rundb/test_httpdb.py ; \
@@ -746,11 +769,14 @@ test-integration: clean ## Run mlrun integration tests
 	set -e ; \
 	echo "=== ML-12766 diag: pytest_exit=$$pytest_exit ===" \
 		| tee $$DIAG_DIR/files_before_combine.txt ; \
-	echo "=== ML-12766 diag: files matching $$COVERAGE_FILE.* BEFORE combine ===" \
+	echo "=== ML-12766 diag: contents of $$SHARDS_DIR BEFORE cleanup/combine ===" \
 		| tee -a $$DIAG_DIR/files_before_combine.txt ; \
-	ls -la $$COVERAGE_FILE.* 2>&1 \
+	ls -la $$SHARDS_DIR/ 2>&1 \
 		| tee -a $$DIAG_DIR/files_before_combine.txt ; \
 	if [ $$pytest_exit -ne 0 ]; then $(CHECK_COVERAGE_ERROR) ; exit $$pytest_exit ; fi ; \
+	echo "=== ML-12766 diag: removing 0-byte orphan shards ===" \
+		| tee $$DIAG_DIR/zero_byte_cleanup.txt ; \
+	$(CLEANUP_ZERO_BYTE_SHARDS) 2>&1 | tee -a $$DIAG_DIR/zero_byte_cleanup.txt ; \
 	if command -v strace >/dev/null 2>&1; then \
 		STRACE_PREFIX="strace -f -e trace=file -o $$DIAG_DIR/strace_combine.txt" ; \
 		echo "=== ML-12766 diag: strace available, tracing combine ===" ; \
@@ -759,7 +785,7 @@ test-integration: clean ## Run mlrun integration tests
 		echo "=== ML-12766 diag: strace NOT available ===" ; \
 	fi ; \
 	set +e ; \
-	$$STRACE_PREFIX sh -c "COVERAGE_FILE=$$COVERAGE_FILE coverage combine $$COVERAGE_FILE.*" \
+	$$STRACE_PREFIX sh -c "COVERAGE_FILE=$$COVERAGE_FILE coverage combine $$SHARDS_DIR" \
 		> $$DIAG_DIR/combine_stdout.txt 2> $$DIAG_DIR/combine_stderr.txt ; \
 	combine_exit=$$? ; \
 	set -e ; \
@@ -773,9 +799,13 @@ test-integration: clean ## Run mlrun integration tests
 		| tee -a $$DIAG_DIR/files_after_combine.txt ; \
 	cat $$DIAG_DIR/combine_stderr.txt \
 		| tee -a $$DIAG_DIR/files_after_combine.txt ; \
-	echo "=== ML-12766 diag: files matching $$COVERAGE_FILE.* AFTER combine ===" \
+	echo "=== ML-12766 diag: combined output at $$COVERAGE_FILE ===" \
 		| tee -a $$DIAG_DIR/files_after_combine.txt ; \
 	ls -la $$COVERAGE_FILE* 2>&1 \
+		| tee -a $$DIAG_DIR/files_after_combine.txt ; \
+	echo "=== ML-12766 diag: remaining shards in $$SHARDS_DIR (combine deletes on success) ===" \
+		| tee -a $$DIAG_DIR/files_after_combine.txt ; \
+	ls -la $$SHARDS_DIR/ 2>&1 \
 		| tee -a $$DIAG_DIR/files_after_combine.txt ; \
 	if [ $$combine_exit -ne 0 ]; then exit $$combine_exit ; fi ; \
 	$(PRINT_COVERAGE_REPORT);
@@ -807,12 +837,15 @@ test-migrations: clean ## Run mlrun db migrations tests
 	export MLRUN_POSTGRES_IMAGE=$(MLRUN_POSTGRES_IMAGE) && \
 	export COVERAGE_FILE && \
 	$(SETUP_COVERAGE) && \
+	$(SETUP_SHARDS) && \
+	export SHARDS_DIR SHARDS_FILE && \
 	bash -c 'set -euo pipefail; \
-	  python -u $(COVERAGE_ADDITION) -m pytest -vvv \
+	  COVERAGE_FILE=$$SHARDS_FILE python -u $(COVERAGE_ADDITION) -m pytest -vvv \
 	    --capture=no --disable-warnings --durations=100 \
 	    -rf "$(ROOT_DIR)/server/py/services/api/migrations/tests" \
 	    2>&1 | tee migration_tests.log' ; \
 	exit_code=$$? ; \
+	$(CLEANUP_ZERO_BYTE_SHARDS) && \
 	$(COMBINE_COVERAGE) && \
 	$(PRINT_COVERAGE_REPORT) ; \
 	exit $$exit_code

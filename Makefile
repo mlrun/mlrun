@@ -738,6 +738,7 @@ test-integration: clean ## Run mlrun integration tests
 		--disable-warnings \
 		--durations=100 \
 		-rf \
+		--forked \
 		tests/integration \
 		server/py/services/api/tests/integration \
 		tests/rundb/test_httpdb.py ; \
@@ -758,7 +759,7 @@ test-integration: clean ## Run mlrun integration tests
 		echo "=== ML-12766 diag: strace NOT available ===" ; \
 	fi ; \
 	set +e ; \
-	$$STRACE_PREFIX sh -c "env -u COVERAGE_PROCESS_START COVERAGE_FILE=$$COVERAGE_FILE coverage combine $$(dirname $$COVERAGE_FILE)" \
+	$$STRACE_PREFIX sh -c "COVERAGE_FILE=$$COVERAGE_FILE coverage combine $$COVERAGE_FILE.*" \
 		> $$DIAG_DIR/combine_stdout.txt 2> $$DIAG_DIR/combine_stderr.txt ; \
 	combine_exit=$$? ; \
 	set -e ; \

@@ -12,4 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .v3io_connector import V3IOTSDBConnector
+# NOTE: intentionally do not re-export V3IOTSDBConnector here. It pulls in v3io_frames
+# eagerly, which would force importing this package (e.g. for the pure stream_graph_steps
+# helpers) to require the optional v3io-frames extra. Import it from .v3io_connector
+# directly at construction sites instead.

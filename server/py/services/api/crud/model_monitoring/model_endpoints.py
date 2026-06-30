@@ -318,10 +318,12 @@ class ModelEndpoints:
         :param function_name: The name of the function whose endpoints to realign.
         :return: The number of model endpoints that were repointed.
         """
-        return framework.utils.singletons.db.get_db().realign_model_endpoints_to_function(
-            session=db_session,
-            project=project,
-            function_name=function_name,
+        return (
+            framework.utils.singletons.db.get_db().realign_model_endpoints_to_function(
+                session=db_session,
+                project=project,
+                function_name=function_name,
+            )
         )
 
     def _inplace_model_endpoint(

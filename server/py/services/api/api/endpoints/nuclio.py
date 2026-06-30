@@ -745,6 +745,17 @@ def _handle_nuclio_deploy_status(
         )
         logger.info("Updating function status", function=fn)
 
+        if versioned:
+            # A versioned store mints a new function version row and moves the stored tag
+            # onto it. Realign the function's model endpoints with the row that now holds
+            # each endpoint's tag so their function link is not left stale (endpoints
+            # whose tag did not move are untouched).
+            services.api.crud.ModelEndpoints().realign_model_endpoints_to_function(
+                db_session,
+                project=project,
+                function_name=name,
+            )
+
     return Response(
         content=text,
         media_type="text/plain",

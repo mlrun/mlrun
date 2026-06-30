@@ -2976,6 +2976,50 @@ class TestNuclioAppModelEndpointCreation(TestMLRunSystemModelMonitoring):
             condition_description="model endpoints 'ep1' and 'ep2' to exist in DB",
         )
 
+    @pytest.mark.timeout(600)
+    def test_endpoint_relinked_to_versioned_function(self) -> None:
+        """
+        Deploying a tracked function drives it to `ready`, which (in the deploy-status
+        handler) stores the function as a new versioned row and moves the `latest` tag
+        onto it. The model endpoint — created against the pre-build unversioned row — must
+        be repointed to that versioned row.
+
+        The assertion is on the endpoint's function_uri (its function foreign key), not on
+        function_tag: the read-time tag resolution would report `latest` even if the link
+        were stale, so only the FK actually proves the repoint ran.
+        """
+        from mlrun.common.schemas.model_monitoring.model_endpoints import (
+            ModelEndpointInstruction,
+        )
+
+        fn_name = "nuclio-relink"
+        self._deploy_nuclio_fn_with_monitoring(
+            fn_name=fn_name,
+            instructions=[ModelEndpointInstruction(name="ep1")],
+        )
+
+        self._wait_for_model_endpoint_background_task()
+        self.wait_for_condition(
+            lambda: _assert_endpoint_exists(
+                self.project, "ep1", function_name=fn_name, function_tag="latest"
+            ),
+            retry_interval=30.0,
+            timeout=120.0,
+            condition_description="model endpoint 'ep1' to exist in DB",
+        )
+
+        # The endpoint must be linked to the deployed (versioned) function that holds
+        # `latest`, not the pre-build unversioned row that the deploy's `ready` store
+        # moved the tag off of.
+        endpoint = self.project.list_model_endpoints(names="ep1").endpoints[0]
+        assert endpoint.spec.function_tag == "latest"
+        assert (
+            endpoint.spec.function_uri
+            and "unversioned-" not in endpoint.spec.function_uri
+        ), (
+            f"endpoint left linked to the unversioned row: {endpoint.spec.function_uri!r}"
+        )
+
 
 @TestMLRunSystemModelMonitoring.skip_test_if_env_not_configured
 @pytest.mark.enterprise
@@ -3068,4 +3112,39 @@ class TestApplicationRuntimeModelEndpointCreation(TestNuclioAppModelEndpointCrea
             retry_interval=30.0,
             timeout=120.0,
             condition_description="model endpoints 'ep1' and 'ep2' to exist in DB",
+        )
+
+    @pytest.mark.timeout(600)
+    def test_endpoint_relinked_to_versioned_function(self) -> None:
+        from mlrun.common.schemas.model_monitoring.model_endpoints import (
+            ModelEndpointInstruction,
+        )
+
+        fn_name = "app-relink"
+        self._deploy_nuclio_fn_with_monitoring(
+            fn_name=fn_name,
+            instructions=[ModelEndpointInstruction(name="ep1")],
+            kind="application",
+        )
+
+        self._wait_for_model_endpoint_background_task()
+        self.wait_for_condition(
+            lambda: _assert_endpoint_exists(
+                self.project, "ep1", function_name=fn_name, function_tag="latest"
+            ),
+            retry_interval=30.0,
+            timeout=120.0,
+            condition_description="model endpoint 'ep1' to exist in DB",
+        )
+
+        # The endpoint must be linked to the deployed (versioned) function that holds
+        # `latest`, not the pre-build unversioned row that the deploy's `ready` store
+        # moved the tag off of.
+        endpoint = self.project.list_model_endpoints(names="ep1").endpoints[0]
+        assert endpoint.spec.function_tag == "latest"
+        assert (
+            endpoint.spec.function_uri
+            and "unversioned-" not in endpoint.spec.function_uri
+        ), (
+            f"endpoint left linked to the unversioned row: {endpoint.spec.function_uri!r}"
         )

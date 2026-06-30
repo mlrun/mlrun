@@ -6346,6 +6346,7 @@ class SQLDB(DBInterface):
 
     def _transform_model_endpoint_model_to_schema(
         self,
+        session,
         model_endpoint_record: ModelEndpoint,
         format_: mlrun.common.formatters.ModelEndpointFormat = mlrun.common.formatters.ModelEndpointFormat.full,
     ) -> mlrun.common.schemas.ModelEndpoint:
@@ -6359,6 +6360,7 @@ class SQLDB(DBInterface):
         model_endpoint_full_dict[ModelEndpointSchema.UID] = model_endpoint_record.uid
 
         model_endpoint_full_dict = self._fill_model_endpoint_with_function_data(
+            session,
             model_endpoint_record,
             model_endpoint_full_dict,
             latest=bool(model_endpoint_record.tags),
@@ -6381,6 +6383,7 @@ class SQLDB(DBInterface):
 
     def _fill_model_endpoint_with_function_data(
         self,
+        session,
         model_endpoint_record: ModelEndpoint,
         model_endpoint_full_dict: dict,
         latest: bool,
@@ -6389,9 +6392,17 @@ class SQLDB(DBInterface):
             model_endpoint_full_dict[ModelEndpointSchema.FUNCTION_NAME] = (
                 model_endpoint_record.function.name
             )
-            function_tag_list = model_endpoint_record.function.tags
+            # Resolve the function tag by the function name rather than by the linked
+            # version row. On redeploy the `latest` tag moves to the newly stored version
+            # row, while the model endpoint keeps pointing at the previously linked row
+            # (which becomes untagged). Resolving by name keeps the reported tag correct
+            # and heals endpoints already linked to a now-untagged version row.
             model_endpoint_full_dict[ModelEndpointSchema.FUNCTION_TAG] = (
-                self._get_obj_tag_prioritizing_user_tag(function_tag_list)
+                self._resolve_function_tag_by_name(
+                    session=session,
+                    project=model_endpoint_record.function.project,
+                    function_name=model_endpoint_record.function.name,
+                )
             )
             model_endpoint_full_dict[ModelEndpointSchema.STATE] = (
                 model_endpoint_record.function.state
@@ -6443,6 +6454,27 @@ class SQLDB(DBInterface):
         if latest:
             return mlrun.common.constants.RESERVED_TAG_NAME_LATEST
         return ""
+
+    def _resolve_function_tag_by_name(
+        self, session, project: str, function_name: str
+    ) -> str:
+        """
+        Resolve the current tag of a function by its name, across all of its version rows.
+
+        A model endpoint links to a specific function version via a foreign key. On
+        redeploy the `latest` tag moves to the newly stored version row, leaving the
+        previously linked row untagged. Looking the tag up by name (instead of via the
+        possibly stale foreign key) returns the tag that currently applies to the function.
+
+        :param session:       A session that manages the current dialog with the database.
+        :param project:       The project name.
+        :param function_name: The name of the function.
+        :return: The prioritized tag name, or an empty string if the function has no tags.
+        """
+        function_tag_list = list(
+            self._query(session, Function.Tag, project=project, obj_name=function_name)
+        )
+        return self._get_obj_tag_prioritizing_user_tag(function_tag_list)
 
     @staticmethod
     def _fill_model_endpoint_with_model_data(
@@ -8244,6 +8276,71 @@ class SQLDB(DBInterface):
         )
         return mep.uid
 
+    def realign_model_endpoints_to_function(
+        self, session, project: str, function_name: str
+    ) -> int:
+        """
+        Realign a function's model endpoints with the version row that currently holds
+        each endpoint's own function tag.
+
+        When a function is re-stored as a new version (e.g. when a deploy reaches
+        `ready`), the stored tag moves to the new version row, leaving endpoints that
+        track that tag linked to the previous (now-untagged) row. This repoints every
+        endpoint to the row that currently holds *its* tag, so the function foreign key
+        stays current — for `latest` as well as user tags such as `v1`.
+
+        A ``function_tag`` is a movable label, so an endpoint tracking it follows it to
+        its current row. Endpoints whose tag has not moved (the resolved row already
+        matches the link) or whose tag no longer resolves are left untouched.
+
+        :param session:       A session that manages the current dialog with the database.
+        :param project:       The project name.
+        :param function_name: The name of the function whose endpoints to realign.
+        :return: The number of model endpoints that were repointed.
+        """
+        candidates = (
+            session.query(ModelEndpoint)
+            .join(Function, ModelEndpoint.function_id == Function.id)
+            .filter(
+                ModelEndpoint.project == project,
+                Function.name == function_name,
+            )
+            .all()
+        )
+        if not candidates:
+            return 0
+
+        # resolve the current function row id per distinct tag once
+        function_id_by_tag: dict[str, int | None] = {}
+        updated = datetime.now(UTC)
+        repointed = []
+        for mep_record in candidates:
+            tag = (mep_record.struct or {}).get(
+                ModelEndpointSchema.FUNCTION_TAG
+            ) or mlrun.common.constants.RESERVED_TAG_NAME_LATEST
+            if tag not in function_id_by_tag:
+                function_record = self._get_mep_function(
+                    session,
+                    function_name=function_name,
+                    function_tag=tag,
+                    project=project,
+                )
+                function_id_by_tag[tag] = (
+                    function_record.id if function_record else None
+                )
+            target_function_id = function_id_by_tag[tag]
+            if (
+                target_function_id is not None
+                and mep_record.function_id != target_function_id
+            ):
+                mep_record.function_id = target_function_id
+                mep_record.updated = updated
+                repointed.append(mep_record)
+
+        if repointed:
+            self._upsert(session, repointed)
+        return len(repointed)
+
     def _get_mep_function(
         self, session, function_name, function_tag, project
     ) -> Function | None:
@@ -8320,7 +8417,7 @@ class SQLDB(DBInterface):
             raise mlrun.errors.MLRunNotFoundError(
                 f"Model Endpoint not found in project {project} with name {name} under function {function_name}"
             )
-        return self._transform_model_endpoint_model_to_schema(mep_record)
+        return self._transform_model_endpoint_model_to_schema(session, mep_record)
 
     def update_model_endpoints(
         self,
@@ -8451,7 +8548,7 @@ class SQLDB(DBInterface):
         ):
             if not as_dict:
                 model_endpoints.endpoints.append(
-                    self._transform_model_endpoint_model_to_schema(mep_record)
+                    self._transform_model_endpoint_model_to_schema(session, mep_record)
                 )
             else:
                 model_endpoints[

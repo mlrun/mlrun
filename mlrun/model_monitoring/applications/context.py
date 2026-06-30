@@ -234,7 +234,8 @@ class MonitoringApplicationContext:
                 raise mlrun.errors.MLRunValueError(
                     "The sample dataframe is empty, which may indicate that there are no features logged in the "
                     "model endpoint during the specified time window. Please check that your model endpoint is logging "
-                    "features correctly, and that the time window is correct."
+                    "features correctly, and that the time window is correct. "
+                    f"`start`={self.start_infer_time}, and `end`={self.end_infer_time}."
                 )
             self._sample_df = df.reset_index(drop=True)
         return self._sample_df

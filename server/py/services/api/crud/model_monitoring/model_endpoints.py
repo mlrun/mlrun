@@ -297,6 +297,33 @@ class ModelEndpoints:
                 delete_background_task=delete_background_task,
             )
 
+    def realign_model_endpoints_to_function(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        project: str,
+        function_name: str,
+    ) -> int:
+        """
+        Realign a function's model endpoints with the row that currently holds each
+        endpoint's own function tag.
+
+        Called after a function is re-stored as a new version (e.g. when a deploy reaches
+        `ready`), which moves the stored tag onto the new version row. Without this, an
+        endpoint stays linked to the now-untagged previous row and reports an empty
+        function tag. Works for `latest` as well as user tags; endpoints whose tag has not
+        moved are left untouched.
+
+        :param db_session:    A session that manages the current dialog with the database.
+        :param project:       The project name.
+        :param function_name: The name of the function whose endpoints to realign.
+        :return: The number of model endpoints that were repointed.
+        """
+        return framework.utils.singletons.db.get_db().realign_model_endpoints_to_function(
+            session=db_session,
+            project=project,
+            function_name=function_name,
+        )
+
     def _inplace_model_endpoint(
         self,
         db_session: sqlalchemy.orm.Session,

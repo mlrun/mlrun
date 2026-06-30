@@ -635,6 +635,181 @@ class TestModelEndpoint(TestDatabaseBase):
                 # archived model endpoint should not have function_uri
                 assert mep.spec.function_uri is None
 
+    def test_function_tag_resolved_by_name_after_versioned_redeploy(self) -> None:
+        # Reproduces the case where a function redeploy stores a new *versioned* row and
+        # moves the `latest` tag onto it, leaving the row the model endpoint is linked to
+        # (the unversioned row) untagged. The reported function_tag must still resolve to
+        # `latest` (resolved by function name), healing the endpoint on read even though
+        # its function foreign key still points at the now-untagged version row.
+        function = self._generate_function(
+            function_name="function-1", project="project-1", tag="latest"
+        )
+        # initial (unversioned) store -> `latest` points at the unversioned row
+        self._db.store_function(
+            self._db_session,
+            function.to_dict(),
+            function.metadata.name,
+            function.metadata.project,
+            function.metadata.tag,
+            versioned=False,
+        )
+        model_endpoint = mlrun.common.schemas.ModelEndpoint(
+            metadata={"name": "model-endpoint-1", "project": "project-1"},
+            spec={"function_name": "function-1", "function_tag": "latest"},
+            status={"monitoring_mode": "enabled"},
+        )
+        uid = self._db.store_model_endpoint(self._db_session, model_endpoint)
+
+        mep_before = self._db.get_model_endpoint(
+            self._db_session,
+            name="model-endpoint-1",
+            project="project-1",
+            uid=uid,
+        )
+        assert mep_before.spec.function_tag == "latest"
+
+        # simulate a redeploy reaching `ready`: a versioned store mints a new row and
+        # moves the `latest` tag onto it, untagging the unversioned row the MEP links to
+        self._db.store_function(
+            self._db_session,
+            function.to_dict(),
+            function.metadata.name,
+            function.metadata.project,
+            function.metadata.tag,
+            versioned=True,
+        )
+
+        mep_after = self._db.get_model_endpoint(
+            self._db_session,
+            name="model-endpoint-1",
+            project="project-1",
+            uid=uid,
+        )
+        # the tag is healed (resolved by name), even though the MEP's function foreign key
+        # still points at the unversioned row, which lost the `latest` tag
+        assert mep_after.spec.function_tag == "latest"
+        assert (
+            mep_after.spec.function_uri
+            == f"project-1/function-1@{unversioned_tagged_object_uid_prefix}latest"
+        )
+
+    def test_realign_model_endpoints_to_function(self) -> None:
+        # realign_model_endpoints_to_function repoints each endpoint to the row that
+        # currently holds its OWN tag: a latest-tracking endpoint follows `latest`, a
+        # user-tag (v1) endpoint follows `v1` — each only when its tag actually moves.
+        function = self._generate_function(
+            function_name="function-1", project="project-1", tag="latest"
+        )
+        # unversioned rows that initially hold `latest` and `v1`
+        self._db.store_function(
+            self._db_session,
+            function.to_dict(),
+            "function-1",
+            "project-1",
+            "latest",
+            versioned=False,
+        )
+        self._db.store_function(
+            self._db_session,
+            function.to_dict(),
+            "function-1",
+            "project-1",
+            "v1",
+            versioned=False,
+        )
+
+        latest_ep = mlrun.common.schemas.ModelEndpoint(
+            metadata={"name": "latest-ep", "project": "project-1"},
+            spec={"function_name": "function-1", "function_tag": "latest"},
+            status={"monitoring_mode": "enabled"},
+        )
+        pinned_ep = mlrun.common.schemas.ModelEndpoint(
+            metadata={"name": "pinned-ep", "project": "project-1"},
+            spec={"function_name": "function-1", "function_tag": "v1"},
+            status={"monitoring_mode": "enabled"},
+        )
+        latest_uid = self._db.store_model_endpoint(self._db_session, latest_ep)
+        pinned_uid = self._db.store_model_endpoint(self._db_session, pinned_ep)
+
+        # --- `latest` moves: only the latest-tracking endpoint realigns ---
+        self._db.store_function(
+            self._db_session,
+            function.to_dict(),
+            "function-1",
+            "project-1",
+            "latest",
+            versioned=True,
+        )
+        new_latest_function = self._db._get_mep_function(
+            self._db_session,
+            function_name="function-1",
+            function_tag="latest",
+            project="project-1",
+        )
+        assert (
+            self._db.realign_model_endpoints_to_function(
+                self._db_session, project="project-1", function_name="function-1"
+            )
+            == 1
+        )
+        latest_after = self._db.get_model_endpoint(
+            self._db_session, name="latest-ep", project="project-1", uid=latest_uid
+        )
+        assert (
+            latest_after.spec.function_uri
+            == f"project-1/function-1@{new_latest_function.uid}"
+        )
+        # the v1-pinned endpoint is untouched — its tag has not moved
+        pinned_after = self._db.get_model_endpoint(
+            self._db_session, name="pinned-ep", project="project-1", uid=pinned_uid
+        )
+        assert (
+            pinned_after.spec.function_uri
+            == f"project-1/function-1@{unversioned_tagged_object_uid_prefix}v1"
+        )
+        # idempotent once everything that moved is aligned
+        assert (
+            self._db.realign_model_endpoints_to_function(
+                self._db_session, project="project-1", function_name="function-1"
+            )
+            == 0
+        )
+
+        # --- `v1` moves: now the v1-pinned endpoint realigns (any tag, not just latest) ---
+        self._db.store_function(
+            self._db_session,
+            function.to_dict(),
+            "function-1",
+            "project-1",
+            "v1",
+            versioned=True,
+        )
+        new_v1_function = self._db._get_mep_function(
+            self._db_session,
+            function_name="function-1",
+            function_tag="v1",
+            project="project-1",
+        )
+        assert (
+            self._db.realign_model_endpoints_to_function(
+                self._db_session, project="project-1", function_name="function-1"
+            )
+            == 1
+        )
+        pinned_after = self._db.get_model_endpoint(
+            self._db_session, name="pinned-ep", project="project-1", uid=pinned_uid
+        )
+        assert (
+            pinned_after.spec.function_uri
+            == f"project-1/function-1@{new_v1_function.uid}"
+        )
+        assert (
+            self._db.realign_model_endpoints_to_function(
+                self._db_session, project="project-1", function_name="function-1"
+            )
+            == 0
+        )
+
     def test_update_automatically_after_model_update(self) -> None:
         # store artifact
         for i in range(2):

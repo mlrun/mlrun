@@ -14,9 +14,14 @@
 
 import mlrun
 import tests.integration.sdk_api.base
+from mlrun.utils.thread import ml12766_demo_tested
 
 
 class TestOperations(tests.integration.sdk_api.base.TestMLRunIntegration):
     def test_trigger_migrations(self):
         background_task = mlrun.get_run_db().trigger_migrations()
         assert background_task is None
+
+
+def test_ml12766_demo_tested():
+    assert ml12766_demo_tested(5) == 10

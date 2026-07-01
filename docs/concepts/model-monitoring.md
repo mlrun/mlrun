@@ -32,6 +32,7 @@ Migrating from v1.7.0 to v1.8.0 and higher does not maintain backwards compatibi
 :maxdepth: 1
 ../model-monitoring/applications
 ../model-monitoring/running-applications
+../model-monitoring/external-model-to-mm
 ../model-monitoring/view-mm-applications
 ../model-monitoring/monitoring-models
 ../model-monitoring/monitoring-models-grafana

@@ -22,8 +22,10 @@ import pytest
 from automation.version.version_file import (
     create_or_update_version_file,
     get_current_version,
+    get_previous_version,
     is_stable_version,
     resolve_next_version,
+    resolve_promotion_inputs,
 )
 
 
@@ -204,3 +206,61 @@ def test_create_or_update_version_file(git_repo, base_version, expected_version)
 )
 def test_is_stable_version(version: str, expected_is_stable: bool):
     assert is_stable_version(version) is expected_is_stable
+
+
+@pytest.mark.parametrize(
+    "target_version,tags,expected_previous_version",
+    [
+        # no tags at all
+        ("1.5.0", [], ""),
+        # greatest stable below target
+        ("1.5.0", ["1.4.0", "1.3.0"], "1.4.0"),
+        # equal and greater tags are ignored
+        ("1.5.0", ["1.5.0", "1.6.0", "1.4.0"], "1.4.0"),
+        # prereleases are skipped, even the target's own rc
+        ("1.5.0", ["1.5.0-rc1", "1.4.0"], "1.4.0"),
+        # only a prerelease below target -> nothing stable to return
+        ("1.5.0", ["1.4.0-rc1"], ""),
+        # realistic patch line with an in-flight rc above the previous GA
+        ("1.10.4", ["1.10.3", "1.10.4-rc1", "1.9.0"], "1.10.3"),
+    ],
+)
+def test_previous_version(git_repo, target_version, tags, expected_previous_version):
+    for tag in tags:
+        subprocess.run(["git", "tag", "-a", "-m", f"test tag {tag}", f"v{tag}", "HEAD"])
+    assert get_previous_version(target_version) == expected_previous_version
+
+
+def test_resolve_promotion_inputs_with_override():
+    # previous_version provided -> no git access needed; classify a stable version
+    assert resolve_promotion_inputs(version="1.5.0", previous_version="1.4.0") == {
+        "version": "1.5.0",
+        "previous_version": "1.4.0",
+        "prerelease": "false",
+        "make_latest": "true",
+    }
+    # an rc is flagged as a prerelease and not made latest
+    assert resolve_promotion_inputs(version="1.5.0-rc1", previous_version="1.4.0") == {
+        "version": "1.5.0-rc1",
+        "previous_version": "1.4.0",
+        "prerelease": "true",
+        "make_latest": "false",
+    }
+
+
+def test_resolve_promotion_inputs_derives_previous(git_repo):
+    for tag in ["1.4.0", "1.4.0-rc1", "1.3.0"]:
+        subprocess.run(["git", "tag", "-a", "-m", f"test tag {tag}", f"v{tag}", "HEAD"])
+    resolved = resolve_promotion_inputs(version="1.5.0")
+    assert resolved["previous_version"] == "1.4.0"
+    assert resolved["make_latest"] == "true"
+
+
+def test_resolve_promotion_inputs_invalid_version():
+    with pytest.raises(ValueError):
+        resolve_promotion_inputs(version="not-a-version", previous_version="1.4.0")
+
+
+def test_resolve_promotion_inputs_no_previous(git_repo):
+    with pytest.raises(ValueError):
+        resolve_promotion_inputs(version="1.5.0")

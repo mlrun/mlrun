@@ -19,6 +19,7 @@ import os
 import pathlib
 import re
 import subprocess
+import sys
 
 import packaging.version
 
@@ -48,6 +49,14 @@ def main():
         "is-stable", help="check if the version is stable"
     )
     is_stable_parser.add_argument("version", type=str)
+
+    promotion_inputs_parser = subparsers.add_parser(
+        "promotion-inputs",
+        help="resolve release-promotion inputs as key=value lines "
+        "(version, previous_version, prerelease, make_latest)",
+    )
+    promotion_inputs_parser.add_argument("--version", type=str, required=True)
+    promotion_inputs_parser.add_argument("--previous-version", type=str, default="")
 
     subparsers.add_parser("current-version", help="get the current version")
     next_version_parser = subparsers.add_parser("next-version", help="get next version")
@@ -91,6 +100,22 @@ def main():
     elif args.command == "is-stable":
         is_stable = is_stable_version(args.version)
         print(str(is_stable).lower())
+
+    elif args.command == "promotion-inputs":
+        try:
+            resolved = resolve_promotion_inputs(
+                version=args.version,
+                previous_version=args.previous_version,
+            )
+        except (
+            ValueError,
+            packaging.version.InvalidVersion,
+            subprocess.CalledProcessError,
+        ) as exc:
+            logger.error(str(exc))
+            sys.exit(1)
+        for key, value in resolved.items():
+            print(f"{key}={value}")
 
     elif args.command == "is-feature-branch":
         print(str(is_feature_branch()).lower())
@@ -188,6 +213,56 @@ def get_current_version(
         return version_to_mlrun_version(base_version)
 
     return version_to_mlrun_version(found_tag)
+
+
+def get_previous_version(target_version: str) -> str:
+    """Greatest stable tag below target_version as a raw tag (e.g. "1.10.3"), or "" if none."""
+    target = packaging.version.Version(target_version)
+    candidates = []
+    for tag in _run_command("git", args=["tag", "--list"]).split():
+        if not tag.startswith("v"):
+            continue
+        raw = tag.removeprefix("v")
+        try:
+            parsed = packaging.version.Version(raw)
+        except packaging.version.InvalidVersion:
+            continue
+        if parsed < target and not parsed.is_prerelease:
+            candidates.append((parsed, raw))
+    return max(candidates, default=(None, ""))[1]
+
+
+def resolve_promotion_inputs(
+    version: str,
+    previous_version: str = "",
+) -> dict[str, str]:
+    """Resolve version, previous_version, prerelease and make_latest for a promotion."""
+    version = version.strip()
+    previous_version = previous_version.strip()
+    if not version:
+        raise ValueError("version must not be empty")
+    try:
+        packaging.version.Version(version)
+    except packaging.version.InvalidVersion as exc:
+        raise ValueError(f"'{version}' is not a valid version") from exc
+
+    # derive the previous stable version for release notes when not provided
+    if not previous_version:
+        previous_version = get_previous_version(version)
+        if not previous_version:
+            raise ValueError(
+                f"could not derive a previous version (no stable tag below {version}); "
+                "pass --previous-version explicitly"
+            )
+
+    # stable (X.Y.Z) -> latest GA release; anything else (e.g. rc) -> prerelease
+    stable = is_stable_version(version)
+    return {
+        "version": version,
+        "previous_version": previous_version,
+        "prerelease": str(not stable).lower(),
+        "make_latest": str(stable).lower(),
+    }
 
 
 def resolve_next_version(

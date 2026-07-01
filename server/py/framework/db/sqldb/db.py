@@ -464,12 +464,20 @@ class SQLDB(DBInterface):
             query = query.filter(Run.uid.in_(specific_uids))
 
         if not only_uids:
-            # group_by allows us to have a row per uid with the whole record rather than just the uid (as distinct does)
-            # note we cannot promise that the same row will be returned each time per uid as the order is not guaranteed
-            query = query.group_by(Run.uid)
+            # Return one full record per uid. A plain `GROUP BY Run.uid` over full rows relies on
+            # MySQL's nonstandard "loose" GROUP BY (arbitrary row per group) and is rejected by
+            # PostgreSQL's strict GROUP BY. Instead select a representative id per uid via an
+            # aggregate (portable across dialects) and fetch those full rows. The representative is
+            # the highest primary-key id (the most recently inserted row); which row is returned was
+            # never guaranteed for this method.
+            latest_run_id_per_uid = query.with_entities(func.max(Run.id)).group_by(
+                Run.uid
+            )
 
             runs = RunList()
-            for run in query:
+            for run in self._query(session, Run).filter(
+                Run.id.in_(latest_run_id_per_uid.scalar_subquery())
+            ):
                 runs.append(run.struct)
 
             return runs
@@ -1277,7 +1285,7 @@ class SQLDB(DBInterface):
         )
         if category:
             query = self._add_artifact_category_query(category, query).with_hint(
-                ArtifactV2, "USE INDEX (idx_project_kind)"
+                ArtifactV2, "USE INDEX (idx_project_kind)", dialect_name="mysql"
             )
 
         # the query returns a list of tuples, we need to extract the tag from each tuple

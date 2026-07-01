@@ -467,6 +467,49 @@ class TestArtifacts(TestDatabaseBase):
         assert artifact_2_tag in artifact_tags
         assert "latest" in artifact_tags
 
+    def test_list_artifact_tags_with_category_hint_is_dialect_scoped(self, monkeypatch):
+        # Regression: the category-filtered tags query adds a MySQL `USE INDEX (idx_project_kind)`
+        # optimizer hint. It must be scoped to the mysql dialect so PostgreSQL's strict compiler
+        # does not raise `CompileError: Unrecognized hint`. Guards against dropping dialect_name.
+        from sqlalchemy.dialects import postgresql
+
+        key, tag = "artifact_key_hint", "v1"
+        self._db.store_artifact(
+            self._db_session,
+            key,
+            self._generate_artifact(
+                key,
+                project=self.project,
+                kind=mlrun.common.schemas.ArtifactCategories.dataset,
+                tag=tag,
+            ),
+            project=self.project,
+            tag=tag,
+        )
+
+        captured = {}
+        real_with_hint = Query.with_hint
+
+        def with_hint_spy(query, selectable, text, dialect_name=None):
+            result = real_with_hint(query, selectable, text, dialect_name=dialect_name)
+            if "USE INDEX" in str(text):
+                captured["dialect_name"] = dialect_name
+                captured["query"] = result
+            return result
+
+        monkeypatch.setattr(Query, "with_hint", with_hint_spy, raising=True)
+
+        self._db.list_artifact_tags(
+            self._db_session,
+            self.project,
+            category=mlrun.common.schemas.ArtifactCategories.dataset,
+        )
+
+        assert captured, "expected a USE INDEX hint on the category-filtered tags query"
+        assert captured["dialect_name"] == "mysql"
+        # The real query must compile under PostgreSQL without raising CompileError.
+        captured["query"].statement.compile(dialect=postgresql.dialect())
+
     def test_store_artifact_restoring_multiple_tags(self):
         artifact_key = "artifact_key_1"
         artifact_1_tree = "artifact_tree_1"

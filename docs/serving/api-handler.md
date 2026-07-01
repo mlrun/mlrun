@@ -231,9 +231,44 @@ def responses_router(
 
 The handler signature must accept these names (explicitly or via `**kwargs`); otherwise Python raises `TypeError: unexpected keyword argument`.
 
+## Returning custom HTTP responses
+
+A graph handler can control the HTTP response by returning a `Response` wrapper instead of a plain dict. The runtime preserves `status_code`, `content_type`, and `headers` end-to-end.
+
+Two ways to construct it, both supported:
+
+```python
+# A) Use context.Response — picks the right class for the runtime
+#    (mlrun.serving.server.Response in MockServer; nuclio_sdk.Response in deployed Nuclio).
+class MyStep:
+    def do(self, body):
+        return self.context.Response(
+            body={"error": {"message": "not found"}},
+            status_code=404,
+            content_type="application/json",
+        )
+
+
+# B) Import the class directly — works the same way; the SDK normalizes it on the way out.
+from mlrun.serving.server import Response
+
+
+def my_handler(body, **kwargs):
+    return Response(
+        body={"id": "resp_1", "object": "response"},
+        status_code=200,
+        content_type="application/json",
+    )
+```
+
+If you simply return a `dict`, the runtime treats the response as `200 OK` — no change from previous behavior.
+
+When using the {ref}`API handler<api-handler>` with `output_body_mappings`, the mapping runs only when `status_code < 300`; see [Returning a custom HTTP status code](#returning-a-custom-http-status-code) for details.
+
+
 ## Returning a custom HTTP status code
 
-A handler can return a `Response(body, status_code, ...)` wrapper to set a custom HTTP response. See [Returning custom HTTP responses](./serving-graph.md#returning-custom-http-responses) for the construction patterns — this section covers the **interaction with `output_body_mappings`**.
+A handler can return a `Response(body, status_code, ...)` wrapper to set a custom HTTP response. See [Returning custom HTTP responses](#returning-custom-http-responses) for the construction patterns. This section covers the **interaction with `output_body_mappings`**.
 
 `output_body_mappings` describes the *success-shape* contract, so the mapping runs **only when `status_code < 300`**. Non-2xx responses pass through with their body and status code intact, so the caller sees the original error envelope instead of a synthetic 422 from a failed mandatory-field check.
 

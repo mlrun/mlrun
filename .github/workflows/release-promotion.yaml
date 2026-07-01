@@ -31,7 +31,7 @@ on:
         required: true
         type: string
       commit_sha:
-        description: 'MLRun commit SHA to tag. Leave empty to derive it from the promoted wheel.'
+        description: 'MLRun commit SHA to tag. Leave empty to derive it from the mlrun image revision label.'
         required: false
         default: ''
         type: string
@@ -108,70 +108,17 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
+      - name: Install automation requirements
+        run: make install-automation-requirements
       - name: Resolve inputs
         id: resolve
-        run: |
-          # Trim surrounding whitespace; a stray space breaks the Docker reference in skopeo
-          VERSION_INPUT="$(echo -n "$VERSION_INPUT" | xargs)"
-          PREVIOUS_VERSION_INPUT="$(echo -n "$PREVIOUS_VERSION_INPUT" | xargs)"
-          echo "version=$VERSION_INPUT" >> $GITHUB_OUTPUT
-
-          if [ -n "$PREVIOUS_VERSION_INPUT" ]; then
-            previous_version="$PREVIOUS_VERSION_INPUT"
-          else
-            python3 -m venv /tmp/pkgvenv
-            /tmp/pkgvenv/bin/pip install --quiet packaging
-            if ! previous_version="$(git tag --list 'v*' | sed 's/^v//' | VERSION_INPUT="$VERSION_INPUT" /tmp/pkgvenv/bin/python -c "
-          import os, sys
-          from packaging.version import Version, InvalidVersion
-          try:
-              target = Version(os.environ['VERSION_INPUT'])
-          except InvalidVersion:
-              sys.exit(2)
-          best = None
-          best_raw = ''
-          for line in sys.stdin:
-              candidate = line.strip()
-              if not candidate:
-                  continue
-              try:
-                  parsed = Version(candidate)
-              except InvalidVersion:
-                  continue
-              if parsed >= target:
-                  continue
-              if parsed.is_prerelease:
-                  continue
-              if best is None or parsed > best:
-                  best = parsed
-                  best_raw = candidate
-          print(best_raw)
-          ")"; then
-              echo "❌ '$VERSION_INPUT' is not a valid version; cannot derive previous_version. Provide the previous_version input." >&2
-              exit 1
-            fi
-            if [ -z "$previous_version" ]; then
-              echo "❌ Could not derive previous_version (no tag below $VERSION_INPUT). Provide the previous_version input." >&2
-              exit 1
-            fi
-          fi
-          echo "previous_version=$previous_version" >> $GITHUB_OUTPUT
-
-          if [[ "$VERSION_INPUT" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            prerelease=false
-            make_latest=true
-          else
-            prerelease=true
-            make_latest=false
-          fi
-          echo "prerelease=$prerelease" >> $GITHUB_OUTPUT
-          echo "make_latest=$make_latest" >> $GITHUB_OUTPUT
-          echo "Promoting version: $VERSION_INPUT"
-          echo "Previous version: $previous_version"
-          cat $GITHUB_OUTPUT
         env:
-          VERSION_INPUT: ${{ github.event.inputs.version }}
-          PREVIOUS_VERSION_INPUT: ${{ github.event.inputs.previous_version }}
+          VERSION: ${{ github.event.inputs.version }}
+          PREVIOUS_VERSION: ${{ github.event.inputs.previous_version }}
+        run: |
+          python automation/version/version_file.py promotion-inputs \
+            --version "$VERSION" \
+            --previous-version "$PREVIOUS_VERSION" | tee -a "$GITHUB_OUTPUT"
 
   derive-shas:
     name: Derive commit SHAs
@@ -182,11 +129,13 @@ jobs:
       commit_sha: ${{ steps.mlrun-sha.outputs.commit_sha }}
       ui_commit_sha: ${{ steps.ui-sha.outputs.ui_commit_sha }}
     steps:
-      - name: Setup Python venv
+      - name: Login to Artifactory with skopeo
         run: |
-          rm -rf $GITHUB_WORKSPACE/.venv-derive
-          python3.11 -m venv $GITHUB_WORKSPACE/.venv-derive
-          echo "$GITHUB_WORKSPACE/.venv-derive/bin" >> $GITHUB_PATH
+          mkdir -p $GITHUB_WORKSPACE/.skopeo
+          skopeo login "${{ secrets.PRIVATE_ARTIFACTORY_DOCKER_URL }}" \
+            -u "${{ secrets.PRIVATE_ARTIFACTORY_USERNAME }}" \
+            -p "${{ secrets.PRIVATE_ARTIFACTORY_PASSWORD }}" \
+            --authfile "$GITHUB_WORKSPACE/.skopeo/auth.json"
 
       - name: Resolve MLRun commit SHA
         id: mlrun-sha
@@ -201,21 +150,12 @@ jobs:
             exit 0
           fi
 
-          rm -rf dist-derive && mkdir -p dist-derive
-          pip download \
-            --no-deps \
-            --index-url https://${{ secrets.PRIVATE_ARTIFACTORY_USERNAME }}:${{ secrets.PRIVATE_ARTIFACTORY_PASSWORD }}@${{ secrets.PRIVATE_ARTIFACTORY_URL }}/artifactory/api/pypi/${{ github.event.inputs.source_artifactory_pypi_repo }}/simple \
-            --dest dist-derive \
-            "mlrun==$VERSION"
-
-          WHEEL="$(ls dist-derive/*.whl 2>/dev/null | head -n1)"
-          if [ -z "$WHEEL" ]; then
-            echo "❌ No wheel found for mlrun==$VERSION; cannot derive commit_sha. Provide the commit_sha input." >&2
-            exit 1
-          fi
-          SHA="$(unzip -p "$WHEEL" 'mlrun/utils/version/version.json' | python -c "import json,sys; print(json.load(sys.stdin).get('git_commit',''))")"
-          if [ -z "$SHA" ] || [ "$SHA" = "unknown" ]; then
-            echo "❌ Could not read git_commit from the wheel's version.json. Provide the commit_sha input." >&2
+          IMAGE="docker://${{ secrets.PRIVATE_ARTIFACTORY_DOCKER_URL }}/${{ github.event.inputs.source_artifactory_docker_repo }}/mlrun:$VERSION"
+          echo "Inspecting $IMAGE"
+          SHA="$(skopeo inspect --authfile "$GITHUB_WORKSPACE/.skopeo/auth.json" "$IMAGE" \
+            --format '{{ index .Labels "org.opencontainers.image.revision" }}')"
+          if [ -z "$SHA" ] || [ "$SHA" = "<no value>" ]; then
+            echo "❌ No org.opencontainers.image.revision label on $IMAGE (image predates the label). Provide the commit_sha input." >&2
             exit 1
           fi
           echo "commit_sha=$SHA" >> $GITHUB_OUTPUT
@@ -234,19 +174,12 @@ jobs:
             exit 0
           fi
 
-          mkdir -p $GITHUB_WORKSPACE/.skopeo
-          AUTHFILE="$GITHUB_WORKSPACE/.skopeo/auth.json"
-          skopeo login "${{ secrets.PRIVATE_ARTIFACTORY_DOCKER_URL }}" \
-            -u "${{ secrets.PRIVATE_ARTIFACTORY_USERNAME }}" \
-            -p "${{ secrets.PRIVATE_ARTIFACTORY_PASSWORD }}" \
-            --authfile "$AUTHFILE"
-
-          UI_IMAGE="docker://${{ secrets.PRIVATE_ARTIFACTORY_DOCKER_URL }}/${{ github.event.inputs.source_artifactory_docker_repo }}/mlrun-ui:$VERSION"
-          echo "Inspecting $UI_IMAGE"
-          SHA="$(skopeo inspect --authfile "$AUTHFILE" "$UI_IMAGE" \
-            | python -c "import json,sys; print(json.load(sys.stdin).get('Labels',{}).get('org.opencontainers.image.revision',''))")"
-          if [ -z "$SHA" ]; then
-            echo "❌ No org.opencontainers.image.revision label on $UI_IMAGE (UI image predates the label). Provide the ui_commit_sha input." >&2
+          IMAGE="docker://${{ secrets.PRIVATE_ARTIFACTORY_DOCKER_URL }}/${{ github.event.inputs.source_artifactory_docker_repo }}/mlrun-ui:$VERSION"
+          echo "Inspecting $IMAGE"
+          SHA="$(skopeo inspect --authfile "$GITHUB_WORKSPACE/.skopeo/auth.json" "$IMAGE" \
+            --format '{{ index .Labels "org.opencontainers.image.revision" }}')"
+          if [ -z "$SHA" ] || [ "$SHA" = "<no value>" ]; then
+            echo "❌ No org.opencontainers.image.revision label on $IMAGE (UI image predates the label). Provide the ui_commit_sha input." >&2
             exit 1
           fi
           echo "ui_commit_sha=$SHA" >> $GITHUB_OUTPUT

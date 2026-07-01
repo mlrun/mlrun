@@ -18,6 +18,7 @@ import unittest.mock
 
 import deepdiff
 import pytest
+from sqlalchemy.dialects import postgresql
 from sqlalchemy.orm import Query
 
 import mlrun.common.constants
@@ -471,8 +472,6 @@ class TestArtifacts(TestDatabaseBase):
         # Regression: the category-filtered tags query adds a MySQL `USE INDEX (idx_project_kind)`
         # optimizer hint. It must be scoped to the mysql dialect so PostgreSQL's strict compiler
         # does not raise `CompileError: Unrecognized hint`. Guards against dropping dialect_name.
-        from sqlalchemy.dialects import postgresql
-
         key, tag = "artifact_key_hint", "v1"
         self._db.store_artifact(
             self._db_session,

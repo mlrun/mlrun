@@ -42,7 +42,7 @@ you can run it on the actual model endpoint data and write the outputs with `wri
 You can add an external OTel-collector to receive the same results and metrics that are sent to the MLRun TSDB.
 When configured, the results and metrics returned by `do_tracking()` in every monitoring window
 are exported via OTLP to your configured endpoint.
-Each result exposes 2 fixed gauges:
+Each result exposes two fixed gauges:
 - mlrun.model_monitoring.result → scraped as mlrun_model_monitoring_result (one per result)
 - mlrun.model_monitoring.metric → scraped as mlrun_model_monitoring_metric (one per metric)
 
@@ -60,6 +60,8 @@ To export results:
 2. Enable the project's OTel collection by setting `otlp_enabled=True` when you run {py:meth}`~mlrun.projects.MlrunProject.enable_model_monitoring`.
 2. To export metrics from your serving graph, see {ref}`otel-export-step`.
 3. You can disable exporting metrics per model monitoring application by setting the parameter `otlp_enabled=False` in {py:meth}`~mlrun.projects.MlrunProject.set_model_monitoring_function`.
+
+See metrics details in {ref}`otel-metrics`.
 
 ## Usage
 

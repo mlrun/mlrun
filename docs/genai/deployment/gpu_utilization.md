@@ -29,7 +29,7 @@ Requires Nuclio 1.15.3 or higher.
 ```
 MLRun can process events asynchronously within a batch, sending a response as soon as the event completes. For example, a data pipeline sends multiple events (e.g., customer data for personalization) to the GenAI model. The system processes each event asynchronously, and events to complete independently of one another. Responses are sent back to the pipeline as soon as they are ready, without waiting for the entire batch to complete. Throughput is maximized, and bottlenecks are minimized.
 
-By default, async mode is disabled. Enable it with the async_spec parameter of {py:meth}~mlrun.runtimes.RemoteRuntime.with_http:
+By default, async mode is disabled. Enable it with the async_spec parameter of {py:meth}`~mlrun.runtimes.RemoteRuntime.with_http`:
 ```
 # Example for serving
 from mlrun import get_or_create_project

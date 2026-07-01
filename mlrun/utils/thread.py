@@ -51,11 +51,3 @@ class ThreadLocalClient:
             if inspect.iscoroutine(result):
                 await result
             delattr(self._local, "instance")
-
-
-def ml12766_demo_tested(x: int) -> int:
-    return x * 2
-
-
-def ml12766_demo_untested(x: int) -> int:
-    return x + 100

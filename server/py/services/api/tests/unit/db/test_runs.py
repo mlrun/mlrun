@@ -187,6 +187,10 @@ class TestRuns(TestDatabaseBase):
         assert len(distinct_runs) == 1
         assert isinstance(distinct_runs[0], dict)
         assert distinct_runs[0]["metadata"]["uid"] == uid
+        # The full record per uid is the representative (highest-id) row, i.e. the last
+        # iteration stored. This is resolved via a portable max(id)+IN query rather than a
+        # MySQL-only loose GROUP BY, so PostgreSQL's strict GROUP BY does not reject it.
+        assert distinct_runs[0]["metadata"]["iter"] == 2
 
         only_uids = self._db.list_distinct_runs_uids(
             self._db_session, project=project_name, only_uids=True

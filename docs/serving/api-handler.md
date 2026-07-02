@@ -294,7 +294,7 @@ def my_handler(body, **kwargs):
 
 If you simply return a `dict`, the runtime treats the response as `200 OK` — no change from previous behavior.
 
-When using the {ref}`API handler<api-handler>` with `output_body_mappings`, the mapping runs only when `status_code < 300`; see [Returning a custom HTTP status code](#returning-a-custom-http-status-code) for details.
+When using the API handler with `output_body_mappings`, the mapping runs only when `status_code < 300`; see [Returning a custom HTTP status code](#returning-a-custom-http-status-code) for details.
 
 
 ## Returning a custom HTTP status code

@@ -302,6 +302,14 @@ jobs:
         BASE_SHA="${{ needs.prepare-inputs.outputs.pr_base_sha }}"
         BASE_REF="${{ needs.prepare-inputs.outputs.pr_base_ref }}"
 
+        # Guard against an unresolved base SHA (e.g. "null" from a transient API
+        # error upstream) so it surfaces as a clear infra error rather than a
+        # misleading merge conflict.
+        if ! [[ "${BASE_SHA}" =~ ^[0-9a-f]{40}$ ]]; then
+          echo "::error::Invalid base SHA '${BASE_SHA}' for PR #${{ inputs.pr_number }}; the base branch HEAD was not resolved (likely a transient API/rate-limit error). Re-run the smoke tests."
+          exit 1
+        fi
+
         git fetch origin "${BASE_REF}"
         if ! git merge "${BASE_SHA}" --no-edit; then
           echo "::error::Merge of ${BASE_REF} (${BASE_SHA}) into PR #${{ inputs.pr_number }} failed due to conflicts. Please merge or rebase your branch locally and push."

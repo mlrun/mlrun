@@ -124,28 +124,41 @@ jobs:
           # Fetch PR + base info from GitHub API. Compute once here so the merge
           # step in system-tests-opensource.yml and the PR comments all see the
           # same values (single source of truth).
-          PR_JSON=$(curl -sS \
-            -H "Authorization: token ${GITHUB_TOKEN}" \
-            -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/repos/${{ github.repository }}/pulls/${PR_NUM}")
+          #
+          # gh_api retries transient failures (5xx / 429 / secondary rate limits)
+          # and fails the step on a non-2xx response instead of letting a `-sS`
+          # error body slip through as data. Without this, a transient API hiccup
+          # makes `jq -r '.sha'` yield the string "null", which then propagates
+          # downstream as `git fetch origin null` and surfaces as a misleading
+          # "Fail ❌ ... HEAD null" smoke result rather than an honest, re-runnable
+          # infra error.
+          gh_api() {
+            curl -fsS --retry 3 --retry-all-errors --retry-delay 2 \
+              -H "Authorization: token ${GITHUB_TOKEN}" \
+              -H "Accept: application/vnd.github+json" \
+              "$@"
+          }
+
+          PR_JSON=$(gh_api "https://api.github.com/repos/${{ github.repository }}/pulls/${PR_NUM}")
           PR_HEAD_SHA=$(echo "$PR_JSON" | jq -r '.head.sha')
           BASE_REF=$(echo "$PR_JSON" | jq -r '.base.ref')
-          BASE_SHA=$(curl -sS \
-            -H "Authorization: token ${GITHUB_TOKEN}" \
-            -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/repos/${{ github.repository }}/commits/${BASE_REF}" \
+          BASE_SHA=$(gh_api "https://api.github.com/repos/${{ github.repository }}/commits/${BASE_REF}" \
             | jq -r '.sha')
 
+          # Guard: refuse to propagate a non-SHA (e.g. "null" from an error body).
+          # A transient API/rate-limit error must fail loudly here so the run is
+          # obviously re-runnable, not masquerade as a test or merge failure.
+          for var in PR_HEAD_SHA BASE_SHA; do
+            if ! [[ "${!var}" =~ ^[0-9a-f]{40}$ ]]; then
+              echo "::error::Failed to resolve ${var} from the GitHub API (got '${!var}'). This is likely a transient API or rate-limit error — re-run the smoke tests."
+              exit 1
+            fi
+          done
+
           # Count base-branch commits since the PR's merge-base (the real "sync point").
-          MERGE_BASE_SHA=$(curl -sS \
-            -H "Authorization: token ${GITHUB_TOKEN}" \
-            -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/repos/${{ github.repository }}/compare/${BASE_REF}...${PR_HEAD_SHA}" \
+          MERGE_BASE_SHA=$(gh_api "https://api.github.com/repos/${{ github.repository }}/compare/${BASE_REF}...${PR_HEAD_SHA}" \
             | jq -r '.merge_base_commit.sha')
-          BASE_COMMITS_SINCE_SYNC=$(curl -sS \
-            -H "Authorization: token ${GITHUB_TOKEN}" \
-            -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/repos/${{ github.repository }}/compare/${MERGE_BASE_SHA}...${BASE_SHA}" \
+          BASE_COMMITS_SINCE_SYNC=$(gh_api "https://api.github.com/repos/${{ github.repository }}/compare/${MERGE_BASE_SHA}...${BASE_SHA}" \
             | jq -r '.ahead_by // 0')
 
           echo "PR #${PR_NUM} @ ${PR_HEAD_SHA:0:8} | base: ${BASE_REF} @ ${BASE_SHA:0:8} (${BASE_COMMITS_SINCE_SYNC} commits since sync)"

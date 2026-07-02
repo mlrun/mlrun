@@ -255,6 +255,84 @@ class TestProjects(TestDatabaseBase):
         # Created in request body should be ignored and set by the DB layer
         assert project_output.metadata.created != project.metadata.created
 
+    @pytest.mark.parametrize(
+        "method_name",
+        ["create_project", "store_project"],
+    )
+    @pytest.mark.parametrize(
+        "body_owner, caller, expected_owner",
+        [
+            # Body omits the owner -> default to the caller on creation.
+            (None, "caller", "caller"),
+            # Explicit owner in the body is kept as-is.
+            ("explicit-owner", "caller", "explicit-owner"),
+        ],
+    )
+    def test_project_owner_defaults_to_caller_on_creation(
+        self,
+        method_name: str,
+        body_owner: str | None,
+        caller: str,
+        expected_owner: str,
+    ):
+        project_name = "project-name"
+        project = mlrun.common.schemas.Project(
+            metadata=mlrun.common.schemas.ProjectMetadata(name=project_name),
+            spec=mlrun.common.schemas.ProjectSpec(owner=body_owner),
+        )
+        auth_info = mlrun.common.schemas.AuthInfo(username=caller)
+
+        if method_name == "create_project":
+            self._db.create_project(self._db_session, project, auth_info)
+        else:
+            self._db.store_project(self._db_session, project_name, project, auth_info)
+
+        project_output = self._db.get_project(self._db_session, project_name)
+        assert project_output.spec.owner == expected_owner
+
+    @pytest.mark.parametrize(
+        "existing_owner, body_owner, expected_owner",
+        [
+            # Regression: the body nulls the owner on update (as
+            # load_project(clone=True) + save() does), so a different caller must
+            # NOT seize ownership - the stored owner is preserved.
+            ("original-owner", None, "original-owner"),
+            # No stored owner to preserve: the caller becomes the owner.
+            (None, None, "caller"),
+            # An explicit owner overrides; the endpoint authorizes the change.
+            ("original-owner", "new-owner", "new-owner"),
+        ],
+    )
+    def test_store_project_preserves_owner_on_update(
+        self,
+        existing_owner: str | None,
+        body_owner: str | None,
+        expected_owner: str,
+    ):
+        project_name = "project-name"
+        self._db.create_project(
+            self._db_session,
+            mlrun.common.schemas.Project(
+                metadata=mlrun.common.schemas.ProjectMetadata(name=project_name),
+                spec=mlrun.common.schemas.ProjectSpec(owner=existing_owner),
+            ),
+        )
+
+        self._db.store_project(
+            self._db_session,
+            project_name,
+            mlrun.common.schemas.Project(
+                metadata=mlrun.common.schemas.ProjectMetadata(name=project_name),
+                spec=mlrun.common.schemas.ProjectSpec(
+                    description="updated", owner=body_owner
+                ),
+            ),
+            mlrun.common.schemas.AuthInfo(username="caller"),
+        )
+
+        project_output = self._db.get_project(self._db_session, project_name)
+        assert project_output.spec.owner == expected_owner
+
     def test_patch_project(self):
         project = self._generate_project()
         self._db.create_project(

@@ -101,7 +101,9 @@ async def store_project(
         framework.api.deps.get_db_session
     ),
 ):
-    await _ensure_project_create_or_update_permissions(db_session, name, auth_info)
+    await _ensure_project_create_or_update_permissions(
+        db_session, name, auth_info, requested_project=project
+    )
     project, is_running_in_background = await run_in_threadpool(
         get_project_member().store_project,
         db_session,
@@ -636,8 +638,14 @@ async def _ensure_project_create_or_update_permissions(
     db_session: sqlalchemy.orm.Session,
     project_name: str,
     auth_info: mlrun.common.schemas.AuthInfo,
+    requested_project: mlrun.common.schemas.Project | None = None,
 ):
-    """Ensure create or update permissions based on project existence."""
+    """Ensure create or update permissions based on project existence.
+
+    If the request reassigns an existing project's owner, also require the
+    management-level owner-update permission, so a plain project-update
+    permission can't change ownership.
+    """
     # Only check leader header in iguazio v3
     if (
         not mlrun.mlconf.is_iguazio_v4_mode()
@@ -678,6 +686,17 @@ async def _ensure_project_create_or_update_permissions(
                 mlrun.common.schemas.AuthorizationAction.update,
                 auth_info,
             )
+        # Changing the owner also needs the owner-update permission, even for
+        # the current owner.
+        if _store_reassigns_owner(requested_project, project):
+            await verifier.query_project_resource_permissions(
+                mlrun.common.schemas.AuthorizationResourceTypes.project_owner,
+                project_name,
+                "",
+                mlrun.common.schemas.AuthorizationAction.update,
+                auth_info,
+                resource_namespace=mlrun.common.schemas.AuthorizationResourceNamespace.mgmt,
+            )
         return
 
     # In Iguazio v4 mode, mlrun is the project leader and main entrypoint so we must ensure
@@ -688,3 +707,18 @@ async def _ensure_project_create_or_update_permissions(
             mlrun.common.schemas.AuthorizationAction.create,
             auth_info,
         )
+
+
+def _store_reassigns_owner(
+    requested_project: mlrun.common.schemas.Project | None,
+    stored_project: mlrun.common.schemas.Project,
+) -> bool:
+    """Whether a store request changes an existing project's owner.
+
+    ``spec.owner = None`` means "no change" (the stored owner is kept by the
+    DB layer) and echoing the current owner is a no-op; only a different
+    explicit owner is a reassignment.
+    """
+    if requested_project is None or requested_project.spec.owner is None:
+        return False
+    return requested_project.spec.owner != stored_project.spec.owner

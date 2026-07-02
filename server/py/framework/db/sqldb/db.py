@@ -3390,10 +3390,19 @@ class SQLDB(DBInterface):
         self._upsert(session, tags)
 
     # ---- Projects ----
-    def create_project(self, session: Session, project: mlrun.common.schemas.Project):
+    def create_project(
+        self,
+        session: Session,
+        project: mlrun.common.schemas.Project,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
+    ):
         logger.debug("Creating project in DB", project_name=project.metadata.name)
         created = datetime.now(UTC)
         project.metadata.created = created
+        # Ownership is set once, at creation: default to the caller when the
+        # body omits an owner.
+        if project.spec.owner is None:
+            project.spec.owner = auth_info.username
         # TODO: handle taking out the functions/workflows/artifacts out of the project and save them separately
         project_record = Project(
             name=project.metadata.name,
@@ -3426,7 +3435,11 @@ class SQLDB(DBInterface):
 
     @retry_on_conflict
     def store_project(
-        self, session: Session, name: str, project: mlrun.common.schemas.Project
+        self,
+        session: Session,
+        name: str,
+        project: mlrun.common.schemas.Project,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ):
         logger.debug(
             "Storing project in DB",
@@ -3443,8 +3456,14 @@ class SQLDB(DBInterface):
             session, name, raise_on_not_found=False
         )
         if not project_record:
-            self.create_project(session, project)
+            self.create_project(session, project, auth_info)
         else:
+            # Preserve the stored owner when the body omits one (fall back to
+            # the caller only if the project has no owner) so a member can't
+            # null it to seize ownership; an explicit change is authorized at
+            # the endpoint.
+            if project.spec.owner is None:
+                project.spec.owner = project_record.owner or auth_info.username
             self._update_project_record_from_project(session, project_record, project)
 
     @staticmethod

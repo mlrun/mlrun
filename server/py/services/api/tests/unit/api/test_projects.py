@@ -421,6 +421,74 @@ async def test_project_permissions_patch_owner_denied(monkeypatch: pytest.Monkey
         )
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "requested_owner, expect_mgmt_check",
+    [
+        # Reassigning to a different user -> mgmt owner-update permission required.
+        ("new-owner", True),
+        # No owner in the body -> no owner change intended (stored owner preserved
+        # downstream), so no mgmt check.
+        (None, False),
+        # Body echoes the current owner -> no-op, so no mgmt check.
+        ("current-owner", False),
+    ],
+)
+async def test_store_project_permissions_owner_reassignment_routing(
+    db: Session,
+    monkeypatch: pytest.MonkeyPatch,
+    requested_owner: str | None,
+    expect_mgmt_check: bool,
+) -> None:
+    """A PUT that reassigns the owner to a different user requires the mgmt owner-update permission."""
+    project_name = PERMISSIONS_PROJECT_NAME
+    stored_owner = "current-owner"
+    # Requester is not the owner, so the regular update-permission path is taken
+    # regardless of the owner routing.
+    auth_info = mlrun.common.schemas.AuthInfo(username="requester")
+    auth_verifier = framework.utils.auth.verifier.AuthVerifier()
+    query_project = AsyncMock()
+    query_resource = AsyncMock()
+    monkeypatch.setattr(auth_verifier, "query_project_permissions", query_project)
+    monkeypatch.setattr(
+        auth_verifier, "query_project_resource_permissions", query_resource
+    )
+    existing_project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name=project_name),
+        spec=mlrun.common.schemas.ProjectSpec(owner=stored_owner),
+    )
+    project_member = framework.utils.singletons.project_member.get_project_member()
+    monkeypatch.setattr(
+        project_member, "get_project", Mock(return_value=existing_project)
+    )
+    requested_project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name=project_name),
+        spec=mlrun.common.schemas.ProjectSpec(owner=requested_owner),
+    )
+
+    await projects_endpoints._ensure_project_create_or_update_permissions(
+        db, project_name, auth_info, requested_project=requested_project
+    )
+
+    # Regular update permission is always required for a non-owner requester.
+    query_project.assert_awaited_once_with(
+        project_name,
+        mlrun.common.schemas.AuthorizationAction.update,
+        auth_info,
+    )
+    if expect_mgmt_check:
+        query_resource.assert_awaited_once_with(
+            mlrun.common.schemas.AuthorizationResourceTypes.project_owner,
+            project_name,
+            "",
+            mlrun.common.schemas.AuthorizationAction.update,
+            auth_info,
+            resource_namespace=mlrun.common.schemas.AuthorizationResourceNamespace.mgmt,
+        )
+    else:
+        query_resource.assert_not_awaited()
+
+
 @pytest.fixture()
 def mock_process_model_monitoring_secret() -> collections.abc.Iterator[None]:
     with unittest.mock.patch(

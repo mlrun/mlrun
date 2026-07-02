@@ -84,7 +84,9 @@ class Projects(
             workflows_amount=len(project.spec.workflows or []),
         )
         try:
-            framework.utils.singletons.db.get_db().create_project(session, project)
+            framework.utils.singletons.db.get_db().create_project(
+                session, project, auth_info
+            )
         except Exception as exc:
             self._emit_project_lifecycle_event(
                 action=mlrun.common.schemas.ProjectLifecycleEventActions.creation_failed,
@@ -117,7 +119,9 @@ class Projects(
             artifact_amount=len(project.spec.artifacts or []),
             workflows_amount=len(project.spec.workflows or []),
         )
-        framework.utils.singletons.db.get_db().store_project(session, name, project)
+        framework.utils.singletons.db.get_db().store_project(
+            session, name, project, auth_info
+        )
 
     def patch_project(
         self,

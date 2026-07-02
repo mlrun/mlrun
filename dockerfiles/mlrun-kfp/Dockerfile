@@ -58,3 +58,6 @@ RUN rm -rf /usr/local/lib/python${MLRUN_PYTHON_VERSION}/ensurepip /tmp/mlrun
 
 RUN chmod 777 /mlrun
 WORKDIR /mlrun
+
+ARG MLRUN_GIT_COMMIT
+LABEL org.opencontainers.image.revision=$MLRUN_GIT_COMMIT

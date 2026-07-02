@@ -15,6 +15,8 @@
 # THIS BLOCK IS FOR VARIABLES USER MAY OVERRIDE
 DOCKER_DEFAULT_PLATFORM ?= linux/amd64
 MLRUN_VERSION ?= unstable
+# commit baked into image OCI labels (org.opencontainers.image.revision); matches version.json's git_commit
+MLRUN_GIT_COMMIT ?= $(shell git rev-parse HEAD 2>/dev/null)
 # pip requires the python version to be according to some regex (so "unstable" is not valid for example) this regex only
 # allows us to have free text (like unstable) after the "+". on the contrary in a docker tag "+" is not a valid
 # character so we're doing best effort - if the provided version doesn't look valid (like unstable), we prefix the
@@ -331,6 +333,7 @@ mlrun: common-image update-version-file ## Build mlrun docker image
 		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \
 		--build-arg MLRUN_UV_IMAGE=$(MLRUN_UV_IMAGE) \
 		--build-arg DOCKER_DEFAULT_PLATFORM=$(DOCKER_DEFAULT_PLATFORM) \
+		--build-arg MLRUN_GIT_COMMIT=$(MLRUN_GIT_COMMIT) \
 		--platform $(DOCKER_DEFAULT_PLATFORM) \
 		$(MLRUN_IMAGE_DOCKER_CACHE_FROM_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
@@ -366,6 +369,7 @@ mlrun-kfp: common-image update-version-file ## Build mlrun docker image with KFP
 		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \
 		--build-arg DOCKER_DEFAULT_PLATFORM=$(DOCKER_DEFAULT_PLATFORM) \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
+		--build-arg MLRUN_GIT_COMMIT=$(MLRUN_GIT_COMMIT) \
 		--platform $(DOCKER_DEFAULT_PLATFORM) \
 		$(MLRUN_KFP_IMAGE_DOCKER_CACHE_FROM_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
@@ -400,6 +404,7 @@ mlrun-gpu: update-version-file ## Build mlrun gpu docker image
 		--build-arg MLRUN_GPU_BASE_IMAGE=$(MLRUN_GPU_BASE_IMAGE) \
 		--build-arg MLRUN_UV_IMAGE=$(MLRUN_UV_IMAGE) \
 		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \
+		--build-arg MLRUN_GIT_COMMIT=$(MLRUN_GIT_COMMIT) \
 		--platform $(DOCKER_DEFAULT_PLATFORM) \
 		$(MLRUN_GPU_IMAGE_DOCKER_CACHE_FROM_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
@@ -448,6 +453,7 @@ jupyter: update-version-file ## Build mlrun jupyter docker image
 		--build-arg MLRUN_CACHE_DATE=$(MLRUN_CACHE_DATE) \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
 		--build-arg MLRUN_UV_IMAGE=$(MLRUN_UV_IMAGE) \
+		--build-arg MLRUN_GIT_COMMIT=$(MLRUN_GIT_COMMIT) \
 		--platform $(DOCKER_DEFAULT_PLATFORM) \
 		$(MLRUN_JUPYTER_IMAGE_DOCKER_CACHE_FROM_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
@@ -466,6 +472,7 @@ pull-jupyter: ## Pull mlrun jupyter docker image
 .PHONY: log-collector
 log-collector: update-version-file
 	@MLRUN_VERSION=$(MLRUN_VERSION) \
+		MLRUN_GIT_COMMIT=$(MLRUN_GIT_COMMIT) \
 		MLRUN_DOCKER_REGISTRY=$(MLRUN_DOCKER_REGISTRY) \
 		MLRUN_DOCKER_REPO=$(MLRUN_DOCKER_REPO) \
 		MLRUN_DOCKER_TAG=$(MLRUN_DOCKER_TAG) \
@@ -562,6 +569,7 @@ api: common-image-3.11 compile-schemas update-version-file ## Build mlrun-api do
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
 		--build-arg MLRUN_UV_IMAGE=$(MLRUN_UV_IMAGE) \
 		--build-arg DOCKER_DEFAULT_PLATFORM=$(DOCKER_DEFAULT_PLATFORM) \
+		--build-arg MLRUN_GIT_COMMIT=$(MLRUN_GIT_COMMIT) \
 		--platform $(DOCKER_DEFAULT_PLATFORM) \
 		$(MLRUN_API_IMAGE_DOCKER_CACHE_FROM_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \

@@ -8,7 +8,7 @@ This feature is in TechPreview status; there will be changes to the SDK in a fut
 An API handler is a graph step that is automatically prepended to a serving graph when configured. It validates incoming HTTP requests against a set of user-defined endpoints, extracts parameters from path templates, query strings, and the request body, and passes them to the next step in the graph.
 
 Use an API handler to:
-- Implement industry-defined REST API schemas on your serving graph (for example, the OpenAI chat-completion interface for LLMs).
+- Implement industry-defined REST API schemas on your serving graph (for example, the OpenAI chat-completion interface for LLMs — see {ref}`OpenAI-compatible frontend <openai-frontend>`).
 - Gate access to specific paths using ALLOW and FORBID rules.
 
 API handlers are active only for HTTP-triggered invocations. When an event arrives through a non-HTTP trigger such as a stream, the API handler is bypassed (the path is always `/` in that case).
@@ -22,9 +22,10 @@ When the `GraphServer` receives an HTTP event and an API handler is configured, 
 1. Matches the request's HTTP method and URL path against the configured endpoint list.
 2. If a match is found:
    - Extracts path template parameters and query string parameters.
-   - Optionally applies JSONPath transformations on the request body (`body_map`).
+   - Optionally applies JSONPath transformations on the request body (`input_body_mappings`).
    - Optionally injects the normalized request path into the event (`include_url_info`).
    - Passes the enriched event to the graph root.
+   - On the way back, optionally reshapes the graph response via `output_body_mappings` before returning it to the caller.
 3. If no match is found, the handler fails the request with an appropriate HTTP error (404 for unknown paths, 405 for method not allowed, 403 for FORBID action).
 
 ## Configuration
@@ -70,6 +71,7 @@ config.add_endpoint_handler(
     action=APIHandlerAction.ALLOW,  # ALLOW or FORBID
     description=None,  # Optional human-readable description
     input_body_mappings=None,  # BodyMappings instance (see Body mapping section)
+    output_body_mappings=None,  # BodyMappings instance (see Output body mapping section)
 )
 ```
 
@@ -141,21 +143,50 @@ config.add_endpoint_handler(
 |--------------------|-----------------------------------------------------------------------------|
 | `destination_path` | Name of the keyword argument passed to the next step.                       |
 | `source_json_path` | JSONPath expression evaluated against the request body dict.                |
-| `mandatory`        | If `True` (default `False`), a missing field fails the request with the error code HTTP 400 - bad request. |
+| `mandatory`        | If `True` (default `False`), a missing field fails the request with HTTP 422 Unprocessable Entity. |
 
 Rules:
 - A single JSONPath match → the value is returned as-is.
-- Multiple matches → a list is returned.
-- No match on a **mandatory** field → the request fails with HTTP 400 (Bad Request).
+- Multiple matches → a list of values is returned.
+- No match on a **mandatory** field → the request fails with HTTP 422 (Unprocessable Entity).
 - No match on an optional field → the parameter is silently omitted.
-- Non-dict body → body mappings are silently skipped.
+- Non-dict body with only optional mappings → mappings are silently skipped. With any **mandatory** mapping → HTTP 422 (Unprocessable Entity).
 - Calling `add_mapping` with a duplicate `destination_path` or `source_json_path` overwrites the existing entry and logs a warning.
 
 To remove a mapping by destination path: `bm.remove_mapping("model_name")` — where `"model_name"` is the `destination_path`.
 
-#### Hierarchical body map merging
+### Output body mapping (`output_body_mappings`)
 
-When a request matches multiple endpoints (for example, a wildcard `/*` and a specific `/v1/predict`), their `input_body_mappings` are **merged** from least specific to most specific. The most specific endpoint wins on conflict:
+The same `BodyMappings` class also reshapes the **response body** sent back to the caller, attached via `output_body_mappings` on `add_endpoint_handler`. JSONPath syntax is identical to input mapping, applied in reverse: `source_json_path` extracts from the graph response, `destination_path` names the field in the response returned to the caller.
+
+```python
+from mlrun.runtimes.nuclio.serving import BodyMappings
+
+out_bm = BodyMappings()
+out_bm.add_mapping(
+    destination_path="prediction", source_json_path="$.label", mandatory=True
+)
+out_bm.add_mapping(destination_path="score", source_json_path="$.confidence")
+
+config.add_endpoint_handler(
+    "/v1/predict",
+    HTTPMethod.POST,
+    APIHandlerAction.ALLOW,
+    output_body_mappings=out_bm,
+)
+```
+
+Differences from input body mapping:
+
+- Source = graph response; destination = field in the response sent to the caller.
+- No match on an optional field → emitted as `None` (input: silently omitted).
+- Non-2xx responses skip output mapping entirely — the original body and status code pass through. See [Returning a custom HTTP status code](#returning-a-custom-http-status-code).
+
+Mandatory-field handling (HTTP 422 on missing) and hierarchical merging behave the same as input — see [Hierarchical body map merging](#hierarchical-body-map-merging).
+
+### Hierarchical body map merging
+
+Applies to both `input_body_mappings` and `output_body_mappings`. When a request matches multiple endpoints (for example, a wildcard `/*` and a specific `/v1/predict`), their body mappings are **merged** from least specific to most specific. The most specific endpoint wins on conflict:
 
 - **Same destination** — the more specific endpoint's source overwrites the less specific one.
 - **Same source, different destination** — the stale destination from the less specific endpoint is removed; only the more specific endpoint's destination is kept.
@@ -233,11 +264,16 @@ The handler signature must accept these names (explicitly or via `**kwargs`); ot
 
 ## Returning a custom HTTP status code
 
-A handler can return a `Response(body, status_code, ...)` wrapper to set a custom HTTP response. See [Returning custom HTTP responses](./serving-graph.md#returning-custom-http-responses) for the construction patterns — this section covers the **interaction with `output_body_mappings`**.
+A handler that returns a `dict` produces an HTTP 200 response by default. To return a different status code, the handler has two options:
 
-`output_body_mappings` describes the *success-shape* contract, so the mapping runs **only when `status_code < 300`**. Non-2xx responses pass through with their body and status code intact, so the caller sees the original error envelope instead of a synthetic 422 from a failed mandatory-field check.
+1. **Raise an `mlrun.errors.MLRunHTTPStatusError` subclass** — for example `MLRunNotFoundError` returns HTTP 404, `MLRunUnprocessableEntityError` returns HTTP 422. The response body is plain text with the exception class name and message.
+2. **Return `Response(body, status_code, ...)`** — full control over body, status code, content type, and headers. See [Returning custom HTTP responses](./serving-graph.md#returning-custom-http-responses) for construction patterns.
 
-If you simply return a `dict`, the runtime treats the response as `200 OK` and runs the output mapping as usual — no change from previous behavior.
+### Interaction with [`output_body_mappings`](#output-body-mapping-output_body_mappings)
+
+`output_body_mappings` describes the *success-shape* contract, so the mapping runs **only when `status_code < 300`**. Non-2xx responses pass through with their body and status code intact, so the caller sees the original error envelope instead of a mandatory-field-check failure.
+
+If the handler returns a plain `dict`, the runtime treats the response as `200 OK` and runs the output mapping as usual.
 
 ## How downstream steps receive parameters
 
@@ -274,7 +310,7 @@ class MyStep:
 
 ## Complete example
 
-The following example configures a serving function with an API handler that supports an OpenAI-compatible `POST /v1/chat/completions` endpoint. It extracts the `model` field and `messages` array from the request body, and makes the request path available to downstream steps.
+The following example configures a serving function with an API handler that supports an OpenAI-compatible `POST /v1/chat/completions` endpoint. It extracts the `model` field and `messages` array from the request body, makes the request path available to downstream steps, and reshapes the handler's response (filtering and renaming fields) before returning it to the caller.
 
 ```python
 import mlrun
@@ -296,7 +332,11 @@ serving_fn = project.set_function(
 # model_name and messages are passed as keyword arguments by the API handler
 def chat_handler(model_name, messages, mlrun_request_path, **kwargs):
     reply = f"Received {len(messages)} message(s) for model '{model_name}'"
-    return {"reply": reply, "path": mlrun_request_path}
+    return {
+        "reply": reply,
+        "path": mlrun_request_path,
+        "internal_debug": "trace-id-123",  # will be filtered by output_body_mappings
+    }
 
 
 graph = serving_fn.set_topology("flow", engine="sync")
@@ -314,6 +354,14 @@ bm.add_mapping(
     destination_path="messages", source_json_path="$.messages", mandatory=True
 )
 
+# Reshape the handler's response on the way out — keep only `reply` and rename
+# `path` to `request_path`. `internal_debug` is dropped (not declared).
+output_bm = BodyMappings()
+output_bm.add_mapping(
+    destination_path="reply", source_json_path="$.reply", mandatory=True
+)
+output_bm.add_mapping(destination_path="request_path", source_json_path="$.path")
+
 # Allow the OpenAI-compatible chat completion endpoint
 config.add_endpoint_handler(
     "/v1/chat/completions",
@@ -321,6 +369,7 @@ config.add_endpoint_handler(
     APIHandlerAction.ALLOW,
     description="OpenAI-compatible chat completion",
     input_body_mappings=bm,
+    output_body_mappings=output_bm,
 )
 
 # Block all admin paths
@@ -333,13 +382,16 @@ serving_fn.set_api_handler_config(config)
 # --- Test locally with the mock server ---
 server = serving_fn.to_mock_server()
 
-# Allowed endpoint: body mappings extract model_name and messages; chat_handler receives them as kwargs
+# Allowed endpoint:
+#   input bm extracts model_name + messages → chat_handler receives them as kwargs.
+#   output bm filters the handler's return: keeps `reply`, renames `path` →
+#   `request_path`, and drops `internal_debug` (not declared).
 result = server.test(
     "/v1/chat/completions",
     method="POST",
     body={"model": "my-llm", "messages": [{"role": "user", "content": "Hello"}]},
 )
-# result: {"reply": "Received 1 message(s) for model 'my-llm'", "path": "/v1/chat/completions"}
+# result: {"reply": "Received 1 message(s) for model 'my-llm'", "request_path": "/v1/chat/completions"}
 
 # Forbidden endpoint: raises 403
 try:

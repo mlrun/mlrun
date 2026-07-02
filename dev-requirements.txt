@@ -23,6 +23,7 @@ pytest-forked~=1.6
 tiktoken~=0.9.0
 
 # system tests
+paramiko~=3.5
 matplotlib~=3.5
 graphviz~=0.20.0
 nuclio-sdk>=0.5

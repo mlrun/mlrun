@@ -19,8 +19,6 @@ import pytest
 from fastapi.testclient import TestClient
 from pytest import fail
 from sqlalchemy.orm import Session
-from v3io_frames import CreateError
-from v3io_frames import frames_pb2 as fpb2
 
 import mlrun
 import mlrun.common.schemas.model_monitoring
@@ -36,6 +34,11 @@ from services.api.crud.model_monitoring.grafana import (
     validate_query_parameters,
 )
 from services.api.tests.unit.api.test_model_endpoints import _mock_random_endpoint
+
+# v3io_frames is an optional extra (mlrun[v3io-frames]); skip the module when it's absent.
+v3io_frames = pytest.importorskip("v3io_frames")
+CreateError = v3io_frames.CreateError
+fpb2 = pytest.importorskip("v3io_frames.frames_pb2")
 
 ENV_PARAMS = {"V3IO_ACCESS_KEY", "V3IO_API", "V3IO_FRAMESD"}
 TEST_PROJECT = "test3"

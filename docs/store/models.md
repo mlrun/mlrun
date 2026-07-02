@@ -4,7 +4,12 @@ You can work with models that are [stored locally](#locally-hosted-models) and [
 
 **In this section**
 - [Locally hosted models](#locally-hosted-models)
+- [Train, exaluate, and log a model trained with scikit-learn](#train-exaluate-and-log-a-model-trained-with-scikit-learn)
+- [Retrieve, run, and update a model using `models_path` and `test_set`](#retrieve-run-and-update-a-model-using-models_path-and-test_set)
 - [Remote models](#remote-models)
+
+**See also**
+- {ref}`artifacts`
 
 ## Locally hosted models
 
@@ -23,13 +28,9 @@ You can also store any related metrics by providing a dictionary in the `metrics
 
 A convenient utility method, `eval_model_v2`, which calculates mode metrics is available in `mlrun.utils`.
 
-**In this section**
-- [Example of model trained with scikit-learn](#example-of-model-trained-with-scikit-learn)
-- [Example model using `models_path` and `test_set`](#example-model-using-models_path-and-test_set)
+## Train, exaluate, and log a model trained with scikit-learn
 
-## Example of model trained with scikit-learn
-
-See example below for a simple model trained using scikit-learn (normally, you would send the data as input to the function). The last 2 lines evaluate the model and log the model.
+See example below for a simple model trained using scikit-learn (normally, you would send the data as input to the function). The last 2 lines evaluate the model and log the model (using {py:meth}`~mlrun.projects.MlrunProject.log_model`).
 
 ``` python
 from sklearn import linear_model
@@ -88,7 +89,7 @@ train_iris = train_iris_func.run(
 )
 ```
 
-## Example model using `models_path` and `test_set`
+## Retrieve, run, and update a model using `models_path` and `test_set`
 You can now use `get_model` to read the model and run it. This function gets the model file, metadata, and extra data. The input can be either the path of the model, or the directory where the model resides. If you provide a directory, the function searches for the model file (by default it searches for `.pkl` files).
 
 The following example gets the model from `models_path` and gets test data in `test_set` with the expected label provided as a column of the test data. The name of the column containing the expected label is provided in `label_column`. The example then retrieves the models, runs the model with the test data and updates the model with the metrics and results of the test data.
@@ -152,7 +153,7 @@ run = func.run(
 
 ## Remote models
 You can use models stored in a remote source, for example OpenAI. You can load the model from the remote source, without
-saving it in your datastore. A remote {py:class}`mlrun.artifacts.model.ModelArtifact` instance does not have any extra
+saving it in your datastore. A remote {py:class}`~mlrun.artifacts.model.ModelArtifact` instance does not have any extra
 data or similar facilities that the locally stored model artifact supports. Remote models are specified by the `ModelArtifact`
 parameter `model_url`, which accepts various path schemas, as described in the next sections. You can specify the default
 configuration for building clients with the `default_config` parameter.

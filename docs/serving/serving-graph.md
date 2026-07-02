@@ -86,6 +86,7 @@ Typical serving graph in the UI:
 basic-example
 getting-started
 api-handler
+openai-frontend
 building-graphs
 deploying-graphs
 demos

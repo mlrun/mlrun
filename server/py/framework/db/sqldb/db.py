@@ -3663,9 +3663,8 @@ class SQLDB(DBInterface):
         project_summaries = query.all()
         project_summaries_results = []
         for project_summary in project_summaries:
-            # project_summary.updated is timezone naive, make it utc
-            project_summary.summary["updated"] = project_summary.updated.replace(
-                tzinfo=UTC
+            project_summary.summary["updated"] = mlrun.utils.ensure_tz_aware(
+                project_summary.updated
             )
             project_summaries_results.append(
                 mlrun.common.schemas.ProjectSummary(**project_summary.summary)
@@ -7503,20 +7502,18 @@ class SQLDB(DBInterface):
             name=alert_activation_record.name,
             project=alert_activation_record.project,
             severity=alert_activation_record.severity,
-            # the activation_time is already stored in UTC in the database as a naive datetime.
-            # we explicitly set the timezone to UTC here to make it timezone-aware, avoiding any ambiguity.
-            activation_time=alert_activation_record.activation_time.replace(tzinfo=UTC),
+            # activation_time/reset_time are stored in UTC, but round-trip as tz-naive on SQLite and
+            # tz-aware on PostgreSQL/MySQL - normalize rather than blindly relabeling as UTC.
+            activation_time=mlrun.utils.ensure_tz_aware(
+                alert_activation_record.activation_time
+            ),
             entity_id=alert_activation_record.entity_id,
             entity_kind=alert_activation_record.entity_kind,
             event_kind=alert_activation_record.event_kind,
             number_of_events=alert_activation_record.number_of_events,
             notifications=alert_activation_record.data.get("notifications", []),
             criteria=alert_activation_record.data.get("criteria"),
-            # the reset_time is already stored in UTC (if not None) in the database as a naive datetime.
-            # we explicitly set the timezone to UTC here to make it timezone-aware, avoiding any ambiguity.
-            reset_time=alert_activation_record.reset_time.replace(tzinfo=UTC)
-            if alert_activation_record.reset_time
-            else None,
+            reset_time=mlrun.utils.ensure_tz_aware(alert_activation_record.reset_time),
         )
 
     # ---- Background Tasks ----

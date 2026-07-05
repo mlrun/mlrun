@@ -20,19 +20,14 @@ import mlrun.utils
 
 import framework.utils.background_tasks.common
 
+_ONE_HOUR_AGO = mlrun.utils.now_date() - datetime.timedelta(hours=1)
+# start_time as SQLite (tz-naive) vs PostgreSQL/MySQL (tz-aware) would return it for the same
+# logical timestamp - the comparison against `now_date()` must behave the same either way
+_START_TIME_DIALECT_VARIANTS = [_ONE_HOUR_AGO.replace(tzinfo=None), _ONE_HOUR_AGO]
 
-@pytest.mark.parametrize(
-    "start_time",
-    [
-        # SQLite returns tz-naive datetimes for DateTime columns
-        mlrun.utils.now_date().replace(tzinfo=None) - datetime.timedelta(hours=1),
-        # PostgreSQL/MySQL return tz-aware datetimes for the same logical timestamp
-        mlrun.utils.now_date() - datetime.timedelta(hours=1),
-    ],
-)
+
+@pytest.mark.parametrize("start_time", _START_TIME_DIALECT_VARIANTS)
 def test_background_task_exceeded_timeout_across_dialects(start_time):
-    # regardless of whether start_time is tz-naive (SQLite) or tz-aware (PostgreSQL/MySQL), the
-    # comparison against `now_date()` must not raise and must reach the correct verdict
     assert framework.utils.background_tasks.common.background_task_exceeded_timeout(
         start_time,
         timeout=60,
@@ -45,13 +40,7 @@ def test_background_task_exceeded_timeout_across_dialects(start_time):
     )
 
 
-@pytest.mark.parametrize(
-    "start_time",
-    [
-        mlrun.utils.now_date().replace(tzinfo=None) - datetime.timedelta(hours=1),
-        mlrun.utils.now_date() - datetime.timedelta(hours=1),
-    ],
-)
+@pytest.mark.parametrize("start_time", _START_TIME_DIALECT_VARIANTS)
 def test_background_task_exceeded_timeout_terminal_state_short_circuits(start_time):
     assert not framework.utils.background_tasks.common.background_task_exceeded_timeout(
         start_time,

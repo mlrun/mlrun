@@ -38,6 +38,7 @@ from mlrun.utils.helpers import (
     StorePrefix,
     enrich_image_url,
     ensure_batch_job_suffix,
+    ensure_tz_aware,
     extend_hub_uri_if_needed,
     get_data_from_path,
     get_parsed_docker_registry,
@@ -97,6 +98,43 @@ def test_retry_until_successful_fatal_failure():
 )
 def test_enrich_datetime_with_tz_info(d, expected: datetime):
     assert expected == mlrun.utils.helpers.enrich_datetime_with_tz_info(d)
+
+
+@pytest.mark.parametrize(
+    "dt,expected",
+    [
+        (None, None),
+        (
+            datetime(2024, 11, 11, 7, 44, 56),
+            datetime(2024, 11, 11, 7, 44, 56, tzinfo=UTC),
+        ),
+        (
+            # already tz-aware (e.g. read back from a PostgreSQL/MySQL TIMESTAMP column) - untouched
+            datetime(2024, 11, 11, 7, 44, 56, tzinfo=UTC),
+            datetime(2024, 11, 11, 7, 44, 56, tzinfo=UTC),
+        ),
+        (
+            # already tz-aware in a non-UTC offset (e.g. read back from a PostgreSQL/MySQL TIMESTAMP
+            # column) - untouched, no UTC normalization
+            datetime(2024, 11, 11, 9, 44, 56, tzinfo=timezone(timedelta(hours=2))),
+            datetime(2024, 11, 11, 9, 44, 56, tzinfo=timezone(timedelta(hours=2))),
+        ),
+    ],
+)
+def test_ensure_tz_aware(dt, expected):
+    assert ensure_tz_aware(dt) == expected
+
+
+def test_ensure_tz_aware_dialect_portable_comparison():
+    # a naive datetime as returned by SQLite for a DateTime column, and a tz-aware one as
+    # returned by PostgreSQL/MySQL for the same logical timestamp - both must compare cleanly
+    # against `now_date()` once normalized, regardless of which dialect produced them
+    naive_from_sqlite = datetime(2024, 11, 11, 7, 44, 56)
+    aware_from_postgres = datetime(2024, 11, 11, 7, 44, 56, tzinfo=UTC)
+
+    now = mlrun.utils.helpers.now_date()
+    assert now > ensure_tz_aware(naive_from_sqlite)
+    assert now > ensure_tz_aware(aware_from_postgres)
 
 
 def test_retry_until_successful_sync():

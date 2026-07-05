@@ -474,6 +474,24 @@ def now_date(tz: timezone = UTC) -> datetime:
     return datetime.now(tz=tz)
 
 
+def ensure_tz_aware(dt: datetime | None, tz: timezone = UTC) -> datetime | None:
+    """
+    Normalize a datetime to be tz-aware, assuming ``tz`` for naive values.
+
+    DB dialects differ on this: PostgreSQL/MySQL TIMESTAMP columns round-trip as tz-aware
+    datetimes, SQLite's don't, so values read from the DB must be normalized before comparing
+    them against `now_date()` to avoid `TypeError: can't compare offset-naive and offset-aware
+    datetimes` on some dialects but not others.
+
+    :param dt: The datetime to normalize, may be tz-naive, tz-aware, or None.
+    :param tz: The timezone to assume for a tz-naive datetime.
+    :return: A tz-aware datetime, or None if dt is None.
+    """
+    if dt is not None and dt.tzinfo is None:
+        return dt.replace(tzinfo=tz)
+    return dt
+
+
 def datetime_to_mysql_ts(datetime_object: datetime) -> datetime:
     """
     Convert a Python datetime object to a MySQL-compatible timestamp string,

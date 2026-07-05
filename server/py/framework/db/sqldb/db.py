@@ -6319,10 +6319,7 @@ class SQLDB(DBInterface):
         sqlalchemy losing timezone information with sqlite so we're returning it
         https://stackoverflow.com/questions/6991457/sqlalchemy-losing-timezone-information-with-sqlite
         """
-        if time_value:
-            if time_value.tzinfo is None:
-                return pytz.utc.localize(time_value)
-        return time_value
+        return mlrun.utils.ensure_tz_aware(time_value)
 
     @staticmethod
     def _transform_feature_set_model_to_schema(

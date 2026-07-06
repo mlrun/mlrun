@@ -38,8 +38,8 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 ### Serving graph
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-12439|API handler improvements: a new per-endpoint BodyMappings object attached directly to each EndpointConfig replaces the global body_map mechanism ; new exit-mapping configuration; `include_url_info` now also injects `mlrun_request_method`; handlers can return a custom HTTP status code. API handler is no longer TechPreview. See [Breaking changes](v1-12-0-breaks) and [API handler](../serving/api-handler.md).|
-|ML-10754|MLRun now supports an OpenAI REST interface to serving graphs. See {ref}`~openai-frontend`.|
+|ML-12439|API handler improvements: a new per-endpoint BodyMappings object attached directly to each EndpointConfig replaces the global body_map mechanism ; new exit-mapping configuration; `include_url_info` now also injects `mlrun_request_method`; handlers can return a custom HTTP status code. API handler is no longer TechPreview. See [Breaking changes](v1-12-0-breaking) and [API handler](../serving/api-handler.md).|
+|ML-10754|MLRun now supports an OpenAI REST interface to serving graphs. See {ref}`openai-frontend` and {py:meth}`~mlrun.runtimes.ServingRuntime.set_openai_frontend`.|
 |ML-11839|MLRun jobs now supports `async` function handlers (for batch execution). See [](../concepts/submitting-tasks-jobs-to-functions.md#async-handlers).|
 
 ### Metrics

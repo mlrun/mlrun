@@ -468,8 +468,6 @@ class Member(
 
     @staticmethod
     def _enrich_project(project: mlrun.common.schemas.Project):
-        # Owner enrichment lives in the DB layer so it can't be bypassed on the
-        # store path.
         project.status.state = project.spec.desired_state
 
     @staticmethod

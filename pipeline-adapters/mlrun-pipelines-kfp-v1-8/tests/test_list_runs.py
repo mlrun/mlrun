@@ -75,3 +75,34 @@ def test_list_runs_wildcard_project_does_not_short_circuit(client, monkeypatch):
 
     get_experiments_mock.assert_not_called()
     paginate_runs_mock.assert_called_once()
+
+
+def test_paginate_runs_forwards_filter_and_sort_on_every_page(client, monkeypatch):
+    """
+    _paginate_runs must resend filter_json and sort_by to KFP on every page, not
+    just the first. page_token is an opaque seek-position cursor computed against
+    the filtered/sorted query — it does not carry the filter or sort predicates
+    with it. Dropping them on later pages makes KFP fall back to an unfiltered
+    scan while still applying a token seeked into the filtered result set.
+    """
+    list_runs_mock = unittest.mock.MagicMock(
+        side_effect=[
+            (["run-1"], "page2_token"),
+            (["run-2"], None),
+        ]
+    )
+    monkeypatch.setattr(client, "_list_runs", list_runs_mock)
+
+    pages = list(
+        client._paginate_runs(
+            page_size=1,
+            sort_by="created_at desc",
+            filter_json='{"predicates": []}',
+        )
+    )
+
+    assert [runs for runs, _ in pages] == [["run-1"], ["run-2"]]
+    assert list_runs_mock.call_count == 2
+    for call in list_runs_mock.call_args_list:
+        assert call.kwargs["sort_by"] == "created_at desc"
+        assert call.kwargs["filter_json"] == '{"predicates": []}'

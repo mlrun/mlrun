@@ -209,6 +209,16 @@ class MonitoringApplicationContext:
 
     @property
     def sample_df(self) -> pd.DataFrame:
+        """The new sample DataFrame for the monitored window.
+
+        :raises mlrun.errors.MLRunValueError: if the sample DataFrame cannot be provided
+            because the model endpoint's details and times were not supplied (and no
+            ``sample_data`` was given directly).
+        :raises mlrun.errors.MLRunEmptySampleDFError: if there is no inference data
+            logged in the requested time window. This dedicated error type lets callers
+            iterating over monitoring windows skip empty windows without swallowing
+            unrelated value errors (e.g. the missing-details case above).
+        """
         if self._sample_df is None:
             if (
                 self.endpoint_name is None
@@ -231,7 +241,7 @@ class MonitoringApplicationContext:
                 storage_options=self.storage_options,
             )
             if df.empty:
-                raise mlrun.errors.MLRunValueError(
+                raise mlrun.errors.MLRunEmptySampleDFError(
                     "The sample dataframe is empty, which may indicate that there are no features logged in the "
                     "model endpoint during the specified time window. Please check that your model endpoint is logging "
                     "features correctly, and that the time window is correct."

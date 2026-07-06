@@ -23,6 +23,7 @@ from sqlalchemy.orm import Session
 import mlrun.common.formatters
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
+import mlrun.utils
 from mlrun.utils import logger
 
 import framework.utils.auth.verifier
@@ -437,7 +438,8 @@ async def abort_run(
                         )
                     )
                     if (
-                        datetime.datetime.utcnow() - background_task.metadata.updated
+                        mlrun.utils.now_date()
+                        - mlrun.utils.ensure_tz_aware(background_task.metadata.updated)
                         < grace_timedelta
                     ):
                         logger.debug(

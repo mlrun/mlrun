@@ -2,6 +2,7 @@
 # Change log
 
 The change log lists updates per version, open issues, limitations, and deprecations.
+- [v1.12.0](#v1120)
 - [v1.11.0](#v1110)
 - [v1.10.3](#v1103) | [v1.10.2](#v1102) | [v1.10.1](#v1101) | [v1.10.0](#v1100)
 - [v1.9.2](#v192) | [v1.9.1](#v191) | [v1.9.0](#v190)
@@ -24,6 +25,15 @@ Upgrading these three MLRun dependencies spans several releases.  The upgrades a
 - Pydantic: from version 1 to 2.
 
 See a full description of KFP, Python, and the workflow engines in {ref}`local-remote`. Specific changes are listed under the relevant versions.
+(v1120)=
+## v1.12.0
+
+(1.12.0-breaking)=
+### Breaking Changes
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-12819|`v3io-frames` is now optional. Standard `pip install mlrun` installs no longer include it. If you use v3io Frames or v3io TSDB model monitoring, install `mlrun[v3io-frames]`. The dependency is still included in `mlrun[all]`, `mlrun[complete]`, and MLRun images.|
+
 (v1110)=
 ## v1.11.0 (May 2026)
 

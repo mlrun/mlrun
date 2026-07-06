@@ -1,10 +1,6 @@
 (api-handler)=
 # API handler
 
-```{admonition} Note
-This feature is in TechPreview status; there will be changes to the SDK in a future release. 
-```
-
 An API handler is a graph step that is automatically prepended to a serving graph when configured. It validates incoming HTTP requests against a set of user-defined endpoints, extracts parameters from path templates, query strings, and the request body, and passes them to the next step in the graph.
 
 Use an API handler to:
@@ -14,6 +10,15 @@ Use an API handler to:
 API handlers are active only for HTTP-triggered invocations. When an event arrives through a non-HTTP trigger such as a stream, the API handler is bypassed (the path is always `/` in that case).
 
 **Supported runtimes**: Serving functions with an HTTP trigger, and the mock server (local testing).
+
+**In this section**
+- [Overview](#overview)
+- [SDK](#sdk)
+- [Path matching rules](#path-matching-rules)
+- [Extracting request parameters](#extracting-request-parameters)
+- [Returning a custom HTTP status code](#returning-a-custom-http-status-code)
+- [How downstream steps receive parameters](#how-downstream-steps-receive-parameters)
+- [Example](#example)
 
 ## Overview
 
@@ -28,9 +33,15 @@ When the `GraphServer` receives an HTTP event and an API handler is configured, 
    - On the way back, optionally reshapes the graph response via `output_body_mappings` before returning it to the caller.
 3. If no match is found, the handler fails the request with an appropriate HTTP error (404 for unknown paths, 405 for method not allowed, 403 for FORBID action).
 
-## Configuration
+## SDK
+- {py:class}`~mlrun.runtimes.nuclio.serving.APIHandlerConfig`
+- {py:meth}`~mlrun.runtimes.ServingRuntime.set_api_handler_config`
+- {py:meth}`~mlrun.runtimes.nuclio.serving.APIHandlerConfig.add_endpoint_config`
+- {py:meth}`~mlrun.runtimes.nuclio.serving.APIHandlerConfig.get_endpoint_config`
+- {py:meth}`~mlrun.runtimes.nuclio.serving.APIHandlerConfig.add_endpoint_handler`
+- {py:meth}`~mlrun.runtimes.nuclio.serving.APIHandlerConfig.remove_endpoint_handler`
 
-### APIHandlerConfig
+## APIHandlerConfig
 
 `APIHandlerConfig` holds the full configuration for the API handler. Create one, add endpoint rules and optional body mappings, then attach it to the serving function.
 
@@ -62,7 +73,7 @@ serving_fn.set_api_handler_config(config)
 
 The configuration is serialized into `serving_fn.spec.api_handler_config` and is picked up at deployment time.
 
-### `add_endpoint_handler` signature
+## `add_endpoint_handler` signature
 
 ```python
 config.add_endpoint_handler(
@@ -308,7 +319,7 @@ class MyStep:
     ): ...
 ```
 
-## Complete example
+## Example
 
 The following example configures a serving function with an API handler that supports an OpenAI-compatible `POST /v1/chat/completions` endpoint. It extracts the `model` field and `messages` array from the request body, makes the request path available to downstream steps, and reshapes the handler's response (filtering and renaming fields) before returning it to the caller.
 

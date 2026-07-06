@@ -3458,12 +3458,11 @@ class SQLDB(DBInterface):
         if not project_record:
             self.create_project(session, project, auth_info)
         else:
-            # Preserve the stored owner when the body omits one (fall back to
-            # the caller only if the project has no owner) so a member can't
-            # null it to seize ownership; an explicit change is authorized at
-            # the endpoint.
+            # Preserve the stored owner when the body omits one so a member
+            # can't null it to seize ownership; an explicit change is
+            # authorized at the endpoint.
             if project.spec.owner is None:
-                project.spec.owner = project_record.owner or auth_info.username
+                project.spec.owner = project_record.owner
             self._update_project_record_from_project(session, project_record, project)
 
     @staticmethod

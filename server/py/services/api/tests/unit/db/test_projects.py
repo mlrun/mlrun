@@ -297,8 +297,8 @@ class TestProjects(TestDatabaseBase):
             # load_project(clone=True) + save() does), so a different caller must
             # NOT seize ownership - the stored owner is preserved.
             ("original-owner", None, "original-owner"),
-            # No stored owner to preserve: the caller becomes the owner.
-            (None, None, "caller"),
+            # No stored owner: stays None on store (caller ownership is set only on create).
+            (None, None, None),
             # An explicit owner overrides; the endpoint authorizes the change.
             ("original-owner", "new-owner", "new-owner"),
         ],

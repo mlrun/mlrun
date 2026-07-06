@@ -1,6 +1,7 @@
 (change-log)=
 # Change log
 
+
 The change log lists updates per version, open issues, limitations, and deprecations:
 - [v1.12.0](#v1-12-0)
 - [v1.11.0](#v1110)
@@ -62,6 +63,15 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |NA|The updated {ref}`guardrails-data` page now showcases a guardrail step from the MLRun hub, and a ModelRunnerStep that runs  theLLMModel.|
+=======
+(v1120)=
+## v1.12.0
+
+(1.12.0-breaking)=
+### Breaking Changes
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-12819|`v3io-frames` is now optional. Standard `pip install mlrun` installs no longer include it. If you use v3io Frames or v3io TSDB model monitoring, install `mlrun[v3io-frames]`. The dependency is still included in `mlrun[all]`, `mlrun[complete]`, and MLRun images.|
 
 (v1110)=
 ## v1.11.0 (May 2026)

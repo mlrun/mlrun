@@ -75,6 +75,7 @@ def extra_requirements() -> dict[str, list[str]]:
         "timescaledb": ["psycopg[binary,pool]~=3.2"],
         "opentelemetry": ["storey[otel]"],
         "snowflake": ["snowflake-connector-python~=4.6"],
+        "v3io-frames": ["v3io-frames~=0.13.11"],
     }
 
     api_deps = list(

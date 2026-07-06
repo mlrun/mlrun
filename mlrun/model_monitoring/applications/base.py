@@ -659,8 +659,12 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                 sample_df=sample_data,
             )
 
-            if ctx.sample_df.empty:
-                # The current sample is empty
+            try:
+                sample_df_empty = ctx.sample_df.empty
+            except mlrun.errors.MLRunEmptySampleDFError:
+                sample_df_empty = True
+
+            if sample_df_empty:
                 context.logger.debug(
                     "No sample data available for tracking",
                     application_name=application_name,

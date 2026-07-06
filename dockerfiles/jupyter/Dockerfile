@@ -121,6 +121,9 @@ ENV JUPYTER_ENABLE_LAB=yes \
 # backup home since it will be deleted when using pvc
 RUN mkdir data && tar -cvf /tmp/basehome.tar $HOME
 
+ARG MLRUN_GIT_COMMIT
+LABEL org.opencontainers.image.revision=$MLRUN_GIT_COMMIT
+
 # use tini as entrypoint to allow signal handling
 # and avoid zombie processes
 ENTRYPOINT ["tini", "--"]

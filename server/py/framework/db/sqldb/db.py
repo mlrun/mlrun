@@ -464,12 +464,20 @@ class SQLDB(DBInterface):
             query = query.filter(Run.uid.in_(specific_uids))
 
         if not only_uids:
-            # group_by allows us to have a row per uid with the whole record rather than just the uid (as distinct does)
-            # note we cannot promise that the same row will be returned each time per uid as the order is not guaranteed
-            query = query.group_by(Run.uid)
+            # Return one full record per uid. A plain `GROUP BY Run.uid` over full rows relies on
+            # MySQL's nonstandard "loose" GROUP BY (arbitrary row per group) and is rejected by
+            # PostgreSQL's strict GROUP BY. Instead select a representative id per uid via an
+            # aggregate (portable across dialects) and fetch those full rows. The representative is
+            # the highest primary-key id (the most recently inserted row); which row is returned was
+            # never guaranteed for this method.
+            latest_run_id_per_uid = query.with_entities(func.max(Run.id)).group_by(
+                Run.uid
+            )
 
             runs = RunList()
-            for run in query:
+            for run in self._query(session, Run).filter(
+                Run.id.in_(latest_run_id_per_uid.scalar_subquery())
+            ):
                 runs.append(run.struct)
 
             return runs
@@ -1277,7 +1285,7 @@ class SQLDB(DBInterface):
         )
         if category:
             query = self._add_artifact_category_query(category, query).with_hint(
-                ArtifactV2, "USE INDEX (idx_project_kind)"
+                ArtifactV2, "USE INDEX (idx_project_kind)", dialect_name="mysql"
             )
 
         # the query returns a list of tuples, we need to extract the tag from each tuple
@@ -3655,9 +3663,8 @@ class SQLDB(DBInterface):
         project_summaries = query.all()
         project_summaries_results = []
         for project_summary in project_summaries:
-            # project_summary.updated is timezone naive, make it utc
-            project_summary.summary["updated"] = project_summary.updated.replace(
-                tzinfo=UTC
+            project_summary.summary["updated"] = mlrun.utils.ensure_tz_aware(
+                project_summary.updated
             )
             project_summaries_results.append(
                 mlrun.common.schemas.ProjectSummary(**project_summary.summary)
@@ -6311,10 +6318,7 @@ class SQLDB(DBInterface):
         sqlalchemy losing timezone information with sqlite so we're returning it
         https://stackoverflow.com/questions/6991457/sqlalchemy-losing-timezone-information-with-sqlite
         """
-        if time_value:
-            if time_value.tzinfo is None:
-                return pytz.utc.localize(time_value)
-        return time_value
+        return mlrun.utils.ensure_tz_aware(time_value)
 
     @staticmethod
     def _transform_feature_set_model_to_schema(
@@ -7498,20 +7502,18 @@ class SQLDB(DBInterface):
             name=alert_activation_record.name,
             project=alert_activation_record.project,
             severity=alert_activation_record.severity,
-            # the activation_time is already stored in UTC in the database as a naive datetime.
-            # we explicitly set the timezone to UTC here to make it timezone-aware, avoiding any ambiguity.
-            activation_time=alert_activation_record.activation_time.replace(tzinfo=UTC),
+            # activation_time/reset_time are stored in UTC, but round-trip as tz-naive on SQLite and
+            # tz-aware on PostgreSQL/MySQL - normalize rather than blindly relabeling as UTC.
+            activation_time=mlrun.utils.ensure_tz_aware(
+                alert_activation_record.activation_time
+            ),
             entity_id=alert_activation_record.entity_id,
             entity_kind=alert_activation_record.entity_kind,
             event_kind=alert_activation_record.event_kind,
             number_of_events=alert_activation_record.number_of_events,
             notifications=alert_activation_record.data.get("notifications", []),
             criteria=alert_activation_record.data.get("criteria"),
-            # the reset_time is already stored in UTC (if not None) in the database as a naive datetime.
-            # we explicitly set the timezone to UTC here to make it timezone-aware, avoiding any ambiguity.
-            reset_time=alert_activation_record.reset_time.replace(tzinfo=UTC)
-            if alert_activation_record.reset_time
-            else None,
+            reset_time=mlrun.utils.ensure_tz_aware(alert_activation_record.reset_time),
         )
 
     # ---- Background Tasks ----

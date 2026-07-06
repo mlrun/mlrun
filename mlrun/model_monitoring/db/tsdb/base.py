@@ -14,11 +14,13 @@
 
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
-from typing import ClassVar, Literal, Union
+from typing import TYPE_CHECKING, ClassVar, Literal, Union
 
 import pandas as pd
 import pydantic.v1
-import v3io_frames.client
+
+if TYPE_CHECKING:
+    import v3io_frames.client
 
 import mlrun.common.schemas.model_monitoring as mm_schemas
 import mlrun.model_monitoring.db.tsdb.helpers
@@ -267,7 +269,7 @@ class TSDBConnector(ABC):
         start: datetime | None = None,
         end: datetime | None = None,
         get_raw: bool = False,
-    ) -> Union[pd.DataFrame, list[v3io_frames.client.RawFrame]]:
+    ) -> Union[pd.DataFrame, "list[v3io_frames.client.RawFrame]"]:
         """
         Fetches data from the app-results TSDB table and returns the highest status among all
         the result in the provided time range, which by default is the last 24 hours, for each specified endpoint.
@@ -326,7 +328,7 @@ class TSDBConnector(ABC):
         start: datetime | None = None,
         end: datetime | None = None,
         get_raw: bool = False,
-    ) -> Union[pd.DataFrame, list[v3io_frames.client.RawFrame]]:
+    ) -> Union[pd.DataFrame, "list[v3io_frames.client.RawFrame]"]:
         """
         Fetches data from the error TSDB table and returns the error count for each specified endpoint.
 
@@ -347,7 +349,7 @@ class TSDBConnector(ABC):
         start: datetime | None = None,
         end: datetime | None = None,
         get_raw: bool = False,
-    ) -> Union[pd.DataFrame, list[v3io_frames.client.RawFrame]]:
+    ) -> Union[pd.DataFrame, "list[v3io_frames.client.RawFrame]"]:
         """
         Fetches data from the predictions TSDB table and returns the average latency for each specified endpoint
         in the provided time range, which by default is the last 24 hours.

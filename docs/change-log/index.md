@@ -53,25 +53,18 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 |ML-11994|The new `cooldown_period` parameter of the AlertConfig can be used to delay resetting an alert. See [Cooldown preiod](../concepts/alerts.md#cooldown-period)|
 
 
-(v1-12-0-breaks)=
+(v1-12-0-breaking)=
 ### Breaking changes
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |ML-12439|`APIHandlerConfig.body_map`, `add_body_mapping()` and `remove_body_mapping()` are removed. Callers must migrate to attaching a BodyMappings instance via `input_body_mappings` on `add_endpoint_handler`. The old global body map was applied to all endpoints uniformly — the new model requires explicit attachment per endpoint.|
+|ML-12819|`v3io-frames` is now optional. Standard `pip install mlrun` installs no longer include it. If you use v3io Frames or v3io TSDB model monitoring, install `mlrun[v3io-frames]`. The dependency is still included in `mlrun[all]`, `mlrun[complete]`, and MLRun images.|
 
 ### Documentation
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |NA|The updated {ref}`guardrails-data` page now showcases a guardrail step from the MLRun hub, and a ModelRunnerStep that runs  theLLMModel.|
-=======
-(v1120)=
-## v1.12.0
-
-(1.12.0-breaking)=
-### Breaking Changes
-| ID    |Description                                                                 |
-|-------|----------------------------------------------------------------------------|
-|ML-12819|`v3io-frames` is now optional. Standard `pip install mlrun` installs no longer include it. If you use v3io Frames or v3io TSDB model monitoring, install `mlrun[v3io-frames]`. The dependency is still included in `mlrun[all]`, `mlrun[complete]`, and MLRun images.|
+|NA|Updated {ref}`git-repo-as-hub`.|
 
 (v1110)=
 ## v1.11.0 (May 2026)

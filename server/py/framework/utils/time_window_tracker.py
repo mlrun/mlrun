@@ -19,6 +19,7 @@ import typing
 import sqlalchemy.orm
 
 import mlrun.common.types
+import mlrun.utils
 
 import framework.db.session
 import framework.utils.asyncio
@@ -78,10 +79,10 @@ class TimeWindowTracker:
         if not time_window_tracker_record:
             return
 
-        # Ensure the timestamp is timezone-aware, it might return as naive from the DB
-        # though it was saved as timezone-aware
-        self._timestamp = time_window_tracker_record.timestamp.replace(
-            tzinfo=datetime.UTC
+        # Ensure the timestamp is timezone-aware: it round-trips as tz-naive on SQLite and
+        # tz-aware on PostgreSQL/MySQL, even though it was saved as timezone-aware.
+        self._timestamp = mlrun.utils.ensure_tz_aware(
+            time_window_tracker_record.timestamp
         )
         self._max_window_size_seconds = (
             time_window_tracker_record.max_window_size_seconds

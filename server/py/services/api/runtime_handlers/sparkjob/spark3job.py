@@ -680,6 +680,16 @@ with ctx:
             "spec.executor.serviceAccount",
             runtime.spec.service_account or "sparkapp",
         )
+        # Spark's pod-template loader NPEs without a named executor container.
+        # Keep the template minimal and only disable token automount.
+        update_in(
+            job,
+            "spec.executor.template.spec",
+            {
+                "automountServiceAccountToken": False,
+                "containers": [{"name": "spark-kubernetes-executor"}],
+            },
+        )
 
         if runtime.spec.monitoring:
             if (

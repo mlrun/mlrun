@@ -1,8 +1,8 @@
 (otel-export-step)=
 # Export metrics to OpenTelemetry
 
-Export custom metrics, for example model monitoring or custom metrics, from a serving graph to an external system (Datadog, Grafana Cloud, a user-hosted OpenTelemetry
-Collector, or any OTLP-compatible backend). When configured, the results and metrics returned by `do_tracking()` in every monitoring window
+Export custom metrics from a serving graph to an external system (Datadog, Grafana Cloud, a user-hosted OpenTelemetry
+Collector, or any OTLP-compatible backend). When configured, the custom metricsß
 are exported via OTLP to your configured endpoint. See the description of the exported results/metrics in [Export results and metrics via OTel](../model-monitoring/running-applications.md#export-results-and-metrics-via-otel).
 
 This UI icon is used for OTel export steps: <img src="../_static/images/steps-custom.png" alt="steps-custom" width="30"/>.

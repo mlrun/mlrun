@@ -33,19 +33,25 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 ### Model Monitoring
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-12344|You can now export model monitoring metrics and results from a serving-graph via OpenTelemetry to a user-configured endpoint. See [](../model-monitoring/running-applications.md#export-results-and-metrics-via-otel) and {ref}`otel-export-step`. |
+|ML-12344|You can now export model monitoring metrics and results from a serving-graph via OpenTelemetry to a user-configured endpoint. See [](../model-monitoring/running-applications.md#export-results-and-metrics-via-otel), {ref}`otel-export-step`, {ref}`otel-metrics`. New API: and {py:class}`~OTelMetricsExporter`. |
+|ML-12045|You can now monitor an externally-served model over HTTP. New APIs: {py:meth}`~mlrun.projects.MlrunProject.create_user_model_endpoint`, {py:meth}`~mlrun.projects.MlrunProject.get_model_monitoring_url`, {py:meth}`~mlrun.runtimes.ServingRuntime.setup_model_monitoring`, {py:meth}`~mlrun.projects.MlrunProject.create_user_model_endpoint`. See {ref}`monitor-external-model-http`.|
 
 ### Serving graph
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |ML-12439|API handler improvements: a new per-endpoint BodyMappings object attached directly to each EndpointConfig replaces the global body_map mechanism ; new exit-mapping configuration; `include_url_info` now also injects `mlrun_request_method`; handlers can return a custom HTTP status code. API handler is no longer TechPreview. See [Breaking changes](v1-12-0-breaking) and [API handler](../serving/api-handler.md).|
-|ML-10754|MLRun now supports an OpenAI REST interface to serving graphs. See {ref}`openai-frontend` and {py:meth}`~mlrun.runtimes.ServingRuntime.set_openai_frontend`.|
+|ML-10754|MLRun now supports an OpenAI REST interface to serving graphs. See {ref}`openai-frontend` andthe new API {py:meth}`~mlrun.runtimes.ServingRuntime.set_openai_frontend`.|
 |ML-11839|MLRun jobs now supports `async` function handlers (for batch execution). See [](../concepts/submitting-tasks-jobs-to-functions.md#async-handlers).|
+
+### Runtimes
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-12045|You can now [Run model monitoring on an app runtime](../runtimes/application.ipynb#application-and-model-monitoring-integration). New APIs: {py:meth}`~mlrun.projects.MlrunProject.create_user_model_endpoint`, {py:meth}`~mlrun.runtimes.RemoteRuntime.setup_model_monitoring`.|
 
 ### Metrics
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-16|MLRun collects anonymized system-size statistics, for example, project counts, artifact counts, run activity, serving endpoints, etc., and exports them to Prometheus via OpenTelemetry. See {ref}`server-metrics`.|
+|ML-16|MLRun collects anonymized system-size statistics, for example, project counts, artifact counts, run activity, serving endpoints, etc., and exports them to Prometheus via OpenTelemetry. See {ref}`otel-metrics`.|
 
 ### Alerts
 | ID    |Description                                                                 |

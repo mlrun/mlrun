@@ -32,7 +32,7 @@ def current_version() -> str:
 # -- Project information -----------------------------------------------------
 
 project = "mlrun"
-copyright = "2020-2025, Iguazio"
+copyright = "2020-2026, Iguazio"
 author = "Iguazio"
 
 master_doc = "contents"

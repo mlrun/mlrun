@@ -230,7 +230,6 @@ config.add_endpoint_handler(
 #   stream     ← $.stream  (inherited from wildcard)
 #   messages   ← $.messages (specific only)
 ```
-(url-info)=
 ### URL info (`include_url_info`)
 
 When `include_url_info=True`, the handler injects two additional fields into the event:

@@ -263,8 +263,12 @@ def compile_nuclio_archive_config(
             )
         )
 
+    auto_mount_env = _get_auto_mount_env_as_dict()
+
     def get_secret(key):
-        return builder_env.get(key) or secrets.get(key, "")
+        return (
+            builder_env.get(key) or secrets.get(key, "") or auto_mount_env.get(key, "")
+        )
 
     source = function.spec.build.source
     parsed_url = urllib.parse.urlparse(source)
@@ -380,3 +384,32 @@ def parse_extra_args_to_nuclio_build_flags(extra_args: str) -> list[str]:
     if current_flag:
         build_flags_list.append(current_flag)
     return build_flags_list
+
+
+def _get_auto_mount_env_as_dict() -> dict:
+    """Return plain-value env vars produced by the configured storage auto-mount modifier.
+
+    Mirrors the logic in builder._resolve_storage_auto_mount_env but returns a plain dict
+    instead of a list of V1EnvVar so callers can do O(1) key lookups. Only plain-value
+    entries are included; valueFrom (secretKeyRef) entries are intentionally skipped
+    because those secret values are already reachable via get_project_secret_data().
+    """
+    auto_mount_type = mlrun.runtimes.pod.AutoMountType(
+        mlrun.mlconf.storage.auto_mount_type
+    )
+    modifier = auto_mount_type.get_modifier()
+    if modifier not in mlrun.runtimes.pod.AutoMountType.env_style_modifiers():
+        return {}
+    scratch = mlrun.runtimes.KubejobRuntime()
+    scratch.try_auto_mount_based_on_config()
+    result = {}
+    for env_var in scratch.spec.env or []:
+        name = env_var["name"] if isinstance(env_var, dict) else env_var.name
+        value = (
+            env_var.get("value")
+            if isinstance(env_var, dict)
+            else getattr(env_var, "value", None)
+        )
+        if value:
+            result[name] = value
+    return result

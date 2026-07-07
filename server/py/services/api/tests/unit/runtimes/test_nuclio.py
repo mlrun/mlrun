@@ -1509,6 +1509,39 @@ class TestNuclioRuntime(TestRuntimeBase):
             == "https://minio.example.com"
         )
 
+    def test_load_function_with_source_archive_s3_endpoint_from_auto_mount_params(self):
+        """
+        When AWS_ENDPOINT_URL_S3 is absent from both builder_env and project secrets,
+        it must be picked up from mlconf.storage.auto_mount_params so that users who
+        rely on the admin-configured auto-mount do not need to set the endpoint
+        themselves via project secrets.
+        """
+        fn = self._generate_runtime(self.runtime_kind)
+        fn.with_source_archive(
+            "s3://my-bucket/path/in/bucket/my-functions-archive.tar.gz",
+            handler="main:Handler",
+            workdir="path/inside/functions/archive",
+        )
+        builder_env = {
+            "AWS_ACCESS_KEY_ID": "some-id",
+            "AWS_SECRET_ACCESS_KEY": "some-secret",
+        }
+        orig_type = mlrun.mlconf.storage.auto_mount_type
+        orig_params = mlrun.mlconf.storage.auto_mount_params
+        try:
+            mlrun.mlconf.storage.auto_mount_type = "s3"
+            mlrun.mlconf.storage.auto_mount_params = (
+                "endpoint_url=https://minio.example.com"
+            )
+            archive = get_archive_spec(fn, builder_env)
+        finally:
+            mlrun.mlconf.storage.auto_mount_type = orig_type
+            mlrun.mlconf.storage.auto_mount_params = orig_params
+        assert (
+            archive["spec"]["build"]["codeEntryAttributes"]["s3Endpoint"]
+            == "https://minio.example.com"
+        )
+
     def test_load_function_with_source_archive_v3io(self):
         fn = self._generate_runtime(self.runtime_kind)
         fn.with_source_archive(

@@ -216,7 +216,7 @@ def get_current_version(
 
 
 def get_previous_version(target_version: str) -> str:
-    """Greatest stable tag below target_version as a raw tag (e.g. "1.10.3"), or "" if none."""
+    """Greatest tag below target_version as a raw tag (e.g. "1.10.3"), or "" if none."""
     target = packaging.version.Version(target_version)
     candidates = []
     for tag in _run_command("git", args=["tag", "--list"]).split():
@@ -227,7 +227,7 @@ def get_previous_version(target_version: str) -> str:
             parsed = packaging.version.Version(raw)
         except packaging.version.InvalidVersion:
             continue
-        if parsed < target and not parsed.is_prerelease:
+        if parsed < target and (target.is_prerelease or not parsed.is_prerelease):
             candidates.append((parsed, raw))
     return max(candidates, default=(None, ""))[1]
 
@@ -246,12 +246,11 @@ def resolve_promotion_inputs(
     except packaging.version.InvalidVersion as exc:
         raise ValueError(f"'{version}' is not a valid version") from exc
 
-    # derive the previous stable version for release notes when not provided
     if not previous_version:
         previous_version = get_previous_version(version)
         if not previous_version:
             raise ValueError(
-                f"could not derive a previous version (no stable tag below {version}); "
+                f"could not derive a previous version (no tag below {version}); "
                 "pass --previous-version explicitly"
             )
 

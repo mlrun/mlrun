@@ -103,7 +103,7 @@ def test_update_functions_with_api_gateway_url(db: sqlalchemy.orm.Session):
 def test_add_api_gateway_url_syncs_address_when_empty(db: sqlalchemy.orm.Session):
     """Adding an API-gateway URL to a function whose address is unset should also
     populate status.address, so the next deploy_status poll sees no address change
-    and does not trigger a spurious versioned re-store (ML-12823)."""
+    and does not trigger a spurious versioned re-store."""
     project = "test-project"
     function_name = "test-function"
     function_tag = "latest"

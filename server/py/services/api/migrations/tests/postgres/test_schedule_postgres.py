@@ -29,8 +29,8 @@ pytest.importorskip(
 def test_schedule_cron_trigger_round_trip_on_postgres(
     postgres_db_session: sqlalchemy.orm.session.Session,
 ):
-    # Regression for ML-12860 - see the cron_trigger setter in
-    # server/py/framework/db/sqldb/models.py for why this only ever reproduced on PostgreSQL.
+    # Regression for ML-12860 - see the cron_trigger setter in models.py for why this only
+    # reproduced on PostgreSQL.
     db = framework.db.sqldb.db.SQLDB()
     project = "postgres-cron-trigger-test"
     name = "main"

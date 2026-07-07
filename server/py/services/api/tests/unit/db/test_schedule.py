@@ -22,6 +22,18 @@ from framework.db.sqldb.models import Schedule
 from framework.tests.unit.db.common_fixtures import TestDatabaseBase
 
 
+def test_cron_trigger_setter_stores_str_not_bytes():
+    # Regression for ML-12860 - see the cron_trigger setter in models.py for why bytes vs str
+    # matters here. Asserts the setter never produces bytes again, independent of DB dialect.
+    schedule = Schedule()
+    schedule.cron_trigger = mlrun.common.schemas.ScheduleCronTrigger.from_crontab(
+        "*/15 * * * *"
+    )
+
+    assert isinstance(schedule.cron_trigger_str, str)
+    assert schedule.cron_trigger["minute"] == "*/15"
+
+
 class TestSchedules(TestDatabaseBase):
     def test_delete_schedules(self):
         names = ["some_name", "some_name2", "some_name3"]

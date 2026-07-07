@@ -609,7 +609,15 @@ with warnings.catch_warnings():
 
         @cron_trigger.setter
         def cron_trigger(self, trigger: mlrun.common.schemas.ScheduleCronTrigger):
-            self.cron_trigger_str = orjson.dumps(trigger.dict(exclude_unset=True))
+            # orjson.dumps() returns bytes. cron_trigger_str is a text column (Utf8BinText), and
+            # binding raw bytes into a text column on PostgreSQL gets adapted through psycopg's
+            # bytea adapter, so Postgres stores the bytea hex-escape representation (e.g.
+            # "\\x7b2264...") as the literal text instead of the decoded JSON - the value then fails
+            # to parse as JSON on every subsequent read. MySQL/SQLite round-trip the raw bytes
+            # transparently, which is why this only ever surfaces against Postgres.
+            self.cron_trigger_str = orjson.dumps(
+                trigger.dict(exclude_unset=True)
+            ).decode()
 
     class Project(Base, LabelMixin, framework.db.sqldb.base.BaseModel):
         __tablename__ = "projects"

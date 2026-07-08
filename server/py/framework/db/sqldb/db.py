@@ -6293,8 +6293,12 @@ class SQLDB(DBInterface):
         else:
             # Basically do an "or" query on the predicates, and count how many rows each parent object has -
             # if it has as much rows as predicates, then it means it answers all the conditions.
+            # Select only the grouped column: a plain `session.query(cls.Label)` here selects every
+            # mapped column (id, name, value, parent) while grouping only by `parent`, which MySQL's
+            # nonstandard "loose" GROUP BY allows but PostgreSQL's strict GROUP BY rejects with
+            # GroupingError. The join below only needs `parent`, so that's all we select.
             subq = (
-                session.query(cls.Label)
+                session.query(cls.Label.parent)
                 .filter(or_(*preds))
                 .group_by(cls.Label.parent)
                 .having(func.count(cls.Label.parent) == len(preds))

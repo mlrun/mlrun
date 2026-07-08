@@ -2743,6 +2743,11 @@ class SQLDB(DBInterface):
             updated = True
             existing_invocation_urls.append(url)
             struct["status"]["external_invocation_urls"] = existing_invocation_urls
+            # Sync address to the new URL only when address is currently unset, so
+            # that the next deploy_status poll sees no address change and avoids a
+            # spurious versioned re-store that would orphan linked model endpoints.
+            if not struct["status"].get("address"):
+                struct["status"]["address"] = url
         elif (
             operation == mlrun.common.types.Operation.REMOVE
             and url in existing_invocation_urls
@@ -2755,6 +2760,9 @@ class SQLDB(DBInterface):
             )
             updated = True
             struct["status"]["external_invocation_urls"].remove(url)
+            # Clear address only when it points at the URL being removed.
+            if struct["status"].get("address") == url:
+                struct["status"]["address"] = ""
 
         # update the function record only if the external invocation URLs were updated
         if updated:

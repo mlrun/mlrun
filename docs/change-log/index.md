@@ -58,6 +58,10 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 |-------|----------------------------------------------------------------------------|
 |ML-11994|The new `cooldown_period` parameter of the AlertConfig can be used to delay resetting an alert. See [Cooldown preiod](../concepts/alerts.md#cooldown-period)|
 
+### UI
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-12045|New page for model monitoring of runtime applications. See [View the results in the UI](../runtimes/application.ipynb#view-the-results-in-the-ui).|
 
 (v1-12-0-breaking)=
 ### Breaking changes

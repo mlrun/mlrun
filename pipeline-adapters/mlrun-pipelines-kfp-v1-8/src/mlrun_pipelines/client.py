@@ -1019,8 +1019,10 @@ class Client(
             runs, next_page_token = self._list_runs(
                 page_token=current_page_token,
                 page_size=page_size,
+                sort_by=sort_by,
                 experiment_id=experiment_id,
                 namespace=namespace,
+                filter_json=filter_json,
             )
             fetched_run_count += len(runs)
             current_page_token = next_page_token

@@ -145,7 +145,7 @@ jobs:
         output-credentials: true
 
     - name: Install uv
-      uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # 8.2.0
+      uses: astral-sh/setup-uv@f98e06938123ccabd21905ea5d0069192241f9f1 # 8.3.1
       with:
         enable-cache: true
         python-version: 3.11
@@ -333,8 +333,7 @@ jobs:
           --github-access-token "${{ steps.github-app-token.outputs.token }}" \
           --openai-base-url "${{ secrets.OPENAI_BASE_URL }}" \
           --openai-api-key "${{ secrets.OPENAI_API_KEY }}" \
-          --save-to-path "$GITHUB_WORKSPACE/env.yml" \
-          --kubeconfig-content "${{ secrets.LATEST_SYSTEM_TEST_KUBECONFIG }}"
+          --save-to-path "$GITHUB_WORKSPACE/env.yml"
 
     - name: Encrypt file
       id: encrypt_file
@@ -408,32 +407,6 @@ jobs:
             jq \
             openssl
 
-    - name: Install aws-iam-authenticator
-      # Required when kubeconfig uses exec auth with `command: aws-iam-authenticator`
-      run: |
-        set -euo pipefail
-        export PATH="/usr/local/bin:$PATH"
-        curl -fsSL \
-          -o /usr/local/bin/aws-iam-authenticator \
-          https://amazon-eks.s3-us-west-2.amazonaws.com/1.34.2/2025-11-13/bin/linux/amd64/aws-iam-authenticator
-        chmod +x /usr/local/bin/aws-iam-authenticator
-        command -v aws-iam-authenticator
-        aws-iam-authenticator version
-
-    - uses: actions/setup-node@v6
-      with:
-        node-version: 18
-
-    # Configure AWS credentials in the test job as well, so the kubeconfig can use exec-based auth
-    # (aws eks get-token) and refresh tokens throughout long test runs. This prevents 401s during
-    # pod-log collection on failures.
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b
-      with:
-        role-to-assume: ${{ env.AWS_ROLE_ARN }}
-        role-session-name: mlrun-system-tests-${{ github.run_id }}
-        aws-region: ${{ env.AWS_REGION }}
-
     - uses: actions/checkout@v7
       # checking out to the resolved branch to run system tests on, as now we run the actual tests, we don't want to run
       # the system tests of the branch that triggered the system tests as it might be in a different version
@@ -442,7 +415,7 @@ jobs:
         ref: ${{ needs.prepare-system-tests-enterprise-ci.outputs.mlrunBranch }}
 
     - name: Install uv
-      uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # 8.2.0
+      uses: astral-sh/setup-uv@f98e06938123ccabd21905ea5d0069192241f9f1 # 8.3.1
       with:
         enable-cache: true
         python-version: 3.11
@@ -496,6 +469,10 @@ jobs:
           make install-requirements install-complete-requirements update-version-file
 
     - name: Run System Tests
+      env:
+        LATEST_SYSTEM_TEST_DATA_CLUSTER_IP: ${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }}
+        LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_USERNAME: ${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_USERNAME }}
+        LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD: ${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }}
       run: |
         . venv/bin/activate
         MLRUN_SYSTEM_TESTS_GITHUB_RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \

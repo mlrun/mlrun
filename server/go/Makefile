@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 MLRUN_VERSION ?= unstable
+MLRUN_GIT_COMMIT ?= $(shell git rev-parse HEAD 2>/dev/null)
 MLRUN_DOCKER_REGISTRY ?=
 MLRUN_DOCKER_REPO ?= mlrun
 MLRUN_DOCKER_TAG ?= $(shell echo "$(MLRUN_VERSION)" | sed -E 's/\+/\-/g')
@@ -57,6 +58,7 @@ log-collector: compile-schemas
 	docker build \
 		--file services/logcollector/cmd/docker/Dockerfile \
 		--build-arg GO_VERSION=$(GO_VERSION) \
+		--build-arg MLRUN_GIT_COMMIT=$(MLRUN_GIT_COMMIT) \
 		--tag $(LOG_COLLECTOR_IMAGE_NAME) \
 		.
 

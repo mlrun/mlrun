@@ -191,7 +191,7 @@ Differences from input body mapping:
 
 - Source = graph response; destination = field in the response sent to the caller.
 - No match on an optional field → emitted as `None` (input: silently omitted).
-- Non-2xx responses skip output mapping entirely — the original body and status code pass through. See [Returning a custom HTTP status code](#returning-a-custom-http-status-code).
+- Non-2xx responses skip output mapping entirely — the original body and status code pass through. See [Custom HTTP status code](#custom-http-responses).
 
 Mandatory-field handling (HTTP 422 on missing) and hierarchical merging behave the same as input — see [Hierarchical body map merging](#hierarchical-body-map-merging).
 
@@ -272,12 +272,47 @@ def responses_router(
 
 The handler signature must accept these names (explicitly or via `**kwargs`); otherwise Python raises `TypeError: unexpected keyword argument`.
 
-## Returning a custom HTTP status code
+## Custom HTTP responses
+
+A graph handler can control the HTTP response by returning a `Response` wrapper instead of a plain dict. The runtime preserves `status_code`, `content_type`, and `headers` end-to-end.
+
+There are two ways to construct it:
+
+```python
+# A) Use context.Response — picks the right class for the runtime
+#    (mlrun.serving.server.Response in MockServer; nuclio_sdk.Response in deployed Nuclio).
+class MyStep:
+    def do(self, body):
+        return self.context.Response(
+            body={"error": {"message": "not found"}},
+            status_code=404,
+            content_type="application/json",
+        )
+
+
+# B) Import the class directly — works the same way; the SDK normalizes it on the way out.
+from mlrun.serving.server import Response
+
+
+def my_handler(body, **kwargs):
+    return Response(
+        body={"id": "resp_1", "object": "response"},
+        status_code=200,
+        content_type="application/json",
+    )
+```
+
+If you simply return a `dict`, the runtime treats the response as `200 OK`.
+
+When using the API handler with `output_body_mappings`, the mapping runs only when `status_code < 300`.
+
+
+### Custom HTTP status code
 
 A handler that returns a `dict` produces an HTTP 200 response by default. To return a different status code, the handler has two options:
 
-1. **Raise an `mlrun.errors.MLRunHTTPStatusError` subclass** — for example `MLRunNotFoundError` returns HTTP 404, `MLRunUnprocessableEntityError` returns HTTP 422. The response body is plain text with the exception class name and message.
-2. **Return `Response(body, status_code, ...)`** — full control over body, status code, content type, and headers. See [Returning custom HTTP responses](./serving-graph.md#returning-custom-http-responses) for construction patterns.
+- **Raise an `mlrun.errors.MLRunHTTPStatusError` subclass** — for example `MLRunNotFoundError` returns HTTP 404, `MLRunUnprocessableEntityError` returns HTTP 422. The response body is plain text with the exception class name and message.
+- **Return `Response(body, status_code, ...)`** — full control over body, status code, content type, and headers. 
 
 ### Interaction with [`output_body_mappings`](#output-body-mapping-output_body_mappings)
 

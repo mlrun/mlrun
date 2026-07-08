@@ -47,4 +47,7 @@ EXPOSE 8080
 
 VOLUME /var/mlrun
 
+ARG MLRUN_GIT_COMMIT
+LABEL org.opencontainers.image.revision=$MLRUN_GIT_COMMIT
+
 CMD [ "/main" ]

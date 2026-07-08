@@ -1985,7 +1985,7 @@ class SQLDB(DBInterface):
                 # Third sort by tag ID to ensure consistent ordering when an artifact has multiple tags.
                 # Put "latest" tag first, then others by tag_id desc
                 latest_first_case = case(
-                    (text(f"{tag_name_alias} = 'latest'"), 0),
+                    (query.statement.selected_columns[tag_name_alias] == "latest", 0),
                     else_=1,
                 )
 

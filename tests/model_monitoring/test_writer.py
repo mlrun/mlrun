@@ -21,13 +21,17 @@ from unittest.mock import Mock, patch
 import pytest
 import semver
 import v3io.dataplane.kv
-import v3io_frames.client
 
-import mlrun.common.schemas.model_monitoring as mm_schemas
-import mlrun.model_monitoring
-import mlrun.model_monitoring.db.tsdb.v3io
-from mlrun.common.schemas import EventFieldType
-from mlrun.model_monitoring.writer import (
+# v3io_frames is an optional extra (mlrun[v3io-frames]); the v3io_connector import below
+# needs it, so skip the whole module when it isn't installed.
+v3io_frames = pytest.importorskip("v3io_frames")
+pytest.importorskip("v3io_frames.client")
+
+import mlrun.common.schemas.model_monitoring as mm_schemas  # noqa: E402
+import mlrun.model_monitoring  # noqa: E402
+import mlrun.model_monitoring.db.tsdb.v3io.v3io_connector  # noqa: E402
+from mlrun.common.schemas import EventFieldType  # noqa: E402
+from mlrun.model_monitoring.writer import (  # noqa: E402
     MetricData,
     ModelMonitoringWriter,
     ResultData,
@@ -37,7 +41,7 @@ from mlrun.model_monitoring.writer import (
     _WriterEventTypeError,
     _WriterEventValueError,
 )
-from mlrun.utils.v3io_clients import V3IOClient
+from mlrun.utils.v3io_clients import V3IOClient  # noqa: E402
 
 TEST_PROJECT = "test-application-results"
 V3IO_TABLE_CONTAINER = f"bigdata/{TEST_PROJECT}"
@@ -156,7 +160,7 @@ class TestHistogramGeneralDriftResultEvent:
             with patch(
                 "mlrun.model_monitoring.get_tsdb_connector",
                 return_value=Mock(
-                    spec=mlrun.model_monitoring.db.tsdb.v3io.V3IOTSDBConnector
+                    spec=mlrun.model_monitoring.db.tsdb.v3io.v3io_connector.V3IOTSDBConnector
                 ),
             ):
                 writer = ModelMonitoringWriter(project=TEST_PROJECT)
@@ -175,9 +179,13 @@ class TestTSDB:
 
     @staticmethod
     @pytest.fixture
-    def tsdb_connector() -> mlrun.model_monitoring.db.tsdb.v3io.V3IOTSDBConnector:
-        tsdb_connector = mlrun.model_monitoring.db.tsdb.v3io.V3IOTSDBConnector(
-            project=TEST_PROJECT
+    def tsdb_connector() -> (
+        mlrun.model_monitoring.db.tsdb.v3io.v3io_connector.V3IOTSDBConnector
+    ):
+        tsdb_connector = (
+            mlrun.model_monitoring.db.tsdb.v3io.v3io_connector.V3IOTSDBConnector(
+                project=TEST_PROJECT
+            )
         )
 
         # Generate dummy tables for the test
@@ -195,7 +203,7 @@ class TestTSDB:
     @staticmethod
     @pytest.fixture
     def writer(
-        tsdb_connector: mlrun.model_monitoring.db.tsdb.v3io.V3IOTSDBConnector,
+        tsdb_connector: mlrun.model_monitoring.db.tsdb.v3io.v3io_connector.V3IOTSDBConnector,
     ) -> ModelMonitoringWriter:
         writer = Mock(spec=ModelMonitoringWriter)
         writer.project = TEST_PROJECT

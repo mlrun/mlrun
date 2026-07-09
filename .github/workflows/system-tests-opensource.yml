@@ -312,7 +312,7 @@ jobs:
         echo "Merged ${BASE_REF} @ ${BASE_SHA} into PR"
 
     - name: Install uv
-      uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39
+      uses: astral-sh/setup-uv@f98e06938123ccabd21905ea5d0069192241f9f1
       with:
         enable-cache: true
         cache-dependency-glob: "**/*requirements*.txt"

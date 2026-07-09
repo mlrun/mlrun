@@ -100,6 +100,132 @@ def test_update_functions_with_api_gateway_url(db: sqlalchemy.orm.Session):
     assert len(updated_function["status"]["external_invocation_urls"]) == 0
 
 
+def test_add_api_gateway_url_syncs_address_when_empty(db: sqlalchemy.orm.Session):
+    """Adding an API-gateway URL to a function whose address is unset should also
+    populate status.address, so the next deploy_status poll sees no address change
+    and does not trigger a spurious versioned re-store."""
+    project = "test-project"
+    function_name = "test-function"
+    function_tag = "latest"
+    gw_host = "gw.example.com"
+
+    services.api.crud.Functions().store_function(
+        db,
+        project=project,
+        function={"metadata": {"name": function_name, "tag": function_tag}},
+        name=function_name,
+        tag=function_tag,
+    )
+    uri = mlrun.utils.generate_object_uri(project, function_name)
+
+    # address is empty before the API gateway URL is added
+    fn = services.api.crud.Functions().get_function(
+        db, project=project, name=function_name, tag=function_tag
+    )
+    assert fn["status"].get("address", "") == ""
+
+    services.api.crud.Functions().add_function_external_invocation_url(
+        db, uri, project, gw_host
+    )
+    fn = services.api.crud.Functions().get_function(
+        db, project=project, name=function_name, tag=function_tag
+    )
+    assert fn["status"]["external_invocation_urls"] == [gw_host]
+    assert fn["status"]["address"] == gw_host
+
+
+def test_add_api_gateway_url_does_not_overwrite_existing_address(
+    db: sqlalchemy.orm.Session,
+):
+    """Adding an API-gateway URL must not overwrite an address that is already set."""
+    project = "test-project"
+    function_name = "test-function"
+    function_tag = "latest"
+    existing_address = "existing.example.com"
+    gw_host = "gw.example.com"
+
+    services.api.crud.Functions().store_function(
+        db,
+        project=project,
+        function={
+            "metadata": {"name": function_name, "tag": function_tag},
+            "status": {"address": existing_address},
+        },
+        name=function_name,
+        tag=function_tag,
+    )
+    uri = mlrun.utils.generate_object_uri(project, function_name)
+
+    services.api.crud.Functions().add_function_external_invocation_url(
+        db, uri, project, gw_host
+    )
+    fn = services.api.crud.Functions().get_function(
+        db, project=project, name=function_name, tag=function_tag
+    )
+    assert fn["status"]["external_invocation_urls"] == [gw_host]
+    assert fn["status"]["address"] == existing_address
+
+
+def test_delete_api_gateway_url_clears_address_when_matching(
+    db: sqlalchemy.orm.Session,
+):
+    """Removing an API-gateway URL should clear status.address when it equals the
+    removed URL, and leave it unchanged otherwise."""
+    project = "test-project"
+    function_name = "test-function"
+    function_tag = "latest"
+    gw_host = "gw.example.com"
+    other_host = "other.example.com"
+
+    services.api.crud.Functions().store_function(
+        db,
+        project=project,
+        function={
+            "metadata": {"name": function_name, "tag": function_tag},
+            "status": {
+                "external_invocation_urls": [gw_host, other_host],
+                "address": gw_host,
+            },
+        },
+        name=function_name,
+        tag=function_tag,
+    )
+    uri = mlrun.utils.generate_object_uri(project, function_name)
+
+    # removing the URL that matches address → address should be cleared
+    services.api.crud.Functions().delete_function_external_invocation_url(
+        db, uri, project, gw_host
+    )
+    fn = services.api.crud.Functions().get_function(
+        db, project=project, name=function_name, tag=function_tag
+    )
+    assert gw_host not in fn["status"]["external_invocation_urls"]
+    assert fn["status"]["address"] == ""
+
+    # removing a URL that does NOT match address → address should be untouched
+    services.api.crud.Functions().store_function(
+        db,
+        project=project,
+        function={
+            "metadata": {"name": function_name, "tag": function_tag},
+            "status": {
+                "external_invocation_urls": [gw_host, other_host],
+                "address": gw_host,
+            },
+        },
+        name=function_name,
+        tag=function_tag,
+    )
+    services.api.crud.Functions().delete_function_external_invocation_url(
+        db, uri, project, other_host
+    )
+    fn = services.api.crud.Functions().get_function(
+        db, project=project, name=function_name, tag=function_tag
+    )
+    assert other_host not in fn["status"]["external_invocation_urls"]
+    assert fn["status"]["address"] == gw_host
+
+
 def test_store_and_get_function_missing_project(db: sqlalchemy.orm.Session):
     project = "some-project"
     function_name = "test-function"

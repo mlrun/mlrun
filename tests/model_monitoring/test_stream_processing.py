@@ -17,6 +17,7 @@ import os
 import unittest.mock
 
 import pytest
+import storey
 
 import mlrun
 import mlrun.model_monitoring
@@ -34,6 +35,7 @@ from mlrun.model_monitoring.stream_processing import (
     _HTTP_ERROR_KEY,
     EventStreamProcessor,
     HTTPAckResponder,
+    ProcessEndpointEvent,
     ProcessHTTPEvent,
     TriggerRouter,
 )
@@ -466,6 +468,19 @@ class TestProcessHTTPEvent:
         assert result["request"]["id"] is not None
         assert len(result["request"]["id"]) > 0
 
+    async def test_zero_request_id_preserved(self, monkeypatch):
+        step = self._step(monkeypatch)
+        result = await step.do(
+            {
+                "model_endpoint_uid": "ep-1",
+                "model_endpoint_name": "my-model",
+                "inputs": [[1.0]],
+                "outputs": [[0.8]],
+                EventFieldType.REQUEST_ID: 0,
+            }
+        )
+        assert result["request"]["id"] == 0
+
     async def test_function_uri_from_endpoint_schema(self, monkeypatch):
         step = self._step(
             monkeypatch,
@@ -638,6 +653,54 @@ class TestGetEndpointSchema:
 
         await step._get_endpoint_schema("ep-1", "my-model")
         assert mock_db.get_model_endpoint.call_count == 2
+
+
+class TestProcessEndpointEvent:
+    """ProcessEndpointEvent.do() request-id extraction.
+
+    A request id of 0 is a valid id (e.g. execute_graph assigns row-index
+    event ids) and must not be treated as missing.
+    """
+
+    @staticmethod
+    def _event(request: dict, resp: dict) -> storey.Event:
+        return storey.Event(
+            body={
+                EventFieldType.FUNCTION_URI: "test-project/fn",
+                EventFieldType.MODEL: "my-model",
+                "model_class": "MyModel",
+                "when": "2025-07-24 05:00:10.000000",
+                EventFieldType.ENDPOINT_ID: "ep-1",
+                "microsec": 5,
+                "request": request,
+                "resp": resp,
+            }
+        )
+
+    async def _do(self, request: dict, resp: dict) -> storey.Event:
+        step = ProcessEndpointEvent(project="test-project")
+        step.endpoints.add("ep-1")
+        return await step.do(self._event(request=request, resp=resp))
+
+    async def test_zero_request_id_is_kept(self):
+        result = await self._do(
+            request={"id": 0, "inputs": [[1.0, 2.0]]}, resp={"outputs": [[0.8]]}
+        )
+        assert result.body is not None
+        assert result.body[0][EventFieldType.REQUEST_ID] == 0
+
+    async def test_request_id_falls_back_to_resp_id(self):
+        result = await self._do(
+            request={"inputs": [[1.0, 2.0]]}, resp={"id": "resp-1", "outputs": [[0.8]]}
+        )
+        assert result.body is not None
+        assert result.body[0][EventFieldType.REQUEST_ID] == "resp-1"
+
+    async def test_missing_request_id_drops_event(self):
+        result = await self._do(
+            request={"inputs": [[1.0, 2.0]]}, resp={"outputs": [[0.8]]}
+        )
+        assert result.body is None
 
 
 class _MockContext:

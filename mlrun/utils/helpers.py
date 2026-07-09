@@ -474,6 +474,24 @@ def now_date(tz: timezone = UTC) -> datetime:
     return datetime.now(tz=tz)
 
 
+def ensure_tz_aware(dt: datetime | None, tz: timezone = UTC) -> datetime | None:
+    """
+    Normalize a datetime to be tz-aware, assuming ``tz`` for naive values.
+
+    DB dialects differ on this: PostgreSQL/MySQL TIMESTAMP columns round-trip as tz-aware
+    datetimes, SQLite's don't, so values read from the DB must be normalized before comparing
+    them against `now_date()` to avoid `TypeError: can't compare offset-naive and offset-aware
+    datetimes` on some dialects but not others.
+
+    :param dt: The datetime to normalize, may be tz-naive, tz-aware, or None.
+    :param tz: The timezone to assume for a tz-naive datetime.
+    :return: A tz-aware datetime, or None if dt is None.
+    """
+    if dt is not None and dt.tzinfo is None:
+        return dt.replace(tzinfo=tz)
+    return dt
+
+
 def datetime_to_mysql_ts(datetime_object: datetime) -> datetime:
     """
     Convert a Python datetime object to a MySQL-compatible timestamp string,
@@ -484,8 +502,7 @@ def datetime_to_mysql_ts(datetime_object: datetime) -> datetime:
 
     :return: A MySQL-compatible timestamp string with millisecond precision.
     """
-    if not datetime_object.tzinfo:
-        datetime_object = datetime_object.replace(tzinfo=UTC)
+    datetime_object = ensure_tz_aware(datetime_object)
 
     # Round to the nearest millisecond
     ms = round(datetime_object.microsecond / 1000) * 1000
@@ -1576,10 +1593,8 @@ def datetime_from_iso(time_str: str) -> datetime | None:
     if not time_str:
         return
     dt = parser.isoparse(time_str)
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=UTC)
     # ensure the datetime is in UTC, converting if necessary
-    return dt.astimezone(UTC)
+    return ensure_tz_aware(dt).astimezone(UTC)
 
 
 def datetime_to_iso(time_obj: datetime | None) -> str | None:
@@ -1622,9 +1637,7 @@ def format_datetime(dt: datetime, fmt: str | None = None) -> str:
     if dt is None:
         return ""
 
-    # If the datetime is naive
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=UTC)
+    dt = ensure_tz_aware(dt)
 
     # TODO: Once Python 3.12 is the minimal version, use %:z to format the timezone offset with a colon
     formatted_time = dt.strftime(fmt or "%Y-%m-%d %H:%M:%S.%f%z")

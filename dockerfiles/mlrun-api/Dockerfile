@@ -81,6 +81,9 @@ ENV UVICORN_PORT=${MLRUN_HTTPDB__PORT}
 ENV UVICORN_TIMEOUT_KEEP_ALIVE=${MLRUN_HTTPDB__HTTP_CONNECTION_TIMEOUT_KEEP_ALIVE}
 ENV MLRUN_SERVICES__SERVICE_NAME=api
 
+ARG MLRUN_GIT_COMMIT
+LABEL org.opencontainers.image.revision=$MLRUN_GIT_COMMIT
+
 # use tini as entrypoint to allow signal handling
 # and avoid zombie processes
 ENTRYPOINT ["tini", "--"]

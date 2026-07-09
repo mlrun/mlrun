@@ -31,16 +31,19 @@ on:
         required: true
         type: string
       commit_sha:
-        description: 'The MLRun commit SHA to tag for this release'
-        required: true
+        description: 'MLRun commit SHA to tag. Leave empty to derive it from the mlrun image revision label.'
+        required: false
+        default: ''
         type: string
       ui_commit_sha:
-        description: 'The UI repo commit SHA to tag for this release'
-        required: true
+        description: 'UI repo commit SHA to tag. Leave empty to derive it from the UI image revision label.'
+        required: false
+        default: ''
         type: string
       previous_version:
-        description: 'The previous version for release notes comparison, without prefix v (e.g. 1.0.0)'
-        required: true
+        description: 'Previous version for release notes (without v prefix). Leave empty to derive the greatest tag below this version.'
+        required: false
+        default: ''
         type: string
       source_artifactory_docker_repo:
         description: 'Source Artifactory Docker repository name'
@@ -61,11 +64,6 @@ on:
         description: 'Source Artifactory PyPI repository name'
         required: false
         default: 'mlrun-private-pypi-local'
-        type: string
-      target_artifactory_pypi_repo:
-        description: 'Target Artifactory PyPI repository name (for promotion)'
-        required: false
-        default: 'pioardi-pypi-mlrun'
         type: string
       skip_images:
         description: 'Comma separated list of images to skip promoting, example: mlrun,mlrun-gpu,ui,api,jupyter'
@@ -103,28 +101,95 @@ jobs:
     outputs:
       version: ${{ steps.resolve.outputs.version }}
       previous_version: ${{ steps.resolve.outputs.previous_version }}
+      prerelease: ${{ steps.resolve.outputs.prerelease }}
+      make_latest: ${{ steps.resolve.outputs.make_latest }}
 
     steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Install automation requirements
+        run: make install-automation-requirements
       - name: Resolve inputs
         id: resolve
-        run: |
-          # Trim surrounding whitespace; a stray space breaks the Docker reference in skopeo
-          VERSION_INPUT="$(echo -n "$VERSION_INPUT" | xargs)"
-          PREVIOUS_VERSION_INPUT="$(echo -n "$PREVIOUS_VERSION_INPUT" | xargs)"
-          echo "version=$VERSION_INPUT" >> $GITHUB_OUTPUT
-          echo "previous_version=$PREVIOUS_VERSION_INPUT" >> $GITHUB_OUTPUT
-          echo "Promoting version: $VERSION_INPUT"
-          echo "Previous version: $PREVIOUS_VERSION_INPUT"
-          cat $GITHUB_OUTPUT
         env:
-          VERSION_INPUT: ${{ github.event.inputs.version }}
-          PREVIOUS_VERSION_INPUT: ${{ github.event.inputs.previous_version }}
+          VERSION: ${{ github.event.inputs.version }}
+          PREVIOUS_VERSION: ${{ github.event.inputs.previous_version }}
+        run: |
+          python automation/version/version_file.py promotion-inputs \
+            --version "$VERSION" \
+            --previous-version "$PREVIOUS_VERSION" | tee -a "$GITHUB_OUTPUT"
+
+  derive-shas:
+    name: Derive commit SHAs
+    runs-on: mlrun-release
+    if: github.event.inputs.skip_create_tag_release != 'true'
+    needs: [prepare-inputs]
+    outputs:
+      commit_sha: ${{ steps.mlrun-sha.outputs.commit_sha }}
+      ui_commit_sha: ${{ steps.ui-sha.outputs.ui_commit_sha }}
+    steps:
+      - name: Login to Artifactory with skopeo
+        run: |
+          mkdir -p $GITHUB_WORKSPACE/.skopeo
+          skopeo login "${{ secrets.PRIVATE_ARTIFACTORY_DOCKER_URL }}" \
+            -u "${{ secrets.PRIVATE_ARTIFACTORY_USERNAME }}" \
+            -p "${{ secrets.PRIVATE_ARTIFACTORY_PASSWORD }}" \
+            --authfile "$GITHUB_WORKSPACE/.skopeo/auth.json"
+
+      - name: Resolve MLRun commit SHA
+        id: mlrun-sha
+        env:
+          OVERRIDE: ${{ github.event.inputs.commit_sha }}
+          VERSION: ${{ needs.prepare-inputs.outputs.version }}
+        run: |
+          OVERRIDE="$(echo -n "$OVERRIDE" | xargs)"
+          if [ -n "$OVERRIDE" ]; then
+            echo "commit_sha=$OVERRIDE" >> $GITHUB_OUTPUT
+            echo "Using provided MLRun commit SHA: $OVERRIDE"
+            exit 0
+          fi
+
+          IMAGE="docker://${{ secrets.PRIVATE_ARTIFACTORY_DOCKER_URL }}/${{ github.event.inputs.source_artifactory_docker_repo }}/mlrun:$VERSION"
+          echo "Inspecting $IMAGE"
+          SHA="$(skopeo inspect --authfile "$GITHUB_WORKSPACE/.skopeo/auth.json" "$IMAGE" \
+            --format '{{ index .Labels "org.opencontainers.image.revision" }}')"
+          if [ -z "$SHA" ] || [ "$SHA" = "<no value>" ]; then
+            echo "❌ No org.opencontainers.image.revision label on $IMAGE (image predates the label). Provide the commit_sha input." >&2
+            exit 1
+          fi
+          echo "commit_sha=$SHA" >> $GITHUB_OUTPUT
+          echo "Derived MLRun commit SHA: $SHA"
+
+      - name: Resolve UI commit SHA
+        id: ui-sha
+        env:
+          OVERRIDE: ${{ github.event.inputs.ui_commit_sha }}
+          VERSION: ${{ needs.prepare-inputs.outputs.version }}
+        run: |
+          OVERRIDE="$(echo -n "$OVERRIDE" | xargs)"
+          if [ -n "$OVERRIDE" ]; then
+            echo "ui_commit_sha=$OVERRIDE" >> $GITHUB_OUTPUT
+            echo "Using provided UI commit SHA: $OVERRIDE"
+            exit 0
+          fi
+
+          IMAGE="docker://${{ secrets.PRIVATE_ARTIFACTORY_DOCKER_URL }}/${{ github.event.inputs.source_artifactory_docker_repo }}/mlrun-ui:$VERSION"
+          echo "Inspecting $IMAGE"
+          SHA="$(skopeo inspect --authfile "$GITHUB_WORKSPACE/.skopeo/auth.json" "$IMAGE" \
+            --format '{{ index .Labels "org.opencontainers.image.revision" }}')"
+          if [ -z "$SHA" ] || [ "$SHA" = "<no value>" ]; then
+            echo "❌ No org.opencontainers.image.revision label on $IMAGE (UI image predates the label). Provide the ui_commit_sha input." >&2
+            exit 1
+          fi
+          echo "ui_commit_sha=$SHA" >> $GITHUB_OUTPUT
+          echo "Derived UI commit SHA: $SHA"
 
   create-tag:
     name: Create tag v${{ needs.prepare-inputs.outputs.version }}
     runs-on: ubuntu-latest
     if: github.event.inputs.skip_create_tag_release != 'true'
-    needs: [prepare-inputs]
+    needs: [prepare-inputs, derive-shas]
     steps:
       - uses: actions/checkout@v7
         with:
@@ -132,20 +197,20 @@ jobs:
 
       - name: Validate MLRun commit SHA
         run: |
-          if ! git cat-file -t "${{ github.event.inputs.commit_sha }}" &>/dev/null; then
-            echo "❌ Error: commit SHA '${{ github.event.inputs.commit_sha }}' does not exist in this repository"
+          if ! git cat-file -t "${{ needs.derive-shas.outputs.commit_sha }}" &>/dev/null; then
+            echo "❌ Error: commit SHA '${{ needs.derive-shas.outputs.commit_sha }}' does not exist in this repository"
             exit 1
           fi
-          echo "✅ Commit SHA validated: ${{ github.event.inputs.commit_sha }}"
+          echo "✅ Commit SHA validated: ${{ needs.derive-shas.outputs.commit_sha }}"
 
       - name: Create git tag for branch at specific SHA
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git checkout ${{ github.ref_name }}
-          git tag -a "v${{ needs.prepare-inputs.outputs.version }}" "${{ github.event.inputs.commit_sha }}" -m "Branch tag ${{ github.ref_name }} at ${{ github.event.inputs.commit_sha }}"
+          git tag -a "v${{ needs.prepare-inputs.outputs.version }}" "${{ needs.derive-shas.outputs.commit_sha }}" -m "Branch tag ${{ github.ref_name }} at ${{ needs.derive-shas.outputs.commit_sha }}"
           git push origin "v${{ needs.prepare-inputs.outputs.version }}"
-          echo "✅ Created and pushed tag: v${{ needs.prepare-inputs.outputs.version }} on commit ${{ github.event.inputs.commit_sha }}"
+          echo "✅ Created and pushed tag: v${{ needs.prepare-inputs.outputs.version }} on commit ${{ needs.derive-shas.outputs.commit_sha }}"
 
       - name: Generate GitHub App Token for ui repo
         id: ui-app-token
@@ -161,7 +226,7 @@ jobs:
           GH_TOKEN: ${{ steps.ui-app-token.outputs.token }}
         run: |
           VERSION="v${{ needs.prepare-inputs.outputs.version }}"
-          UI_SHA="${{ github.event.inputs.ui_commit_sha }}"
+          UI_SHA="${{ needs.derive-shas.outputs.ui_commit_sha }}"
           UI_REPO="${{ github.repository_owner }}/ui"
 
           echo "Creating tag ${VERSION} on UI repo at SHA ${UI_SHA}"
@@ -303,6 +368,7 @@ jobs:
     steps:
       - name: Setup Python 3.11 venv
         run: |
+          rm -rf $GITHUB_WORKSPACE/.venv-promotion
           python3.11 -m venv $GITHUB_WORKSPACE/.venv-promotion
           echo "$GITHUB_WORKSPACE/.venv-promotion/bin" >> $GITHUB_PATH
 
@@ -321,7 +387,7 @@ jobs:
 
       - name: Set up uv
         if: github.event.inputs.skip_publish_pypi != 'true'
-        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # 8.2.0
+        uses: astral-sh/setup-uv@f98e06938123ccabd21905ea5d0069192241f9f1 # 8.3.1
 
       - name: Upload package to target PyPI repo
         if: github.event.inputs.skip_publish_pypi != 'true'
@@ -343,6 +409,8 @@ jobs:
         with:
           tag: v${{ needs.prepare-inputs.outputs.version }}
           allowUpdates: true
+          makeLatest: ${{ needs.prepare-inputs.outputs.make_latest }}
+          prerelease: ${{ needs.prepare-inputs.outputs.prerelease }}
           token: ${{ secrets.GITHUB_TOKEN }}
       - name: Generate GitHub App Token for ui repo
         if: github.event.inputs.skip_create_tag_release != 'true'
@@ -381,6 +449,8 @@ jobs:
         with:
           allowUpdates: true
           tag: v${{ needs.prepare-inputs.outputs.version }}
+          makeLatest: ${{ needs.prepare-inputs.outputs.make_latest }}
+          prerelease: ${{ needs.prepare-inputs.outputs.prerelease }}
           token: ${{ secrets.GITHUB_TOKEN }}
           artifacts: mlrun-tutorials.tar
 
@@ -416,6 +486,8 @@ jobs:
         with:
           allowUpdates: true
           tag: v${{ needs.prepare-inputs.outputs.version }}
+          makeLatest: ${{ needs.prepare-inputs.outputs.make_latest }}
+          prerelease: ${{ needs.prepare-inputs.outputs.prerelease }}
           token: ${{ secrets.GITHUB_TOKEN }}
           artifacts: mlrun-demos.tar
 
@@ -456,5 +528,7 @@ jobs:
         with:
           tag: v${{ needs.prepare-inputs.outputs.version }}
           body: ${{ steps.resolve-release-notes.outputs.body }}
+          makeLatest: ${{ needs.prepare-inputs.outputs.make_latest }}
+          prerelease: ${{ needs.prepare-inputs.outputs.prerelease }}
           token: ${{ secrets.GITHUB_TOKEN }}
           allowUpdates: true

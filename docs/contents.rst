@@ -50,6 +50,12 @@ Table of Contents
    serving/serving-graph
    runtimes/load-from-hub
    feature-store/feature-store
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Server configuration
+
+   server-cfg/server-metrics
      
 .. toctree::
    :maxdepth: 1

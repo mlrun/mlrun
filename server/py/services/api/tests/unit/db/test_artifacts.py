@@ -18,6 +18,8 @@ import unittest.mock
 
 import deepdiff
 import pytest
+from sqlalchemy import text
+from sqlalchemy.dialects import postgresql
 from sqlalchemy.orm import Query
 
 import mlrun.common.constants
@@ -466,6 +468,47 @@ class TestArtifacts(TestDatabaseBase):
         assert len(artifact_tags) == 2
         assert artifact_2_tag in artifact_tags
         assert "latest" in artifact_tags
+
+    def test_list_artifact_tags_with_category_hint_is_dialect_scoped(self, monkeypatch):
+        # Regression: the category-filtered tags query adds a MySQL `USE INDEX (idx_project_kind)`
+        # optimizer hint. It must be scoped to the mysql dialect so PostgreSQL's strict compiler
+        # does not raise `CompileError: Unrecognized hint`. Guards against dropping dialect_name.
+        key, tag = "artifact_key_hint", "v1"
+        self._db.store_artifact(
+            self._db_session,
+            key,
+            self._generate_artifact(
+                key,
+                project=self.project,
+                kind=mlrun.common.schemas.ArtifactCategories.dataset,
+                tag=tag,
+            ),
+            project=self.project,
+            tag=tag,
+        )
+
+        captured = {}
+        real_with_hint = Query.with_hint
+
+        def with_hint_spy(query, selectable, text, dialect_name=None):
+            result = real_with_hint(query, selectable, text, dialect_name=dialect_name)
+            if "USE INDEX" in str(text):
+                captured["dialect_name"] = dialect_name
+                captured["query"] = result
+            return result
+
+        monkeypatch.setattr(Query, "with_hint", with_hint_spy, raising=True)
+
+        self._db.list_artifact_tags(
+            self._db_session,
+            self.project,
+            category=mlrun.common.schemas.ArtifactCategories.dataset,
+        )
+
+        assert captured, "expected a USE INDEX hint on the category-filtered tags query"
+        assert captured["dialect_name"] == "mysql"
+        # The real query must compile under PostgreSQL without raising CompileError.
+        captured["query"].statement.compile(dialect=postgresql.dialect())
 
     def test_store_artifact_restoring_multiple_tags(self):
         artifact_key = "artifact_key_1"
@@ -1984,6 +2027,34 @@ class TestArtifacts(TestDatabaseBase):
         assert (
             artifacts[0]["metadata"]["tag"]
             == mlrun.common.constants.RESERVED_TAG_NAME_LATEST
+        )
+
+    def test_list_artifacts_tag_ordering_uses_no_raw_alias_text(self, monkeypatch):
+        key = "artifact_key_tag_order_guard"
+        self._db.store_artifact(
+            self._db_session,
+            key,
+            self._generate_artifact(key, project=self.project, tag="v1"),
+            project=self.project,
+            tag="v1",
+        )
+
+        captured_text_calls = []
+        real_text = text
+
+        def text_spy(clause_text):
+            captured_text_calls.append(clause_text)
+            return real_text(clause_text)
+
+        monkeypatch.setattr("framework.db.sqldb.db.text", text_spy)
+
+        self._db.list_artifacts(
+            self._db_session, project=self.project, limit=3, tag=None
+        )
+
+        assert not any("tag_name" in call for call in captured_text_calls), (
+            "the tag-name comparison must not be built via raw text() referencing "
+            f"the 'tag_name' alias inside an expression: {captured_text_calls}"
         )
 
     def test_list_artifacts_producer_uri(self):

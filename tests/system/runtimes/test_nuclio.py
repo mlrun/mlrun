@@ -612,6 +612,7 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
             filename=code_path,
             image=self.image,
         )
+        # test
         graph = function.set_topology(
             "flow",
             engine="async",

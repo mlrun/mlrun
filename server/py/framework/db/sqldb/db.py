@@ -154,7 +154,11 @@ class now(GenericFunction):  # noqa: N801
 
 @compiles(now, mlrun.common.db.dialects.Dialects.POSTGRESQL)
 def _pg_now(element, compiler, **kw):
-    return "now()"
+    # clock_timestamp(), not now(): PostgreSQL now()/transaction_timestamp() is frozen at transaction start. This
+    # stamps a run's terminal end_time, and the abort flow holds one transaction open across the long runtime-
+    # resource deletion, so now() would record end_time at transaction start - dropping the run out of the
+    # notification pusher's sliding end_time window so its notifications are never sent (ML-12865).
+    return "clock_timestamp()"
 
 
 NULL = None  # Avoid flake8 issuing warnings when comparing in filter

@@ -17,6 +17,7 @@ import unittest.mock
 from datetime import UTC, datetime
 
 import pytest
+from sqlalchemy.dialects import postgresql
 
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
@@ -58,6 +59,54 @@ class TestRuns(TestDatabaseBase):
 
         runs = self._db.list_runs(self._db_session, name="~RUN_naMe", project=project)
         assert len(runs) == 2
+
+    def test_list_runs_multi_label_filter(self):
+        # Filtering by 2+ labels routes through SQLDB._add_labels_filter's OR+GROUP BY+HAVING
+        # branch, which must return only runs matching *all* requested labels.
+        project = "project"
+        run_matches_both = {
+            "metadata": {
+                "name": "run-matches-both",
+                "labels": {"workflow-id": "wf-1", "job-type": "workflow-runner"},
+            },
+            "status": {},
+        }
+        run_matches_one = {
+            "metadata": {
+                "name": "run-matches-one",
+                "labels": {"workflow-id": "wf-1"},
+            },
+            "status": {},
+        }
+        self._db.store_run(self._db_session, run_matches_both, "uid-both", project)
+        self._db.store_run(self._db_session, run_matches_one, "uid-one", project)
+
+        query = self._db._find_runs(
+            self._db_session,
+            None,
+            project,
+            ["workflow-id=wf-1", "job-type=workflow-runner"],
+        )
+        assert {run.uid for run in query.all()} == {"uid-both"}
+
+    def test_list_runs_multi_label_filter_is_postgres_group_by_safe(self):
+        # On PostgreSQL, every column in a GROUP BY query's SELECT list must be either
+        # grouped or aggregated. The multi-label branch used to select the full Label
+        # entity (id, name, value, parent) while grouping only by `parent`, which
+        # PostgreSQL rejects with psycopg2.errors.GroupingError (see ML-12863) even
+        # though MySQL/SQLite silently tolerate it.
+        query = self._db._find_runs(
+            self._db_session,
+            None,
+            "project",
+            ["workflow-id=wf-1", "job-type=workflow-runner"],
+        )
+        compiled_sql = str(query.statement.compile(dialect=postgresql.dialect()))
+        labels_subquery_select = compiled_sql.split("JOIN (")[1].split(" \n")[0]
+        assert labels_subquery_select == "SELECT runs_labels.parent AS parent", (
+            "the multi-label OR+GROUP BY subquery must select only the grouped "
+            f"column on PostgreSQL, got: {labels_subquery_select!r}"
+        )
 
     def test_runs_with_notifications(self):
         project_name = "project"

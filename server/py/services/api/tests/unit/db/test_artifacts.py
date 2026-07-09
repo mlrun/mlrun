@@ -18,6 +18,7 @@ import unittest.mock
 
 import deepdiff
 import pytest
+from sqlalchemy import text
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.orm import Query
 
@@ -2026,6 +2027,34 @@ class TestArtifacts(TestDatabaseBase):
         assert (
             artifacts[0]["metadata"]["tag"]
             == mlrun.common.constants.RESERVED_TAG_NAME_LATEST
+        )
+
+    def test_list_artifacts_tag_ordering_uses_no_raw_alias_text(self, monkeypatch):
+        key = "artifact_key_tag_order_guard"
+        self._db.store_artifact(
+            self._db_session,
+            key,
+            self._generate_artifact(key, project=self.project, tag="v1"),
+            project=self.project,
+            tag="v1",
+        )
+
+        captured_text_calls = []
+        real_text = text
+
+        def text_spy(clause_text):
+            captured_text_calls.append(clause_text)
+            return real_text(clause_text)
+
+        monkeypatch.setattr("framework.db.sqldb.db.text", text_spy)
+
+        self._db.list_artifacts(
+            self._db_session, project=self.project, limit=3, tag=None
+        )
+
+        assert not any("tag_name" in call for call in captured_text_calls), (
+            "the tag-name comparison must not be built via raw text() referencing "
+            f"the 'tag_name' alias inside an expression: {captured_text_calls}"
         )
 
     def test_list_artifacts_producer_uri(self):

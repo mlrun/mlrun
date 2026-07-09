@@ -522,7 +522,9 @@ class ProcessHTTPEvent(storey.MapClass):
                 _HTTP_ERROR_KEY: f"failed to translate event: {mlrun.errors.err_to_str(e)}"
             }
 
-        request_id = event.get(EventFieldType.REQUEST_ID) or str(uuid.uuid4())
+        request_id = event.get(EventFieldType.REQUEST_ID)
+        if request_id is None:
+            request_id = str(uuid.uuid4())
 
         return {
             EventFieldType.MODEL: name,
@@ -683,9 +685,10 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
         # Validate event fields
         model_class = event.get("model_class") or event.get("class")
         timestamp = event.get("when")
-        request_id = event.get("request", {}).get("id") or event.get("resp", {}).get(
-            "id"
-        )
+        # an id of 0 is valid (execute_graph assigns row-index event ids) — only None means missing
+        request_id = event.get("request", {}).get("id")
+        if request_id is None:
+            request_id = event.get("resp", {}).get("id")
         feature_names = event.get("request", {}).get("input_schema")
         labels_names = event.get("resp", {}).get("output_schema")
         latency = event.get("microsec")

@@ -2540,7 +2540,23 @@ class SQLDB(DBInterface):
         fn.kind = function.pop("kind", None)
         fn.state = function.get("status", {}).pop("state", None)
         fn.struct = function
-        self._upsert(session, [fn])
+        # Persist the function object and its tag in a single transaction. We
+        # flush (not commit) the function so it gets an id for the tag's foreign
+        # key, then let tag_objects_v2 issue one commit that persists both.
+        # Committing the function before its tag would leave a window in which a
+        # concurrent reader (another API worker, a background job) observes the
+        # function row without its "latest" tag and fails with a spurious
+        # "Function tag not found" (ML-12864).
+        session.add(fn)
+        try:
+            session.flush()
+        except SQLAlchemyError:
+            # A concurrent create can violate the (project, name, uid) unique
+            # constraint at flush time. Roll back so retry_on_conflict re-runs
+            # store_function on a clean session (mirrors _commit's rollback on
+            # error); otherwise the retry would fail on a poisoned session.
+            session.rollback()
+            raise
         self.tag_objects_v2(session, [fn], project, tag)
         return hash_key
 

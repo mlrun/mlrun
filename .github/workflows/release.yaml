@@ -180,7 +180,7 @@ jobs:
           token: ${{ steps.mlrun-app-token.outputs.token }}
           persist-credentials: false
       - name: Set up uv
-        uses: astral-sh/setup-uv@f98e06938123ccabd21905ea5d0069192241f9f1 # 8.3.1
+        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # 8.3.2
       - name: Build & push to PyPI
         if: github.event.inputs.skip_publish_pypi != 'true'
         env:

@@ -64,10 +64,8 @@ class TestFunctions(TestDatabaseBase):
         assert function_queried_without_tag_hash == function_queried_without_tag_hash
 
     def test_store_function_tag_failure_leaves_no_orphan_function(self):
-        # Regression for ML-12864: the function object and its "latest" tag must
-        # be persisted atomically. If tagging fails, the function row must not
-        # remain committed without its tag - otherwise a reader resolving the
-        # tag first surfaces the spurious "Function tag not found".
+        # ML-12864: function and tag are stored atomically, so a failed tag
+        # write must leave no function row behind.
         function = self._generate_function()
 
         with pytest.MonkeyPatch.context() as monkeypatch:
@@ -94,10 +92,8 @@ class TestFunctions(TestDatabaseBase):
         assert remaining == []
 
     def test_store_function_rolls_back_on_flush_conflict(self):
-        # Guards the rollback added for ML-12864: a concurrent create that
-        # violates the (name, project, uid) unique constraint raises at flush;
-        # store_function must roll back so the session is not left poisoned
-        # (which would break the retry_on_conflict retry with PendingRollbackError).
+        # ML-12864: a unique-constraint violation at flush must roll back so the
+        # session stays usable for the retry_on_conflict retry.
         function = self._generate_function()
         self._db.store_function(
             self._db_session,
@@ -108,10 +104,8 @@ class TestFunctions(TestDatabaseBase):
         )
 
         with pytest.MonkeyPatch.context() as monkeypatch:
-            # disable the conflict-retry loop so the raw flush error surfaces once
+            # surface the raw flush conflict once, and force the INSERT path
             monkeypatch.setattr(mlrun.mlconf.httpdb.db, "conflict_retry_timeout", 0)
-            # force the existence check to miss so the re-store takes the INSERT
-            # path and collides on (name, project, uid)
             monkeypatch.setattr(
                 self._db, "_get_class_instance_by_uid", lambda *args, **kwargs: None
             )
@@ -124,8 +118,7 @@ class TestFunctions(TestDatabaseBase):
                     versioned=False,
                 )
 
-        # the session must be usable (rolled back), not poisoned; the original
-        # row is intact and the duplicate was not committed
+        # the session is usable (rolled back) and the original row is intact
         remaining = (
             self._db_session.query(Function)
             .filter_by(project=self.project, name=function.metadata.name)

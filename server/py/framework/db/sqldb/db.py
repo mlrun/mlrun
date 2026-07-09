@@ -2540,23 +2540,10 @@ class SQLDB(DBInterface):
         fn.kind = function.pop("kind", None)
         fn.state = function.get("status", {}).pop("state", None)
         fn.struct = function
-        # Persist the function object and its tag in a single transaction. We
-        # flush (not commit) the function so it gets an id for the tag's foreign
-        # key, then let tag_objects_v2 issue one commit that persists both.
-        # Committing the function before its tag would leave a window in which a
-        # concurrent reader (another API worker, a background job) observes the
-        # function row without its "latest" tag and fails with a spurious
-        # "Function tag not found" (ML-12864).
-        session.add(fn)
-        try:
-            session.flush()
-        except SQLAlchemyError:
-            # A concurrent create can violate the (project, name, uid) unique
-            # constraint at flush time. Roll back so retry_on_conflict re-runs
-            # store_function on a clean session (mirrors _commit's rollback on
-            # error); otherwise the retry would fail on a poisoned session.
-            session.rollback()
-            raise
+        # flush the function and let tag_objects_v2 commit it together with its
+        # tag, so a concurrent reader never sees it without its "latest" tag
+        # ("Function tag not found", ML-12864)
+        self._flush(session, [fn])
         self.tag_objects_v2(session, [fn], project, tag)
         return hash_key
 
@@ -5889,6 +5876,23 @@ class SQLDB(DBInterface):
         for object_ in objects:
             session.add(object_)
         self._commit(session, objects, ignore, silent)
+
+    def _flush(self, session, objects):
+        # Flush without committing, so objects get generated fields (e.g. their
+        # id) while the transaction stays open for a single downstream commit.
+        # Use to persist an object together with its tag atomically: _flush(obj)
+        # then tag_objects_v2(obj) issues the one commit that covers both, so a
+        # concurrent reader never sees the object without its tag (ML-12864).
+        if not objects:
+            return
+        for object_ in objects:
+            session.add(object_)
+        try:
+            session.flush()
+        except SQLAlchemyError:
+            # roll back so @retry_on_conflict retries on a clean session
+            session.rollback()
+            raise
 
     def _upsert_batch(self, session, objects, ignore=False, silent=False):
         if not objects:

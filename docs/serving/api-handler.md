@@ -14,15 +14,17 @@ API handlers are active only for HTTP-triggered invocations. When an event arriv
 **In this section**
 - [Overview](#overview)
 - [SDK](#sdk)
+- [APIHandlerConfig](#apihandlerconfig)
+- [`add_endpoint_handler` signature](#add_endpoint_handler-signature)
 - [Path matching rules](#path-matching-rules)
-- [Extracting request parameters](#extracting-request-parameters)
-- [Returning a custom HTTP status code](#returning-a-custom-http-status-code)
+- [Extract request parameters](#extract-request-parameters)
+- [Custom HTTP responses](#custom-http-responses)
 - [How downstream steps receive parameters](#how-downstream-steps-receive-parameters)
 - [Example](#example)
 
 ## Overview
 
-When the `GraphServer` receives an HTTP event and an API handler is configured, it runs the handler step before forwarding the event to the graph. The handler:
+When the `GraphServer` receives an HTTP event **and** an API handler is configured, it runs the handler step before forwarding the event to the graph. The handler:
 
 1. Matches the request's HTTP method and URL path against the configured endpoint list.
 2. If a match is found:
@@ -108,7 +110,7 @@ Endpoints are matched in the following priority order:
 | `/v1/models/{model_name}` | `/v1/models/gpt`, `/v1/models/bert` | `/v1/models`     |
 | `/v1/*`                   | `/v1/chat`, `/v1/models/gpt`        | `/v1`            |
 
-## Extracting request parameters
+## Extract request parameters
 
 When the handler allows a request, it can extract parameters from three sources:
 

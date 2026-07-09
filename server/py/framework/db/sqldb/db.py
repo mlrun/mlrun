@@ -2542,7 +2542,6 @@ class SQLDB(DBInterface):
         fn.struct = function
         # flush the function and let tag_objects_v2 commit it together with its
         # tag, so a concurrent reader never sees it without its "latest" tag
-        # ("Function tag not found", ML-12864)
         self._flush(session, [fn])
         self.tag_objects_v2(session, [fn], project, tag)
         return hash_key

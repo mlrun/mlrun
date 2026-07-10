@@ -172,6 +172,8 @@ conflict_messages = [
     "(sqlite3.IntegrityError) UNIQUE constraint failed",
     "(pymysql.err.IntegrityError) (1062",
     "(pymysql.err.IntegrityError) (1586",
+    "(psycopg2.errors.UniqueViolation)",
+    "(psycopg.errors.UniqueViolation)",
 ]
 
 

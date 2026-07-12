@@ -120,6 +120,9 @@ class Client(base_events.BaseEventClient):
             auto_login=False,
             use_token_file=False,
             verify_ssl=mlrun.mlconf.iguazio_api_ssl_verify,
+            logger=clients_helpers.iguazio_sdk_logger(
+                logger.get_child("system-events")
+            ),
         )
         self._service_account_token_client = service_account_token.Client()
         self._entity_name = self._resolve_entity_name()

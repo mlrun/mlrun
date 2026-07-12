@@ -920,3 +920,28 @@ def test_download_artifact_to_dir_unresolvable_filename_raises(tmp_path):
         )
 
     mock_get_dataitem.assert_not_called()
+
+
+def test_clone_tgz_blocks_tar_slip(tmp_path, monkeypatch):
+    """clone_tgz must not let a malicious .tar.gz member escape target_dir (tar-slip)."""
+    target_dir = tmp_path / "target"
+    target_dir.mkdir()
+
+    # a .tar.gz whose member path traverses out of the extraction directory
+    malicious = tmp_path / "malicious.tar.gz"
+    with tarfile.open(malicious, "w:gz") as tf:
+        payload = b"pwned"
+        member = tarfile.TarInfo(name="../evil.txt")
+        member.size = len(payload)
+        tf.addfile(member, io.BytesIO(payload))
+
+    # skip the network download; hand clone_tgz the crafted archive directly
+    monkeypatch.setattr(
+        mlrun.utils.clones, "_prep_dir", lambda *args, **kwargs: str(malicious)
+    )
+
+    # filter="data" rejects the traversal member instead of writing outside target_dir
+    with pytest.raises(tarfile.TarError):
+        mlrun.utils.clones.clone_tgz("dummy://source", str(target_dir))
+
+    assert not (tmp_path / "evil.txt").exists()

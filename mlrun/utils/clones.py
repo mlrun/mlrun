@@ -70,7 +70,11 @@ def clone_zip(source, target_dir, secrets=None, clone=True):
 def clone_tgz(source, target_dir, secrets=None, clone=True):
     tmpfile = _prep_dir(source, target_dir, ".tar.gz", secrets, clone)
     with tarfile.TarFile.open(tmpfile, "r:*") as tf:
-        tf.extractall(path=target_dir)
+        # filter="data" blocks path-traversal (tar-slip) members from a malicious
+        # archive escaping target_dir, matching mlrun's own _safe_extract_tar()
+        # helper and _archiver.py.
+        # see: https://docs.python.org/3/library/tarfile.html#tarfile.TarFile.extractall
+        tf.extractall(path=target_dir, filter="data")
     remove(tmpfile)  # delete zipped file
 
 

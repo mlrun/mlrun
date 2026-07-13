@@ -62,20 +62,24 @@ def get_git_username_password_from_token(token):
 
 def clone_zip(source, target_dir, secrets=None, clone=True):
     tmpfile = _prep_dir(source, target_dir, ".zip", secrets, clone)
-    with zipfile.ZipFile(tmpfile, "r") as zf:
-        zf.extractall(target_dir)
-    remove(tmpfile)  # delete zipped file
+    try:
+        with zipfile.ZipFile(tmpfile, "r") as zf:
+            # route through the shared safe extractor so a malicious archive is
+            # handled consistently with the rest of the module.
+            _safe_extract_zip(zf, target_dir)
+    finally:
+        remove(tmpfile)  # delete downloaded archive even if extraction fails
 
 
 def clone_tgz(source, target_dir, secrets=None, clone=True):
     tmpfile = _prep_dir(source, target_dir, ".tar.gz", secrets, clone)
-    with tarfile.TarFile.open(tmpfile, "r:*") as tf:
-        # filter="data" blocks path-traversal (tar-slip) members from a malicious
-        # archive escaping target_dir, matching mlrun's own _safe_extract_tar()
-        # helper and _archiver.py.
-        # see: https://docs.python.org/3/library/tarfile.html#tarfile.TarFile.extractall
-        tf.extractall(path=target_dir, filter="data")
-    remove(tmpfile)  # delete zipped file
+    try:
+        with tarfile.TarFile.open(tmpfile, "r:*") as tf:
+            # route through the shared safe extractor: rejects path-traversal
+            # (tar-slip) members instead of a raw extractall().
+            _safe_extract_tar(tf, target_dir)
+    finally:
+        remove(tmpfile)  # delete downloaded archive even if extraction fails
 
 
 def get_repo_url(repo):

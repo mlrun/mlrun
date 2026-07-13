@@ -50,6 +50,7 @@ class Client(BaseClient, project_follower.Member):
             auto_login=False,
             use_token_file=False,
             verify_ssl=mlrun.mlconf.iguazio_api_ssl_verify,
+            logger=clients_helpers.iguazio_sdk_logger(self._logger),
         )
 
     def refresh_access_token(
@@ -218,6 +219,7 @@ class Client(BaseClient, project_follower.Member):
                     token_file_path=temp_file.name,
                     token_name=token_name,
                     verify_ssl=mlrun.mlconf.iguazio_api_ssl_verify,
+                    logger=clients_helpers.iguazio_sdk_logger(self._logger),
                 )
                 result = token_file_client.get_refresh_token()
                 if not result or not result[0]:

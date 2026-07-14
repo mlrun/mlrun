@@ -568,6 +568,11 @@ default_config = {
         # The API needs to know what is its k8s svc url so it could enrich it in the jobs it creates
         "api_url": "",
         "builder": {
+            # the container-image build engine used for kubernetes-based function builds. "kaniko" is the
+            # default and currently the only implemented backend; additional backends (e.g. buildah) are
+            # selected here without code changes once available. see BuilderBackend in
+            # services/api/utils/builder.py.
+            "builder_backend": "kaniko",
             # setting the docker registry to be used for built images, can include the repository as well, e.g.
             # index.docker.io/<username>, if not included repository will default to mlrun
             "docker_registry": "",

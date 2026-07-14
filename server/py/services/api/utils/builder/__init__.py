@@ -11,10 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import os.path
 from base64 import b64decode
-from os import path
-from urllib.parse import urlparse
 
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
@@ -25,8 +22,9 @@ import mlrun.utils
 from mlrun.config import config
 
 import framework.utils.singletons.k8s
-from services.api.utils.builder import base, kaniko
 from services.api.utils.builder.base import (
+    BuilderBackend,
+    BuildRequest,
     _generate_builder_env,
     _resolve_build_requirements,
     _resolve_function_image_name,
@@ -38,6 +36,7 @@ from services.api.utils.builder.base import (
     resolve_image_target,
     resolve_mlrun_install_command_version,
 )
+from services.api.utils.builder.kaniko import KanikoBackend
 
 
 def build_image(
@@ -94,73 +93,7 @@ def build_image(
         mlrun.utils.logger.info("Skipping build, nothing to add")
         return "skipped"
 
-    context = "/context"
-    to_mount = False
-    is_v3io_source, is_http_source = False, False
-    if source:
-        is_v3io_source = source.startswith("v3io://") or source.startswith("v3ios://")
-        is_http_source = source.startswith("http")
-
-    access_key = builder_env.get(
-        "V3IO_ACCESS_KEY", auth_info.data_session or auth_info.access_key
-    )
-    username = builder_env.get("V3IO_USERNAME", auth_info.username)
-
     builder_env_list, project_secrets = _generate_builder_env(project, builder_env)
-
-    parsed_url = urlparse(source)
-    source_to_copy = None
-    source_dir_to_mount = None
-    needs_source_fetch_init_container = False
-    if inline_code or runtime_spec.build.load_source_on_run or not source:
-        context = "/empty"
-
-    # http is not officially supported by kaniko's context so we handle it explicitly
-    elif is_http_source:
-        source_to_copy = source
-
-    # source is in a scheme kaniko cannot resolve; fetch in a dedicated init container
-    elif source and kaniko._needs_source_fetch_init_container(source):
-        kaniko._validate_source_fetch_archive(source)
-        context = "/empty"
-        source_to_copy = f"./{kaniko._FETCHED_SOURCE_SUBDIR}"
-        needs_source_fetch_init_container = True
-
-    # source is remote (kaniko-native)
-    elif source and "://" in source and not is_v3io_source:
-        if source.startswith("git://"):
-            # if the user provided branch (w/o refs/..) we add the "refs/.."
-            fragment = parsed_url.fragment or ""
-            if not fragment.startswith("refs/"):
-                source = source.replace("#" + fragment, f"#refs/heads/{fragment}")
-
-        # set remote source as kaniko's build context and copy it
-        context = source
-        source_to_copy = "."
-
-    # source is local / v3io
-    else:
-        if is_v3io_source:
-            source = parsed_url.path
-            to_mount = True
-            source_dir_to_mount, source_to_copy = path.split(source)
-            source_dir_to_mount = path.normpath(source_dir_to_mount)
-
-        # source is a path without a scheme, we allow to copy absolute paths assuming they are valid paths
-        # in the image, however, it is recommended to use `workdir` instead in such cases
-        # which is set during runtime (mlrun.runtimes.local.LocalRuntime._pre_run).
-        # relative paths are not supported at build time
-        # "." and "./" are considered as 'project context'
-        # TODO: enrich with project context if pulling on build time
-        elif path.isabs(source):
-            source_to_copy = source
-
-        else:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Load of relative source ({source}) is not supported at build time "
-                "see 'mlrun.runtimes.kubejob.KubejobRuntime.with_source_archive' or "
-                "'mlrun.projects.project.MlrunProject.set_source' for more details"
-            )
 
     user_unix_id = None
     enriched_group_id = None
@@ -174,65 +107,42 @@ def build_image(
         user_unix_id = runtime.spec.security_context.run_as_user
         enriched_group_id = runtime.spec.security_context.run_as_group
 
-    source_code_target_dir = runtime.spec.build.source_code_target_dir
-    if source_to_copy and (
-        not source_code_target_dir or not os.path.isabs(source_code_target_dir)
-    ):
-        relative_workdir = source_code_target_dir or ""
-        relative_workdir = relative_workdir.removeprefix("./")
-
-        runtime.spec.build.source_code_target_dir = path.join(
-            "/home/mlrun_code", relative_workdir
-        )
-
-    dock = base.make_dockerfile(
-        base_image,
-        commands,
-        source=source_to_copy,
-        requirements_path=requirements_path,
-        extra=extra,
-        user_unix_id=user_unix_id,
-        enriched_group_id=enriched_group_id,
-        target_dir=runtime.spec.build.source_code_target_dir,
-        builder_env=builder_env_list,
-        project_secrets=project_secrets,
-        extra_args=extra_args,
-    )
-
-    kpod = kaniko.make_kaniko_pod(
-        project,
-        context,
-        image_target,
-        dockertext=dock,
-        inline_code=inline_code,
-        inline_path=inline_path,
+    # everything above is engine-agnostic resolution. Package it into the seam DTO,
+    # then let the resolved backend own source routing, the Dockerfile source COPY
+    # and pod construction (see BuilderBackend / BuildRequest).
+    request = BuildRequest(
+        project=project,
+        image_target=image_target,
+        base_image=base_image,
+        commands=commands,
         requirements=requirements_list,
         requirements_path=requirements_path,
-        secret_name=secret_name,
-        name=name,
-        verbose=verbose,
-        builder_env=builder_env_list,
+        source=source,
+        inline_code=inline_code,
+        inline_path=inline_path,
+        extra=extra,
+        builder_env=builder_env,
+        builder_env_list=builder_env_list,
         project_secrets=project_secrets,
-        runtime_spec=runtime_spec,
-        registry=registry,
         extra_args=extra_args,
-        extra_labels={
+        secret_name=secret_name,
+        registry=registry,
+        runtime_spec=runtime_spec,
+        project_default_function_node_selector=project_default_function_node_selector,
+        user_unix_id=user_unix_id,
+        enriched_group_id=enriched_group_id,
+        auth_info=auth_info,
+        name=name,
+        labels={
             mlrun_constants.MLRunInternalLabels.name: name,
             mlrun_constants.MLRunInternalLabels.function: runtime.metadata.name,
             mlrun_constants.MLRunInternalLabels.tag: runtime.metadata.tag or "latest",
         },
-        project_default_fucntion_node_selector=project_default_function_node_selector,
-        auth_info=auth_info,
-        source_to_fetch=source if needs_source_fetch_init_container else None,
+        verbose=verbose,
     )
 
-    if to_mount:
-        kpod.mount_v3io(
-            remote=source_dir_to_mount,
-            mount_path="/context",
-            access_key=access_key,
-            user=username,
-        )
+    backend = resolve_builder_backend(request)
+    kpod = backend.make_build_pod(request)
 
     k8s = framework.utils.singletons.k8s.get_k8s_helper(silent=False)
     kpod.namespace = k8s.resolve_namespace(namespace)
@@ -245,6 +155,35 @@ def build_image(
             "Build started", pod=pod, namespace=ns, project=project, image=image_target
         )
         return f"build:{pod}"
+
+
+# registry of available builder backends, keyed by the ``httpdb.builder.builder_backend``
+# config value. buildah and future engines register here without touching the shared path.
+_BUILDER_BACKENDS: dict[str, type[BuilderBackend]] = {
+    "kaniko": KanikoBackend,
+}
+
+
+def resolve_builder_backend(request: BuildRequest) -> BuilderBackend:
+    """Return the builder backend to use for a build request.
+
+    By default this is the engine named in ``httpdb.builder.builder_backend``. The
+    whole ``request`` is accepted so a future backend can add a narrow,
+    request-derived override (e.g. force Kaniko for a specific target registry)
+    without changing this signature; no such override exists yet.
+
+    :param request: The resolved build request.
+    :return: The builder backend instance for this build.
+    :raises mlrun.errors.MLRunInvalidArgumentError: If the configured backend is unknown.
+    """
+    backend_name = config.httpdb.builder.builder_backend
+    backend_class = _BUILDER_BACKENDS.get(backend_name)
+    if backend_class is None:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"Unsupported builder backend '{backend_name}'. "
+            f"Supported backends: {', '.join(sorted(_BUILDER_BACKENDS))}"
+        )
+    return backend_class()
 
 
 def build_runtime(

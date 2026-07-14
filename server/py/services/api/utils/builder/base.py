@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import dataclasses
 import os.path
 import pathlib
 import re
@@ -34,6 +35,97 @@ from mlrun.utils.helpers import remove_image_protocol_prefix
 
 import framework.utils.helpers
 import framework.utils.singletons.k8s
+
+
+@dataclasses.dataclass(frozen=True)
+class BuildRequest:
+    """The engine-agnostic inputs for a single image build.
+
+    Resolved by the shared build path (:func:`build_image`) and handed to a
+    :class:`BuilderBackend`. This is the seam between the shared build flow and
+    engine-specific pod construction: the request says *what* to build, and each
+    backend decides *how* to stage the source, finalise the Dockerfile's
+    ``COPY``/``ADD`` and construct the pod. It is an in-process DTO - not a
+    serialized or versioned wire contract.
+
+    ``source`` is carried **raw and unrouted**: routing it to a build context
+    (native-remote / http-copy / fetch-init-container / v3io-mount) is engine-owned
+    and happens inside :meth:`BuilderBackend.make_build_pod`.
+
+    :param project:            The project the build belongs to.
+    :param image_target:       The fully resolved destination image reference.
+    :param base_image:         The (enriched) base image the Dockerfile builds ``FROM``.
+    :param commands:           Shell commands to run during the build (mlrun-merged).
+    :param requirements:       The resolved requirements list to install.
+    :param requirements_path:  Path of the requirements file inside the build context.
+    :param source:             The raw, unrouted source descriptor / URI.
+    :param inline_code:        Inline function code to embed, if any.
+    :param inline_path:        Destination filename for ``inline_code``.
+    :param extra:              Extra directives appended to the Dockerfile.
+    :param builder_env:        The resolved builder-env mapping (used e.g. to derive
+                               v3io credentials for a mounted source).
+    :param builder_env_list:   ``builder_env`` as build-time env vars for the pod.
+    :param project_secrets:    Project secrets exposed as build-time env vars.
+    :param extra_args:         Extra builder CLI arguments (validated, engine-rendered
+                               inside the backend).
+    :param secret_name:        The docker-config secret to authenticate the push.
+    :param registry:           The target registry, when given explicitly.
+    :param runtime_spec:       The function's runtime spec (resources, scheduling,
+                               security context, ``build`` config).
+    :param project_default_function_node_selector: Project-level default node selector.
+    :param user_unix_id:       Resolved build UID for the image ``USER`` / ownership.
+    :param enriched_group_id:  Resolved build GID for the image ``USER`` / ownership.
+    :param auth_info:          The caller's auth info.
+    :param name:               The build pod's base name.
+    :param labels:             mlrun-internal labels to stamp on the build pod.
+    :param verbose:            Whether to run the build engine verbosely.
+    """
+
+    project: str
+    image_target: str
+    base_image: str
+    commands: list[str]
+    requirements: list[str]
+    requirements_path: str
+    source: str
+    inline_code: str | None
+    inline_path: str | None
+    extra: str | None
+    builder_env: dict[str, str]
+    builder_env_list: list[client.V1EnvVar]
+    project_secrets: list[client.V1EnvVar]
+    extra_args: str | dict
+    secret_name: str | None
+    registry: str | None
+    runtime_spec: typing.Any
+    project_default_function_node_selector: dict[str, str]
+    user_unix_id: int | None
+    enriched_group_id: int | None
+    auth_info: mlrun.common.schemas.AuthInfo
+    name: str
+    labels: dict[str, str]
+    verbose: bool
+
+
+class BuilderBackend(typing.Protocol):
+    """A pluggable container-image build engine.
+
+    Each backend turns a :class:`BuildRequest` into a ready-to-run build pod,
+    owning everything engine-specific: source routing, the Dockerfile's source
+    ``COPY``, engine CLI args, registry auth and the pod's security context. The
+    shared build path composes as *resolve the backend for a request, then*
+    ``make_build_pod(request)``.
+    """
+
+    def make_build_pod(
+        self, request: BuildRequest
+    ) -> "framework.utils.singletons.k8s.BasePod":
+        """Build the (engine-specific) build pod for ``request``.
+
+        :param request: The resolved, engine-agnostic build inputs.
+        :return: The build pod, ready for the shared path to launch.
+        """
+        ...
 
 
 def resolve_mlrun_install_command_version(

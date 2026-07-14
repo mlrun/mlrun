@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import os.path
 import pathlib
 from base64 import b64encode
 from urllib.parse import urlparse
@@ -307,6 +308,210 @@ def configure_kaniko_ecr_env_and_init_container(kpod, registry, repo):
         env=init_container_env,
         name="create-repos",
     )
+
+
+class KanikoBackend:
+    """The default builder backend: today's Kaniko build pod behind the
+    :class:`BuilderBackend` seam.
+
+    Behaviour-preserving - it owns the source routing and the pod construction
+    that build the exact Kaniko pod MLRun has always produced, delegating to the
+    shared :func:`base.make_dockerfile` and the module-level :func:`make_kaniko_pod`.
+    """
+
+    def make_build_pod(
+        self, request: base.BuildRequest
+    ) -> framework.utils.singletons.k8s.BasePod:
+        """Build the Kaniko build pod for ``request``.
+
+        :param request: The resolved, engine-agnostic build inputs.
+        :return: The Kaniko build pod.
+        """
+        (
+            context,
+            source_to_copy,
+            source_dir_to_mount,
+            to_mount,
+            needs_source_fetch_init_container,
+        ) = self._route_source(request)
+        self._resolve_source_code_target_dir(request, source_to_copy=source_to_copy)
+
+        dock = base.make_dockerfile(
+            request.base_image,
+            request.commands,
+            source=source_to_copy,
+            requirements_path=request.requirements_path,
+            extra=request.extra,
+            user_unix_id=request.user_unix_id,
+            enriched_group_id=request.enriched_group_id,
+            target_dir=request.runtime_spec.build.source_code_target_dir,
+            builder_env=request.builder_env_list,
+            project_secrets=request.project_secrets,
+            extra_args=request.extra_args,
+        )
+
+        kpod = make_kaniko_pod(
+            request.project,
+            context,
+            request.image_target,
+            dockertext=dock,
+            inline_code=request.inline_code,
+            inline_path=request.inline_path,
+            requirements=request.requirements,
+            requirements_path=request.requirements_path,
+            secret_name=request.secret_name,
+            name=request.name,
+            verbose=request.verbose,
+            builder_env=request.builder_env_list,
+            project_secrets=request.project_secrets,
+            runtime_spec=request.runtime_spec,
+            registry=request.registry,
+            extra_args=request.extra_args,
+            extra_labels=request.labels,
+            project_default_fucntion_node_selector=request.project_default_function_node_selector,
+            auth_info=request.auth_info,
+            source_to_fetch=request.source
+            if needs_source_fetch_init_container
+            else None,
+        )
+
+        if to_mount:
+            self._mount_v3io_source(request, kpod, source_dir_to_mount)
+
+        return kpod
+
+    @staticmethod
+    def _route_source(
+        request: base.BuildRequest,
+    ) -> tuple[str, str | None, str | None, bool, bool]:
+        """Route the raw source descriptor to a Kaniko build context.
+
+        :param request: The build request carrying the raw ``source``.
+        :return: ``(context, source_to_copy, source_dir_to_mount, to_mount,
+            needs_source_fetch_init_container)``.
+        """
+        source = request.source
+        context = "/context"
+        to_mount = False
+        is_v3io_source, is_http_source = False, False
+        if source:
+            is_v3io_source = source.startswith("v3io://") or source.startswith(
+                "v3ios://"
+            )
+            is_http_source = source.startswith("http")
+
+        parsed_url = urlparse(source)
+        source_to_copy = None
+        source_dir_to_mount = None
+        needs_source_fetch_init_container = False
+        if (
+            request.inline_code
+            or request.runtime_spec.build.load_source_on_run
+            or not source
+        ):
+            context = "/empty"
+
+        # http is not officially supported by kaniko's context so we handle it explicitly
+        elif is_http_source:
+            source_to_copy = source
+
+        # source is in a scheme kaniko cannot resolve; fetch in a dedicated init container
+        elif source and _needs_source_fetch_init_container(source):
+            _validate_source_fetch_archive(source)
+            context = "/empty"
+            source_to_copy = f"./{_FETCHED_SOURCE_SUBDIR}"
+            needs_source_fetch_init_container = True
+
+        # source is remote (kaniko-native)
+        elif source and "://" in source and not is_v3io_source:
+            if source.startswith("git://"):
+                # if the user provided branch (w/o refs/..) we add the "refs/.."
+                fragment = parsed_url.fragment or ""
+                if not fragment.startswith("refs/"):
+                    source = source.replace("#" + fragment, f"#refs/heads/{fragment}")
+
+            # set remote source as kaniko's build context and copy it
+            context = source
+            source_to_copy = "."
+
+        # source is local / v3io
+        else:
+            if is_v3io_source:
+                source = parsed_url.path
+                to_mount = True
+                source_dir_to_mount, source_to_copy = os.path.split(source)
+                source_dir_to_mount = os.path.normpath(source_dir_to_mount)
+
+            # source is a path without a scheme, we allow to copy absolute paths assuming they are valid paths
+            # in the image, however, it is recommended to use `workdir` instead in such cases
+            # which is set during runtime (mlrun.runtimes.local.LocalRuntime._pre_run).
+            # relative paths are not supported at build time
+            # "." and "./" are considered as 'project context'
+            # TODO: enrich with project context if pulling on build time
+            elif os.path.isabs(source):
+                source_to_copy = source
+
+            else:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"Load of relative source ({source}) is not supported at build time "
+                    "see 'mlrun.runtimes.kubejob.KubejobRuntime.with_source_archive' or "
+                    "'mlrun.projects.project.MlrunProject.set_source' for more details"
+                )
+
+        return (
+            context,
+            source_to_copy,
+            source_dir_to_mount,
+            to_mount,
+            needs_source_fetch_init_container,
+        )
+
+    @staticmethod
+    def _resolve_source_code_target_dir(
+        request: base.BuildRequest, source_to_copy: str | None
+    ) -> None:
+        """Resolve the in-image source target dir (mutates the runtime build spec).
+
+        Only relevant when there is source to copy; a relative or unset target dir is
+        anchored under ``/home/mlrun_code``.
+
+        :param request:        The build request (its ``runtime_spec`` is mutated).
+        :param source_to_copy: The routed source, or ``None`` when nothing is copied.
+        """
+        source_code_target_dir = request.runtime_spec.build.source_code_target_dir
+        if source_to_copy and (
+            not source_code_target_dir or not os.path.isabs(source_code_target_dir)
+        ):
+            relative_workdir = source_code_target_dir or ""
+            relative_workdir = relative_workdir.removeprefix("./")
+
+            request.runtime_spec.build.source_code_target_dir = os.path.join(
+                "/home/mlrun_code", relative_workdir
+            )
+
+    @staticmethod
+    def _mount_v3io_source(
+        request: base.BuildRequest,
+        kpod: framework.utils.singletons.k8s.BasePod,
+        source_dir_to_mount: str | None,
+    ) -> None:
+        """Mount a v3io source directory as the Kaniko build context.
+
+        :param request:             The build request (for v3io credentials).
+        :param kpod:                The build pod to mount into.
+        :param source_dir_to_mount: The normalized v3io directory to mount.
+        """
+        access_key = request.builder_env.get(
+            "V3IO_ACCESS_KEY",
+            request.auth_info.data_session or request.auth_info.access_key,
+        )
+        username = request.builder_env.get("V3IO_USERNAME", request.auth_info.username)
+        kpod.mount_v3io(
+            remote=source_dir_to_mount,
+            mount_path="/context",
+            access_key=access_key,
+            user=username,
+        )
 
 
 def get_kaniko_spec_attributes_from_runtime(

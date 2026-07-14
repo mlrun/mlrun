@@ -291,10 +291,8 @@ def new_project(
     if default_function_node_selector:
         project.spec.default_function_node_selector = default_function_node_selector
 
-    if parameters:
-        # Enable setting project parameters at load time, can be used to customize the project_setup
-        for key, val in parameters.items():
-            project.spec.params[key] = val
+    # Enable setting project parameters at create time, can be used to customize the project_setup
+    _apply_project_parameters(project, parameters)
 
     _set_as_current_active_project(project)
 
@@ -314,6 +312,9 @@ def new_project(
                 f"Project with name {name} already exists. "
                 "Use overwrite=True to overwrite the existing project."
             ) from exc
+        # Re-apply after save() so create-time parameters survive API enrichment
+        # and remain available for project_setup.
+        _apply_project_parameters(project, parameters)
         logger.info(
             "Created and saved project",
             name=name,
@@ -455,10 +456,10 @@ def load_project(
     if not project.metadata.name:
         raise ValueError("Project name must be specified")
 
-    if parameters:
-        # Enable setting project parameters at load time, can be used to customize the project_setup
-        for key, val in parameters.items():
-            project.spec.params[key] = val
+    # Enable setting project parameters at load time, can be used to customize the project_setup.
+    # Applied here (and again after save) so they survive DB round-trips and null ``params`` from
+    # git/API-style project.yaml files — see ``_apply_project_parameters``.
+    _apply_project_parameters(project, parameters)
 
     if not from_db:
         project.spec.source = url or project.spec.source
@@ -477,6 +478,9 @@ def load_project(
     to_save = bool(save and mlrun.mlconf.dbpath)
     if to_save:
         project.save()
+        # ``save()`` enriches this object from the API response; re-apply load-time
+        # parameters so ``project_setup.setup()`` always sees the caller values.
+        _apply_project_parameters(project, parameters)
 
     # Hook for initializing the project using a project_setup script
     if run_setup:
@@ -710,6 +714,24 @@ def _extract_project_from_stream_url(url: str) -> str | None:
     ):
         return None
     return service_name[len(prefix) : -len(suffix)]
+
+
+def _apply_project_parameters(project: "MlrunProject", parameters: dict | None):
+    """Merge caller-provided parameters into ``project.spec.params``.
+
+    Used by ``new_project`` / ``load_project`` so values are available to
+    ``project_setup.setup()``. Guarantees ``spec.params`` is a dict first —
+    git and leader-API project.yaml files often set ``params: null``, which
+    previously made ``project.spec.params[key] = val`` raise ``TypeError`` and
+    left ``get_param()`` returning ``None`` (archive/zip exports omit null
+    fields, so they were not affected).
+    """
+    if not parameters:
+        return
+    if project.spec.params is None:
+        project.spec.params = {}
+    for key, val in parameters.items():
+        project.spec.params[key] = val
 
 
 def _run_project_setup(
@@ -1012,7 +1034,8 @@ class ProjectSpec(ModelObj):
         self.owner = owner
         self.branch = None
         self.tag = ""
-        self.params = params or {}
+        # Backing store for ``params``; always a dict (see property below).
+        self._params = params or {}
         self.conda = conda or ""
         self.artifact_path = artifact_path
         self._artifacts = {}
@@ -1053,6 +1076,22 @@ class ProjectSpec(ModelObj):
     @source.setter
     def source(self, src):
         self._source = src
+
+    @property
+    def params(self) -> dict:
+        """Project parameters used to customize project_setup and workflows.
+
+        Always returns a dict. Git/API-sourced ``project.yaml`` files often set
+        ``params: null``; without coercion, ``project.spec.params[key] = val``
+        would raise and load-time parameters would never reach ``setup()``.
+        """
+        if self._params is None:
+            self._params = {}
+        return self._params
+
+    @params.setter
+    def params(self, params):
+        self._params = params if params is not None else {}
 
     @property
     def mountdir(self) -> str:
@@ -6528,6 +6567,11 @@ class MlrunProject(ModelObj):
 
             target_object = getattr(self, f"_{field}")
             for key, value in merged_dict.items():
+                # Skip None so API/leader payloads that explicitly null out fields
+                # (e.g. ``params: null``) cannot wipe values already set on this
+                # client object such as load-time parameters.
+                if value is None:
+                    continue
                 setattr(target_object, key, value)
 
 

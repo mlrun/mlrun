@@ -539,6 +539,151 @@ def test_project_with_setup(context, op):
         assert project.spec.params == {"p1": "xyz", "p2": "123", "test123": "456"}
 
 
+def test_project_spec_params_null_coerced_to_dict():
+    """API/git project.yaml often sets params: null; keep a mutable dict."""
+    project = mlrun.projects.MlrunProject.from_dict(
+        {
+            "metadata": {"name": "null-params"},
+            "spec": {"params": None},
+        }
+    )
+    assert project.spec.params == {}
+    project.spec.params["default_image"] = "my_image"
+    assert project.get_param("default_image") == "my_image"
+
+
+def test_load_project_git_with_null_params_applies_parameters(context):
+    """Regression for #9275: git/API-style project.yaml with params: null must still
+    accept load-time parameters and expose them to project_setup.setup().
+
+    Archive/zip exports omit null fields, so they keep ``params={}`` from
+    ``ProjectSpec.__init__`` and were not affected — only git/API dumps were.
+    """
+    project_dir = pathlib.Path(context) / "git_null_params"
+    project_dir.mkdir(parents=True, exist_ok=True)
+    # Leader/API-style dump — params explicitly null (omitted fields behave
+    # differently and already worked before this fix).
+    (project_dir / "project.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "kind": "project",
+                "metadata": {"name": "git-null-params"},
+                "spec": {
+                    "params": None,
+                    "source": "git://github.com/org/repo.git#main",
+                },
+            }
+        )
+    )
+    (project_dir / "project_setup.py").write_text(
+        "def setup(project):\n"
+        "    project.spec.params['seen_default_image'] = project.get_param('default_image')\n"
+        "    project.spec.params['seen_source'] = project.get_param('source')\n"
+        "    return project\n"
+    )
+
+    fake_repo = unittest.mock.MagicMock()
+    fake_repo.active_branch.name = "main"
+    fake_repo.remotes = []
+    git_url = "git://github.com/org/repo.git#main"
+
+    with (
+        unittest.mock.patch(
+            "mlrun.projects.project.clone_git",
+            return_value=(f"{git_url.replace('#main', '#refs/heads/main')}", fake_repo),
+        ),
+        unittest.mock.patch(
+            "mlrun.projects.project.ensure_git_branch",
+            side_effect=lambda url, repo: url,
+        ),
+    ):
+        project = mlrun.load_project(
+            context=str(project_dir),
+            url=git_url,
+            name="git-null-params",
+            save=False,
+            parameters={
+                "source": git_url,
+                "default_image": "my_image",
+            },
+            allow_cross_project=True,
+        )
+
+    assert project.get_param("default_image") == "my_image"
+    assert project.get_param("source") == git_url
+    assert project.get_param("seen_default_image") == "my_image"
+    assert project.get_param("seen_source") == git_url
+
+
+def test_load_project_parameters_survive_save_enrich(context):
+    """Load-time parameters must still be visible to setup after save()/_enrich."""
+    project_dir = pathlib.Path(context) / "git_save_enrich"
+    project_dir.mkdir(parents=True, exist_ok=True)
+    (project_dir / "project.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "kind": "project",
+                "metadata": {"name": "git-save-enrich"},
+                "spec": {"params": None},
+            }
+        )
+    )
+    (project_dir / "project_setup.py").write_text(
+        "def setup(project):\n"
+        "    project.spec.params['seen'] = project.get_param('default_image')\n"
+        "    return project\n"
+    )
+
+    fake_repo = unittest.mock.MagicMock()
+    fake_repo.active_branch.name = "main"
+    fake_repo.remotes = []
+
+    class _FakeDB:
+        def store_project(self, name, project):
+            # Simulate an API body that nulls out params (leader-style dump).
+            body = project if isinstance(project, dict) else project.to_dict()
+            body = {
+                "kind": "project",
+                "metadata": {"name": name},
+                "spec": {
+                    "source": (body.get("spec") or {}).get("source"),
+                    "params": None,
+                },
+            }
+            return mlrun.projects.MlrunProject.from_dict(body)
+
+    original_dbpath = mlrun.mlconf.dbpath
+    mlrun.mlconf.dbpath = "http://fake-db"
+    try:
+        with (
+            unittest.mock.patch("mlrun.db.get_run_db", return_value=_FakeDB()),
+            unittest.mock.patch(
+                "mlrun.projects.project.clone_git",
+                return_value=(
+                    "git://github.com/org/repo.git#refs/heads/main",
+                    fake_repo,
+                ),
+            ),
+            unittest.mock.patch(
+                "mlrun.projects.project.ensure_git_branch",
+                side_effect=lambda url, repo: url,
+            ),
+        ):
+            project = mlrun.load_project(
+                context=str(project_dir),
+                url="git://github.com/org/repo.git#main",
+                name="git-save-enrich",
+                save=True,
+                parameters={"default_image": "my_image"},
+                allow_cross_project=True,
+            )
+    finally:
+        mlrun.mlconf.dbpath = original_dbpath
+
+    assert project.get_param("default_image") == "my_image"
+    assert project.get_param("seen") == "my_image"
+
+
 @pytest.mark.parametrize("run_setup", [True, False])
 def test_load_project_run_setup_flag(context, run_setup):
     # load_project should run the setup script only when run_setup is True, while the

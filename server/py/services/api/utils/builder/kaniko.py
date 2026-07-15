@@ -162,7 +162,7 @@ def make_kaniko_pod(
         extra_labels or {},
     )
 
-    kpod = framework.utils.singletons.k8s.BasePod(
+    kaniko_pod = framework.utils.singletons.k8s.BasePod(
         name or "mlrun-build",
         config.httpdb.builder.kaniko_image,
         args=args,
@@ -173,7 +173,7 @@ def make_kaniko_pod(
         labels=extra_labels,
     )
     envs = (builder_env or []) + (project_secrets or [])
-    kpod.env = envs or None
+    kaniko_pod.env = envs or None
 
     if config.is_pip_ca_configured():
         items = [
@@ -182,7 +182,7 @@ def make_kaniko_pod(
                 "path": pathlib.Path(config.httpdb.builder.pip_ca_path).name,
             }
         ]
-        kpod.mount_secret(
+        kaniko_pod.mount_secret(
             config.httpdb.builder.pip_ca_secret_name,
             str(
                 pathlib.Path(context)
@@ -195,7 +195,7 @@ def make_kaniko_pod(
         )
 
     if dockertext or inline_code or requirements:
-        kpod.mount_empty()
+        kaniko_pod.mount_empty()
         commands = []
         env = {}
         if dockertext:
@@ -218,7 +218,7 @@ def make_kaniko_pod(
                 "echo ${REQUIREMENTS}" + " | " + f"base64 -d > {requirements_path}"
             )
 
-        kpod.append_init_container(
+        kaniko_pod.append_init_container(
             config.httpdb.builder.kaniko_init_container_image,
             args=["sh", "-c", "; ".join(commands)],
             env=env,
@@ -232,25 +232,25 @@ def make_kaniko_pod(
             end = len(dest)
         repo = dest[dest.find("/") + 1 : end]
 
-        configure_kaniko_ecr_env_and_init_container(kpod, registry, repo)
+        configure_kaniko_ecr_env_and_init_container(kaniko_pod, registry, repo)
 
     # mount regular docker config secret
     elif secret_name:
         items = [{"key": ".dockerconfigjson", "path": "config.json"}]
-        kpod.mount_secret(secret_name, "/kaniko/.docker", items=items)
+        kaniko_pod.mount_secret(secret_name, "/kaniko/.docker", items=items)
 
     if source_to_fetch:
         _append_source_fetch_init_container(
-            kpod=kpod,
+            kaniko_pod=kaniko_pod,
             source=source_to_fetch,
             builder_env_list=builder_env,
             project_secrets=project_secrets,
         )
 
-    return kpod
+    return kaniko_pod
 
 
-def configure_kaniko_ecr_env_and_init_container(kpod, registry, repo):
+def configure_kaniko_ecr_env_and_init_container(kaniko_pod, registry, repo):
     # if no secret is given, assume ec2 instance has attached role which provides read/write access to ECR
     assume_instance_role = not config.httpdb.builder.docker_registry_secret
     region = registry.split(".")[3]
@@ -263,14 +263,14 @@ def configure_kaniko_ecr_env_and_init_container(kpod, registry, repo):
     )
     init_container_env = {}
 
-    kpod.env = kpod.env or []
+    kaniko_pod.env = kaniko_pod.env or []
 
     # project secret might conflict with the attached instance role/docker registry secret
     # ensure "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY" have no values or else kaniko will fail
     # due to credentials conflict / lack of permission on given credentials
-    kpod.env = kpod.env = [
+    kaniko_pod.env = kaniko_pod.env = [
         env_var
-        for env_var in kpod.env
+        for env_var in kaniko_pod.env
         if env_var.name not in ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"]
     ]
 
@@ -278,7 +278,7 @@ def configure_kaniko_ecr_env_and_init_container(kpod, registry, repo):
         # assume instance role has permissions to register and store a container image
         # https://github.com/GoogleContainerTools/kaniko#pushing-to-amazon-ecr
         # we only need this in the kaniko container
-        kpod.env.append(client.V1EnvVar(name="AWS_SDK_LOAD_CONFIG", value="true"))
+        kaniko_pod.env.append(client.V1EnvVar(name="AWS_SDK_LOAD_CONFIG", value="true"))
 
     else:
         aws_credentials_file_env_key = "AWS_SHARED_CREDENTIALS_FILE"
@@ -290,18 +290,18 @@ def configure_kaniko_ecr_env_and_init_container(kpod, registry, repo):
         )
 
         # set the kaniko container AWS credentials location to the mount's path
-        kpod.env.append(
+        kaniko_pod.env.append(
             client.V1EnvVar(
                 name=aws_credentials_file_env_key, value=aws_credentials_file_env_value
             )
         )
         # mount the AWS credentials secret
-        kpod.mount_secret(
+        kaniko_pod.mount_secret(
             config.httpdb.builder.docker_registry_secret,
             path="/tmp/aws",
         )
 
-    kpod.append_init_container(
+    kaniko_pod.append_init_container(
         config.httpdb.builder.kaniko_aws_cli_image,
         command=["/bin/sh"],
         args=["-c", command],
@@ -350,7 +350,7 @@ class KanikoBackend:
             extra_args=request.extra_args,
         )
 
-        kpod = make_kaniko_pod(
+        kaniko_pod = make_kaniko_pod(
             request.project,
             context,
             request.image_target,
@@ -376,9 +376,9 @@ class KanikoBackend:
         )
 
         if to_mount:
-            self._mount_v3io_source(request, kpod, source_dir_to_mount)
+            self._mount_v3io_source(request, kaniko_pod, source_dir_to_mount)
 
-        return kpod
+        return kaniko_pod
 
     @staticmethod
     def _route_source(
@@ -492,13 +492,13 @@ class KanikoBackend:
     @staticmethod
     def _mount_v3io_source(
         request: base.BuildRequest,
-        kpod: framework.utils.singletons.k8s.BasePod,
+        kaniko_pod: framework.utils.singletons.k8s.BasePod,
         source_dir_to_mount: str | None,
     ) -> None:
         """Mount a v3io source directory as the Kaniko build context.
 
         :param request:             The build request (for v3io credentials).
-        :param kpod:                The build pod to mount into.
+        :param kaniko_pod:                The build pod to mount into.
         :param source_dir_to_mount: The normalized v3io directory to mount.
         """
         access_key = request.builder_env.get(
@@ -506,7 +506,7 @@ class KanikoBackend:
             request.auth_info.data_session or request.auth_info.access_key,
         )
         username = request.builder_env.get("V3IO_USERNAME", request.auth_info.username)
-        kpod.mount_v3io(
+        kaniko_pod.mount_v3io(
             remote=source_dir_to_mount,
             mount_path="/context",
             access_key=access_key,
@@ -602,7 +602,7 @@ def _validate_source_fetch_archive(source: str) -> None:
 
 
 def _append_source_fetch_init_container(
-    kpod,
+    kaniko_pod,
     source: str,
     builder_env_list: list,
     project_secrets: list,
@@ -630,7 +630,7 @@ def _append_source_fetch_init_container(
         source=source,
         target=target_dir,
     )
-    kpod.append_init_container(
+    kaniko_pod.append_init_container(
         image,
         command=["python"],
         args=args,

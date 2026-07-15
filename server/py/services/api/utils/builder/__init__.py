@@ -142,26 +142,19 @@ def build_image(
     )
 
     backend = resolve_builder_backend(request)
-    kpod = backend.make_build_pod(request)
+    build_pod = backend.make_build_pod(request)
 
     k8s = framework.utils.singletons.k8s.get_k8s_helper(silent=False)
-    kpod.namespace = k8s.resolve_namespace(namespace)
+    build_pod.namespace = k8s.resolve_namespace(namespace)
 
     if interactive:
-        return k8s.run_job(kpod)
+        return k8s.run_job(build_pod)
     else:
-        pod, ns = k8s.create_pod(kpod)
+        pod, ns = k8s.create_pod(build_pod)
         mlrun.utils.logger.info(
             "Build started", pod=pod, namespace=ns, project=project, image=image_target
         )
         return f"build:{pod}"
-
-
-# registry of available builder backends, keyed by the ``httpdb.builder.builder_backend``
-# config value. buildah and future engines register here without touching the shared path.
-_BUILDER_BACKENDS: dict[str, type[BuilderBackend]] = {
-    "kaniko": KanikoBackend,
-}
 
 
 def resolve_builder_backend(request: BuildRequest) -> BuilderBackend:
@@ -176,12 +169,17 @@ def resolve_builder_backend(request: BuildRequest) -> BuilderBackend:
     :return: The builder backend instance for this build.
     :raises mlrun.errors.MLRunInvalidArgumentError: If the configured backend is unknown.
     """
+    # keyed by the httpdb.builder.builder_backend config value; buildah and future
+    # engines register here without touching the shared path.
+    backends: dict[str, type[BuilderBackend]] = {
+        "kaniko": KanikoBackend,
+    }
     backend_name = config.httpdb.builder.builder_backend
-    backend_class = _BUILDER_BACKENDS.get(backend_name)
+    backend_class = backends.get(backend_name)
     if backend_class is None:
         raise mlrun.errors.MLRunInvalidArgumentError(
             f"Unsupported builder backend '{backend_name}'. "
-            f"Supported backends: {', '.join(sorted(_BUILDER_BACKENDS))}"
+            f"Supported backends: {', '.join(sorted(backends))}"
         )
     return backend_class()
 

@@ -1,4 +1,4 @@
-# Copyright 2025 Iguazio
+# Copyright 2024 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,46 +12,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from enum import Enum, StrEnum
 
-from pydantic.v1 import BaseModel
+# Environment-dispatched facade preserving the
+# ``mlrun.common.schemas.serving`` import path. Mirrors the full namespace of the underlying
+# module(s) — public names plus the private helpers and re-exports callers rely
+# on — so the submodule path stays byte-for-byte importable across the split.
+from ._dispatch import USE_V2_SCHEMAS as _USE_V2
+from ._shared import serving as _shared_mod
 
-from .background_task import BackgroundTaskList
+if _USE_V2:
+    from ._v2 import serving as _face_mod
+else:
+    from ._v1 import serving as _face_mod
 
-
-class DeployResponse(BaseModel):
-    data: dict
-    background_tasks: BackgroundTaskList
-
-
-class ModelRunnerStepData(StrEnum):
-    MODELS = "models"
-    MODEL_TO_EXECUTION_MECHANISM = "execution_mechanism_by_model_name"
-    MONITORING_DATA = "monitoring_data"
-
-
-class MonitoringData(StrEnum):
-    INPUTS = "inputs"
-    OUTPUTS = "outputs"
-    INPUT_PATH = "input_path"
-    RESULT_PATH = "result_path"
-    CREATION_STRATEGY = "creation_strategy"
-    LABELS = "labels"
-    MODEL_PATH = "model_path"
-    MODEL_ENDPOINT_UID = "model_endpoint_uid"
-    MODEL_CLASS = "model_class"
-
-
-class ModelsData(Enum):
-    MODEL_CLASS = 0
-    MODEL_PARAMETERS = 1
-
-
-MAX_BATCH_JOB_DURATION = "1w"
-
-
-class APIHandlerAction(StrEnum):
-    """Supported API handler actions for serving endpoints"""
-
-    ALLOW = "allow"
-    FORBID = "forbid"
+globals().update(
+    {_n: _v for _n, _v in vars(_shared_mod).items() if not _n.startswith("__")}
+)
+globals().update(
+    {_n: _v for _n, _v in vars(_face_mod).items() if not _n.startswith("__")}
+)
+__all__ = [*_shared_mod.__all__, *_face_mod.__all__]
+del _shared_mod, _face_mod

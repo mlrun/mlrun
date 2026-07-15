@@ -1,4 +1,4 @@
-# Copyright 2023 Iguazio
+# Copyright 2024 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,41 +13,23 @@
 # limitations under the License.
 
 
-import pydantic.v1
+# Environment-dispatched facade preserving the
+# ``mlrun.common.schemas.runtime_resource`` import path. Mirrors the full namespace of the underlying
+# module(s) — public names plus the private helpers and re-exports callers rely
+# on — so the submodule path stays byte-for-byte importable across the split.
+from ._dispatch import USE_V2_SCHEMAS as _USE_V2
+from ._shared import runtime_resource as _shared_mod
 
-import mlrun.common.types
+if _USE_V2:
+    from ._v2 import runtime_resource as _face_mod
+else:
+    from ._v1 import runtime_resource as _face_mod
 
-
-class ListRuntimeResourcesGroupByField(mlrun.common.types.StrEnum):
-    job = "job"
-    project = "project"
-
-
-class RuntimeResource(pydantic.v1.BaseModel):
-    name: str
-    labels: dict[str, str] = {}
-    status: dict | None
-
-
-class RuntimeResources(pydantic.v1.BaseModel):
-    crd_resources: list[RuntimeResource] = []
-    pod_resources: list[RuntimeResource] = []
-    # only for dask runtime
-    service_resources: list[RuntimeResource] | None = None
-
-    class Config:
-        extra = pydantic.v1.Extra.allow
-
-
-class KindRuntimeResources(pydantic.v1.BaseModel):
-    kind: str
-    resources: RuntimeResources
-
-
-RuntimeResourcesOutput = list[KindRuntimeResources]
-
-
-# project name -> job uid -> runtime resources
-GroupedByJobRuntimeResourcesOutput = dict[str, dict[str, RuntimeResources]]
-# project name -> kind -> runtime resources
-GroupedByProjectRuntimeResourcesOutput = dict[str, dict[str, RuntimeResources]]
+globals().update(
+    {_n: _v for _n, _v in vars(_shared_mod).items() if not _n.startswith("__")}
+)
+globals().update(
+    {_n: _v for _n, _v in vars(_face_mod).items() if not _n.startswith("__")}
+)
+__all__ = [*_shared_mod.__all__, *_face_mod.__all__]
+del _shared_mod, _face_mod

@@ -1,4 +1,4 @@
-# Copyright 2023 Iguazio
+# Copyright 2024 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,16 +13,23 @@
 # limitations under the License.
 
 
-import pydantic.v1
+# Environment-dispatched facade preserving the
+# ``mlrun.common.schemas.clusterization_spec`` import path. Mirrors the full namespace of the underlying
+# module(s) — public names plus the private helpers and re-exports callers rely
+# on — so the submodule path stays byte-for-byte importable across the split.
+from ._dispatch import USE_V2_SCHEMAS as _USE_V2
+from ._shared import clusterization_spec as _shared_mod
 
-import mlrun.common.types
+if _USE_V2:
+    from ._v2 import clusterization_spec as _face_mod
+else:
+    from ._v1 import clusterization_spec as _face_mod
 
-
-class ClusterizationSpec(pydantic.v1.BaseModel):
-    chief_api_state: str | None
-    chief_version: str | None
-
-
-class WaitForChiefToReachOnlineStateFeatureFlag(mlrun.common.types.StrEnum):
-    enabled = "enabled"
-    disabled = "disabled"
+globals().update(
+    {_n: _v for _n, _v in vars(_shared_mod).items() if not _n.startswith("__")}
+)
+globals().update(
+    {_n: _v for _n, _v in vars(_face_mod).items() if not _n.startswith("__")}
+)
+__all__ = [*_shared_mod.__all__, *_face_mod.__all__]
+del _shared_mod, _face_mod

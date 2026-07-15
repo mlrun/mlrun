@@ -1,4 +1,4 @@
-# Copyright 2023 Iguazio
+# Copyright 2024 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,54 +12,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Union
 
-from pydantic.v1 import BaseModel
+# Environment-dispatched facade preserving the
+# ``mlrun.common.schemas.model_monitoring.grafana`` import path. Mirrors the full namespace of the underlying
+# module(s) — public names plus the private helpers and re-exports callers rely
+# on — so the submodule path stays byte-for-byte importable across the split.
+from .._dispatch import USE_V2_SCHEMAS as _USE_V2
+from .._shared.model_monitoring import grafana as _shared_mod
 
-import mlrun.common.types
+if _USE_V2:
+    from .._v2.model_monitoring import grafana as _face_mod
+else:
+    from .._v1.model_monitoring import grafana as _face_mod
 
-
-class GrafanaColumnType(mlrun.common.types.StrEnum):
-    NUMBER = "number"
-    STRING = "string"
-
-
-class GrafanaColumn(BaseModel):
-    text: str
-    type: str
-
-
-class GrafanaNumberColumn(GrafanaColumn):
-    type: str = GrafanaColumnType.NUMBER
-
-
-class GrafanaStringColumn(GrafanaColumn):
-    type: str = GrafanaColumnType.STRING
-
-
-class GrafanaTable(BaseModel):
-    columns: list[GrafanaColumn]
-    rows: list[list[Union[float, int, str] | None]] = []
-    type: str = "table"
-
-    def add_row(self, *args):
-        self.rows.append(list(args))
-
-
-class GrafanaModelEndpointsTable(GrafanaTable):
-    def __init__(self):
-        columns = self._init_columns()
-        super().__init__(columns=columns)
-
-    @staticmethod
-    def _init_columns():
-        return [
-            GrafanaColumn(text="endpoint_id", type=GrafanaColumnType.STRING),
-            GrafanaColumn(text="endpoint_name", type=GrafanaColumnType.STRING),
-            GrafanaColumn(text="endpoint_function", type=GrafanaColumnType.STRING),
-            GrafanaColumn(text="endpoint_model", type=GrafanaColumnType.STRING),
-            GrafanaColumn(text="endpoint_model_class", type=GrafanaColumnType.STRING),
-            GrafanaColumn(text="error_count", type=GrafanaColumnType.NUMBER),
-            GrafanaColumn(text="drift_status", type=GrafanaColumnType.NUMBER),
-            GrafanaColumn(text="sampling_percentage", type=GrafanaColumnType.NUMBER),
-        ]
+globals().update(
+    {_n: _v for _n, _v in vars(_shared_mod).items() if not _n.startswith("__")}
+)
+globals().update(
+    {_n: _v for _n, _v in vars(_face_mod).items() if not _n.startswith("__")}
+)
+__all__ = [*_shared_mod.__all__, *_face_mod.__all__]
+del _shared_mod, _face_mod

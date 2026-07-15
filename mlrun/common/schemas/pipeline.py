@@ -1,4 +1,4 @@
-# Copyright 2023 Iguazio
+# Copyright 2024 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,19 +12,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import typing
 
-import pydantic.v1
+# Environment-dispatched facade preserving the
+# ``mlrun.common.schemas.pipeline`` import path. Mirrors the full namespace of the underlying
+# module(s) — public names plus the private helpers and re-exports callers rely
+# on — so the submodule path stays byte-for-byte importable across the split.
+from ._dispatch import USE_V2_SCHEMAS as _USE_V2
+from ._shared import pipeline as _shared_mod
 
+if _USE_V2:
+    from ._v2 import pipeline as _face_mod
+else:
+    from ._v1 import pipeline as _face_mod
 
-class PipelinesPagination(str):
-    default_page_size = 200
-    # https://github.com/kubeflow/pipelines/blob/release-2.16/backend/src/apiserver/list/list.go#L385
-    max_page_size = 200
-
-
-class PipelinesOutput(pydantic.v1.BaseModel):
-    # use the format query param to control what is returned
-    runs: list[typing.Union[dict, str]]
-    total_size: int
-    next_page_token: str | None
+globals().update(
+    {_n: _v for _n, _v in vars(_shared_mod).items() if not _n.startswith("__")}
+)
+globals().update(
+    {_n: _v for _n, _v in vars(_face_mod).items() if not _n.startswith("__")}
+)
+__all__ = [*_shared_mod.__all__, *_face_mod.__all__]
+del _shared_mod, _face_mod

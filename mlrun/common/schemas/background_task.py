@@ -1,4 +1,4 @@
-# Copyright 2023 Iguazio
+# Copyright 2024 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,57 +12,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import datetime
 
-import pydantic.v1
+# Environment-dispatched facade preserving the
+# ``mlrun.common.schemas.background_task`` import path. Mirrors the full namespace of the underlying
+# module(s) — public names plus the private helpers and re-exports callers rely
+# on — so the submodule path stays byte-for-byte importable across the split.
+from ._dispatch import USE_V2_SCHEMAS as _USE_V2
+from ._shared import background_task as _shared_mod
 
-import mlrun.common.types
+if _USE_V2:
+    from ._v2 import background_task as _face_mod
+else:
+    from ._v1 import background_task as _face_mod
 
-from .object import ObjectKind
-
-
-class BackGroundTaskLabel(mlrun.common.types.StrEnum):
-    pipeline = "pipeline"
-
-
-class BackgroundTaskState(mlrun.common.types.StrEnum):
-    succeeded = "succeeded"
-    failed = "failed"
-    running = "running"
-
-    @staticmethod
-    def terminal_states():
-        return [
-            BackgroundTaskState.succeeded,
-            BackgroundTaskState.failed,
-        ]
-
-
-class BackgroundTaskMetadata(pydantic.v1.BaseModel):
-    name: str
-    id: int | None
-    kind: str | None
-    project: str | None
-    created: datetime.datetime | None
-    updated: datetime.datetime | None
-    timeout: int | None
-
-
-class BackgroundTaskSpec(pydantic.v1.BaseModel):
-    pass
-
-
-class BackgroundTaskStatus(pydantic.v1.BaseModel):
-    state: BackgroundTaskState
-    error: str | None
-
-
-class BackgroundTask(pydantic.v1.BaseModel):
-    kind: ObjectKind = pydantic.v1.Field(ObjectKind.background_task, const=True)
-    metadata: BackgroundTaskMetadata
-    spec: BackgroundTaskSpec
-    status: BackgroundTaskStatus
-
-
-class BackgroundTaskList(pydantic.v1.BaseModel):
-    background_tasks: list[BackgroundTask]
+globals().update(
+    {_n: _v for _n, _v in vars(_shared_mod).items() if not _n.startswith("__")}
+)
+globals().update(
+    {_n: _v for _n, _v in vars(_face_mod).items() if not _n.startswith("__")}
+)
+__all__ = [*_shared_mod.__all__, *_face_mod.__all__]
+del _shared_mod, _face_mod

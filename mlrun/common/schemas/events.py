@@ -1,4 +1,4 @@
-# Copyright 2023 Iguazio
+# Copyright 2024 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,48 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import mlrun.common.types
 
+# Environment-dispatched facade preserving the
+# ``mlrun.common.schemas.events`` import path. Mirrors the full namespace of the underlying
+# module(s) — public names plus the private helpers and re-exports callers rely
+# on — so the submodule path stays byte-for-byte importable across the split.
+from ._shared import events as _shared_mod
 
-class EventsModes(mlrun.common.types.StrEnum):
-    enabled = "enabled"
-    disabled = "disabled"
-
-
-class EventClientKinds(mlrun.common.types.StrEnum):
-    iguazio = "iguazio"
-    iguazio_v4 = "iguazio-v4"
-    nop = "nop"
-
-
-class SecretEventActions(mlrun.common.types.StrEnum):
-    created = "created"
-    updated = "updated"
-    deleted = "deleted"
-
-
-class AuthSecretEventActions(mlrun.common.types.StrEnum):
-    created = "created"
-    updated = "updated"
-
-
-class MigrationEventActions(mlrun.common.types.StrEnum):
-    required = "required"
-    started = "started"
-    completed = "completed"
-    failed = "failed"
-
-
-class DBConnectionEventActions(mlrun.common.types.StrEnum):
-    failed = "failed"
-
-
-class LogCollectorEventActions(mlrun.common.types.StrEnum):
-    failed = "failed"
-
-
-class ProjectLifecycleEventActions(mlrun.common.types.StrEnum):
-    creation_succeeded = "creation_succeeded"
-    creation_failed = "creation_failed"
-    deletion_succeeded = "deletion_succeeded"
-    deletion_failed = "deletion_failed"
+globals().update(
+    {_n: _v for _n, _v in vars(_shared_mod).items() if not _n.startswith("__")}
+)
+__all__ = list(
+    getattr(
+        _shared_mod,
+        "__all__",
+        [_n for _n in vars(_shared_mod) if not _n.startswith("_")],
+    )
+)
+del _shared_mod

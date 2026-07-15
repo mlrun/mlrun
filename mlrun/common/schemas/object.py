@@ -1,4 +1,4 @@
-# Copyright 2023 Iguazio
+# Copyright 2024 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,72 +12,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from datetime import datetime
 
-from pydantic.v1 import BaseModel, Extra
+# Environment-dispatched facade preserving the
+# ``mlrun.common.schemas.object`` import path. Mirrors the full namespace of the underlying
+# module(s) — public names plus the private helpers and re-exports callers rely
+# on — so the submodule path stays byte-for-byte importable across the split.
+from ._dispatch import USE_V2_SCHEMAS as _USE_V2
+from ._shared import object as _shared_mod
 
-import mlrun.common.types
+if _USE_V2:
+    from ._v2 import object as _face_mod
+else:
+    from ._v1 import object as _face_mod
 
-
-class ObjectMetadata(BaseModel):
-    name: str
-    project: str | None
-    tag: str | None
-    labels: dict | None = {}
-    updated: datetime | None
-    created: datetime | None
-    uid: str | None
-
-    class Config:
-        extra = Extra.allow
-
-
-class ObjectStatus(BaseModel):
-    state: str | None
-
-    class Config:
-        extra = Extra.allow
-
-
-class ObjectSpec(BaseModel):
-    class Config:
-        extra = Extra.allow
-
-
-class LabelRecord(BaseModel):
-    id: int
-    name: str
-    value: str
-
-    class Config:
-        orm_mode = True
-
-
-class ObjectRecord(BaseModel):
-    id: int
-    name: str
-    project: str
-    uid: str
-    updated: datetime | None = None
-    labels: list[LabelRecord]
-    # state is extracted from the full status dict to enable queries
-    state: str | None = None
-    full_object: dict | None = None
-
-    class Config:
-        orm_mode = True
-
-
-class ObjectKind(mlrun.common.types.StrEnum):
-    project = "project"
-    feature_set = "FeatureSet"
-    background_task = "BackgroundTask"
-    feature_vector = "FeatureVector"
-    model_endpoint = "model-endpoint"
-    hub_source = "HubSource"
-    hub_item = "HubItem"
-    hub_catalog = "HubCatalog"
-
-
-class ObjectStatusState(mlrun.common.types.StrEnum):
-    CREATED = "created"
+globals().update(
+    {_n: _v for _n, _v in vars(_shared_mod).items() if not _n.startswith("__")}
+)
+globals().update(
+    {_n: _v for _n, _v in vars(_face_mod).items() if not _n.startswith("__")}
+)
+__all__ = [*_shared_mod.__all__, *_face_mod.__all__]
+del _shared_mod, _face_mod

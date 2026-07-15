@@ -1,4 +1,4 @@
-# Copyright 2025 Iguazio
+# Copyright 2024 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,65 +12,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import enum
-from datetime import datetime
 
-from pydantic.v1 import BaseModel
+# Environment-dispatched facade preserving the
+# ``mlrun.common.schemas.model_monitoring.functions`` import path. Mirrors the full namespace of the underlying
+# module(s) — public names plus the private helpers and re-exports callers rely
+# on — so the submodule path stays byte-for-byte importable across the split.
+from .._dispatch import USE_V2_SCHEMAS as _USE_V2
+from .._shared.model_monitoring import functions as _shared_mod
 
+if _USE_V2:
+    from .._v2.model_monitoring import functions as _face_mod
+else:
+    from .._v1.model_monitoring import functions as _face_mod
 
-class FunctionsType(enum.Enum):
-    APPLICATION = "application"
-    INFRA = "infra"
-
-
-class FunctionSummary(BaseModel):
-    """
-    Function summary model. Includes metadata about the function, such as its name, as well as statistical
-    metrics such as the number of detections and possible detections. A function summary can be from either a
-    model monitoring application (type "application") or an infrastructure function (type "infra").
-    """
-
-    type: FunctionsType
-    name: str
-    application_class: str
-    project_name: str
-    updated_time: datetime
-    status: str | None = None
-    base_period: int | None = None
-    stats: dict | None = None
-
-    @classmethod
-    def from_function_dict(
-        cls,
-        func_dict: dict,
-        func_type=FunctionsType.APPLICATION,
-        base_period: int | None = None,
-        stats: dict | None = None,
-    ):
-        """
-        Create a FunctionSummary instance from a dictionary.
-        """
-
-        return cls(
-            type=func_type,
-            name=func_dict["metadata"]["name"]
-            if func_type != FunctionsType.APPLICATION
-            else func_dict["spec"]
-            .get("graph", {})
-            .get("steps", {})
-            .get("PrepareMonitoringEvent", {})
-            .get("class_args", {})
-            .get("application_name"),
-            application_class=""
-            if func_type != FunctionsType.APPLICATION
-            else func_dict["spec"]
-            .get("graph", {})
-            .get("steps", {})
-            .get("PushToMonitoringWriter", {})
-            .get("after", [None])[0],
-            project_name=func_dict["metadata"]["project"],
-            updated_time=func_dict["metadata"].get("updated"),
-            status=func_dict["status"].get("state"),
-            base_period=base_period,
-            stats=stats or {},
-        )
+globals().update(
+    {_n: _v for _n, _v in vars(_shared_mod).items() if not _n.startswith("__")}
+)
+globals().update(
+    {_n: _v for _n, _v in vars(_face_mod).items() if not _n.startswith("__")}
+)
+__all__ = [*_shared_mod.__all__, *_face_mod.__all__]
+del _shared_mod, _face_mod

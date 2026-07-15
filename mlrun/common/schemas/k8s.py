@@ -1,4 +1,4 @@
-# Copyright 2023 Iguazio
+# Copyright 2024 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,31 +13,23 @@
 # limitations under the License.
 
 
-import pydantic.v1
+# Environment-dispatched facade preserving the
+# ``mlrun.common.schemas.k8s`` import path. Mirrors the full namespace of the underlying
+# module(s) — public names plus the private helpers and re-exports callers rely
+# on — so the submodule path stays byte-for-byte importable across the split.
+from ._dispatch import USE_V2_SCHEMAS as _USE_V2
+from ._shared import k8s as _shared_mod
 
-import mlrun.common.types
+if _USE_V2:
+    from ._v2 import k8s as _face_mod
+else:
+    from ._v1 import k8s as _face_mod
 
-
-class ResourceSpec(pydantic.v1.BaseModel):
-    cpu: str | None
-    memory: str | None
-    gpu: str | None
-
-
-class Resources(pydantic.v1.BaseModel):
-    requests: ResourceSpec = ResourceSpec()
-    limits: ResourceSpec = ResourceSpec()
-
-
-class NodeSelectorOperator(mlrun.common.types.StrEnum):
-    """
-    A node selector operator is the set of operators that can be used in a node selector requirement
-    https://github.com/kubernetes/api/blob/b754a94214be15ffc8d648f9fe6481857f1fc2fe/core/v1/types.go#L2765
-    """
-
-    node_selector_op_in = "In"
-    node_selector_op_not_in = "NotIn"
-    node_selector_op_exists = "Exists"
-    node_selector_op_does_not_exist = "DoesNotExist"
-    node_selector_op_gt = "Gt"
-    node_selector_op_lt = "Lt"
+globals().update(
+    {_n: _v for _n, _v in vars(_shared_mod).items() if not _n.startswith("__")}
+)
+globals().update(
+    {_n: _v for _n, _v in vars(_face_mod).items() if not _n.startswith("__")}
+)
+__all__ = [*_shared_mod.__all__, *_face_mod.__all__]
+del _shared_mod, _face_mod

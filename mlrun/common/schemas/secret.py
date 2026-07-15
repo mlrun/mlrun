@@ -1,4 +1,4 @@
-# Copyright 2023 Iguazio
+# Copyright 2024 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,90 +12,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from datetime import datetime
 
-from pydantic.v1 import BaseModel, Field
+# Environment-dispatched facade preserving the
+# ``mlrun.common.schemas.secret`` import path. Mirrors the full namespace of the underlying
+# module(s) — public names plus the private helpers and re-exports callers rely
+# on — so the submodule path stays byte-for-byte importable across the split.
+from ._dispatch import USE_V2_SCHEMAS as _USE_V2
+from ._shared import secret as _shared_mod
 
-import mlrun.common.types
+if _USE_V2:
+    from ._v2 import secret as _face_mod
+else:
+    from ._v1 import secret as _face_mod
 
-
-class SecretProviderName(mlrun.common.types.StrEnum):
-    """Enum containing names of valid providers for secrets."""
-
-    vault = "vault"
-    kubernetes = "kubernetes"
-
-
-class SecretsData(BaseModel):
-    provider: SecretProviderName = Field(SecretProviderName.vault)
-    secrets: dict | None = {}
-
-
-class AuthSecretData(BaseModel):
-    provider: SecretProviderName = Field(SecretProviderName.kubernetes)
-    username: str
-    access_key: str
-
-    @staticmethod
-    def get_field_secret_key(field: str):
-        return {
-            "username": "username",
-            "access_key": "accessKey",
-        }[field]
-
-
-class SecretKeysData(BaseModel):
-    provider: SecretProviderName = Field(SecretProviderName.vault)
-    secret_keys: list | None = []
-
-
-class SecretToken(BaseModel):
-    name: str
-    token: str
-
-
-class StoreSecretTokensResponse(BaseModel):
-    created_tokens: list[str] = []
-    updated_tokens: list[str] = []
-
-
-class SecretTokenInfo(BaseModel):
-    name: str
-    expiration: datetime
-    issued_at: datetime
-    user_id: str
-    username: str
-
-
-class ListSecretTokensResponse(BaseModel):
-    secret_tokens: list[SecretTokenInfo]
-
-
-class DeleteSecretTokenResponse(BaseModel):
-    """Response for single token deletion."""
-
-    deleted: bool = Field(
-        default=True,
-        description="True if token was deleted, False if token was not found",
-    )
-    username: str | None = Field(
-        default=None,
-        description="The resolved username of the token owner",
-    )
-
-
-class DeleteSecretTokensResponse(BaseModel):
-    """Response for bulk token deletion."""
-
-    deleted_count: int = Field(
-        default=0,
-        description="Number of tokens successfully deleted",
-    )
-    failed_tokens: list[str] = Field(
-        default_factory=list,
-        description="List of token names that failed to delete",
-    )
-    username: str | None = Field(
-        default=None,
-        description="The resolved username of the token owner",
-    )
+globals().update(
+    {_n: _v for _n, _v in vars(_shared_mod).items() if not _n.startswith("__")}
+)
+globals().update(
+    {_n: _v for _n, _v in vars(_face_mod).items() if not _n.startswith("__")}
+)
+__all__ = [*_shared_mod.__all__, *_face_mod.__all__]
+del _shared_mod, _face_mod

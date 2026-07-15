@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2024 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,66 +12,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import typing
 
-import pydantic.v1
+# Environment-dispatched facade preserving the
+# ``mlrun.common.schemas.workflow`` import path. Mirrors the full namespace of the underlying
+# module(s) — public names plus the private helpers and re-exports callers rely
+# on — so the submodule path stays byte-for-byte importable across the split.
+from ._dispatch import USE_V2_SCHEMAS as _USE_V2
+from ._shared import workflow as _shared_mod
 
-from mlrun.common.schemas.notification import Notification
-from mlrun.common.schemas.schedule import ScheduleCronTrigger
-from mlrun.common.types import StrEnum
+if _USE_V2:
+    from ._v2 import workflow as _face_mod
+else:
+    from ._v1 import workflow as _face_mod
 
-
-class WorkflowSpec(pydantic.v1.BaseModel):
-    name: str
-    engine: str | None = None
-    code: str | None = None
-    path: str | None = None
-    args: dict | None = None
-    handler: str | None = None
-    ttl: int | None = None
-    args_schema: list | None = None
-    schedule: typing.Union[str, ScheduleCronTrigger] = None
-    run_local: bool | None = None
-    image: str | None = None
-    workflow_runner_node_selector: dict[str, str] | None = None
-    auth_token_name: str | None = None
-    run_setup: bool = False
-
-
-class WorkflowRequest(pydantic.v1.BaseModel):
-    spec: WorkflowSpec | None = None
-    arguments: dict | None = None
-    artifact_path: str | None = None
-    source: str | None = None
-    run_name: str | None = None
-    namespace: str | None = None
-    notifications: list[Notification] | None = None
-
-
-class RerunWorkflowRequest(pydantic.v1.BaseModel):
-    run_name: str | None = None
-    run_id: str | None = None
-    notifications: list[Notification] | None = None
-    workflow_runner_node_selector: dict[str, str] | None = None
-    original_workflow_runner_uid: str | None = None
-    original_workflow_name: str | None = None
-    rerun_index: int | None = None
-
-
-class WorkflowResponse(pydantic.v1.BaseModel):
-    project: str = None
-    name: str = None
-    status: str = None
-    run_id: str | None = None
-    schedule: typing.Union[str, ScheduleCronTrigger] = None
-
-
-class GetWorkflowResponse(pydantic.v1.BaseModel):
-    workflow_id: str = None
-
-
-class EngineType(StrEnum):
-    LOCAL = "local"
-    REMOTE = "remote"
-    KFP = "kfp"
-    REMOTE_KFP = "remote:kfp"
+globals().update(
+    {_n: _v for _n, _v in vars(_shared_mod).items() if not _n.startswith("__")}
+)
+globals().update(
+    {_n: _v for _n, _v in vars(_face_mod).items() if not _n.startswith("__")}
+)
+__all__ = [*_shared_mod.__all__, *_face_mod.__all__]
+del _shared_mod, _face_mod

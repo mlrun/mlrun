@@ -13,23 +13,12 @@
 # limitations under the License.
 
 
-# Environment-dispatched facade preserving the
-# ``mlrun.common.schemas.frontend_spec`` import path. Mirrors the full namespace of the underlying
-# module(s) — public names plus the private helpers and re-exports callers rely
-# on — so the submodule path stays byte-for-byte importable across the split.
+# Facade re-exporting the ``_shared`` layer and the active model face, preserving the
+# ``mlrun.common.schemas.frontend_spec`` import path.
 from ._dispatch import USE_V2_SCHEMAS as _USE_V2
-from ._shared import frontend_spec as _shared_mod
+from ._shared.frontend_spec import *  # noqa: F401,F403
 
 if _USE_V2:
-    from ._v2 import frontend_spec as _face_mod
+    from ._v2.frontend_spec import *  # noqa: F401,F403
 else:
-    from ._v1 import frontend_spec as _face_mod
-
-globals().update(
-    {_n: _v for _n, _v in vars(_shared_mod).items() if not _n.startswith("__")}
-)
-globals().update(
-    {_n: _v for _n, _v in vars(_face_mod).items() if not _n.startswith("__")}
-)
-__all__ = [*_shared_mod.__all__, *_face_mod.__all__]
-del _shared_mod, _face_mod
+    from ._v1.frontend_spec import *  # noqa: F401,F403

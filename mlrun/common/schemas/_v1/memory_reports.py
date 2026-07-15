@@ -27,9 +27,3 @@ class ObjectTypeReport(pydantic.v1.BaseModel):
     start_index: int | None
     max_depth: int
     object_report: list[dict[str, typing.Any]]
-
-
-__all__ = [
-    "MostCommonObjectTypesReport",
-    "ObjectTypeReport",
-]

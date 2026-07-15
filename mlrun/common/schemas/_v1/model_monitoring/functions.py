@@ -70,8 +70,3 @@ class FunctionSummary(BaseModel):
             base_period=base_period,
             stats=stats or {},
         )
-
-
-__all__ = [
-    "FunctionSummary",
-]

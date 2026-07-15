@@ -46,13 +46,19 @@ def test_v2_package_present_but_empty():
     """ML-12890 delivers ``_v2`` as an empty face; native v2 models arrive in ML-12891."""
     from mlrun.common.schemas import _v2
 
-    assert _v2.__all__ == []
-    # per-topic stubs exist (so the facade dispatch resolves) but export nothing yet
-    assert importlib.import_module("mlrun.common.schemas._v2.alert").__all__ == []
+    def public_names(module):
+        return [name for name in vars(module) if not name.startswith("_")]
+
+    # the package imports and the per-topic stubs exist (so the facade dispatch
+    # resolves statically), but nothing is defined in them yet
+    assert public_names(_v2) == []
+    assert public_names(importlib.import_module("mlrun.common.schemas._v2.alert")) == []
     assert (
-        importlib.import_module(
-            "mlrun.common.schemas._v2.model_monitoring.model_endpoints"
-        ).__all__
+        public_names(
+            importlib.import_module(
+                "mlrun.common.schemas._v2.model_monitoring.model_endpoints"
+            )
+        )
         == []
     )
 
@@ -87,6 +93,12 @@ def test_flat_public_name_importable(name):
         ("mlrun.common.schemas.constants", "PatchMode"),
         ("mlrun.common.schemas.model_monitoring.constants", "TSDBTarget"),
         ("mlrun.common.schemas.model_monitoring.model_endpoints", "ModelEndpoint"),
+        # FQN parse/compose helpers are public (used cross-module by the API server)
+        (
+            "mlrun.common.schemas.model_monitoring.model_endpoints",
+            "parse_metric_fqn_to_monitoring_metric",
+        ),
+        ("mlrun.common.schemas.model_monitoring.model_endpoints", "compose_full_name"),
     ],
 )
 def test_submodule_public_name_importable(module_path, name):
@@ -94,21 +106,13 @@ def test_submodule_public_name_importable(module_path, name):
     assert hasattr(module, name), f"{module_path}.{name} must stay importable"
 
 
-@pytest.mark.parametrize(
-    "module_path,name",
-    [
-        # regressions: private helpers imported directly by callers/tests; ``import *``
-        # would drop them, so the facades mirror the full module namespace.
-        ("mlrun.common.schemas.alert", "_event_kind_entity_map"),
-        (
-            "mlrun.common.schemas.model_monitoring.model_endpoints",
-            "_parse_metric_fqn_to_monitoring_metric",
-        ),
-    ],
-)
-def test_private_helper_still_importable(module_path, name):
-    module = importlib.import_module(module_path)
-    assert hasattr(module, name), f"{module_path}.{name} must stay importable"
+def test_event_kind_entity_map_lives_in_shared():
+    """The version-agnostic event→entity mapping is a single source in ``_shared``
+    (stable path across the v1→v2 flip) and is not leaked onto the public facade."""
+    from mlrun.common.schemas._shared.alert import _event_kind_entity_map  # noqa: F401
+
+    facade = importlib.import_module("mlrun.common.schemas.alert")
+    assert not hasattr(facade, "_event_kind_entity_map")
 
 
 @pytest.mark.parametrize(

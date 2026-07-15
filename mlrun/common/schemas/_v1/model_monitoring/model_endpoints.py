@@ -12,16 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import abc
-import json
 from datetime import datetime
-from typing import Any, Literal, NamedTuple, TypeVar
+from typing import Any, Literal, TypeVar
 from uuid import UUID
 
 from pydantic import validator  # use `validator` if you’re still on Pydantic v1
 from pydantic.v1 import BaseModel, Field, constr
 
-# TODO: remove the unused import below after `mlrun.datastore` and `mlrun.utils` usage is removed.
-# At the moment `make lint` fails if this is removed.
 from ..._shared.model_monitoring.constants import (
     FQN_REGEX,
     MODEL_ENDPOINT_ID_PATTERN,
@@ -34,6 +31,13 @@ from ..._shared.model_monitoring.constants import (
     ModelMonitoringMode,
     ResultKindApp,
     ResultStatusApp,
+)
+from ..._shared.model_monitoring.model_endpoints import (
+    MetricPoint,
+    _DriftBin,
+    _json_loads_if_not_none,
+    _ResultPoint,
+    compose_full_name,
 )
 from ..._shared.object import ObjectKind
 from ..object import ObjectMetadata, ObjectSpec, ObjectStatus
@@ -357,35 +361,13 @@ class ModelEndpointMonitoringMetric(BaseModel):
         )
 
 
-def compose_full_name(
-    *,
-    project: str,
-    app: str,
-    name: str,
-    type: ModelEndpointMonitoringMetricType = ModelEndpointMonitoringMetricType.RESULT,
-) -> str:
-    return ".".join([project, app, type, name])
-
-
-def _parse_metric_fqn_to_monitoring_metric(fqn: str) -> ModelEndpointMonitoringMetric:
+def parse_metric_fqn_to_monitoring_metric(fqn: str) -> ModelEndpointMonitoringMetric:
     match = FQN_REGEX.fullmatch(fqn)
     if match is None:
         raise ValueError("The fully qualified name is not in the expected format")
     return ModelEndpointMonitoringMetric.parse_obj(
         match.groupdict() | {"full_name": fqn}
     )
-
-
-class _MetricPoint(NamedTuple):
-    timestamp: datetime
-    value: float
-
-
-class _ResultPoint(NamedTuple):
-    timestamp: datetime
-    value: float
-    status: ResultStatusApp
-    extra_data: str | None = ""
 
 
 class _ModelEndpointMonitoringMetricValuesBase(BaseModel):
@@ -396,7 +378,7 @@ class _ModelEndpointMonitoringMetricValuesBase(BaseModel):
 
 class ModelEndpointMonitoringMetricValues(_ModelEndpointMonitoringMetricValuesBase):
     type: ModelEndpointMonitoringMetricType = ModelEndpointMonitoringMetricType.METRIC
-    values: list[_MetricPoint]
+    values: list[MetricPoint]
     data: bool = True
 
 
@@ -429,12 +411,6 @@ class ApplicationResultRecord(ApplicationBaseRecord):
 class ApplicationMetricRecord(ApplicationBaseRecord):
     metric_name: str
     type: Literal["metric"] = "metric"
-
-
-class _DriftBin(NamedTuple):
-    timestamp: datetime
-    count_suspected: int
-    count_detected: int
 
 
 class ModelEndpointDriftValues(BaseModel):
@@ -478,33 +454,3 @@ def _mapping_attributes(
         return model_class.parse_obj(dict_to_parse)
 
     return model_class.construct(**dict_to_parse)
-
-
-def _json_loads_if_not_none(field: Any) -> Any:
-    return (
-        json.loads(field) if field and field != "null" and field is not None else None
-    )
-
-
-__all__ = [
-    "ApplicationBaseRecord",
-    "ApplicationMetricRecord",
-    "ApplicationResultRecord",
-    "FeatureValues",
-    "Features",
-    "Histogram",
-    "Model",
-    "ModelEndpoint",
-    "ModelEndpointDriftValues",
-    "ModelEndpointInstruction",
-    "ModelEndpointList",
-    "ModelEndpointMetadata",
-    "ModelEndpointMonitoringMetric",
-    "ModelEndpointMonitoringMetricNoData",
-    "ModelEndpointMonitoringMetricValues",
-    "ModelEndpointMonitoringResultValues",
-    "ModelEndpointParser",
-    "ModelEndpointSpec",
-    "ModelEndpointStatus",
-    "compose_full_name",
-]

@@ -62,10 +62,3 @@ class AuthInfo(pydantic.v1.BaseModel):
 
 class Credentials(pydantic.v1.BaseModel):
     access_key: str | None
-
-
-__all__ = [
-    "AuthInfo",
-    "AuthorizationVerificationInput",
-    "Credentials",
-]

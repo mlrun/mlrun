@@ -19,8 +19,3 @@ import pydantic.v1
 class ClusterizationSpec(pydantic.v1.BaseModel):
     chief_api_state: str | None
     chief_version: str | None
-
-
-__all__ = [
-    "ClusterizationSpec",
-]

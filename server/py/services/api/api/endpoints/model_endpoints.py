@@ -568,7 +568,7 @@ async def _get_metrics_values_params(
     metrics = []
     results = []
     for fqn in name:
-        metric = mm_endpoints._parse_metric_fqn_to_monitoring_metric(fqn)
+        metric = mm_endpoints.parse_metric_fqn_to_monitoring_metric(fqn)
         if metric.project != project:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Metric '{fqn}' does not belong to the project '{project}' given "

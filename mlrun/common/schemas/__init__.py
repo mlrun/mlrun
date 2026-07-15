@@ -11,66 +11,241 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Environment-dispatched schema package.
 
-On import this always pulls the version-agnostic ``_shared`` layer, then binds the
-model face for the current **environment** — ``_v2`` (native Pydantic 2) in the
-mlrun API server, else ``_v1`` (``pydantic.v1``) for the client/SDK. Selection is by
-environment, not by the installed Pydantic major: a client may run on Pydantic 2 yet
-still needs ``_v1`` because its call-sites use the v1 instance API (see
-``_dispatch``). Everything is re-exported under the unchanged public path
-``mlrun.common.schemas.*``; the per-topic submodules (``mlrun.common.schemas.<topic>``)
-are preserved by thin facades. See the Backend HLD (ML-12736) §2.1.2.
-"""
-
-from ._dispatch import USE_V2_SCHEMAS as _USE_V2
-from ._shared import *  # noqa: F401,F403
-from ._shared import __all__ as _shared_all
-
-if _USE_V2:
-    from ._v2 import *  # noqa: F401,F403
-    from ._v2 import __all__ as _face_all
-else:
-    from ._v1 import *  # noqa: F401,F403
-    from ._v1 import __all__ as _face_all
-
-# Import the per-topic facades so the ``mlrun.common.schemas.<topic>`` submodule
-# paths keep resolving as attributes of the package (callers rely on both the flat
-# names above and the per-topic submodules).
-from . import (  # noqa: E402, F401
-    alert,
-    api_gateway,
-    artifact,
-    auth,
-    background_task,
-    client_spec,
-    clusterization_spec,
-    common,
-    constants,
-    datastore_profile,
-    events,
-    feature_store,
-    frontend_spec,
-    function,
-    http,
-    hub,
-    k8s,
-    memory_reports,
-    model_monitoring,
-    notification,
-    object,
-    pagination,
-    partition_interval,
-    pipeline,
-    project,
-    regex,
-    runs,
-    runtime_resource,
-    schedule,
-    secret,
-    serving,
-    tag,
-    workflow,
+from .alert import (
+    AlertActivation,
+    AlertActivations,
+    AlertActiveState,
+    AlertConfig,
+    AlertCriteria,
+    AlertNotification,
+    AlertTemplate,
+    Event,
 )
-
-__all__ = [*_shared_all, *_face_all]
+from .api_gateway import (
+    APIGateway,
+    APIGatewayAuthenticationMode,
+    APIGatewayBasicAuth,
+    APIGatewayMetadata,
+    APIGatewaysOutput,
+    APIGatewaySpec,
+    APIGatewayState,
+    APIGatewayStatus,
+    APIGatewayUpstream,
+)
+from .artifact import (
+    Artifact,
+    ArtifactCategories,
+    ArtifactIdentifier,
+    ArtifactMetadata,
+    ArtifactSpec,
+)
+from .auth import (
+    AuthInfo,
+    AuthInfoKind,
+    AuthorizationAction,
+    AuthorizationResourceNamespace,
+    AuthorizationResourceTypes,
+    AuthorizationVerificationInput,
+    Credentials,
+    ProjectsRole,
+)
+from .background_task import (
+    BackgroundTask,
+    BackgroundTaskList,
+    BackgroundTaskMetadata,
+    BackgroundTaskSpec,
+    BackgroundTaskState,
+    BackgroundTaskStatus,
+)
+from .client_spec import ClientSpec
+from .clusterization_spec import (
+    ClusterizationSpec,
+    WaitForChiefToReachOnlineStateFeatureFlag,
+)
+from .common import ImageBuilder
+from .constants import (
+    APIStates,
+    ArtifactPartitionByField,
+    AuthorizationHeaderPrefixes,
+    ClusterizationRole,
+    CookieNames,
+    DeletionStrategy,
+    FeatureStorePartitionByField,
+    HeaderNames,
+    LogsCollectorMode,
+    OrderType,
+    PatchMode,
+    RunPartitionByField,
+    SortField,
+)
+from .datastore_profile import DatastoreProfile
+from .events import (
+    AuthSecretEventActions,
+    DBConnectionEventActions,
+    EventClientKinds,
+    EventsModes,
+    LogCollectorEventActions,
+    MigrationEventActions,
+    ProjectLifecycleEventActions,
+    SecretEventActions,
+)
+from .feature_store import (
+    EntitiesOutput,
+    EntitiesOutputV2,
+    Entity,
+    EntityListOutput,
+    EntityRecord,
+    Feature,
+    FeatureListOutput,
+    FeatureRecord,
+    FeatureSet,
+    FeatureSetDigestOutput,
+    FeatureSetDigestOutputV2,
+    FeatureSetDigestSpec,
+    FeatureSetDigestSpecV2,
+    FeatureSetIngestInput,
+    FeatureSetIngestOutput,
+    FeatureSetRecord,
+    FeatureSetsOutput,
+    FeatureSetSpec,
+    FeatureSetsTagsOutput,
+    FeaturesOutput,
+    FeaturesOutputV2,
+    FeatureVector,
+    FeatureVectorRecord,
+    FeatureVectorsOutput,
+    FeatureVectorsTagsOutput,
+)
+from .frontend_spec import (
+    ArtifactLimits,
+    FeatureFlags,
+    FrontendSpec,
+    NuclioStreamsFeatureFlag,
+    PreemptionNodesFeatureFlag,
+    ProjectMembershipFeatureFlag,
+)
+from .function import (
+    BatchingSpec,
+    FunctionState,
+    PreemptionModes,
+    SecurityContextEnrichmentModes,
+)
+from .http import HTTPSessionRetryMode
+from .hub import (
+    HubCatalog,
+    HubItem,
+    HubObjectMetadata,
+    HubSource,
+    HubSourceSpec,
+    IndexedHubSource,
+    last_source_index,
+)
+from .k8s import NodeSelectorOperator, Resources, ResourceSpec
+from .memory_reports import MostCommonObjectTypesReport, ObjectTypeReport
+from .model_monitoring import (
+    DriftStatus,
+    EndpointMode,
+    EndpointType,
+    EndpointUID,
+    EventFieldType,
+    EventKeyMetrics,
+    Features,
+    FeatureSetFeatures,
+    FeatureValues,
+    FileTargetKind,
+    GrafanaColumn,
+    GrafanaNumberColumn,
+    GrafanaStringColumn,
+    GrafanaTable,
+    ModelEndpoint,
+    ModelEndpointCreationStrategy,
+    ModelEndpointDriftValues,
+    ModelEndpointList,
+    ModelEndpointMetadata,
+    ModelEndpointSchema,
+    ModelEndpointSpec,
+    ModelEndpointStatus,
+    ModelMonitoringInfraLabel,
+    ModelMonitoringMode,
+    MonitoringFunctionNames,
+    TSDBTarget,
+    V3IOTSDBTables,
+)
+from .notification import (
+    Notification,
+    NotificationKind,
+    NotificationSeverity,
+    NotificationState,
+    NotificationStatus,
+    NotificationSummary,
+    SetNotificationRequest,
+)
+from .object import ObjectKind, ObjectMetadata, ObjectSpec, ObjectStatus
+from .pagination import PaginationInfo
+from .partition_interval import PartitionInterval
+from .pipeline import PipelinesOutput, PipelinesPagination
+from .project import (
+    IguazioProject,
+    Project,
+    ProjectDesiredState,
+    ProjectMetadata,
+    ProjectMonitoringSpec,
+    ProjectOut,
+    ProjectOutput,
+    ProjectOwner,
+    ProjectsOutput,
+    ProjectSpec,
+    ProjectSpecOut,
+    ProjectState,
+    ProjectStatus,
+    ProjectSummariesOutput,
+    ProjectSummary,
+)
+from .regex import RegexMatchModes
+from .runs import RunIdentifier
+from .runtime_resource import (
+    GroupedByJobRuntimeResourcesOutput,
+    GroupedByProjectRuntimeResourcesOutput,
+    KindRuntimeResources,
+    ListRuntimeResourcesGroupByField,
+    RuntimeResource,
+    RuntimeResources,
+    RuntimeResourcesOutput,
+)
+from .schedule import (
+    ScheduleCronTrigger,
+    ScheduleIdentifier,
+    ScheduleInput,
+    ScheduleKinds,
+    ScheduleOutput,
+    ScheduleRecord,
+    SchedulesOutput,
+    ScheduleUpdate,
+)
+from .secret import (
+    AuthSecretData,
+    DeleteSecretTokenResponse,
+    DeleteSecretTokensResponse,
+    ListSecretTokensResponse,
+    SecretKeysData,
+    SecretProviderName,
+    SecretsData,
+    SecretToken,
+    SecretTokenInfo,
+    StoreSecretTokensResponse,
+)
+from .serving import (
+    APIHandlerAction,
+    ModelRunnerStepData,
+    ModelsData,
+    MonitoringData,
+)
+from .tag import Tag, TagObjects
+from .workflow import (
+    GetWorkflowResponse,
+    RerunWorkflowRequest,
+    WorkflowRequest,
+    WorkflowResponse,
+    WorkflowSpec,
+)

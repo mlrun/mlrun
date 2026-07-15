@@ -64,12 +64,3 @@ class ObjectRecord(BaseModel):
 
     class Config:
         orm_mode = True
-
-
-__all__ = [
-    "LabelRecord",
-    "ObjectMetadata",
-    "ObjectRecord",
-    "ObjectSpec",
-    "ObjectStatus",
-]

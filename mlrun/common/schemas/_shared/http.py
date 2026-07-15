@@ -18,8 +18,3 @@ import mlrun.common.types
 class HTTPSessionRetryMode(mlrun.common.types.StrEnum):
     enabled = "enabled"
     disabled = "disabled"
-
-
-__all__ = [
-    "HTTPSessionRetryMode",
-]

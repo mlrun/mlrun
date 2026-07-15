@@ -25,6 +25,7 @@ from .._shared.alert import (
     EventEntityKind,
     EventKind,
     ResetPolicy,
+    _event_kind_entity_map,
 )
 from . import notification as notification_objects
 
@@ -33,23 +34,6 @@ class EventEntities(pydantic.v1.BaseModel):
     kind: EventEntityKind
     project: str
     ids: pydantic.v1.conlist(str, min_items=1, max_items=1)
-
-
-_event_kind_entity_map = {
-    EventKind.DATA_DRIFT_SUSPECTED: [EventEntityKind.MODEL_ENDPOINT_RESULT],
-    EventKind.DATA_DRIFT_DETECTED: [EventEntityKind.MODEL_ENDPOINT_RESULT],
-    EventKind.CONCEPT_DRIFT_DETECTED: [EventEntityKind.MODEL_ENDPOINT_RESULT],
-    EventKind.CONCEPT_DRIFT_SUSPECTED: [EventEntityKind.MODEL_ENDPOINT_RESULT],
-    EventKind.MODEL_PERFORMANCE_DETECTED: [EventEntityKind.MODEL_ENDPOINT_RESULT],
-    EventKind.MODEL_PERFORMANCE_SUSPECTED: [EventEntityKind.MODEL_ENDPOINT_RESULT],
-    EventKind.SYSTEM_PERFORMANCE_DETECTED: [EventEntityKind.MODEL_ENDPOINT_RESULT],
-    EventKind.SYSTEM_PERFORMANCE_SUSPECTED: [EventEntityKind.MODEL_ENDPOINT_RESULT],
-    EventKind.MM_APP_ANOMALY_DETECTED: [EventEntityKind.MODEL_ENDPOINT_RESULT],
-    EventKind.MM_APP_ANOMALY_SUSPECTED: [EventEntityKind.MODEL_ENDPOINT_RESULT],
-    EventKind.MM_APP_FAILED: [EventEntityKind.MODEL_MONITORING_APPLICATION],
-    EventKind.MODEL_MONITORING_LAG_DETECTED: [EventEntityKind.MODEL_MONITORING_INFRA],
-    EventKind.FAILED: [EventEntityKind.JOB],
-}
 
 
 class Event(pydantic.v1.BaseModel):
@@ -277,16 +261,3 @@ class AlertActivations(pydantic.v1.BaseModel):
             for key, activations in grouped.items()
         }
         return aggregated
-
-
-__all__ = [
-    "AlertActivation",
-    "AlertActivations",
-    "AlertConfig",
-    "AlertCriteria",
-    "AlertNotification",
-    "AlertTemplate",
-    "AlertTrigger",
-    "Event",
-    "EventEntities",
-]

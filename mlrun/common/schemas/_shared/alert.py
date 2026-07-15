@@ -38,6 +38,25 @@ class EventKind(StrEnum):
     FAILED = "failed"
 
 
+# Version-agnostic lookup used by ``_v1``/``_v2`` ``Event.is_valid`` — references only
+# the shared enums above, so it lives here (single source, cannot drift between faces).
+_event_kind_entity_map = {
+    EventKind.DATA_DRIFT_SUSPECTED: [EventEntityKind.MODEL_ENDPOINT_RESULT],
+    EventKind.DATA_DRIFT_DETECTED: [EventEntityKind.MODEL_ENDPOINT_RESULT],
+    EventKind.CONCEPT_DRIFT_DETECTED: [EventEntityKind.MODEL_ENDPOINT_RESULT],
+    EventKind.CONCEPT_DRIFT_SUSPECTED: [EventEntityKind.MODEL_ENDPOINT_RESULT],
+    EventKind.MODEL_PERFORMANCE_DETECTED: [EventEntityKind.MODEL_ENDPOINT_RESULT],
+    EventKind.MODEL_PERFORMANCE_SUSPECTED: [EventEntityKind.MODEL_ENDPOINT_RESULT],
+    EventKind.SYSTEM_PERFORMANCE_DETECTED: [EventEntityKind.MODEL_ENDPOINT_RESULT],
+    EventKind.SYSTEM_PERFORMANCE_SUSPECTED: [EventEntityKind.MODEL_ENDPOINT_RESULT],
+    EventKind.MM_APP_ANOMALY_DETECTED: [EventEntityKind.MODEL_ENDPOINT_RESULT],
+    EventKind.MM_APP_ANOMALY_SUSPECTED: [EventEntityKind.MODEL_ENDPOINT_RESULT],
+    EventKind.MM_APP_FAILED: [EventEntityKind.MODEL_MONITORING_APPLICATION],
+    EventKind.MODEL_MONITORING_LAG_DETECTED: [EventEntityKind.MODEL_MONITORING_INFRA],
+    EventKind.FAILED: [EventEntityKind.JOB],
+}
+
+
 class AlertActiveState(StrEnum):
     ACTIVE = "active"
     INACTIVE = "inactive"
@@ -57,13 +76,3 @@ class ResetPolicy(StrEnum):
 class AlertsModes(StrEnum):
     enabled = "enabled"
     disabled = "disabled"
-
-
-__all__ = [
-    "AlertActiveState",
-    "AlertSeverity",
-    "AlertsModes",
-    "EventEntityKind",
-    "EventKind",
-    "ResetPolicy",
-]

@@ -25,9 +25,3 @@ class ResourceSpec(pydantic.v1.BaseModel):
 class Resources(pydantic.v1.BaseModel):
     requests: ResourceSpec = ResourceSpec()
     limits: ResourceSpec = ResourceSpec()
-
-
-__all__ = [
-    "ResourceSpec",
-    "Resources",
-]

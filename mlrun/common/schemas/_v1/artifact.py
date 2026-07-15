@@ -61,11 +61,3 @@ class Artifact(pydantic.v1.BaseModel):
     metadata: ArtifactMetadata
     spec: ArtifactSpec
     status: ObjectStatus
-
-
-__all__ = [
-    "Artifact",
-    "ArtifactIdentifier",
-    "ArtifactMetadata",
-    "ArtifactSpec",
-]

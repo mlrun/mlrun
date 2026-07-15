@@ -196,20 +196,3 @@ class ProjectsOutput(pydantic.v1.BaseModel):
 
 class ProjectSummariesOutput(pydantic.v1.BaseModel):
     project_summaries: list[ProjectSummary]
-
-
-__all__ = [
-    "IguazioProject",
-    "Project",
-    "ProjectMetadata",
-    "ProjectMonitoringSpec",
-    "ProjectOut",
-    "ProjectOutput",
-    "ProjectOwner",
-    "ProjectSpec",
-    "ProjectSpecOut",
-    "ProjectStatus",
-    "ProjectSummariesOutput",
-    "ProjectSummary",
-    "ProjectsOutput",
-]

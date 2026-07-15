@@ -57,15 +57,3 @@ class ProjectLifecycleEventActions(mlrun.common.types.StrEnum):
     creation_failed = "creation_failed"
     deletion_succeeded = "deletion_succeeded"
     deletion_failed = "deletion_failed"
-
-
-__all__ = [
-    "AuthSecretEventActions",
-    "DBConnectionEventActions",
-    "EventClientKinds",
-    "EventsModes",
-    "LogCollectorEventActions",
-    "MigrationEventActions",
-    "ProjectLifecycleEventActions",
-    "SecretEventActions",
-]

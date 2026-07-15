@@ -21,8 +21,3 @@ class RunIdentifier(pydantic.v1.BaseModel):
     kind: typing.Literal["run"] = "run"
     uid: str | None
     iter: int | None
-
-
-__all__ = [
-    "RunIdentifier",
-]

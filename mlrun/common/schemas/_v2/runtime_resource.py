@@ -12,5 +12,3 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Native Pydantic 2 runtime_resource models. Empty until ML-12891."""
-
-__all__: list[str] = []

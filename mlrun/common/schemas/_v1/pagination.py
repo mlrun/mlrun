@@ -23,8 +23,3 @@ class PaginationInfo(pydantic.v1.BaseModel):
     page: int | None
     page_size: int | None = pydantic.v1.Field(alias="page-size")
     page_token: str | None = pydantic.v1.Field(alias="page-token")
-
-
-__all__ = [
-    "PaginationInfo",
-]

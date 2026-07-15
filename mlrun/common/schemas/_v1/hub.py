@@ -126,15 +126,3 @@ class HubCatalog(BaseModel):
     kind: ObjectKind = Field(ObjectKind.hub_catalog, const=True)
     channel: str
     catalog: list[HubItem]
-
-
-__all__ = [
-    "HubCatalog",
-    "HubItem",
-    "HubItemMetadata",
-    "HubItemSpec",
-    "HubObjectMetadata",
-    "HubSource",
-    "HubSourceSpec",
-    "IndexedHubSource",
-]

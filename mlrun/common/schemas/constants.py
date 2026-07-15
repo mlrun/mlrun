@@ -13,20 +13,6 @@
 # limitations under the License.
 
 
-# Environment-dispatched facade preserving the
-# ``mlrun.common.schemas.constants`` import path. Mirrors the full namespace of the underlying
-# module(s) — public names plus the private helpers and re-exports callers rely
-# on — so the submodule path stays byte-for-byte importable across the split.
-from ._shared import constants as _shared_mod
-
-globals().update(
-    {_n: _v for _n, _v in vars(_shared_mod).items() if not _n.startswith("__")}
-)
-__all__ = list(
-    getattr(
-        _shared_mod,
-        "__all__",
-        [_n for _n in vars(_shared_mod) if not _n.startswith("_")],
-    )
-)
-del _shared_mod
+# Facade re-exporting the ``_shared`` layer, preserving the
+# ``mlrun.common.schemas.constants`` import path.
+from ._shared.constants import *  # noqa: F401,F403

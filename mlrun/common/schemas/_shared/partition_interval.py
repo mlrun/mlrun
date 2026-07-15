@@ -236,9 +236,3 @@ PARTITION_INTERVAL_STRFTIME_FORMATS = {
     PartitionInterval.DAY: "%Y%m%d",
     PartitionInterval.MONTH: "%Y%m",
 }
-
-
-__all__ = [
-    "PARTITION_INTERVAL_STRFTIME_FORMATS",
-    "PartitionInterval",
-]

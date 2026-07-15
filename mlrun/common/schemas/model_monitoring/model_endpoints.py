@@ -13,19 +13,12 @@
 # limitations under the License.
 
 
-# Environment-dispatched facade preserving the
-# ``mlrun.common.schemas.model_monitoring.model_endpoints`` import path. Mirrors the full namespace of the underlying
-# module(s) — public names plus the private helpers and re-exports callers rely
-# on — so the submodule path stays byte-for-byte importable across the split.
+# Facade re-exporting the ``_shared`` layer and the active model face, preserving the
+# ``mlrun.common.schemas.model_monitoring.model_endpoints`` import path.
 from .._dispatch import USE_V2_SCHEMAS as _USE_V2
+from .._shared.model_monitoring.model_endpoints import *  # noqa: F401,F403
 
 if _USE_V2:
-    from .._v2.model_monitoring import model_endpoints as _face_mod
+    from .._v2.model_monitoring.model_endpoints import *  # noqa: F401,F403
 else:
-    from .._v1.model_monitoring import model_endpoints as _face_mod
-
-globals().update(
-    {_n: _v for _n, _v in vars(_face_mod).items() if not _n.startswith("__")}
-)
-__all__ = list(_face_mod.__all__)
-del _face_mod
+    from .._v1.model_monitoring.model_endpoints import *  # noqa: F401,F403

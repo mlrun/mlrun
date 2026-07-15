@@ -27,8 +27,3 @@ class NodeSelectorOperator(mlrun.common.types.StrEnum):
     node_selector_op_does_not_exist = "DoesNotExist"
     node_selector_op_gt = "Gt"
     node_selector_op_lt = "Lt"
-
-
-__all__ = [
-    "NodeSelectorOperator",
-]

@@ -22,8 +22,3 @@ class RegexMatchModes(mlrun.common.types.StrEnum):
     all = "all"
     # any of the regexes must match
     any = "any"
-
-
-__all__ = [
-    "RegexMatchModes",
-]

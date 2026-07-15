@@ -18,8 +18,3 @@ import enum
 class FunctionsType(enum.Enum):
     APPLICATION = "application"
     INFRA = "infra"
-
-
-__all__ = [
-    "FunctionsType",
-]

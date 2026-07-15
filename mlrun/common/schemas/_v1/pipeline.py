@@ -22,8 +22,3 @@ class PipelinesOutput(pydantic.v1.BaseModel):
     runs: list[typing.Union[dict, str]]
     total_size: int
     next_page_token: str | None
-
-
-__all__ = [
-    "PipelinesOutput",
-]

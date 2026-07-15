@@ -27,8 +27,3 @@ class ScheduleKinds(mlrun.common.types.StrEnum):
         return [
             ScheduleKinds.local_function,
         ]
-
-
-__all__ = [
-    "ScheduleKinds",
-]

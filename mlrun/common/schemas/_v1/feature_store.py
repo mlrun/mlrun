@@ -205,35 +205,3 @@ class FeatureSetIngestInput(FeatureStoreBaseModel):
 class FeatureSetIngestOutput(FeatureStoreBaseModel):
     feature_set: FeatureSet
     run_object: dict
-
-
-__all__ = [
-    "DataSource",
-    "DataTarget",
-    "EntitiesOutput",
-    "EntitiesOutputV2",
-    "Entity",
-    "EntityListOutput",
-    "EntityRecord",
-    "Feature",
-    "FeatureListOutput",
-    "FeatureRecord",
-    "FeatureSet",
-    "FeatureSetDigestOutput",
-    "FeatureSetDigestOutputV2",
-    "FeatureSetDigestSpec",
-    "FeatureSetDigestSpecV2",
-    "FeatureSetIngestInput",
-    "FeatureSetIngestOutput",
-    "FeatureSetRecord",
-    "FeatureSetSpec",
-    "FeatureSetsOutput",
-    "FeatureSetsTagsOutput",
-    "FeatureStoreBaseModel",
-    "FeatureVector",
-    "FeatureVectorRecord",
-    "FeatureVectorsOutput",
-    "FeatureVectorsTagsOutput",
-    "FeaturesOutput",
-    "FeaturesOutputV2",
-]

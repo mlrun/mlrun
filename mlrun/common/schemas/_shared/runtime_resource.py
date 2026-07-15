@@ -18,8 +18,3 @@ import mlrun.common.types
 class ListRuntimeResourcesGroupByField(mlrun.common.types.StrEnum):
     job = "job"
     project = "project"
-
-
-__all__ = [
-    "ListRuntimeResourcesGroupByField",
-]

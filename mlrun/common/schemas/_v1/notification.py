@@ -71,11 +71,3 @@ class NotificationState(pydantic.v1.BaseModel):
     kind: str
     err: str | None  # empty error means that the notifications were sent successfully
     summary: NotificationSummary
-
-
-__all__ = [
-    "Notification",
-    "NotificationState",
-    "NotificationSummary",
-    "SetNotificationRequest",
-]

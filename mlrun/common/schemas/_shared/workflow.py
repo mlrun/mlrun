@@ -20,8 +20,3 @@ class EngineType(StrEnum):
     REMOTE = "remote"
     KFP = "kfp"
     REMOTE_KFP = "remote:kfp"
-
-
-__all__ = [
-    "EngineType",
-]

@@ -116,12 +116,3 @@ class AuthorizationResourceTypes(mlrun.common.types.StrEnum):
 class AuthInfoKind(mlrun.common.types.StrEnum):
     user = "user"
     service_account = "serviceaccount"
-
-
-__all__ = [
-    "AuthInfoKind",
-    "AuthorizationAction",
-    "AuthorizationResourceNamespace",
-    "AuthorizationResourceTypes",
-    "ProjectsRole",
-]

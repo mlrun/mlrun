@@ -28,9 +28,3 @@ class ObjectKind(mlrun.common.types.StrEnum):
 
 class ObjectStatusState(mlrun.common.types.StrEnum):
     CREATED = "created"
-
-
-__all__ = [
-    "ObjectKind",
-    "ObjectStatusState",
-]

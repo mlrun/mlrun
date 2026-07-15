@@ -36,9 +36,3 @@ class ProjectState(mlrun.common.types.StrEnum):
             ProjectState.offline,
             ProjectState.archived,
         ]
-
-
-__all__ = [
-    "ProjectDesiredState",
-    "ProjectState",
-]

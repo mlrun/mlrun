@@ -18,8 +18,3 @@ import mlrun.common.types
 class GrafanaColumnType(mlrun.common.types.StrEnum):
     NUMBER = "number"
     STRING = "string"
-
-
-__all__ = [
-    "GrafanaColumnType",
-]

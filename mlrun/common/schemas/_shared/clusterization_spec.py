@@ -18,8 +18,3 @@ import mlrun.common.types
 class WaitForChiefToReachOnlineStateFeatureFlag(mlrun.common.types.StrEnum):
     enabled = "enabled"
     disabled = "disabled"
-
-
-__all__ = [
-    "WaitForChiefToReachOnlineStateFeatureFlag",
-]

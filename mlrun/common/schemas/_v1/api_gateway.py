@@ -168,14 +168,3 @@ class APIGateway(_APIGatewayBaseModel):
 
 class APIGatewaysOutput(_APIGatewayBaseModel):
     api_gateways: dict[str, APIGateway] | None = {}
-
-
-__all__ = [
-    "APIGateway",
-    "APIGatewayBasicAuth",
-    "APIGatewayMetadata",
-    "APIGatewaySpec",
-    "APIGatewayStatus",
-    "APIGatewayUpstream",
-    "APIGatewaysOutput",
-]

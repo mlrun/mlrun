@@ -60,10 +60,3 @@ class FrontendSpec(pydantic.v1.BaseModel):
     ce: dict | None
     internal_labels: list[str] = []
     artifact_limits: ArtifactLimits
-
-
-__all__ = [
-    "ArtifactLimits",
-    "FeatureFlags",
-    "FrontendSpec",
-]

@@ -17,8 +17,3 @@ class PipelinesPagination(str):
     default_page_size = 200
     # https://github.com/kubeflow/pipelines/blob/release-2.16/backend/src/apiserver/list/list.go#L385
     max_page_size = 200
-
-
-__all__ = [
-    "PipelinesPagination",
-]

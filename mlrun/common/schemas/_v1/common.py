@@ -89,9 +89,3 @@ class LabelsModel(pydantic.v1.BaseModel):
         raise mlrun.errors.MLRunValueError(
             "Invalid labels format. Must be a string, dictionary of strings, or a list of strings."
         )
-
-
-__all__ = [
-    "ImageBuilder",
-    "LabelsModel",
-]

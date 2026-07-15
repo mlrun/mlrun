@@ -20,8 +20,3 @@ class SecretProviderName(mlrun.common.types.StrEnum):
 
     vault = "vault"
     kubernetes = "kubernetes"
-
-
-__all__ = [
-    "SecretProviderName",
-]

@@ -83,9 +83,3 @@ class ArtifactsDeletionStrategies(mlrun.common.types.StrEnum):
     data_force = "data-force"
     """Delete the artifact data, and if cannot delete it fail the deletion
     and don’t delete the artifact db record"""
-
-
-__all__ = [
-    "ArtifactCategories",
-    "ArtifactsDeletionStrategies",
-]

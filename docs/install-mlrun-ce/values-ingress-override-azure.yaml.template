@@ -30,6 +30,8 @@ nuclio:
       path: /
       tls: []
 mlrun:
+  nuclio:
+    uiURL: nuclio.${SYSTEM_FQDN}
   api:
     service:
       type: ClusterIP

@@ -11,11 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Scaffolding guards for the version-dispatched ``mlrun.common.schemas`` package
-(ML-12890). These lock the public-import-path contract the split must preserve:
-the flat names, the per-topic submodule paths, and the private helpers callers
-import — plus the dispatcher and the empty ``_v2`` invariants.
-"""
 
 import importlib
 
@@ -26,8 +21,7 @@ from mlrun.common.schemas._dispatch import USE_V2_SCHEMAS
 
 
 def test_dispatcher_selects_face_by_environment():
-    """The model face is chosen by *environment* (``USE_V2_SCHEMAS``), not by the
-    installed Pydantic major; shared definitions always resolve from ``_shared``."""
+    # the face is chosen by environment (USE_V2_SCHEMAS), not the installed Pydantic major
     expected_face = "_v2" if USE_V2_SCHEMAS else "_v1"
     assert (
         schemas.AlertConfig.__module__ == f"mlrun.common.schemas.{expected_face}.alert"
@@ -36,21 +30,19 @@ def test_dispatcher_selects_face_by_environment():
 
 
 def test_v2_face_dormant_this_story():
-    """ML-12890 keeps the split dormant: the ``_v2`` face is not enabled yet, so every
-    environment (the API server included) binds ``_v1``. ML-12892 flips this on."""
+    # the _v2 face is not enabled yet, so every environment (the API server too) binds _v1
     assert USE_V2_SCHEMAS is False
     assert schemas.AlertConfig.__module__ == "mlrun.common.schemas._v1.alert"
 
 
 def test_v2_package_present_but_empty():
-    """ML-12890 delivers ``_v2`` as an empty face; native v2 models arrive in ML-12891."""
     from mlrun.common.schemas import _v2
 
     def public_names(module):
         return [name for name in vars(module) if not name.startswith("_")]
 
-    # the package imports and the per-topic stubs exist (so the facade dispatch
-    # resolves statically), but nothing is defined in them yet
+    # the package and per-topic stubs exist (so the facade dispatch resolves) but
+    # define nothing yet
     assert public_names(_v2) == []
     assert public_names(importlib.import_module("mlrun.common.schemas._v2.alert")) == []
     assert (
@@ -66,8 +58,6 @@ def test_v2_package_present_but_empty():
 @pytest.mark.parametrize(
     "name",
     [
-        # regression: this flat export was dropped when the events enums moved to
-        # ``_shared`` but the dispatcher's re-export list omitted it.
         "LogCollectorEventActions",
         "AlertConfig",
         "PatchMode",
@@ -83,17 +73,15 @@ def test_flat_public_name_importable(name):
 @pytest.mark.parametrize(
     "module_path,name",
     [
-        # regressions: names a base submodule only *imported* (leaked) but that
-        # callers reference through the submodule path.
+        # names a base submodule only imports (leaked), but callers reach through the
+        # submodule path, so the facade must keep re-exporting them
         ("mlrun.common.schemas.schedule", "LabelRecord"),
         ("mlrun.common.schemas.feature_store", "ObjectMetadata"),
         ("mlrun.common.schemas.feature_store", "ObjectStatus"),
-        # ordinary defined names on their own topic
         ("mlrun.common.schemas.alert", "AlertConfig"),
         ("mlrun.common.schemas.constants", "PatchMode"),
         ("mlrun.common.schemas.model_monitoring.constants", "TSDBTarget"),
         ("mlrun.common.schemas.model_monitoring.model_endpoints", "ModelEndpoint"),
-        # FQN parse/compose helpers are public (used cross-module by the API server)
         (
             "mlrun.common.schemas.model_monitoring.model_endpoints",
             "parse_metric_fqn_to_monitoring_metric",
@@ -107,8 +95,7 @@ def test_submodule_public_name_importable(module_path, name):
 
 
 def test_event_kind_entity_map_lives_in_shared():
-    """The version-agnostic event→entity mapping is a single source in ``_shared``
-    (stable path across the v1→v2 flip) and is not leaked onto the public facade."""
+    # version-agnostic map: single source in _shared, not leaked onto the public facade
     from mlrun.common.schemas._shared.alert import _event_kind_entity_map  # noqa: F401
 
     facade = importlib.import_module("mlrun.common.schemas.alert")
@@ -125,7 +112,5 @@ def test_event_kind_entity_map_lives_in_shared():
     ],
 )
 def test_flat_name_is_same_object_as_submodule(name, submodule):
-    """The flat re-export and the per-topic submodule expose the *same* object, so a
-    consumer using either path gets identical behaviour."""
     module = importlib.import_module(f"mlrun.common.schemas.{submodule}")
     assert getattr(schemas, name) is getattr(module, name)

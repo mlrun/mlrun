@@ -11,11 +11,5 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Version-agnostic schema definitions shared by both Pydantic faces.
-
-Enums, constants, regex patterns and plain (non-model) types that are identical
-regardless of the installed Pydantic major. Both ``_v1`` and ``_v2`` import from
-the per-topic modules here, so a shared definition has a single source and cannot
-drift between faces. The per-topic facades (``mlrun.common.schemas.<topic>``) and
-the faces import these modules directly; this package has no re-exports of its own.
-"""
+"""Version-agnostic schema definitions (enums, constants, regex, plain types) shared
+by both Pydantic faces — imported directly by ``_v1`` / ``_v2`` and the facades."""

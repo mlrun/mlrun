@@ -11,9 +11,5 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Native Pydantic 2 schema face.
-
-Empty until ML-12891 adds the native v2 models. Under Pydantic 1 the package
-dispatcher never binds this face; it exists so the layout is complete and the
-v2 work is purely additive (new modules imported from ``_shared``).
-"""
+"""Native Pydantic 2 schema face. Empty until ML-12891 adds the native v2 models;
+present so the layout is complete and the v2 work stays purely additive."""

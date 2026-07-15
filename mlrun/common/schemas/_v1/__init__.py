@@ -11,10 +11,5 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Pydantic 1 schema face.
-
-Today's schema models, relocated here unchanged (defined on the ``pydantic.v1``
-namespace) — what the client/SDK loads, and what the per-topic facades bind under
-Pydantic 1. Imports version-agnostic definitions from ``_shared`` and peer models
-from sibling ``_v1.<topic>`` modules; this package has no re-exports of its own.
-"""
+"""Pydantic 1 schema face: today's models, relocated here unchanged (on the
+``pydantic.v1`` namespace), with version-agnostic definitions coming from ``_shared``."""

@@ -28,14 +28,8 @@ import os
 # True inside the mlrun API server process (set by the ``mlrun db`` entrypoint).
 IS_API_SERVER = os.getenv("MLRUN_IS_API_SERVER", "false").lower() == "true"
 
-# ``_v2`` is an empty placeholder until ML-12891 adds the native models, and the
-# API server can only run them once its call-sites are migrated and Pydantic 2 is
-# installed. ML-12892 removes this guard — binding the API server to ``_v2`` — as
-# part of that migration. Until then every environment (the API server included)
-# binds ``_v1``, so the empty ``_v2`` face is never selected and the split stays
-# dormant.
+# Held False so the split stays dormant; ML-12892 flips it on (with the call-site
+# migration) to bind the API server to the native v2 face.
 _V2_FACE_ENABLED = False
 
-# The single switch the package dispatchers read: bind ``_v2`` only in the API
-# server environment, and only once the v2 face is enabled.
 USE_V2_SCHEMAS = IS_API_SERVER and _V2_FACE_ENABLED

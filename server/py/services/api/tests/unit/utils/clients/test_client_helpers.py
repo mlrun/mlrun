@@ -12,10 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
+
 import pytest
 
 import mlrun
 import mlrun.common.schemas
+import mlrun.utils
 from mlrun.utils.logger import context_id_var
 
 import framework.utils.clients.helpers as clients_helpers
@@ -173,3 +176,22 @@ def test_enrich_headers_preserves_existing_headers(set_context_id):
         result[mlrun.common.schemas.HeaderNames.projects_role]
         == mlrun.mlconf.httpdb.projects.leader
     )
+
+
+@pytest.mark.parametrize("parent_suffix", ["iguazio-client", "system-events"])
+def test_iguazio_sdk_logger(parent_suffix):
+    """
+    The SDK logger is a dedicated "sdk" child under the MLRun parent, owns no handler, and
+    the SDK's set_level("INFO") does not leak to the parent (ML-12862).
+    """
+    parent = mlrun.utils.logger.get_child(parent_suffix)
+    parent._logger.setLevel(logging.DEBUG)
+
+    sdk_logger = clients_helpers.iguazio_sdk_logger(parent)
+    sdk_logger.setLevel(logging.INFO)
+
+    assert isinstance(sdk_logger, logging.Logger)
+    assert sdk_logger.name == f"{parent._logger.name}.sdk"
+    assert sdk_logger.propagate is True
+    assert sdk_logger.handlers == []
+    assert parent._logger.level == logging.DEBUG

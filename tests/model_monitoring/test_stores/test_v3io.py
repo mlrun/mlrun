@@ -28,11 +28,11 @@ v3io_frames = pytest.importorskip("v3io_frames")
 import mlrun.common.schemas.model_monitoring.constants as mm_constants  # noqa: E402
 import mlrun.utils.v3io_clients  # noqa: E402
 from mlrun.common.schemas.model_monitoring.model_endpoints import (  # noqa: E402
+    MetricPoint,
     ModelEndpointDriftValues,
     ModelEndpointMonitoringMetric,
     ModelEndpointMonitoringMetricNoData,
     ModelEndpointMonitoringResultValues,
-    MetricPoint,
 )
 from mlrun.model_monitoring.db.tsdb.v3io.stream_graph_steps import (  # noqa: E402
     _normalize_dict_for_v3io_frames,

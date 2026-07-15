@@ -24,8 +24,17 @@ These instructions install the community edition {{ ceversion }}, which currentl
 - [kubectl](https://kubernetes.io/docs/tasks/tools/) is configured for your AKS cluster. See [Connect to an Azure Kubernetes Service (AKS) cluster using kubectl](https://learn.microsoft.com/en-us/azure/aks/learn/quick-kubernetes-deploy-cli)
 - [Helm](https://helm.sh/docs/intro/install/) version >=4.1 CLI is installed
 - An accessible Docker Registry (such as [Docker Hub](https://hub.docker.com) or [Azure Container Registry (ACR)](https://learn.microsoft.com/en-us/azure/container-registry/)). The Registry's URL and credentials are consumed by the applications via a pre-created secret.
+- Storage:
+  - 8Gi
+  - A default StorageClass configured for the AKS cluster, so pods can use persistent storage. See the [Kubernetes documentation](https://kubernetes.io/docs/concepts/storage/storage-classes/#storageclass-objects) for more information.
+- RAM: A minimum of 8Gi is required for running all the initial MLRun components. The amount of RAM required for running MLRun jobs depends on the job's requirements.
+- Review the [MLRun CE installation notes](./mlrun-ce-installation-notes.md) for any additional installation steps you may need to consider.
 - A bash shell to run the commands
 - [Optional] If you want to store MLRun artifacts in Azure Blob Storage instead of the bundled SeaweedFS, provision an Azure Storage account and container. See [Using Azure Blob Storage for MLRun artifacts](./mlrun-ce-installation-notes.md#using-azure-blob-storage-for-mlrun-artifacts).
+
+```{admonition} Note
+The MLRun Community Edition resources are configured initially with the default cluster/namespace resource limits. You can modify the resources from outside if needed.
+```
 
 ## Community Edition services
 

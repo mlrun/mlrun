@@ -53,7 +53,7 @@ When you have a Redis service deployed, you can configure MLRun CE to use it by 
 
 ## Using Azure Blob Storage for MLRun artifacts
 
-MLRun CE can store MLRun artifact data in **Azure Blob Storage** instead of the default **S3-compatible (SeaweedFS)** setup used for MLRun CE.
+MLRun CE can store MLRun artifact data in **Azure Blob Storage** instead of the default **S3-compatible (SeaweedFS)** setup used for MLRun CE. For a full Azure AKS installation guide, see {ref}`Install MLRun CE on Azure<azure-install>`.
 
 Example for a custom values file, See also the [MLRun CE values file](https://github.com/mlrun/ce/blob/836384d05957875a5afdcf13e3f3a5975e76c950/charts/mlrun-ce/values.yaml#L33).
 

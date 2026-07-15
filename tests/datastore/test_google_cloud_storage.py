@@ -94,8 +94,7 @@ def test_read_only_url_signing_failure_wrapped():
 
 
 def test_read_only_url_missing_credentials_raises_client_error():
-    # No signing credentials resolvable -> storage_client raises; surface as a
-    # client-side MLRunInvalidArgumentError, not a raw ValueError or a 500.
+    # Missing signing credentials should be a client-side error.
     store = GoogleCloudStorageStore(
         parent="parent", schema="gcs", name="name", endpoint="data"
     )

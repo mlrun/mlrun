@@ -70,11 +70,7 @@ class GoogleCloudStorageStore(DataStore):
         return self._storage_client
 
     def get_read_only_https_url(self, key, *, ttl=_SIGNED_URL_TTL):
-        """Return an ``https://`` URL for ``key`` with a short-lived read-only signed URL.
-
-        Requires service-account credentials (``GCP_CREDENTIALS`` or
-        ``GOOGLE_APPLICATION_CREDENTIALS``); V4 signing uses the private key to sign locally.
-        """
+        """Return a short-lived GET signed URL for a GCS object."""
         blob_name = key.lstrip("/")
         bucket_name = self.endpoint
         if not bucket_name or not blob_name:
@@ -85,11 +81,9 @@ class GoogleCloudStorageStore(DataStore):
         try:
             blob = self.storage_client.bucket(bucket_name).blob(blob_name)
         except Exception as exc:
-            # No usable signing credentials (e.g. relying on ADC / workload identity,
-            # which cannot sign locally) - surface as a client-side error.
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "GCS signed-URL generation requires service-account credentials "
-                "(GCP_CREDENTIALS or GOOGLE_APPLICATION_CREDENTIALS): "
+                "GCS signed URLs require GCP_CREDENTIALS or "
+                "GOOGLE_APPLICATION_CREDENTIALS: "
                 f"{mlrun.errors.err_to_str(exc)}"
             ) from exc
 

@@ -272,8 +272,6 @@ def compile_nuclio_archive_config(
 
     source = function.spec.build.source
     parsed_url = urllib.parse.urlparse(source)
-    # Nuclio has no az://, gs:// or gcs:// code-entry type; rewrite these object-store
-    # sources as archive HTTPS via a datastore-minted read-only URL.
     is_object_store_source = source.startswith(("az://", "gs://", "gcs://"))
     code_entry_type = ""
     if source.startswith("s3://"):
@@ -302,8 +300,7 @@ def compile_nuclio_archive_config(
     # archive
     if code_entry_type == "archive":
         if is_object_store_source:
-            # Nuclio can't fetch az://, gs:// or gcs:// directly; use a datastore-minted
-            # read-only HTTPS URL (SAS for Azure, signed URL for GCS).
+            # Nuclio can't fetch these schemes natively; use a signed HTTPS URL.
             store, sub_path, _ = StoreManager().get_or_create_store(
                 source, secrets={**secrets, **(builder_env or {})}
             )

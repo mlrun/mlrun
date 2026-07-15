@@ -455,12 +455,9 @@ class TestGoogleCloudStorage:
 
     @pytest.mark.parametrize("setup_by", ["credentials_file", "serialized_json"])
     def test_read_only_https_url(self, use_datastore_profile, setup_by):
-        # ML-12896: the read-only signed URL minted for Nuclio deploys must be a working,
-        # publicly-fetchable https:// URL. Verified against real GCS, not just mocked signing.
+        # Verify against real GCS, not just mocked signing.
         if use_datastore_profile:
-            pytest.skip(
-                "signed URL is minted from env/secret service-account credentials"
-            )
+            pytest.skip("profile credentials are not covered here")
         self.setup_mapping[setup_by](self, use_datastore_profile)
         data_item = mlrun.run.get_dataitem(
             self.object_url, secrets=self.storage_options

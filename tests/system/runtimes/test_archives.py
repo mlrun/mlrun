@@ -47,8 +47,7 @@ need_private_git = pytest.mark.skipif(
     not has_private_source, reason="env vars for private git repo not set"
 )
 
-# for object-store archive tests (ML-12896) set GCS_BUCKET_NAME and GOOGLE_APPLICATION_CREDENTIALS
-# (a service-account JSON path or its serialized content) in the system-test env file
+# GCS archive tests need a bucket and service-account credentials.
 _test_env = tests.system.base.TestMLRunSystem._get_env_from_file()
 gcs_bucket = _test_env.get("GCS_BUCKET_NAME")
 gcs_credentials = _test_env.get("GOOGLE_APPLICATION_CREDENTIALS")
@@ -230,8 +229,6 @@ class TestArchiveSources(tests.system.base.TestMLRunSystem):
 
     @need_gcs
     def test_nuclio_gcs_archive(self):
-        # ML-12896: Nuclio has no gs:///gcs:// code-entry type; deploy must resolve the
-        # object-store source to a datastore-minted read-only signed URL and fetch it.
         try:
             json.loads(gcs_credentials)
             credentials_content = gcs_credentials
@@ -239,7 +236,6 @@ class TestArchiveSources(tests.system.base.TestMLRunSystem):
             with open(gcs_credentials) as credentials_file:
                 credentials_content = credentials_file.read()
         secrets = {"GCP_CREDENTIALS": credentials_content}
-        # nuclio resolves the credentials from the function's project secrets at deploy time
         self.project.set_secrets(secrets)
 
         archive_url = f"gcs://{gcs_bucket}/{self.project_name}/source_archive.tar.gz"

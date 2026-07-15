@@ -1568,7 +1568,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         }
 
     def test_load_function_with_source_archive_azure_blob(self):
-        """az:// sources resolve to a datastore-minted read-only HTTPS URL."""
+        """az:// sources resolve to HTTPS archive URLs."""
         fn = self._generate_runtime(self.runtime_kind)
         fn.with_source_archive(
             "az://data/projects/x/src.tar.gz", handler="main:handler", workdir="wd"
@@ -1596,7 +1596,7 @@ class TestNuclioRuntime(TestRuntimeBase):
 
     @pytest.mark.parametrize("scheme", ["gs", "gcs"])
     def test_load_function_with_source_archive_gcs(self, scheme):
-        """gs:///gcs:// sources resolve to a datastore-minted read-only HTTPS URL."""
+        """gs:// and gcs:// sources resolve to HTTPS archive URLs."""
         fn = self._generate_runtime(self.runtime_kind)
         fn.with_source_archive(
             f"{scheme}://data/projects/x/src.tar.gz",

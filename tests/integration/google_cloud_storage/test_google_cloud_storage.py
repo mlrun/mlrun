@@ -23,6 +23,7 @@ import dask.dataframe as dd
 import fsspec
 import pandas as pd
 import pytest
+import requests
 import yaml
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
@@ -451,3 +452,28 @@ class TestGoogleCloudStorage:
         not_exist_url = f"{self.run_dir_url}/not_exist_file.txt"
         data_item = mlrun.run.get_dataitem(not_exist_url)
         data_item.delete()
+
+    @pytest.mark.parametrize("setup_by", ["credentials_file", "serialized_json"])
+    def test_read_only_https_url(self, use_datastore_profile, setup_by):
+        # ML-12896: the read-only signed URL minted for Nuclio deploys must be a working,
+        # publicly-fetchable https:// URL. Verified against real GCS, not just mocked signing.
+        if use_datastore_profile:
+            pytest.skip(
+                "signed URL is minted from env/secret service-account credentials"
+            )
+        self.setup_mapping[setup_by](self, use_datastore_profile)
+        data_item = mlrun.run.get_dataitem(
+            self.object_url, secrets=self.storage_options
+        )
+        data_item.put(self.test_string)
+        try:
+            store, sub_path, _ = store_manager.get_or_create_store(
+                self.object_url, secrets=self.storage_options
+            )
+            signed_url = store.get_read_only_https_url(sub_path)
+            assert signed_url.startswith("https://")
+            response = requests.get(signed_url, timeout=60)
+            assert response.status_code == 200
+            assert response.text == self.test_string
+        finally:
+            data_item.delete()

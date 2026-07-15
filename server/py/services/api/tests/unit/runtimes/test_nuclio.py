@@ -1594,6 +1594,34 @@ class TestNuclioRuntime(TestRuntimeBase):
         mock_url.assert_called_once()
         assert mock_url.call_args.args[0].lstrip("/") == "projects/x/src.tar.gz"
 
+    @pytest.mark.parametrize("scheme", ["gs", "gcs"])
+    def test_load_function_with_source_archive_gcs(self, scheme):
+        """gs:///gcs:// sources resolve to a datastore-minted read-only HTTPS URL."""
+        fn = self._generate_runtime(self.runtime_kind)
+        fn.with_source_archive(
+            f"{scheme}://data/projects/x/src.tar.gz",
+            handler="main:handler",
+            workdir="wd",
+        )
+        minted = "https://storage.googleapis.com/data/projects/x/src.tar.gz?X-Goog-Signature=fake"
+        with unittest.mock.patch(
+            "mlrun.datastore.google_cloud_storage.GoogleCloudStorageStore.get_read_only_https_url",
+            return_value=minted,
+        ) as mock_url:
+            archive = get_archive_spec(fn, {"GCP_CREDENTIALS": "{}"})
+        assert archive == {
+            "spec": {
+                "handler": "main:handler",
+                "build": {
+                    "path": minted,
+                    "codeEntryType": "archive",
+                    "codeEntryAttributes": {"workDir": "wd"},
+                },
+            },
+        }
+        mock_url.assert_called_once()
+        assert mock_url.call_args.args[0].lstrip("/") == "projects/x/src.tar.gz"
+
     @pytest.mark.parametrize(
         "image_pull_secret_name,build_secret_name,default_image_pull_secret_name,"
         "default_build_secret_name,expected_secret_name",

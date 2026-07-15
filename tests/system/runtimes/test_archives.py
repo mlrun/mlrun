@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import os
 import tempfile
 
@@ -44,6 +45,16 @@ has_private_source = (
 )
 need_private_git = pytest.mark.skipif(
     not has_private_source, reason="env vars for private git repo not set"
+)
+
+# for object-store archive tests (ML-12896) set GCS_BUCKET_NAME and GOOGLE_APPLICATION_CREDENTIALS
+# (a service-account JSON path or its serialized content) in the system-test env file
+_test_env = tests.system.base.TestMLRunSystem._get_env_from_file()
+gcs_bucket = _test_env.get("GCS_BUCKET_NAME")
+gcs_credentials = _test_env.get("GOOGLE_APPLICATION_CREDENTIALS")
+need_gcs = pytest.mark.skipif(
+    not (gcs_bucket and gcs_credentials),
+    reason="GCS_BUCKET_NAME / GOOGLE_APPLICATION_CREDENTIALS env vars not set",
 )
 
 
@@ -216,6 +227,32 @@ class TestArchiveSources(tests.system.base.TestMLRunSystem):
         mlrun.deploy_function(fn)
         resp = fn.invoke("")
         assert "tag=" in resp.decode()
+
+    @need_gcs
+    def test_nuclio_gcs_archive(self):
+        # ML-12896: Nuclio has no gs:///gcs:// code-entry type; deploy must resolve the
+        # object-store source to a datastore-minted read-only signed URL and fetch it.
+        try:
+            json.loads(gcs_credentials)
+            credentials_content = gcs_credentials
+        except (json.JSONDecodeError, TypeError):
+            with open(gcs_credentials) as credentials_file:
+                credentials_content = credentials_file.read()
+        secrets = {"GCP_CREDENTIALS": credentials_content}
+        # nuclio resolves the credentials from the function's project secrets at deploy time
+        self.project.set_secrets(secrets)
+
+        archive_url = f"gcs://{gcs_bucket}/{self.project_name}/source_archive.tar.gz"
+        mlrun.get_dataitem(archive_url, secrets=secrets).upload(
+            str(self.assets_path / "source_archive.tar.gz")
+        )
+
+        fn = self._new_function("nuclio", "gcs")
+        fn.metadata.project = self.project.name
+        fn.with_source_archive(archive_url, handler="rootfn:nuclio_handler")
+        mlrun.deploy_function(fn)
+        resp = fn.invoke("")
+        assert resp.decode() == "tag=main"
 
     def test_job_project(self):
         project = mlrun.new_project("git-proj-job1", user_project=True, overwrite=True)

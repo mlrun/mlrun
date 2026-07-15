@@ -198,6 +198,7 @@ redirects = {
     "monitoring/model-monitoring": "model-monitoring/index.html",
     "install/kubernetes": "install-mlrun-ce/kubernetes-install.html",
     "install/aws-install": "install-mlrun-ce/aws-install.html",
+    "install/azure-install": "install-mlrun-ce/azure-install.html",
     "install/remote": "setup-guide.html",
     "serving/realtime-pipelines": "serving/writing-custom-steps.html",
     "serving/model-serving-get-started": "serving/getting-started.html",

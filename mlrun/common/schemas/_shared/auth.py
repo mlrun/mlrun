@@ -1,0 +1,118 @@
+# Copyright 2026 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import mlrun.common.types
+
+
+class ProjectsRole(mlrun.common.types.StrEnum):
+    iguazio = "iguazio"
+    mlrun = "mlrun"
+    nuclio = "nuclio"
+    nop = "nop"
+
+
+class AuthorizationAction(mlrun.common.types.StrEnum):
+    read = "read"
+    create = "create"
+    update = "update"
+    delete = "delete"
+
+    # note that in the OPA manifest only the above actions exist, store is "an MLRun verb" an we internally map it to 2
+    # query permissions requests - create and update
+    store = "store"
+
+
+class AuthorizationResourceNamespace(mlrun.common.types.StrEnum):
+    resources = "resources"
+    mgmt = "mgmt"
+
+
+class AuthorizationResourceTypes(mlrun.common.types.StrEnum):
+    project = "project"
+    project_global = "project-global"
+    log = "log"
+    runtime_resource = "runtime-resource"
+    function = "function"
+    artifact = "artifact"
+    feature_set = "feature-set"
+    feature_vector = "feature-vector"
+    feature = "feature"
+    entity = "entity"
+    project_background_task = "project-background-task"
+    background_task = "background-task"
+    schedule = "schedule"
+    secret = "secret"
+    run = "run"
+    model_endpoint = "model-endpoint"
+    model_monitoring = "model-monitoring"
+    pipeline = "pipeline"
+    hub_source = "hub-source"
+    workflow = "workflow"
+    alert = "alert"
+    alert_activations = "alert-activations"
+    alert_templates = "alert-templates"
+    event = "event"
+    datastore_profile = "datastore-profile"
+    api_gateway = "api-gateway"
+    project_summaries = "project-summaries"
+    project_owner = "project-owner"
+    tokens = "tokens"
+
+    def to_resource_string(
+        self,
+        project_name: str,
+        resource_name: str,
+    ):
+        return {
+            # project is the resource itself, so no need for both resource_name and project_name
+            AuthorizationResourceTypes.project: "/projects/{project_name}",
+            AuthorizationResourceTypes.project_global: "/projects",
+            AuthorizationResourceTypes.project_summaries: "/projects/{project_name}/project-summaries/{resource_name}",
+            AuthorizationResourceTypes.function: "/projects/{project_name}/functions/{resource_name}",
+            AuthorizationResourceTypes.artifact: "/projects/{project_name}/artifacts/{resource_name}",
+            AuthorizationResourceTypes.project_background_task: (
+                "/projects/{project_name}/background-tasks/{resource_name}"
+            ),
+            AuthorizationResourceTypes.background_task: "/background-tasks/{resource_name}",
+            AuthorizationResourceTypes.feature_set: "/projects/{project_name}/feature-sets/{resource_name}",
+            AuthorizationResourceTypes.feature_vector: "/projects/{project_name}/feature-vectors/{resource_name}",
+            AuthorizationResourceTypes.feature: "/projects/{project_name}/features/{resource_name}",
+            AuthorizationResourceTypes.entity: "/projects/{project_name}/entities/{resource_name}",
+            AuthorizationResourceTypes.log: "/projects/{project_name}/runs/{resource_name}/logs",
+            AuthorizationResourceTypes.schedule: "/projects/{project_name}/schedules/{resource_name}",
+            AuthorizationResourceTypes.secret: "/projects/{project_name}/secrets/{resource_name}",
+            AuthorizationResourceTypes.run: "/projects/{project_name}/runs/{resource_name}",
+            AuthorizationResourceTypes.event: "/projects/{project_name}/events/{resource_name}",
+            AuthorizationResourceTypes.alert: "/projects/{project_name}/alerts/{resource_name}",
+            AuthorizationResourceTypes.alert_activations: "/projects/{project_name}/alerts/{resource_name}/activations",
+            AuthorizationResourceTypes.alert_templates: "/alert-templates/{resource_name}",
+            # runtime resource doesn't have an identifier, we don't need any auth granularity behind project level
+            AuthorizationResourceTypes.runtime_resource: "/projects/{project_name}/runtime-resources",
+            AuthorizationResourceTypes.model_endpoint: "/projects/{project_name}/model-endpoints/{resource_name}",
+            AuthorizationResourceTypes.model_monitoring: "/projects/{project_name}/model-monitoring/{resource_name}",
+            AuthorizationResourceTypes.pipeline: "/projects/{project_name}/pipelines/{resource_name}",
+            AuthorizationResourceTypes.datastore_profile: "/projects/{project_name}/datastore_profiles",
+            # Hub sources are not project-scoped, and auth is globally on the sources endpoint.
+            AuthorizationResourceTypes.hub_source: "/hub/sources",
+            # workflow define how to run a pipeline and can be considered as the specification of a pipeline.
+            AuthorizationResourceTypes.workflow: "/projects/{project_name}/workflows/{resource_name}",
+            AuthorizationResourceTypes.api_gateway: "/projects/{project_name}/api-gateways/{resource_name}",
+            AuthorizationResourceTypes.project_owner: "/projects/{project_name}/owner",
+            AuthorizationResourceTypes.tokens: "/user_secrets/tokens",
+        }[self].format(project_name=project_name, resource_name=resource_name)
+
+
+class AuthInfoKind(mlrun.common.types.StrEnum):
+    user = "user"
+    service_account = "serviceaccount"

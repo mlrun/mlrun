@@ -358,6 +358,62 @@ def make_dockerfile(
     return dock
 
 
+def build_pod_resources(runtime_spec) -> dict:
+    """Resolve the build-pod resource policy shared by every builder backend.
+
+    Requests-only + GPU-limit-zero, in one place so it can't drift between engines:
+
+    * Only **requests** are set. Requests affect scheduling; setting a limit could kill the
+      build mid-run (destructive), so the build pod is never given a limit for cpu/memory.
+    * A **zero GPU limit** is added when the function requests GPUs. Some cloud providers add a
+      toleration only when a GPU limit is present; without it a build pod that inherited a
+      GPU-related node selector from the function could stay pending. Zero keeps the toleration
+      applied while allocating no GPU.
+
+    :param runtime_spec: The function's runtime spec (for its resource limits), or ``None``.
+    :return: A resources dict with ``requests`` (and ``limits`` only when GPUs are requested).
+    """
+    # we cannot specify gpu requests without specifying gpu limits, so we set requests without gpu field
+    default_requests = config.get_default_function_pod_requirement_resources(
+        "requests", with_gpu=False
+    )
+    resources = {
+        "requests": mlrun.runtimes.utils.generate_resources(
+            mem=default_requests.get("memory"), cpu=default_requests.get("cpu")
+        )
+    }
+    if runtime_spec:
+        gpu_resources = mlrun.utils.get_enriched_gpu_limits(
+            runtime_spec.resources.get("limits", {})
+        )
+        if gpu_resources:
+            resources["limits"] = gpu_resources
+    return resources
+
+
+def resolve_builder_pod_labels(extra_labels: dict | None) -> dict:
+    """Merge the configured builder-pod labels under the caller's labels.
+
+    Shared by every builder backend so the precedence can't drift between engines. The
+    configured ``pod_labels`` (e.g. ``azure.workload.identity/use``, which lets the Azure
+    workload-identity webhook inject ACR push credentials) are the lowest-precedence layer:
+    MLRun's own internal labels (``mlrun/class``, ``mlrun/project``, ...) must never be clobbered
+    by them, so they are filtered out and the caller's ``extra_labels`` win on any conflict.
+
+    :param extra_labels: The backend/caller labels, which take precedence.
+    :return: The merged label dict for the build pod.
+    """
+    configured_pod_labels = {
+        key: value
+        for key, value in config.get_builder_pod_labels().items()
+        if key not in mlrun.common.constants.MLRunInternalLabels.all()
+    }
+    return mlrun.utils.helpers.merge_dicts_with_precedence(
+        configured_pod_labels,
+        extra_labels or {},
+    )
+
+
 def _generate_builder_env(
     project: str, builder_env: dict
 ) -> (list[client.V1EnvVar], list[client.V1EnvVar]):

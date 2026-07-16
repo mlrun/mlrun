@@ -2045,6 +2045,8 @@ class BasePod:
         default_pod_spec_attributes=None,
         resources=None,
         labels=None,
+        security_context=None,
+        env=None,
     ):
         self.namespace = namespace
         self.name = ""
@@ -2054,8 +2056,12 @@ class BasePod:
         self.args = args
         self._volumes = []
         self._mounts = []
-        self.env = None
+        self.env = env
         self.node_selector = None
+        # optional container-level security context (e.g. the rootless build pod's runAsUser +
+        # capabilities). None (the default) leaves the container security context unset, so pods
+        # that don't pass one are byte-for-byte unchanged.
+        self.security_context = security_context
         self.project = project
         self._labels = {
             mlrun_constants.MLRunInternalLabels.task_name: task_name,
@@ -2170,6 +2176,7 @@ class BasePod:
             args=self.args,
             volume_mounts=self._mounts,
             resources=self.resources,
+            security_context=self.security_context,
         )
 
         pod_spec = client.V1PodSpec(

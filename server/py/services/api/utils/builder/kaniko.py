@@ -19,7 +19,6 @@ from urllib.parse import urlparse
 from kubernetes import client
 
 import mlrun.common.constants
-import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.model
@@ -125,42 +124,13 @@ def make_kaniko_pod(
         args, builder_env, project_secrets, extra_args
     )
 
-    # While requests mainly affect scheduling, setting a limit may prevent Kaniko
-    # from finishing successfully (destructive), since we're not allowing to override the default
-    # specifically for the Kaniko pod, we're setting only the requests
-    # we cannot specify gpu requests without specifying gpu limits, so we set requests without gpu field
-    default_requests = config.get_default_function_pod_requirement_resources(
-        "requests", with_gpu=False
-    )
-    resources = {
-        "requests": mlrun.runtimes.utils.generate_resources(
-            mem=default_requests.get("memory"), cpu=default_requests.get("cpu")
-        )
-    }
-    # Some cloud providers add a toleration when a GPU limit is set.
-    # If the Kaniko pod inherits a GPU-related node selector from the function
-    # but lacks a GPU limit, it may get stuck in a pending state due to unsatisfiable scheduling.
-    # Setting GPU limits to zero ensures tolerations are applied while preventing GPU allocation.
-    if runtime_spec:
-        gpu_resources = mlrun.utils.get_enriched_gpu_limits(
-            runtime_spec.resources.get("limits", {})
-        )
-        if gpu_resources:
-            resources["limits"] = gpu_resources
+    # requests-only + GPU-limit-zero, shared with every other builder backend so the policy
+    # can't drift between engines (see base.build_pod_resources for the rationale).
+    resources = base.build_pod_resources(runtime_spec)
 
-    # apply the configured builder pod labels (e.g. the azure.workload.identity/use label that lets the
-    # Azure workload-identity webhook inject ACR push credentials into the builder pod).
-    # these platform-level labels are the lowest-precedence layer: mlrun's own internal labels
-    # (mlrun/class, mlrun/project, etc., set by BasePod and the call site) must never be clobbered by them.
-    configured_pod_labels = {
-        key: value
-        for key, value in config.get_builder_pod_labels().items()
-        if key not in mlrun_constants.MLRunInternalLabels.all()
-    }
-    extra_labels = mlrun.utils.helpers.merge_dicts_with_precedence(
-        configured_pod_labels,
-        extra_labels or {},
-    )
+    # merge the configured builder pod labels (e.g. azure.workload.identity/use) under the
+    # caller's labels, shared with every backend so the precedence can't drift.
+    extra_labels = base.resolve_builder_pod_labels(extra_labels)
 
     kaniko_pod = framework.utils.singletons.k8s.BasePod(
         name or "mlrun-build",

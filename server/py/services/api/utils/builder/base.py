@@ -31,6 +31,7 @@ import mlrun.runtimes.pod
 import mlrun.runtimes.utils
 import mlrun.utils
 from mlrun.config import config
+from mlrun.k8s_utils import enrich_preemption_mode
 from mlrun.utils.helpers import remove_image_protocol_prefix
 
 import framework.utils.helpers
@@ -412,6 +413,97 @@ def resolve_builder_pod_labels(extra_labels: dict | None) -> dict:
         configured_pod_labels,
         extra_labels or {},
     )
+
+
+def resolve_build_pod_spec_attributes(
+    project: str,
+    runtime_spec,
+    project_default_function_node_selector,
+    auth_info: mlrun.common.schemas.AuthInfo | None = None,
+) -> dict:
+    """Resolve the runtime-derived pod-spec attributes shared by every builder backend.
+
+    Reads the function's runtime spec and returns the pod-spec attributes the build pod should
+    carry - node name/selector, affinity, tolerations, priority class and service account - applying
+    the same preemption-mode enrichment and service-account resolution a regular function pod gets.
+    Engine-agnostic: both Kaniko and Buildah apply the result via
+    ``BasePod.default_pod_spec_attributes``, so scheduling/identity can't drift between engines.
+
+    :param project:            The project the build belongs to.
+    :param runtime_spec:       The function's runtime spec.
+    :param project_default_function_node_selector: Project-level default node selector.
+    :param auth_info:          The caller's auth info (for service-account resolution).
+    :return: The resolved pod-spec attributes (only non-empty values).
+    """
+    # preemption mode scheduling constraints cache
+    _preemption_enrichment_result = {}
+
+    def service_account_handler(attr_value):
+        from framework.api.utils import resolve_project_service_account_details
+
+        (
+            allowed_service_accounts,
+            forbidden_service_accounts,
+            default_service_account,
+        ) = resolve_project_service_account_details(project, auth_info=auth_info)
+        if attr_value:
+            runtime_spec.validate_service_account(
+                allowed_service_accounts, forbidden_service_accounts
+            )
+        else:
+            attr_value = default_service_account
+        return attr_value
+
+    def get_merged_node_selector(attr_value):
+        return mlrun.utils.to_non_empty_values_dict(
+            mlrun.utils.helpers.merge_dicts_with_precedence(
+                mlrun.mlconf.get_default_function_node_selector(),
+                project_default_function_node_selector,
+                attr_value,
+            )
+        )
+
+    def preemption_mode_handler(key):
+        if key not in _preemption_enrichment_result:
+            keys = ["node_selector", "tolerations", "affinity"]
+            values = enrich_preemption_mode(
+                preemption_mode=runtime_spec.preemption_mode,
+                node_selector=get_merged_node_selector(runtime_spec.node_selector),
+                affinity=runtime_spec.affinity,
+                tolerations=runtime_spec.tolerations,
+            )
+            _preemption_enrichment_result.update(dict(zip(keys, values)))
+        return _preemption_enrichment_result[key]
+
+    def node_selector_handler(attr_value):
+        return preemption_mode_handler("node_selector")
+
+    def affinity_handler(attr_value):
+        return preemption_mode_handler("affinity")
+
+    def tolerations_handler(attr_value):
+        return preemption_mode_handler("tolerations")
+
+    def identity_handler(attr_value):
+        return attr_value
+
+    # spec attributes defined on the runtime that should also apply to the build pod, each with the
+    # handler that resolves its value.
+    handlers = {
+        "node_name": identity_handler,
+        "node_selector": node_selector_handler,
+        "affinity": affinity_handler,
+        "tolerations": tolerations_handler,
+        "priority_class_name": identity_handler,
+        "service_account": service_account_handler,
+    }
+
+    resolved = {}
+    for attribute, handler in handlers.items():
+        attr_value = handler(getattr(runtime_spec, attribute, None))
+        if attr_value:
+            resolved[attribute] = attr_value
+    return resolved
 
 
 def _generate_builder_env(

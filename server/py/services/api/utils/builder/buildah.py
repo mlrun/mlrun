@@ -23,7 +23,7 @@ import mlrun.utils
 from mlrun.config import config
 
 import framework.utils.singletons.k8s
-from services.api.utils.builder import base, kaniko
+from services.api.utils.builder import base
 
 # the rootless build runs as this uid/gid regardless of the function's security-context enrichment
 # (D13): the stock quay.io/buildah/stable image ships /etc/subuid + /etc/subgid ranges for its
@@ -173,19 +173,14 @@ def make_buildah_pod(
         # if the registry was not given, infer it from the image destination
         registry = dest.partition("/")[0]
 
-    # apply the same runtime-derived pod-spec attributes Kaniko applies (node selector, affinity,
-    # tolerations, preemption, priority class, service account). The resolver is engine-agnostic -
-    # it reads the runtime spec - and lives in the kaniko module as the single source of truth.
-    extra_runtime_spec = {}
-    for attribute, handler in kaniko.get_kaniko_spec_attributes_from_runtime(
+    # runtime-derived scheduling/identity pod-spec attributes (node selector, affinity, tolerations,
+    # preemption, priority class, service account), resolved by the shared helper both backends call.
+    extra_runtime_spec = base.resolve_build_pod_spec_attributes(
         project,
         runtime_spec,
         project_default_function_node_selector,
         auth_info,
-    ).items():
-        attr_value = handler(getattr(runtime_spec, attribute, None))
-        if attr_value:
-            extra_runtime_spec[attribute] = attr_value
+    )
 
     # stage the Dockerfile (and any inline code / requirements) into the context, then bud + push.
     # everything runs in one container: the buildah image ships bash + coreutils, so no separate

@@ -28,7 +28,6 @@ import mlrun.runtimes.pod
 import mlrun.runtimes.utils
 import mlrun.utils
 from mlrun.config import config
-from mlrun.k8s_utils import enrich_preemption_mode
 
 import framework.utils.helpers
 import framework.utils.singletons.k8s
@@ -75,21 +74,18 @@ def make_kaniko_pod(
     *,
     source_to_fetch: str | None = None,
 ):
-    extra_runtime_spec = {}
     if not registry:
         # if registry was not given, infer it from the image destination
         registry = dest.partition("/")[0]
 
-    # set kaniko's spec attributes from the runtime spec
-    for attribute, handler in get_kaniko_spec_attributes_from_runtime(
+    # runtime-derived scheduling/identity pod-spec attributes, shared with every backend so they
+    # can't drift between engines (see base.resolve_build_pod_spec_attributes).
+    extra_runtime_spec = base.resolve_build_pod_spec_attributes(
         project,
         runtime_spec,
         project_default_fucntion_node_selector,
         auth_info,
-    ).items():
-        attr_value = handler(getattr(runtime_spec, attribute, None))
-        if attr_value:
-            extra_runtime_spec[attribute] = attr_value
+    )
 
     if not dockertext and not dockerfile:
         raise ValueError("docker file or text must be specified")
@@ -482,76 +478,6 @@ class KanikoBackend:
             access_key=access_key,
             user=username,
         )
-
-
-def get_kaniko_spec_attributes_from_runtime(
-    project,
-    runtime_spec,
-    project_default_fucntion_node_selector,
-    auth_info: mlrun.common.schemas.AuthInfo = None,
-):
-    """Get the names of Kaniko spec attributes that are defined for runtime but should also be applied to Kaniko."""
-    # preemption mode scheduling constraints cache
-    _preemption_enrichment_result = {}
-
-    def service_account_handler(attr_value):
-        from framework.api.utils import resolve_project_service_account_details
-
-        (
-            allowed_service_accounts,
-            forbidden_service_accounts,
-            default_service_account,
-        ) = resolve_project_service_account_details(project, auth_info=auth_info)
-        if attr_value:
-            runtime_spec.validate_service_account(
-                allowed_service_accounts, forbidden_service_accounts
-            )
-        else:
-            attr_value = default_service_account
-        return attr_value
-
-    def get_merged_node_selector(attr_value):
-        attr_value = mlrun.utils.to_non_empty_values_dict(
-            mlrun.utils.helpers.merge_dicts_with_precedence(
-                mlrun.mlconf.get_default_function_node_selector(),
-                project_default_fucntion_node_selector,
-                attr_value,
-            )
-        )
-        return attr_value
-
-    def preemption_mode_handler(key):
-        if key not in _preemption_enrichment_result:
-            keys = ["node_selector", "tolerations", "affinity"]
-            values = enrich_preemption_mode(
-                preemption_mode=runtime_spec.preemption_mode,
-                node_selector=get_merged_node_selector(runtime_spec.node_selector),
-                affinity=runtime_spec.affinity,
-                tolerations=runtime_spec.tolerations,
-            )
-            _preemption_enrichment_result.update(dict(zip(keys, values)))
-        return _preemption_enrichment_result[key]
-
-    def node_selector_handler(attr_value):
-        return preemption_mode_handler("node_selector")
-
-    def affinity_handler(attr_value):
-        return preemption_mode_handler("affinity")
-
-    def tolerations_handler(attr_value):
-        return preemption_mode_handler("tolerations")
-
-    def identity_handler(attr_value):
-        return attr_value
-
-    return {
-        "node_name": identity_handler,
-        "node_selector": node_selector_handler,
-        "affinity": affinity_handler,
-        "tolerations": tolerations_handler,
-        "priority_class_name": identity_handler,
-        "service_account": service_account_handler,
-    }
 
 
 def _needs_source_fetch_init_container(source: str) -> bool:

@@ -11,4 +11,20 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Native Pydantic 2 tag models. Empty until ML-12891 adds them."""
+
+import pydantic
+
+from .artifact import ArtifactIdentifier
+
+
+class Tag(pydantic.BaseModel):
+    name: str
+    project: str
+
+
+class TagObjects(pydantic.BaseModel):
+    """Tag object"""
+
+    kind: str
+    # TODO: Add more types to the list for new supported tagged objects
+    identifiers: list[ArtifactIdentifier]

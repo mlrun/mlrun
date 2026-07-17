@@ -11,4 +11,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Native Pydantic 2 serving models. Empty until ML-12891 adds them."""
+
+from pydantic import BaseModel
+
+from .background_task import BackgroundTaskList
+
+
+class DeployResponse(BaseModel):
+    data: dict
+    background_tasks: BackgroundTaskList

@@ -11,4 +11,35 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Native Pydantic 2 runtime_resource models. Empty until ML-12891."""
+
+
+import pydantic
+
+
+class RuntimeResource(pydantic.BaseModel):
+    name: str
+    labels: dict[str, str] = {}
+    status: dict | None = None
+
+
+class RuntimeResources(pydantic.BaseModel):
+    crd_resources: list[RuntimeResource] = []
+    pod_resources: list[RuntimeResource] = []
+    # only for dask runtime
+    service_resources: list[RuntimeResource] | None = None
+
+    model_config = pydantic.ConfigDict(extra="allow")
+
+
+class KindRuntimeResources(pydantic.BaseModel):
+    kind: str
+    resources: RuntimeResources
+
+
+RuntimeResourcesOutput = list[KindRuntimeResources]
+
+
+# project name -> job uid -> runtime resources
+GroupedByJobRuntimeResourcesOutput = dict[str, dict[str, RuntimeResources]]
+# project name -> kind -> runtime resources
+GroupedByProjectRuntimeResourcesOutput = dict[str, dict[str, RuntimeResources]]

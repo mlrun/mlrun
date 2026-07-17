@@ -11,5 +11,5 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Native Pydantic 2 schema face. Empty until ML-12891 adds the native v2 models;
-present so the layout is complete and the v2 work stays purely additive."""
+"""Native Pydantic 2 schema face: the ``_v1`` models mirrored on the native
+``pydantic`` API, with version-agnostic definitions coming from ``_shared``."""

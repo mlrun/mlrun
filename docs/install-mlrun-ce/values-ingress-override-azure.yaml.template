@@ -1,12 +1,10 @@
 global:
-  externalHostAddress: ${SYSTEM_FQDN}
   nuclio:
     dashboard:
       nodePort: null
 jupyterNotebook:
   service:
     type: ClusterIP
-    port: 8888
     nodePort: null
   ingress:
     enabled: true
@@ -35,8 +33,6 @@ mlrun:
   api:
     service:
       type: ClusterIP
-      port: 8080
-      targetPort: 8080
       nodePort: null
     chief:
       ingress:
@@ -62,7 +58,6 @@ mlrun:
   ui:
     service:
       type: ClusterIP
-      port: 80
       targetPort: http
       nodePort: null
     ingress:
@@ -78,7 +73,6 @@ mlrun:
 seaweedfs:
   adminService:
     type: ClusterIP
-    port: 23646
     nodePort: null
     ingress:
       enabled: true
@@ -92,9 +86,7 @@ kube-prometheus-stack:
   grafana:
     service:
       type: ClusterIP
-      port: 80
-      targetPort: 3000
-      nodePort: 30010
+      nodePort: null
     ingress:
       enabled: true
       annotations: {}
@@ -107,8 +99,6 @@ kube-prometheus-stack:
   prometheus:
     service:
       type: ClusterIP
-      port: 9090
-      targetPort: 9090
       nodePort: null
     ingress:
       enabled: true
@@ -122,5 +112,4 @@ kube-prometheus-stack:
 timescaledb:
   service:
     type: ClusterIP
-    port: 5432
     nodePort: null

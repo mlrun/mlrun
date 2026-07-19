@@ -1279,7 +1279,6 @@ def test_paginated_list_artifacts(create_server):
 
 
 def test_paginated_list_functions(create_server):
-    print("started the test")
     num_functions = 10
     db, project_name = _store_functions(create_server, num_functions)
     page_size = 4

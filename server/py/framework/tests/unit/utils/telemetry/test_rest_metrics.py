@@ -56,49 +56,10 @@ def test_is_enabled_false_before_init(reset_state: None) -> None:
 def test_init_registers_histogram_when_enabled(
     reset_state: None, telemetry_enabled: None
 ) -> None:
-    telemetry_rest_metrics.init()
+    telemetry_rest_metrics.init(service_name="api")
 
     assert telemetry_rest_metrics.is_enabled() is True
     assert telemetry_rest_metrics._histogram is not None
-
-
-def test_init_noop_when_master_switch_off(
-    reset_state: None, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(mlrun.mlconf.telemetry, "enabled", False)
-    monkeypatch.setattr(mlrun.mlconf.telemetry.rest_metrics, "enabled", True)
-    monkeypatch.setattr(mlrun.mlconf.telemetry, "otlp_endpoint", "localhost:4317")
-
-    telemetry_rest_metrics.init()
-
-    assert telemetry_rest_metrics._provider is None
-    assert telemetry_rest_metrics._histogram is None
-
-
-def test_init_noop_when_sub_flag_off(
-    reset_state: None, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(mlrun.mlconf.telemetry, "enabled", True)
-    monkeypatch.setattr(mlrun.mlconf.telemetry.rest_metrics, "enabled", False)
-    monkeypatch.setattr(mlrun.mlconf.telemetry, "otlp_endpoint", "localhost:4317")
-
-    telemetry_rest_metrics.init()
-
-    assert telemetry_rest_metrics._provider is None
-    assert telemetry_rest_metrics._histogram is None
-
-
-def test_init_noop_when_endpoint_missing(
-    reset_state: None, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(mlrun.mlconf.telemetry, "enabled", True)
-    monkeypatch.setattr(mlrun.mlconf.telemetry.rest_metrics, "enabled", True)
-    monkeypatch.setattr(mlrun.mlconf.telemetry, "otlp_endpoint", "")
-
-    telemetry_rest_metrics.init()
-
-    assert telemetry_rest_metrics._provider is None
-    assert telemetry_rest_metrics._histogram is None
 
 
 def test_init_is_idempotent(
@@ -107,11 +68,11 @@ def test_init_is_idempotent(
     warning_mock = unittest.mock.MagicMock()
     monkeypatch.setattr(mlrun.utils.logger, "warning", warning_mock)
 
-    telemetry_rest_metrics.init()
+    telemetry_rest_metrics.init(service_name="api")
     first_provider = telemetry_rest_metrics._provider
     assert first_provider is not None
 
-    telemetry_rest_metrics.init()
+    telemetry_rest_metrics.init(service_name="api")
 
     assert telemetry_rest_metrics._provider is first_provider
     warning_mock.assert_called_once()

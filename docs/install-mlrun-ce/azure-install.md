@@ -1,7 +1,7 @@
 (azure-install)=
 # Install MLRun CE on Azure
 
-These instructions install the community edition (CE) on your Azure Kubernetes Service (AKS) cluster.
+These instructions explain how to install MLRun CE on your Azure Kubernetes Service (AKS) cluster.
 
 ```{admonition} Note
 These instructions install the community edition {{ ceversion }}, which currently includes the features in MLRun v{{ version }}.

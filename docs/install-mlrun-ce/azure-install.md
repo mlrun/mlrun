@@ -6,21 +6,16 @@ These instructions explain how to install MLRun CE on your Azure Kubernetes Serv
 
 **In this section**
 - [Prerequisites](#prerequisites)
-- [Community Edition services](#community-edition-services)
 - [Prepare values files](#prepare-values-files)
 - [Create the container registry secret](#create-the-container-registry-secret)
 - [Installation](#installation)
-- [Usage](#usage)
 - [Optional: Ingress configuration](#optional-ingress-configuration)
 - [Uninstalling the chart](#uninstalling-the-chart)
 
 ## Prerequisites
 
-- An AKS cluster (Kubernetes >=1.34) with a default StorageClass configured
 - [Azure CLI](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli) is installed and logged in (`az login`)
 - [kubectl](https://kubernetes.io/docs/tasks/tools/) is configured for your AKS cluster. See [Connect to an Azure Kubernetes Service (AKS) cluster using kubectl](https://learn.microsoft.com/en-us/azure/aks/learn/quick-kubernetes-deploy-cli)
-- [Helm](https://helm.sh/docs/intro/install/) version >=4.1 CLI is installed
-- An accessible Docker Registry (such as [Docker Hub](https://hub.docker.com) or [Azure Container Registry (ACR)](https://learn.microsoft.com/en-us/azure/container-registry/)). The Registry's URL and credentials are consumed by the applications via a pre-created secret.
 - Review the [MLRun CE installation notes](./mlrun-ce-installation-notes.md) for any additional installation steps you may need to consider.
 - A bash shell to run the commands
 - [Optional] If you want to store MLRun artifacts in Azure Blob Storage instead of the bundled SeaweedFS, provision an Azure Storage account and container. See [Using Azure Blob Storage for MLRun artifacts](./mlrun-ce-installation-notes.md#using-azure-blob-storage-for-mlrun-artifacts).
@@ -52,7 +47,7 @@ global:
 
 ### Storage options
 
-See [Using Azure Blob Storage for MLRun artifacts](./mlrun-ce-installation-notes.md#using-azure-blob-storage-for-mlrun-artifacts).
+MLRun CE can store MLRun artifact data in **Azure Blob Storage** instead of the default **S3-compatible (SeaweedFS)** setup used for MLRun CE. See [Using Azure Blob Storage for MLRun artifacts](./mlrun-ce-installation-notes.md#using-azure-blob-storage-for-mlrun-artifacts).
 
 ## Create the container registry secret
 
@@ -93,48 +88,7 @@ helm install mlrun-ce mlrun-ce/mlrun-ce \
 
 ## Optional: Ingress configuration
 
-If you prefer ingress-based access instead of NodePort, optionally add `values-ingress-override-azure.yaml` to the install command. This switches exposed services to ClusterIP and enables ingress for MLRun UI, MLRun API, Nuclio, Jupyter, SeaweedFS Admin, Grafana, and Prometheus.
-
-1. Download the {download}`ingress override values file template <./values-ingress-override-azure.yaml.template>`.
-2. Generate the override file. Export your FQDN and ingress class, then run:
-
-```bash
-export SYSTEM_FQDN="<system-fqdn>"
-export INGRESS_CLASS_NAME="traefik"
-
-envsubst < values-ingress-override-azure.yaml.template > values-ingress-override-azure.yaml
-```
-
-3. Install (or upgrade) with both values files:
-
-```bash
-helm install mlrun-ce mlrun-ce/mlrun-ce \
-  --namespace mlrun \
-  --wait \
-  --timeout 2000s \
-  -f azure-values.yaml \
-  -f values-ingress-override-azure.yaml
-```
-
-4. Configure DNS records for your ingress hostnames, pointing each host to your ingress controller's external IP or load balancer:
-
-   - `mlrun.${SYSTEM_FQDN}`
-   - `mlrun-api.${SYSTEM_FQDN}`
-   - `nuclio.${SYSTEM_FQDN}`
-   - `jupyter.${SYSTEM_FQDN}`
-   - `seaweedfs.${SYSTEM_FQDN}`
-   - `grafana.${SYSTEM_FQDN}`
-   - `prometheus.${SYSTEM_FQDN}`
-
-With ingress enabled, your applications are available at:
-
-- MLRun UI - `https://mlrun.${SYSTEM_FQDN}`
-- MLRun API - `https://mlrun-api.${SYSTEM_FQDN}`
-- Nuclio - `https://nuclio.${SYSTEM_FQDN}`
-- Jupyter Notebook - `https://jupyter.${SYSTEM_FQDN}`
-- SeaweedFS Admin - `https://seaweedfs.${SYSTEM_FQDN}`
-- Grafana - `https://grafana.${SYSTEM_FQDN}`
-- Prometheus - `https://prometheus.${SYSTEM_FQDN}`
+If you prefer ingress-based access instead of NodePort, optionally add `values-ingress-override.yaml` to the install command. See [Ingress Configuration](./mlrun-ce-installation-notes.md#ingress-configuration).
 
 ## Uninstalling the chart
 

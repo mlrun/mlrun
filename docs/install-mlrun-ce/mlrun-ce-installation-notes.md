@@ -9,6 +9,7 @@ This page lists additional steps or configuration options you may need to follow
 - [Using NFS storage](#using-nfs-storage)
 - [Configuring the online feature store](#configuring-the-online-feature-store)
 - [Using Azure Blob Storage for MLRun artifacts](#using-azure-blob-storage-for-mlrun-artifacts)
+- [Ingress Configuration](#ingress-configuration)
 - [Installing Spark Operator on non-mlrun namespace](#installing-spark-operator-on-non-mlrun-namespace)
 
 ## Advanced chart configuration
@@ -72,6 +73,48 @@ Example using flags and a storage connection string in the `helm` installtions:
 --set storage.azure.containerName='<your-container>' \
 --set-string storage.azure.connectionString='<your-connection-string>'
 ```
+## Ingress Configuration
+If you prefer ingress-based access instead of NodePort, optionally add `values-ingress-override.yaml` to the install command. This switches exposed services to ClusterIP and enables ingress for MLRun UI, MLRun API, Nuclio, Jupyter, SeaweedFS Admin, Grafana, and Prometheus.
+
+1. Download the {download}`ingress override values file template <./values-ingress-override.yaml.template>`.
+2. Generate the override file. Export your FQDN and ingress class, then run:
+
+```bash
+export SYSTEM_FQDN="<system-fqdn>"
+export INGRESS_CLASS_NAME="traefik"
+
+envsubst < values-ingress-override.yaml.template > values-ingress-override.yaml
+```
+
+3. Install (or upgrade) with values file:
+
+```bash
+helm install mlrun-ce mlrun-ce/mlrun-ce \
+  --namespace mlrun \
+  --wait \
+  --timeout 2000s \
+  -f values-ingress-override.yaml
+```
+
+4. Configure DNS records for your ingress hostnames, pointing each host to your ingress controller's external IP or load balancer:
+
+   - `mlrun.${SYSTEM_FQDN}`
+   - `mlrun-api.${SYSTEM_FQDN}`
+   - `nuclio.${SYSTEM_FQDN}`
+   - `jupyter.${SYSTEM_FQDN}`
+   - `seaweedfs.${SYSTEM_FQDN}`
+   - `grafana.${SYSTEM_FQDN}`
+   - `prometheus.${SYSTEM_FQDN}`
+
+With ingress enabled, your applications are available at:
+
+- MLRun UI - `https://mlrun.${SYSTEM_FQDN}`
+- MLRun API - `https://mlrun-api.${SYSTEM_FQDN}`
+- Nuclio - `https://nuclio.${SYSTEM_FQDN}`
+- Jupyter Notebook - `https://jupyter.${SYSTEM_FQDN}`
+- SeaweedFS Admin - `https://seaweedfs.${SYSTEM_FQDN}`
+- Grafana - `https://grafana.${SYSTEM_FQDN}`
+- Prometheus - `https://prometheus.${SYSTEM_FQDN}`
 
 ## Installing Spark Operator on non-mlrun namespace
 

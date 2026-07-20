@@ -584,10 +584,15 @@ push-api: api ## Push api docker image
 pull-api: ## Pull api docker image
 	docker pull $(MLRUN_API_IMAGE_NAME_TAGGED)
 
+# Test image flavor: "all" (default, combined suite - full KFP 1.8 + api-server deps, reproduces the
+# pre-split image), "client" (rest/SDK suite, full KFP 1.8, no api-server deps) or "server" (api suite,
+# api-server deps, no full KFP). The flavor selects which lock is synced and whether the kfp adapter is
+# installed with the [kfp] extra; it is also appended to the image/cache tags so flavors never collide.
+MLRUN_TEST_FLAVOR ?= all
 MLRUN_TEST_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/test
 MLRUN_TEST_CACHE_IMAGE_NAME := $(MLRUN_CACHE_DOCKER_IMAGE_PREFIX)/test
-MLRUN_TEST_IMAGE_NAME_TAGGED := $(MLRUN_TEST_IMAGE_NAME):$(MLRUN_DOCKER_TAG)$(MLRUN_PYTHON_VERSION_SUFFIX)
-MLRUN_TEST_CACHE_IMAGE_NAME_TAGGED := $(MLRUN_TEST_CACHE_IMAGE_NAME):$(MLRUN_DOCKER_CACHE_FROM_TAG)$(MLRUN_PYTHON_VERSION_SUFFIX)
+MLRUN_TEST_IMAGE_NAME_TAGGED := $(MLRUN_TEST_IMAGE_NAME):$(MLRUN_DOCKER_TAG)$(MLRUN_PYTHON_VERSION_SUFFIX)-$(MLRUN_TEST_FLAVOR)
+MLRUN_TEST_CACHE_IMAGE_NAME_TAGGED := $(MLRUN_TEST_CACHE_IMAGE_NAME):$(MLRUN_DOCKER_CACHE_FROM_TAG)$(MLRUN_PYTHON_VERSION_SUFFIX)-$(MLRUN_TEST_FLAVOR)
 MLRUN_TEST_IMAGE_DOCKER_CACHE_FROM_FLAG := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_USE_CACHE)),--cache-from $(strip $(MLRUN_TEST_CACHE_IMAGE_NAME_TAGGED)),)
 MLRUN_TEST_CACHE_IMAGE_PULL_COMMAND := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_USE_CACHE)),docker pull $(MLRUN_TEST_CACHE_IMAGE_NAME_TAGGED) || true,)
 MLRUN_TEST_CACHE_IMAGE_PUSH_COMMAND := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_PUSH_DOCKER_CACHE_IMAGE)),docker tag $(MLRUN_TEST_IMAGE_NAME_TAGGED) $(MLRUN_TEST_CACHE_IMAGE_NAME_TAGGED) && docker push $(MLRUN_TEST_CACHE_IMAGE_NAME_TAGGED),)
@@ -602,6 +607,7 @@ build-test: common-image compile-schemas update-version-file ## Build test docke
 		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \
 		--build-arg MLRUN_UV_VERSION=$(MLRUN_UV_VERSION) \
 		--build-arg DOCKER_DEFAULT_PLATFORM=$(DOCKER_DEFAULT_PLATFORM) \
+		--build-arg MLRUN_TEST_FLAVOR=$(MLRUN_TEST_FLAVOR) \
 		--platform $(DOCKER_DEFAULT_PLATFORM) \
 		$(MLRUN_TEST_IMAGE_DOCKER_CACHE_FROM_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
@@ -1128,8 +1134,12 @@ upgrade-mlrun-jupyter-deps-lock: ## Upgrade mlrun-jupyter locked requirements fi
 		$(MLRUN_UV_UPGRADE_FLAG) \
 		--output-file dockerfiles/jupyter/locked-requirements.txt
 
-.PHONY: upgrade-mlrun-test-deps-lock
-upgrade-mlrun-test-deps-lock: ## Upgrade mlrun test locked requirements file
+.PHONY: upgrade-mlrun-test-all-deps-lock
+upgrade-mlrun-test-all-deps-lock: ## Upgrade mlrun combined (all) test locked requirements file
+	# Combined suite: SDK + extras + api-server requirements + client test extras (kfp adapter WITH
+	# the [kfp] extra, i.e. full KFP 1.8) + dev requirements. This is the default flavor and reproduces
+	# the pre-split single test image; it is used by every dockerized-test job except the split
+	# "Run Dockerized Tests" matrix (e.g. integration, migrations, backward-compatibility, docs).
 	uv pip compile \
 		requirements.txt \
 		extras-requirements.txt \
@@ -1137,7 +1147,33 @@ upgrade-mlrun-test-deps-lock: ## Upgrade mlrun test locked requirements file
 		dockerfiles/test/requirements.txt \
 		dev-requirements.txt \
 		$(MLRUN_UV_UPGRADE_FLAG) \
-		--output-file dockerfiles/test/locked-requirements.txt
+		--output-file dockerfiles/test/locked-requirements-all.txt
+
+.PHONY: upgrade-mlrun-test-client-deps-lock
+upgrade-mlrun-test-client-deps-lock: ## Upgrade mlrun client (rest/SDK) test locked requirements file
+	# Client/rest suite: SDK + extras + client test extras (kfp adapter WITH the [kfp] extra,
+	# i.e. full KFP 1.8) + dev requirements. Deliberately excludes the api-server requirements
+	# (client code must not import server code - enforced by import-linter).
+	uv pip compile \
+		requirements.txt \
+		extras-requirements.txt \
+		dockerfiles/test/requirements.txt \
+		dev-requirements.txt \
+		$(MLRUN_UV_UPGRADE_FLAG) \
+		--output-file dockerfiles/test/locked-requirements-client.txt
+
+.PHONY: upgrade-mlrun-test-server-deps-lock
+upgrade-mlrun-test-server-deps-lock: ## Upgrade mlrun server (api) test locked requirements file
+	# Server/api suite: SDK + extras + api-server requirements + server test extras (kfp adapter
+	# WITHOUT the [kfp] extra, i.e. kfp-server-api only) + dev requirements.
+	uv pip compile \
+		requirements.txt \
+		extras-requirements.txt \
+		dockerfiles/mlrun-api/requirements.txt \
+		dockerfiles/test/server-requirements.txt \
+		dev-requirements.txt \
+		$(MLRUN_UV_UPGRADE_FLAG) \
+		--output-file dockerfiles/test/locked-requirements-server.txt
 
 .PHONY: upgrade-mlrun-system-test-deps-lock
 upgrade-mlrun-system-test-deps-lock: ## Upgrade mlrun system test locked requirements file
@@ -1167,7 +1203,9 @@ upgrade-mlrun-deps-lock: ## Upgrade mlrun-* locked requirements file
 		upgrade-mlrun-jupyter-deps-lock \
 		upgrade-mlrun-gpu-deps-lock \
 		upgrade-mlrun-kfp-deps-lock \
-		upgrade-mlrun-test-deps-lock \
+		upgrade-mlrun-test-all-deps-lock \
+		upgrade-mlrun-test-client-deps-lock \
+		upgrade-mlrun-test-server-deps-lock \
 		upgrade-mlrun-system-test-deps-lock
 
 

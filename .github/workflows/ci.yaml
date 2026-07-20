@@ -138,6 +138,7 @@ jobs:
         MLRUN_DOCKER_REGISTRY=ghcr.io/ \
         MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
         MLRUN_PYTHON_VERSION=${{ matrix.python-version }} \
+        MLRUN_TEST_FLAVOR=${{ matrix.test-suite }} \
         UNIT_TESTS_PATH=$UNIT_TESTS_PATH \
         UNIT_TESTS_IGNORE_PATH=$UNIT_TESTS_IGNORE_PATH \
         RUN_COVERAGE=$RUN_COVERAGE \

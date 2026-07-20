@@ -99,11 +99,17 @@ MLRun CE integrates the OpenTelemetry Operator to bring metrics and distributed 
 
 Benefits of OTel:
 - Automatic Python metrics from Nuclio functions — CPU, memory, GC, thread counts, system I/O — with no changes to function code
-- Custom metrics and distributed traces — use the standard Python OTel SDK inside your function; the collector endpoint is pre-configured
+- Custom metrics — use the standard Python OTel SDK inside your function; the collector endpoint is pre-configured
 - Metrics visible in Prometheus/Grafana out of the box — no extra exporters or sidecars needed
 - Opt-in per function — only the functions you choose are instrumented; the rest of the platform is unaffected
 
-When enabled, a single OTel Collector runs per namespace. Instrumented pods push metrics and traces over OTLP Metrics to the in-cluster Prometheus instance (`prometheus-operated:9090/api/v1/otlp`). They are immediately available for querying in Prometheus and visualizing in the bundled Grafana dashboard.
+When enabled, a single OTel Collector runs per namespace. Instrumented pods push metrics over OTLP to the Collector, which forwards
+metrics to the in-cluster Prometheus instance via its OTLP write endpoint. Metrics are immediately available for querying in
+Prometheus and visualizing in the bundled Grafana dashboard.
+
+```{admonition} Note
+Traces currently only go to the `debug` exporter. You can configure your own trace backend (for example, Jaeger, Tempo).
+```
 
 OTel is disabled by default. 
 
@@ -188,7 +194,7 @@ def handler(context, event):
     return "ok"
 ```
 
-And deploy your custome metrics (OTel is already enabled):
+And deploy your custom metrics (OTel is already enabled):
 ```python
 import mlrun
 fn = mlrun.code_to_function(

@@ -1,4 +1,4 @@
-# Azure Blob Storage for artifacts (or set storage.mode to "s3" for bundled SeaweedFS).
+# Azure Blob Storage for artifacts (or set storage.mode to "local" for bundled SeaweedFS).
 storage:
   mode: "azure-blob"
   azure:

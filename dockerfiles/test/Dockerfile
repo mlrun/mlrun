@@ -74,17 +74,12 @@ RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
 
 COPY pipeline-adapters pipeline-adapters
 # Install the pipeline adapters development versions since we release them only after merging.
-# The "client" flavor installs the v1-8 adapter with the [kfp] extra (full KFP 1.8); the "server"
-# flavor installs it without, keeping the api suite on kfp-server-api only.
+# Whether full KFP 1.8 ends up in the image is decided by the locked-requirements-${MLRUN_TEST_FLAVOR}.txt
+# synced above (client's lock includes it via the [kfp] extra, server's doesn't); this reinstall only
+# swaps in the in-repo source for the adapter package itself and doesn't affect kfp's presence either way.
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,id=pip-${MLRUN_PYTHON_VERSION},target=/root/.cache/uv \
-    kfp_extra="[kfp]" ; \
-    if [ "${MLRUN_TEST_FLAVOR}" = "server" ]; then kfp_extra=""; fi ; \
-    uv pip install \
-        ./pipeline-adapters/mlrun-pipelines-kfp-common \
-        "./pipeline-adapters/mlrun-pipelines-kfp-v1-8${kfp_extra}" \
-        --python-version ${MLRUN_PYTHON_VERSION} \
-    && make -C pipeline-adapters clean
+    uv pip install ./pipeline-adapters/mlrun-pipelines-kfp-common ./pipeline-adapters/mlrun-pipelines-kfp-v1-8 --python-version ${MLRUN_PYTHON_VERSION} && make -C pipeline-adapters clean
 
 COPY Makefile .
 COPY .dockerignore .

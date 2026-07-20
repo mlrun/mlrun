@@ -21,7 +21,7 @@ You can also import model monitoring applications from the [MLRun hub](https://w
 
 - [Overview](#overview)
 - [Export results and metrics via OTel](#export-results-and-metrics-via-otel)
-- [Usage](#usage)
+- [Model monitoring application usage](#model-monitoring-application-usage)
 - [Lag detection alerts](#lag-detection-alerts)
 
 ## Overview
@@ -39,9 +39,10 @@ After testing your application with external data, as described in {ref}`testing
 you can run it on the actual model endpoint data and write the outputs with `write_output=True`.
 
 ## Export results and metrics via OTel
-You can add an external OTel-collector to receive the same results and metrics that are sent to the MLRun TSDB.
+You can export the model monitoring results and metrics (that are sent to the MLRun TSDB) to the default system OTel collector.
 When configured, the results and metrics returned by `do_tracking()` in every monitoring window
-are exported via OTLP to your configured endpoint.
+are exported via OTLP to your [configured endpoint](../server-cfg/server-metrics.md#set-the-shared-otlp-endpoint).
+
 Each result exposes two fixed gauges. The name is a label, not part of the metric (keeps the instrument cardinality bounded to two):
 - mlrun.model_monitoring.result → scraped as mlrun_model_monitoring_result (one per result)
 - mlrun.model_monitoring.metric → scraped as mlrun_model_monitoring_metric (one per metric)
@@ -53,14 +54,11 @@ Each result exposes two fixed gauges. The name is a label, not part of the metri
 (OTLP→Prometheus turns dots into underscores, e.g. result_name.)
 
 To export results:
-1. Set the default collector using `mlrun.mlconf.telemetry.otlp_endpoint` on the API server.
-2. Enable the project's OTel collection by setting `otlp_enabled=True` when you run {py:meth}`~mlrun.projects.MlrunProject.enable_model_monitoring`.
-2. To export metrics from your serving graph, see {ref}`otel-export-step`.
+1. Enable export to OTel collection for the project by setting `oltp_enabled=True` when you run {py:meth}`~mlrun.projects.MlrunProject.enable_model_monitoring`.
+2. To add a step that exports metrics from your serving graph, see {ref}`otel-export-step`.
 3. To disable exporting metrics per model monitoring application, set the parameter `otlp_enabled=False` in {py:meth}`~mlrun.projects.MlrunProject.set_model_monitoring_function`.
 
-See metrics details in {ref}`otel-metrics`.
-
-## Usage
+## Model monitoring application usage
 
 First, list the model endpoints and choose the ones you want to monitor:
 

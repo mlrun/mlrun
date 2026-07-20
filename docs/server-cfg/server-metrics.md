@@ -1,7 +1,9 @@
 (otel-metrics)=
 # OTel metrics
 
-MLRun collects anonymized system-size statistics, for example, project counts, artifact counts, run activity, serving endpoints, etc., and exports them to Prometheus via OpenTelemetry. 
+MLRun collects anonymized system-wide statistics, for example, project counts, artifact counts, run activity, serving endpoints, etc., and exports them to Prometheus via OpenTelemetry. 
+
+When enabled, monitoring application results and metrics are also exported via OpenTelemetry to the same OTLP endpoint. See [Export results and metrics via OTel](../model-monitoring/running-applications.md#export-results-and-metrics-via-otel).
 
 ## OTel configuration
 
@@ -14,8 +16,8 @@ To set the endpoint:
 MLRUN_TELEMETRY__OTLP_ENDPOINT=http://<server-name>:<port>
 ```
 
-### Disable/enable OpenTelemetry 
-Metrics are enabled by default. 
+### Disable/enable server metrics collection
+Server metrics are enabled by default. 
 To disable the metrics collection:
 ```
 MLRUN_TELEMETRY__ENABLED=false
@@ -26,7 +28,7 @@ To enable the metrics collection:
 MLRUN_TELEMETRY__ENABLED=true
 ```
 
-## Server metrics
+## Server metrics description
 Every metric carries a system_id attribute (MLRun installation UUID). Project-scoped metrics additionally carry a project name. 
 
 ### Metrics and their attributes

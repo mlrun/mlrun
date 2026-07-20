@@ -765,6 +765,8 @@ test-integration: clean ## Run mlrun integration tests
 .PHONY: test-migrations-dockerized
 # Migrations test the api server's DB layer -> server flavor (propagates to the build-test prerequisite).
 test-migrations-dockerized: MLRUN_TEST_FLAVOR := server
+# server flavor runs on pydantic 2 and must bind the native _v2 schema face
+test-migrations-dockerized: MLRUN_IS_API_SERVER := true
 test-migrations-dockerized: build-test ## Run mlrun db migrations tests in docker container
 	COVERAGE_MOUNT_PATH="$(ROOT_DIR)coverage_reports/migration_tests" ;\
 	$(SETUP_COVERAGE_MOUNTING) && \
@@ -780,6 +782,7 @@ test-migrations-dockerized: build-test ## Run mlrun db migrations tests in docke
 		-e MLRUN_DOCKER_REGISTRY=$(MLRUN_DOCKER_REGISTRY) \
 		-e MLRUN_MYSQL_IMAGE=$(MLRUN_MYSQL_IMAGE) \
 		-e MLRUN_POSTGRES_IMAGE=$(MLRUN_POSTGRES_IMAGE) \
+		-e MLRUN_IS_API_SERVER=$(MLRUN_IS_API_SERVER) \
 		-v $$COVERAGE_MOUNT_PATH:/mlrun/tests/coverage_reports \
 		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make RUN_COVERAGE=true test-migrations
 
@@ -1032,6 +1035,8 @@ endif
 .PHONY: test-backward-compatibility-dockerized
 # Backward-compat instantiates the FastAPI app -> server flavor (propagates to the build-test prerequisite).
 test-backward-compatibility-dockerized: MLRUN_TEST_FLAVOR := server
+# server flavor runs on pydantic 2 and must bind the native _v2 schema face
+test-backward-compatibility-dockerized: MLRUN_IS_API_SERVER := true
 test-backward-compatibility-dockerized: build-test ## Run backward compatibility tests in docker container
 ifndef MLRUN_BC_TESTS_BASE_CODE_PATH
 	$(error MLRUN_BC_TESTS_BASE_CODE_PATH is undefined)
@@ -1048,6 +1053,7 @@ endif
 	    --env MLRUN_BC_TESTS_OPENAPI_OUTPUT_PATH=$(shell pwd) \
 		--env MLRUN_VERSION=$(MLRUN_VERSION) \
 		--env MLRUN_DOCKER_REGISTRY=$(MLRUN_DOCKER_REGISTRY) \
+		--env MLRUN_IS_API_SERVER=$(MLRUN_IS_API_SERVER) \
 	    --workdir=$(shell pwd) \
 	    $(MLRUN_TEST_IMAGE_NAME_TAGGED) make test-backward-compatibility
 

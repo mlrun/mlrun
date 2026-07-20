@@ -128,6 +128,9 @@ jobs:
       run: |
           if [[ "${{ matrix.test-suite }}" == "server" ]]; then
             echo "UNIT_TESTS_PATH=\"server/\"" >> $GITHUB_ENV
+            # ML-12891: the server suite runs on pydantic 2 and must bind the native _v2 schema
+            # face; the dispatcher reads MLRUN_IS_API_SERVER at import time.
+            echo "MLRUN_IS_API_SERVER=true" >> $GITHUB_ENV
           else
             echo "UNIT_TESTS_IGNORE_PATH=\"server/\"" >> $GITHUB_ENV
           fi
@@ -139,6 +142,7 @@ jobs:
         MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
         MLRUN_PYTHON_VERSION=${{ matrix.python-version }} \
         MLRUN_TEST_FLAVOR=${{ matrix.test-suite }} \
+        MLRUN_IS_API_SERVER=$MLRUN_IS_API_SERVER \
         UNIT_TESTS_PATH=$UNIT_TESTS_PATH \
         UNIT_TESTS_IGNORE_PATH=$UNIT_TESTS_IGNORE_PATH \
         RUN_COVERAGE=$RUN_COVERAGE \

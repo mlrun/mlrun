@@ -665,6 +665,7 @@ test-dockerized: build-test ## Run mlrun tests in docker container
 		-e MLRUN_DOCKER_REGISTRY=$(MLRUN_DOCKER_REGISTRY) \
 		-e MLRUN_MYSQL_IMAGE=$(MLRUN_MYSQL_IMAGE) \
 		-e MLRUN_POSTGRES_IMAGE=$(MLRUN_POSTGRES_IMAGE) \
+		-e MLRUN_IS_API_SERVER=$(MLRUN_IS_API_SERVER) \
 		-v /tmp:/tmp \
 		-v $$COVERAGE_MOUNT_PATH:/mlrun/tests/coverage_reports \
 		-v /var/run/docker.sock:/var/run/docker.sock \

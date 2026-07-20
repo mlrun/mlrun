@@ -1,3 +1,2 @@
-mlrun-pipelines-kfp-v1-8~=0.7.0
 mlflow~=3.0
 iguazio~=0.0.1

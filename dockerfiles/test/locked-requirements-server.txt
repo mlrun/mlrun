@@ -2524,7 +2524,6 @@ mlrun-pipelines-kfp-v1-8==0.7.3 \
     --hash=sha256:dadcca47c4613cc1ddcbcf072ba4a679e5f8913f82e432b7a4d88dfeb87e6b18
     # via
     #   -r dockerfiles/mlrun-api/requirements.txt
-    #   -r dockerfiles/test/server-requirements.txt
     #   -r requirements.txt
 msal==1.37.0 \
     --hash=sha256:1b1672a33ee467c1d70b341bb16cafd51bb3c817147a95b93263794b03971bec \

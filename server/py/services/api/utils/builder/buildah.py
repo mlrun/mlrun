@@ -43,11 +43,11 @@ _CONTEXT_DIR = "/empty"
 _AUTHFILE_DIR = "/auth"
 _AUTHFILE_PATH = f"{_AUTHFILE_DIR}/config.json"
 
-# the AppArmor annotation is keyed by the build container's name, which BasePod hard-codes to "base".
-_BUILD_CONTAINER_NAME = "base"
-_APPARMOR_ANNOTATION = (
-    f"container.apparmor.security.beta.kubernetes.io/{_BUILD_CONTAINER_NAME}"
-)
+# the AppArmor profile is applied via a per-container annotation (the k8s client in the test image is
+# capped below the securityContext.appArmorProfile field by KFP v1, and the annotation is also honored
+# by pre-1.30 clusters). The annotation is keyed by the build container's name; we read that name from
+# the pod itself (BasePod.container_name) so there is a single source of truth and it can't drift.
+_APPARMOR_ANNOTATION_PREFIX = "container.apparmor.security.beta.kubernetes.io"
 
 _SUPPORTED_STORAGE_DRIVERS = ("overlay", "vfs")
 
@@ -225,7 +225,10 @@ def make_buildah_pod(
     # mount/unshare syscalls the build performs); the annotation is keyed to the build container name.
     apparmor_profile = config.httpdb.builder.buildah_apparmor_profile
     if apparmor_profile:
-        buildah_pod.add_annotation(_APPARMOR_ANNOTATION, apparmor_profile)
+        buildah_pod.add_annotation(
+            f"{_APPARMOR_ANNOTATION_PREFIX}/{buildah_pod.container_name}",
+            apparmor_profile,
+        )
 
     # a writable containers store (overlay/vfs data) off the read-only image layers.
     buildah_pod.mount_empty(name="context", mount_path=_CONTEXT_DIR)

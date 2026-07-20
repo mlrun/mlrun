@@ -246,10 +246,15 @@ def test_make_buildah_pod_invalid_storage_driver_raises(monkeypatch):
 )
 def test_make_buildah_pod_apparmor_annotation(monkeypatch, profile, expected):
     monkeypatch.setattr(config.httpdb.builder, "buildah_apparmor_profile", profile)
-    annotations = _make_buildah_pod().pod.metadata.annotations or {}
-    key = "container.apparmor.security.beta.kubernetes.io/base"
+    pod = _make_buildah_pod().pod
+    annotations = pod.metadata.annotations or {}
+    prefix = "container.apparmor.security.beta.kubernetes.io"
+    # the annotation must be keyed to the *actual* build container's name, otherwise k8s silently
+    # ignores it (stale key -> default profile stays enforced -> GKE/AKS build fails with no clue).
+    key = f"{prefix}/{pod.spec.containers[0].name}"
     if expected is None:
-        assert key not in annotations
+        # unset -> no apparmor annotation under any key
+        assert not any(k.startswith(f"{prefix}/") for k in annotations)
     else:
         assert annotations[key] == expected
 

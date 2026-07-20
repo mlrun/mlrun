@@ -2033,6 +2033,10 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
 
 
 class BasePod:
+    # the single build-pod container's name. Exposed as a constant so callers that key resources off
+    # it (e.g. the per-container AppArmor annotation) share one source of truth and can't drift.
+    container_name = "base"
+
     def __init__(
         self,
         task_name="",
@@ -2169,7 +2173,7 @@ class BasePod:
         else:
             env = self.env
         container = client.V1Container(
-            name="base",
+            name=self.container_name,
             image=self.image,
             env=env,
             command=self.command,

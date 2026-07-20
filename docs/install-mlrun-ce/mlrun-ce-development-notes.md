@@ -197,6 +197,7 @@ def handler(context, event):
 And deploy your custom metrics (OTel is already enabled):
 ```python
 import mlrun
+
 fn = mlrun.code_to_function(
     name="my-otel-function",
     kind="nuclio",
@@ -206,9 +207,9 @@ fn = mlrun.code_to_function(
 )
 # Opt in to OTel auto-instrumentation
 
-fn.with_annotations({
-    "instrumentation.opentelemetry.io/inject-python": "mlrun-otel-instrumentation"
-})
+fn.with_annotations(
+    {"instrumentation.opentelemetry.io/inject-python": "mlrun-otel-instrumentation"}
+)
 fn.deploy(project=project.name)
 ```
 After deploying and invoking the function, `nuclio_requests_total` appear in Prometheus alongside the automatic system and process metrics.

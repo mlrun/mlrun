@@ -293,7 +293,11 @@ jobs:
 
   backward-compatibility-tests:
     name: Run Backward Compatibility Tests
-    if: github.event_name == 'pull_request'
+    # Skipped while targeting the pydantic-2 integration branch: base (pre-flip, pydantic 1 ->
+    # OpenAPI 3.0) and head (post-flip, pydantic 2 -> OpenAPI 3.1) emit specs in different formats,
+    # so the cross-version openapi-diff is not meaningful. Re-enabled automatically once the flip is
+    # in the base branch (ML-12891 / ML-12736).
+    if: github.event_name == 'pull_request' && github.base_ref != 'feature/api-w-pydanticv2'
     runs-on: ubuntu-latest
     permissions:
       contents: read

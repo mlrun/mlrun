@@ -13,11 +13,13 @@
 # limitations under the License.
 
 import asyncio
+import collections.abc
 import unittest.mock
 
 import fastapi
 import fastapi.testclient
 import pytest
+import sqlalchemy.orm
 
 import mlrun
 
@@ -28,7 +30,7 @@ import framework.utils.telemetry.rest_metrics
 import services.api.main
 
 
-def test_is_response_start_matches_only_response_start_message():
+def test_is_response_start_matches_only_response_start_message() -> None:
     assert (
         framework.middlewares.base.is_response_start(
             {"type": "http.response.start", "status": 200, "headers": []}
@@ -67,7 +69,7 @@ def test_is_response_start_matches_only_response_start_message():
         ("/api/v1", ("", "")),
     ],
 )
-def test_parse_resource_and_project(path, expected):
+def test_parse_resource_and_project(path: str, expected: tuple[str, str]) -> None:
     assert framework.middlewares.rest_metrics.parse_resource_and_project(path) == (
         expected
     )
@@ -85,7 +87,7 @@ def service() -> services.api.main.Service:
 
 
 @pytest.fixture(autouse=True)
-def _reset_telemetry_config():
+def _reset_telemetry_config() -> collections.abc.Iterator[None]:
     original_enabled = mlrun.mlconf.telemetry.enabled
     original_rest_metrics_enabled = mlrun.mlconf.telemetry.rest_metrics.enabled
     original_otlp_endpoint = mlrun.mlconf.telemetry.otlp_endpoint
@@ -95,31 +97,39 @@ def _reset_telemetry_config():
     mlrun.mlconf.telemetry.otlp_endpoint = original_otlp_endpoint
 
 
-def test_rest_metrics_config_defaults():
+def test_rest_metrics_config_defaults() -> None:
     assert mlrun.mlconf.telemetry.enabled is False
     assert mlrun.mlconf.telemetry.rest_metrics.enabled is True
 
 
-def test_rest_metrics_middleware_absent_by_default(service):
+def test_rest_metrics_middleware_absent_by_default(
+    service: services.api.main.Service,
+) -> None:
     service._add_middlewares()
     assert "RestMetricsMiddleware" not in _middleware_class_names(service.app)
 
 
-def test_rest_metrics_middleware_absent_when_master_switch_off(service):
+def test_rest_metrics_middleware_absent_when_master_switch_off(
+    service: services.api.main.Service,
+) -> None:
     mlrun.mlconf.telemetry.enabled = False
     mlrun.mlconf.telemetry.rest_metrics.enabled = True
     service._add_middlewares()
     assert "RestMetricsMiddleware" not in _middleware_class_names(service.app)
 
 
-def test_rest_metrics_middleware_absent_when_sub_flag_off(service):
+def test_rest_metrics_middleware_absent_when_sub_flag_off(
+    service: services.api.main.Service,
+) -> None:
     mlrun.mlconf.telemetry.enabled = True
     mlrun.mlconf.telemetry.rest_metrics.enabled = False
     service._add_middlewares()
     assert "RestMetricsMiddleware" not in _middleware_class_names(service.app)
 
 
-def test_rest_metrics_middleware_registered_when_enabled(service):
+def test_rest_metrics_middleware_registered_when_enabled(
+    service: services.api.main.Service,
+) -> None:
     mlrun.mlconf.telemetry.enabled = True
     mlrun.mlconf.telemetry.rest_metrics.enabled = True
     mlrun.mlconf.telemetry.otlp_endpoint = "http://otel-collector:4317"
@@ -150,7 +160,7 @@ def _http_scope(path: str = "/api/v1/projects/proj/functions/fn") -> dict:
     }
 
 
-def test_rest_metrics_middleware_records_duration_on_response_start():
+def test_rest_metrics_middleware_records_duration_on_response_start() -> None:
     async def downstream_app(scope, receive, send):
         await send({"type": "http.response.start", "status": 200, "headers": []})
         await send({"type": "http.response.body", "body": b"ok"})
@@ -169,7 +179,7 @@ def test_rest_metrics_middleware_records_duration_on_response_start():
     assert kwargs["project"] == "proj"
 
 
-def test_rest_metrics_middleware_excludes_healthz():
+def test_rest_metrics_middleware_excludes_healthz() -> None:
     async def downstream_app(scope, receive, send):
         await send({"type": "http.response.start", "status": 200, "headers": []})
         await send({"type": "http.response.body", "body": b"ok"})
@@ -182,7 +192,7 @@ def test_rest_metrics_middleware_excludes_healthz():
     record_duration.assert_not_called()
 
 
-def test_rest_metrics_middleware_records_once_for_streamed_body():
+def test_rest_metrics_middleware_records_once_for_streamed_body() -> None:
     async def downstream_app(scope, receive, send):
         await send({"type": "http.response.start", "status": 200, "headers": []})
         await send({"type": "http.response.body", "body": b"a", "more_body": True})
@@ -196,7 +206,7 @@ def test_rest_metrics_middleware_records_once_for_streamed_body():
     record_duration.assert_called_once()
 
 
-def test_rest_metrics_middleware_propagates_downstream_exceptions():
+def test_rest_metrics_middleware_propagates_downstream_exceptions() -> None:
     async def failing_app(scope, receive, send):
         raise ValueError("boom")
 
@@ -204,7 +214,7 @@ def test_rest_metrics_middleware_propagates_downstream_exceptions():
         asyncio.run(_run_middleware(failing_app, _http_scope()))
 
 
-def test_rest_metrics_middleware_skips_non_http_scope():
+def test_rest_metrics_middleware_skips_non_http_scope() -> None:
     called = {"ran": False}
 
     async def app(scope, receive, send):
@@ -219,7 +229,11 @@ def test_rest_metrics_middleware_skips_non_http_scope():
     record_duration.assert_not_called()
 
 
-def test_service_lifecycle_wires_rest_metrics_init_and_shutdown(db, app, monkeypatch):
+def test_service_lifecycle_wires_rest_metrics_init_and_shutdown(
+    db: sqlalchemy.orm.Session,
+    app: fastapi.FastAPI,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """The shared service startup/teardown must call the telemetry lifecycle hooks.
 
     Guards the wiring in framework.service._setup_service / _teardown_service so

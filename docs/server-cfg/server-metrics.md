@@ -48,9 +48,13 @@ delta(sum(mlrun_artifacts)[24h:])
 ## REST call metrics
 Beyond the system-size gauges above, MLRun can record the processing time of every REST API call as an OpenTelemetry histogram, exported to Prometheus. It is emitted from every API-bearing replica (the API chief and workers, and the alerts service).
 
-This feature is opt-in and off by default. Enable it (in addition to the master `MLRUN_TELEMETRY__ENABLED`) with:
+This feature is enabled by default whenever the master switch is on. No extra flag is needed:
 ```
-MLRUN_TELEMETRY__REST_METRICS__ENABLED=true
+MLRUN_TELEMETRY__ENABLED=true
+```
+To disable REST metrics independently while keeping other telemetry on:
+```
+MLRUN_TELEMETRY__REST_METRICS__ENABLED=false
 ```
 
 |Metric name |Attributes       |Meaning       |

@@ -95,9 +95,9 @@ def _reset_telemetry_config():
     mlrun.mlconf.telemetry.otlp_endpoint = original_otlp_endpoint
 
 
-def test_rest_metrics_config_defaults_to_off():
+def test_rest_metrics_config_defaults():
     assert mlrun.mlconf.telemetry.enabled is False
-    assert mlrun.mlconf.telemetry.rest_metrics.enabled is False
+    assert mlrun.mlconf.telemetry.rest_metrics.enabled is True
 
 
 def test_rest_metrics_middleware_absent_by_default(service):

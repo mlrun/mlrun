@@ -1023,8 +1023,9 @@ default_config = {
             "interval": 60,
         },
         # Per-REST-call processing time middleware. Inherits the master `telemetry.enabled` kill-switch.
+        # Default true so that enabling telemetry (the master switch) is sufficient.
         "rest_metrics": {
-            "enabled": False,
+            "enabled": True,
         },
     },
     "system_id": "",

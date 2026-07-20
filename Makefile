@@ -733,6 +733,7 @@ test-integration-dockerized: build-test api ## Run mlrun integration tests in do
 		-e MLRUN_DOCKER_REGISTRY=$(MLRUN_DOCKER_REGISTRY) \
 		-e MLRUN_MYSQL_IMAGE=$(MLRUN_MYSQL_IMAGE) \
 		-e MLRUN_POSTGRES_IMAGE=$(MLRUN_POSTGRES_IMAGE) \
+		-e MLRUN_IS_API_SERVER=$(MLRUN_IS_API_SERVER) \
 		--add-host=host.docker.internal:host-gateway \
 		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make test-integration MLRUN_TEST_FLAVOR=$(MLRUN_TEST_FLAVOR)
 

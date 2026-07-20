@@ -211,6 +211,7 @@ jobs:
           MLRUN_PYTHON_VERSION=${{ matrix.python-version }} \
           MLRUN_TEST_DB=${{ matrix.test-db }} \
           MLRUN_TEST_FLAVOR=${{ matrix.test-suite }} \
+          MLRUN_IS_API_SERVER=$([ "${{ matrix.test-suite }}" = "server" ] && echo true || echo false) \
           RUN_COVERAGE=$RUN_COVERAGE \
           make test-integration-dockerized
       timeout-minutes: 90

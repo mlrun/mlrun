@@ -275,11 +275,11 @@ jobs:
           done;
     - name: Pull cache, build and push test image
       # When version is given we're probably in a release process, we don't need the test image in that case
-      # The test image is built in "all" (combined, default), "client" (rest/SDK) and "server" (api)
-      # flavors, each with its own lock and cache tag, so build and push all of them.
+      # The test image is built in "client" (rest/SDK) and "server" (api) flavors, each with its own
+      # lock and cache tag, so build and push both.
       if: matrix.image-name == 'test' && inputs.version == ''
       run: |
-        for flavor in all client server; \
+        for flavor in client server; \
           do \
             MLRUN_CACHE_DATE=${{ steps.computed_params.outputs.mlrun_cache_date }} \
             MLRUN_DOCKER_REGISTRY=ghcr.io/ \

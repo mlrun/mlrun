@@ -15,11 +15,11 @@ ARG MLRUN_UV_IMAGE=ghcr.io/astral-sh/uv:latest
 ARG MLRUN_PYTHON_VERSION=3.11
 ARG MLRUN_PIP_VERSION=26.0
 ARG DOCKER_DEFAULT_PLATFORM=linux/amd64
-# Test image flavor: "all" (default, combined - full KFP 1.8 + api-server deps), "client" (rest/SDK
-# suite, full KFP 1.8, no api-server deps) or "server" (api suite, api-server deps, no full KFP).
-# Selects which locked-requirements-<flavor>.txt to sync and whether the kfp adapter is installed with
-# the [kfp] extra. Defaults to "all" so an unparameterised build reproduces the pre-split test image.
-ARG MLRUN_TEST_FLAVOR=all
+# Test image flavor: "client" (default, rest/SDK suite - full KFP 1.8, no api-server deps) or "server"
+# (api suite - api-server deps, no full KFP). Selects which locked-requirements-<flavor>.txt to sync and
+# whether the kfp adapter is installed with the [kfp] extra. There is no combined flavor: each
+# dockerized-test job runs on exactly one so the two locks can diverge (e.g. server -> Pydantic 2).
+ARG MLRUN_TEST_FLAVOR=client
 
 FROM ${MLRUN_UV_IMAGE} AS uv-image
 FROM --platform=${DOCKER_DEFAULT_PLATFORM} mlrun_common_image:${MLRUN_PYTHON_VERSION}
@@ -74,8 +74,8 @@ RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
 
 COPY pipeline-adapters pipeline-adapters
 # Install the pipeline adapters development versions since we release them only after merging.
-# The "all" and "client" flavors install the v1-8 adapter with the [kfp] extra (full KFP 1.8); the
-# "server" flavor installs it without, keeping the api suite on kfp-server-api only.
+# The "client" flavor installs the v1-8 adapter with the [kfp] extra (full KFP 1.8); the "server"
+# flavor installs it without, keeping the api suite on kfp-server-api only.
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,id=pip-${MLRUN_PYTHON_VERSION},target=/root/.cache/uv \
     kfp_extra="[kfp]" ; \

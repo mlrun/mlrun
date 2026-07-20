@@ -584,18 +584,21 @@ push-api: api ## Push api docker image
 pull-api: ## Pull api docker image
 	docker pull $(MLRUN_API_IMAGE_NAME_TAGGED)
 
-# Test image flavor: "all" (default, combined suite - full KFP 1.8 + api-server deps, reproduces the
-# pre-split image), "client" (rest/SDK suite, full KFP 1.8, no api-server deps) or "server" (api suite,
-# api-server deps, no full KFP). The flavor selects which lock is synced and whether the kfp adapter is
-# installed with the [kfp] extra; it is also appended to the image/cache tags so flavors never collide.
-MLRUN_TEST_FLAVOR ?= all
+# Test image flavor: "client" (default, rest/SDK suite - full KFP 1.8, no api-server deps) or "server"
+# (api suite - api-server deps, no full KFP). The flavor selects which lock is synced and whether the
+# kfp adapter is installed with the [kfp] extra; it is also appended to the image/cache tags so flavors
+# never collide. There is deliberately no combined flavor: every dockerized-test job runs on exactly one
+# of these so the two locks can diverge independently (e.g. server -> Pydantic 2 while client stays 1).
+# The tagged-image variables are recursively expanded (=) so a target-specific MLRUN_TEST_FLAVOR (see
+# test-migrations-dockerized / test-backward-compatibility-dockerized) re-expands them per invocation.
+MLRUN_TEST_FLAVOR ?= client
 MLRUN_TEST_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/test
 MLRUN_TEST_CACHE_IMAGE_NAME := $(MLRUN_CACHE_DOCKER_IMAGE_PREFIX)/test
-MLRUN_TEST_IMAGE_NAME_TAGGED := $(MLRUN_TEST_IMAGE_NAME):$(MLRUN_DOCKER_TAG)$(MLRUN_PYTHON_VERSION_SUFFIX)-$(MLRUN_TEST_FLAVOR)
-MLRUN_TEST_CACHE_IMAGE_NAME_TAGGED := $(MLRUN_TEST_CACHE_IMAGE_NAME):$(MLRUN_DOCKER_CACHE_FROM_TAG)$(MLRUN_PYTHON_VERSION_SUFFIX)-$(MLRUN_TEST_FLAVOR)
-MLRUN_TEST_IMAGE_DOCKER_CACHE_FROM_FLAG := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_USE_CACHE)),--cache-from $(strip $(MLRUN_TEST_CACHE_IMAGE_NAME_TAGGED)),)
-MLRUN_TEST_CACHE_IMAGE_PULL_COMMAND := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_USE_CACHE)),docker pull $(MLRUN_TEST_CACHE_IMAGE_NAME_TAGGED) || true,)
-MLRUN_TEST_CACHE_IMAGE_PUSH_COMMAND := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_PUSH_DOCKER_CACHE_IMAGE)),docker tag $(MLRUN_TEST_IMAGE_NAME_TAGGED) $(MLRUN_TEST_CACHE_IMAGE_NAME_TAGGED) && docker push $(MLRUN_TEST_CACHE_IMAGE_NAME_TAGGED),)
+MLRUN_TEST_IMAGE_NAME_TAGGED = $(MLRUN_TEST_IMAGE_NAME):$(MLRUN_DOCKER_TAG)$(MLRUN_PYTHON_VERSION_SUFFIX)-$(MLRUN_TEST_FLAVOR)
+MLRUN_TEST_CACHE_IMAGE_NAME_TAGGED = $(MLRUN_TEST_CACHE_IMAGE_NAME):$(MLRUN_DOCKER_CACHE_FROM_TAG)$(MLRUN_PYTHON_VERSION_SUFFIX)-$(MLRUN_TEST_FLAVOR)
+MLRUN_TEST_IMAGE_DOCKER_CACHE_FROM_FLAG = $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_USE_CACHE)),--cache-from $(strip $(MLRUN_TEST_CACHE_IMAGE_NAME_TAGGED)),)
+MLRUN_TEST_CACHE_IMAGE_PULL_COMMAND = $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_USE_CACHE)),docker pull $(MLRUN_TEST_CACHE_IMAGE_NAME_TAGGED) || true,)
+MLRUN_TEST_CACHE_IMAGE_PUSH_COMMAND = $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_PUSH_DOCKER_CACHE_IMAGE)),docker tag $(MLRUN_TEST_IMAGE_NAME_TAGGED) $(MLRUN_TEST_CACHE_IMAGE_NAME_TAGGED) && docker push $(MLRUN_TEST_CACHE_IMAGE_NAME_TAGGED),)
 
 .PHONY: build-test
 build-test: common-image compile-schemas update-version-file ## Build test docker image
@@ -730,7 +733,7 @@ test-integration-dockerized: build-test api ## Run mlrun integration tests in do
 		-e MLRUN_MYSQL_IMAGE=$(MLRUN_MYSQL_IMAGE) \
 		-e MLRUN_POSTGRES_IMAGE=$(MLRUN_POSTGRES_IMAGE) \
 		--add-host=host.docker.internal:host-gateway \
-		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make test-integration
+		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make test-integration MLRUN_TEST_FLAVOR=$(MLRUN_TEST_FLAVOR)
 
 .PHONY: test-integration
 test-integration: clean ## Run mlrun integration tests
@@ -739,6 +742,11 @@ test-integration: clean ## Run mlrun integration tests
 	COVERAGE_FILE=$${COVERAGE_FILE:-"tests/coverage_reports/integration_tests.coverage"} && \
 	$(SETUP_COVERAGE) && \
 	unset COVERAGE_PROCESS_START && \
+	if [ "$(MLRUN_TEST_FLAVOR)" = "server" ]; then \
+		INTEGRATION_TESTS_PATHS="server/py/services/api/tests/integration tests/rundb/test_httpdb.py tests/integration/sdk_api/alerts"; \
+	else \
+		INTEGRATION_TESTS_PATHS="tests/integration --ignore=tests/integration/sdk_api/alerts"; \
+	fi && \
 	MLRUN_MYSQL_IMAGE=$(MLRUN_MYSQL_IMAGE) \
 	MLRUN_POSTGRES_IMAGE=$(MLRUN_POSTGRES_IMAGE) \
 	COVERAGE_FILE=$$COVERAGE_FILE \
@@ -748,13 +756,13 @@ test-integration: clean ## Run mlrun integration tests
 		--disable-warnings \
 		--durations=100 \
 		-rf \
-		tests/integration \
-		server/py/services/api/tests/integration \
-		tests/rundb/test_httpdb.py && \
+		$$INTEGRATION_TESTS_PATHS && \
 	$(COMBINE_COVERAGE) && \
 	$(PRINT_COVERAGE_REPORT);
 
 .PHONY: test-migrations-dockerized
+# Migrations test the api server's DB layer -> server flavor (propagates to the build-test prerequisite).
+test-migrations-dockerized: MLRUN_TEST_FLAVOR := server
 test-migrations-dockerized: build-test ## Run mlrun db migrations tests in docker container
 	COVERAGE_MOUNT_PATH="$(ROOT_DIR)coverage_reports/migration_tests" ;\
 	$(SETUP_COVERAGE_MOUNTING) && \
@@ -1020,6 +1028,8 @@ endif
 	git push origin $$BRANCH_NAME
 
 .PHONY: test-backward-compatibility-dockerized
+# Backward-compat instantiates the FastAPI app -> server flavor (propagates to the build-test prerequisite).
+test-backward-compatibility-dockerized: MLRUN_TEST_FLAVOR := server
 test-backward-compatibility-dockerized: build-test ## Run backward compatibility tests in docker container
 ifndef MLRUN_BC_TESTS_BASE_CODE_PATH
 	$(error MLRUN_BC_TESTS_BASE_CODE_PATH is undefined)
@@ -1134,21 +1144,6 @@ upgrade-mlrun-jupyter-deps-lock: ## Upgrade mlrun-jupyter locked requirements fi
 		$(MLRUN_UV_UPGRADE_FLAG) \
 		--output-file dockerfiles/jupyter/locked-requirements.txt
 
-.PHONY: upgrade-mlrun-test-all-deps-lock
-upgrade-mlrun-test-all-deps-lock: ## Upgrade mlrun combined (all) test locked requirements file
-	# Combined suite: SDK + extras + api-server requirements + client test extras (kfp adapter WITH
-	# the [kfp] extra, i.e. full KFP 1.8) + dev requirements. This is the default flavor and reproduces
-	# the pre-split single test image; it is used by every dockerized-test job except the split
-	# "Run Dockerized Tests" matrix (e.g. integration, migrations, backward-compatibility, docs).
-	uv pip compile \
-		requirements.txt \
-		extras-requirements.txt \
-		dockerfiles/mlrun-api/requirements.txt \
-		dockerfiles/test/requirements.txt \
-		dev-requirements.txt \
-		$(MLRUN_UV_UPGRADE_FLAG) \
-		--output-file dockerfiles/test/locked-requirements-all.txt
-
 .PHONY: upgrade-mlrun-test-client-deps-lock
 upgrade-mlrun-test-client-deps-lock: ## Upgrade mlrun client (rest/SDK) test locked requirements file
 	# Client/rest suite: SDK + extras + client test extras (kfp adapter WITH the [kfp] extra,
@@ -1203,7 +1198,6 @@ upgrade-mlrun-deps-lock: ## Upgrade mlrun-* locked requirements file
 		upgrade-mlrun-jupyter-deps-lock \
 		upgrade-mlrun-gpu-deps-lock \
 		upgrade-mlrun-kfp-deps-lock \
-		upgrade-mlrun-test-all-deps-lock \
 		upgrade-mlrun-test-client-deps-lock \
 		upgrade-mlrun-test-server-deps-lock \
 		upgrade-mlrun-system-test-deps-lock

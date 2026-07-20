@@ -56,25 +56,34 @@ or to load python (or run a script): `docker run -it <image-name>:<image-tag> py
 
 ## Test image flavors
 
-The Dockerized test image (`dockerfiles/test/Dockerfile`) is built in three flavors, selected by the
+The Dockerized test image (`dockerfiles/test/Dockerfile`) is built in two flavors, selected by the
 `MLRUN_TEST_FLAVOR` build-arg (also exposed as a make variable):
 
-* `all` (default) — the combined suite. Installs both the full KFP 1.8 stack
-  (`mlrun-pipelines-kfp-v1-8[kfp]`) and the api-server requirements. Reproduces the pre-split test
-  image and is used by every dockerized-test job except the split unit-test matrix (integration,
-  migrations, backward-compatibility, docs).
-* `client` — the rest/SDK unit-test suite. Installs the full KFP 1.8 stack and **excludes** the
-  api-server requirements.
-* `server` — the api unit-test suite. Installs the api-server requirements and the KFP adapter
-  **without** the `[kfp]` extra (`kfp-server-api` only).
+* `client` (default) — the rest/SDK suite. Installs the full KFP 1.8 stack
+  (`mlrun-pipelines-kfp-v1-8[kfp]`) and **excludes** the api-server requirements.
+* `server` — the api suite. Installs the api-server requirements and the KFP adapter **without** the
+  `[kfp]` extra (`kfp-server-api` only).
+
+There is deliberately **no combined flavor**: every dockerized-test job runs on exactly one of these,
+so the two locks can diverge independently (this is what lets the server suite later move to Pydantic 2
+while the client suite stays on Pydantic 1 / KFP 1.8). Which job uses which flavor:
+
+| Job (make target) | Flavor |
+|---|---|
+| unit tests — `test-dockerized` | `client` and `server` (CI matrix) |
+| integration — `test-integration-dockerized` | `client` and `server` (CI matrix; the target scopes the pytest paths per flavor) |
+| migrations — `test-migrations-dockerized` | `server` |
+| backward-compat — `test-backward-compatibility-dockerized` | `server` |
+| docs — `build-docs-dockerized` / `html-docs-dockerized` | `client` (default) |
 
 Each flavor has its own locked-requirements file
 (`dockerfiles/test/locked-requirements-<flavor>.txt`), regenerated via
-`make upgrade-mlrun-test-all-deps-lock` / `-client-` / `-server-` (all covered by the aggregate
+`make upgrade-mlrun-test-client-deps-lock` / `-server-` (both covered by the aggregate
 `make upgrade-mlrun-deps-lock`). The flavor is appended to the image and cache tags so the flavors
 never collide.
 
-A plain `make build-test` / `make test-dockerized` builds the **all** flavor; pass
-`MLRUN_TEST_FLAVOR=client` or `=server` to build or run a specific suite, e.g.:
+A plain `make build-test` / `make test-dockerized` builds the **client** flavor; the server-side
+targets self-select `server`. Pass `MLRUN_TEST_FLAVOR=server` explicitly to build or run the server
+suite, e.g.:
 
     MLRUN_TEST_FLAVOR=server make test-dockerized

@@ -160,11 +160,11 @@ jobs:
 
     strategy:
       matrix:
-        include:
-          - python-version: "3.11"
-            test-db: mysql
-          - python-version: "3.11"
-            test-db: postgres
+        python-version: ["3.11"]
+        test-db: [mysql, postgres]
+        # client leg runs the SDK integration tests (talking to a separate mlrun-api container);
+        # server leg runs the api-side integration + rundb + alerts tests. Each builds its own flavor image.
+        test-suite: [client, server]
 
     steps:
     - uses: actions/checkout@v7
@@ -206,6 +206,7 @@ jobs:
           MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
           MLRUN_PYTHON_VERSION=${{ matrix.python-version }} \
           MLRUN_TEST_DB=${{ matrix.test-db }} \
+          MLRUN_TEST_FLAVOR=${{ matrix.test-suite }} \
           RUN_COVERAGE=$RUN_COVERAGE \
           make test-integration-dockerized
       timeout-minutes: 90
@@ -214,7 +215,7 @@ jobs:
       uses: actions/upload-artifact@v7
       if: env.RUN_COVERAGE == 'true'
       with:
-         name: coverage_integration_tests_report_${{ matrix.python-version }}_${{ matrix.test-db }}_${{ github.run_id }}.coverage
+         name: coverage_integration_tests_report_${{ matrix.python-version }}_${{ matrix.test-db }}_${{ matrix.test-suite }}_${{ github.run_id }}.coverage
          path: ${{ github.workspace }}/coverage_reports/integration_tests/integration_tests.coverage
          retention-days: 30
 

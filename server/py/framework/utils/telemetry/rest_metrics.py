@@ -143,8 +143,7 @@ def record_duration(
 
     No-op when the SDK was not initialized (telemetry disabled). ``system_id``
     is injected from ``mlrun.mlconf`` on every call so live config changes are
-    picked up. Emission is wrapped so a misbehaving instrument can never fail
-    the request that triggered it.
+    picked up.
 
     :param duration_ms:  Processing time in milliseconds.
     :param method:       HTTP method (e.g. ``GET``).

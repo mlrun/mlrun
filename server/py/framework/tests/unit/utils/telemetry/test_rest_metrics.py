@@ -129,19 +129,14 @@ def test_record_duration_records_with_system_id_and_attributes(
     )
 
 
-def test_record_duration_swallows_histogram_exceptions(
-    reset_state: None, monkeypatch: pytest.MonkeyPatch
+def test_record_duration_propagates_histogram_exceptions(
+    reset_state: None,
 ) -> None:
     histogram = unittest.mock.MagicMock()
     histogram.record.side_effect = RuntimeError("instrument broken")
     telemetry_rest_metrics._histogram = histogram
-    warning_mock = unittest.mock.MagicMock()
-    monkeypatch.setattr(mlrun.utils.logger, "warning", warning_mock)
 
-    telemetry_rest_metrics.record_duration(
-        1.0, method="GET", status_code=500, resource="runs", project=""
-    )
-
-    histogram.record.assert_called_once()
-    warning_mock.assert_called_once()
-    assert "emission failed" in warning_mock.call_args.args[0]
+    with pytest.raises(RuntimeError, match="instrument broken"):
+        telemetry_rest_metrics.record_duration(
+            1.0, method="GET", status_code=500, resource="runs", project=""
+        )

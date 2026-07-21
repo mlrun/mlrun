@@ -214,6 +214,26 @@ def test_rest_metrics_middleware_propagates_downstream_exceptions() -> None:
         asyncio.run(_run_middleware(failing_app, _http_scope()))
 
 
+def test_rest_metrics_middleware_swallows_record_duration_exceptions() -> None:
+    async def downstream_app(scope, receive, send):
+        await send({"type": "http.response.start", "status": 200, "headers": []})
+        await send({"type": "http.response.body", "body": b"ok"})
+
+    warning_mock = unittest.mock.MagicMock()
+    with (
+        unittest.mock.patch.object(
+            framework.utils.telemetry.rest_metrics,
+            "record_duration",
+            side_effect=RuntimeError("instrument broken"),
+        ),
+        unittest.mock.patch.object(mlrun.utils.logger, "warning", warning_mock),
+    ):
+        asyncio.run(_run_middleware(downstream_app, _http_scope()))
+
+    warning_mock.assert_called_once()
+    assert "REST metrics recording failed" in warning_mock.call_args.args[0]
+
+
 def test_rest_metrics_middleware_skips_non_http_scope() -> None:
     called = {"ran": False}
 

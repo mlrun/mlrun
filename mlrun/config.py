@@ -570,8 +570,10 @@ default_config = {
         "builder": {
             # the container-image build engine used for kubernetes-based function builds. "kaniko" (default)
             # and "buildah" are implemented; the engine is selected here without code changes. see
-            # BuilderBackend in services/api/utils/builder/. buildah is opt-in and, until its follow-ups land,
-            # transparently falls back to kaniko for inputs it can't handle yet (see resolve_builder_backend).
+            # BuilderBackend in services/api/utils/builder/. buildah is opt-in; it still transparently
+            # falls back to kaniko for build sources it can't acquire yet (ML-12887, see
+            # resolve_builder_backend) but handles Docker Hub / private / ECR / ACR / GAR registry auth
+            # itself. Set to "kaniko" to force kaniko regardless of registry.
             "builder_backend": "kaniko",
             # setting the docker registry to be used for built images, can include the repository as well, e.g.
             # index.docker.io/<username>, if not included repository will default to mlrun
@@ -617,6 +619,13 @@ default_config = {
             "buildah_apparmor_profile": "unconfined",
             # buildah retries a failed image push this many times (maps to `buildah push --retry`)
             "buildah_push_retry": "3",
+            # init container image that mints ECR/ACR push credentials for Buildah via boto3 /
+            # azure-identity (see services/api/utils/builder/registry_auth.py). Empty derives from
+            # the mlrun image, which already carries those SDKs via the "complete" extra; override
+            # must have python and the same SDKs. GAR/GCR credential exchange runs inline in the
+            # main Buildah container instead (see registry_auth.gar_credential_exchange_script) and
+            # does not use this image.
+            "buildah_registry_credential_exchange_image": "",
             # additional docker build args in json encoded base64 format
             "build_args": "",
             # labels to be applied to builder pods - json string base64 encoded format.

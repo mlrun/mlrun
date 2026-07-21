@@ -162,15 +162,15 @@ def test_resolve_builder_backend_buildah_selected(monkeypatch):
         "us-docker.pkg.dev/proj/repo/some-image:tag",  # GAR
     ],
 )
-def test_resolve_builder_backend_buildah_falls_back_for_cloud_registry(
+def test_resolve_builder_backend_buildah_handles_cloud_registry_directly(
     monkeypatch, target
 ):
-    # cloud registries need credential-helper auth not yet on Buildah (ML-12886) -> fall back to Kaniko
+    # ECR/ACR/GAR credential exchange is wired into Buildah itself (ML-12886) -> no Kaniko fallback
     monkeypatch.setattr(config.httpdb.builder, "builder_backend", "buildah")
     backend = services.api.utils.builder.resolve_builder_backend(
         _make_build_request(image_target=target, registry=None)
     )
-    assert isinstance(backend, services.api.utils.builder.KanikoBackend)
+    assert isinstance(backend, services.api.utils.builder.BuildahBackend)
 
 
 def test_resolve_builder_backend_buildah_falls_back_for_source(monkeypatch):
@@ -294,6 +294,101 @@ def test_make_buildah_pod_authfile_when_secret():
         if volume.secret
     }
     assert "my-docker-secret" in mounted_secrets
+
+
+@pytest.mark.parametrize(
+    "registry",
+    [
+        "123456789012.dkr.ecr.us-east-1.amazonaws.com",  # ECR
+        "myregistry.azurecr.io",  # ACR
+        "us-docker.pkg.dev",  # GAR
+    ],
+)
+def test_make_buildah_pod_explicit_secret_wins_over_cloud_provider(registry):
+    # an explicit secret_name on an otherwise-cloud registry host must use the static secret as-is -
+    # no credential-exchange init container, no GAR JIT script clobbering the mounted secret's authfile
+    buildah_pod = _make_buildah_pod(
+        dest=f"{registry}/some-image:tag",
+        registry=registry,
+        secret_name="my-docker-secret",
+    )
+    pod = buildah_pod.pod
+    assert pod.spec.init_containers == []
+    env = {env_var.name: env_var.value for env_var in pod.spec.containers[0].env}
+    assert "MLRUN_GAR_CREDENTIAL_SCRIPT" not in env
+    mounted_secrets = {
+        volume.secret.secret_name for volume in pod.spec.volumes if volume.secret
+    }
+    assert mounted_secrets == {"my-docker-secret"}
+
+
+@pytest.mark.parametrize(
+    "registry,provider",
+    [
+        ("123456789012.dkr.ecr.us-east-1.amazonaws.com", "ecr"),
+        ("myregistry.azurecr.io", "acr"),
+    ],
+)
+def test_make_buildah_pod_credential_exchange_init_container(registry, provider):
+    # ECR/ACR: no secret_name, but the registry is a cloud one -> a shared authfile emptyDir plus a
+    # credential-exchange init container, and the main container still gets --authfile/REGISTRY_AUTH_FILE
+    buildah_pod = _make_buildah_pod(
+        dest=f"{registry}/some-image:tag", registry=registry
+    )
+    pod = buildah_pod.pod
+
+    init_containers = pod.spec.init_containers
+    assert len(init_containers) == 1
+    assert init_containers[0].name == "registry-credential-exchange"
+    assert init_containers[0].command == ["python3", "-c"]
+    # the mounted emptyDir is shared: BasePod attaches every volume mount to every init container
+    assert any(
+        mount.mount_path == "/auth" for mount in init_containers[0].volume_mounts
+    )
+
+    empty_dir_volumes = {
+        volume.name for volume in pod.spec.volumes if volume.empty_dir is not None
+    }
+    assert "registry-auth" in empty_dir_volumes
+
+    container = pod.spec.containers[0]
+    env = {env_var.name: env_var.value for env_var in container.env}
+    assert env["REGISTRY_AUTH_FILE"] == "/auth/config.json"
+    assert "--authfile /auth/config.json" in container.args[0]
+
+
+def test_make_buildah_pod_gar_credential_exchange_is_jit_not_init_container():
+    # GAR/GCR: minted just-in-time in the main container's push script, no init container / mount
+    registry = "us-docker.pkg.dev"
+    buildah_pod = _make_buildah_pod(
+        dest=f"{registry}/proj/repo/some-image:tag", registry=registry
+    )
+    pod = buildah_pod.pod
+
+    assert pod.spec.init_containers == []
+    empty_dir_volumes = {
+        volume.name for volume in pod.spec.volumes if volume.empty_dir is not None
+    }
+    assert "registry-auth" not in empty_dir_volumes
+
+    container = pod.spec.containers[0]
+    env = {env_var.name: env_var.value for env_var in container.env}
+    assert env["REGISTRY_AUTH_FILE"] == "/auth/config.json"
+    assert "MLRUN_GAR_CREDENTIAL_SCRIPT" in env
+    lines = container.args[0].splitlines()
+    bud_line = next(i for i, line in enumerate(lines) if "bud" in line.split())
+    push_line = next(i for i, line in enumerate(lines) if "push" in line.split())
+    mint_lines = [
+        i for i, line in enumerate(lines) if "MLRUN_GAR_CREDENTIAL_SCRIPT" in line
+    ]
+    # minted immediately before *both* bud and push, matching the TTL rationale (ML-12886): once
+    # up front for bud (in case the base image shares the same registry), and again right before
+    # push, rather than once early - a long build shouldn't outlive the metadata-server token.
+    assert len(mint_lines) == 2
+    assert mint_lines[0] < bud_line < mint_lines[1] < push_line
+    assert lines[bud_line - 1] == "python3 /tmp/mlrun-gar-credential-exchange.py"
+    assert lines[push_line - 1] == "python3 /tmp/mlrun-gar-credential-exchange.py"
+    assert "--authfile /auth/config.json" in lines[push_line]
 
 
 def test_make_buildah_pod_stages_inline_code_and_requirements():

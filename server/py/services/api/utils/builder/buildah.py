@@ -23,7 +23,7 @@ import mlrun.utils
 from mlrun.config import config
 
 import framework.utils.singletons.k8s
-from services.api.utils.builder import base
+from services.api.utils.builder import base, registry_auth
 
 # the rootless build runs as this uid/gid regardless of the function's security-context enrichment
 # (D13): the stock quay.io/buildah/stable image ships /etc/subuid + /etc/subgid ranges for its
@@ -38,10 +38,16 @@ _CONTAINERS_STORE = f"{_BUILD_HOME}/.local/share/containers"
 # where the Dockerfile (and any inline code / requirements) are staged and used as the build context.
 _CONTEXT_DIR = "/empty"
 
-# static docker-config secret mount (the non-cloud registry auth path). Cloud-registry credential
-# helpers are wired in a follow-up (ML-12886); resolve_builder_backend falls back to Kaniko until then.
+# the push authfile: either the mounted static docker-config secret, or - for ECR/ACR - written by
+# the registry_auth init container onto this same (emptyDir) path; GAR writes it here too, but
+# just-in-time in this container's own push script (see registry_auth for why). See
+# services.api.utils.builder.registry_auth for the cloud-credential-exchange implementations.
 _AUTHFILE_DIR = "/auth"
 _AUTHFILE_PATH = f"{_AUTHFILE_DIR}/config.json"
+
+# where the GAR/GCR JIT credential-exchange script (see registry_auth.gar_credential_exchange_script)
+# is decoded to before running it.
+_GAR_SCRIPT_PATH = "/tmp/mlrun-gar-credential-exchange.py"
 
 # the AppArmor profile is applied via a per-container annotation (the k8s client in the test image is
 # capped below the securityContext.appArmorProfile field by KFP v1, and the annotation is also honored
@@ -64,10 +70,10 @@ class BuildahBackend:
     POC-1 showed it is not viable on the target runtimes.
 
     Scope note: this adapter handles the no-source-context build (inline code / requirements /
-    commands) and static docker-config-secret registry auth. Cloud-registry credential helpers
-    (ML-12886) and remote source acquisition (ML-12887) are not implemented here;
-    :func:`~services.api.utils.builder.resolve_builder_backend` transparently falls back to Kaniko
-    for those inputs until the follow-ups land.
+    commands). Registry auth covers static docker-config secrets and ECR/ACR/GAR credential
+    exchange (see :mod:`services.api.utils.builder.registry_auth`); remote source acquisition
+    (ML-12887) is not implemented here - :func:`~services.api.utils.builder.resolve_builder_backend`
+    transparently falls back to Kaniko for that input until its follow-up lands.
     """
 
     def make_build_pod(
@@ -173,6 +179,14 @@ def make_buildah_pod(
         # if the registry was not given, infer it from the image destination
         registry = dest.partition("/")[0]
 
+    # ECR/ACR/GAR need credential-exchange auth (see registry_auth); anything else (Docker Hub,
+    # private, self-signed) sticks to the static docker-config secret path, unchanged. An explicit
+    # secret_name always wins - e.g. a self-hosted credential on an otherwise-cloud registry host -
+    # so it must never be overridden by an inferred cloud-provider exchange.
+    cloud_provider = (
+        None if secret_name else registry_auth.classify_cloud_registry(registry)
+    )
+
     # runtime-derived scheduling/identity pod-spec attributes (node selector, affinity, tolerations,
     # preemption, priority class, service account), resolved by the shared helper both backends call.
     extra_runtime_spec = base.resolve_build_pod_spec_attributes(
@@ -191,6 +205,8 @@ def make_buildah_pod(
         requirements=requirements,
         requirements_path=requirements_path,
         secret_name=secret_name,
+        cloud_provider=cloud_provider,
+        registry=registry,
         builder_env=builder_env,
         project_secrets=project_secrets,
     )
@@ -199,6 +215,7 @@ def make_buildah_pod(
         storage_driver=storage_driver,
         verbose=verbose,
         secret_name=secret_name,
+        cloud_provider=cloud_provider,
         inline_code=inline_code,
         inline_path=inline_path,
         requirements=requirements,
@@ -244,12 +261,27 @@ def make_buildah_pod(
             _AUTHFILE_DIR,
             items=[{"key": ".dockerconfigjson", "path": "config.json"}],
         )
+    elif cloud_provider in ("ecr", "acr"):
+        # shared with the credential-exchange init container below - it writes the authfile here,
+        # this container reads it at push time.
+        buildah_pod.mount_empty(name="registry-auth", mount_path=_AUTHFILE_DIR)
+        if cloud_provider == "ecr":
+            registry_auth.append_ecr_credential_exchange_init_container(
+                buildah_pod, registry, dest, _AUTHFILE_PATH
+            )
+        else:
+            registry_auth.append_acr_credential_exchange_init_container(
+                buildah_pod, registry, _AUTHFILE_PATH
+            )
+    # GAR/GCR needs no mount or init container - the authfile is written just-in-time by this
+    # container's own push script (see _build_script), directly into its writable root filesystem.
 
     mlrun.utils.logger.debug(
         "Resolved buildah build pod",
         project=project,
         image=dest,
         storage_driver=storage_driver,
+        cloud_provider=cloud_provider,
         apparmor_profile=apparmor_profile or None,
     )
     return buildah_pod
@@ -275,6 +307,8 @@ def _build_env(
     requirements: list | None,
     requirements_path: str | None,
     secret_name: str | None,
+    cloud_provider: str | None,
+    registry: str,
     builder_env: list | None,
     project_secrets: list | None,
 ) -> list[client.V1EnvVar]:
@@ -285,8 +319,21 @@ def _build_env(
         client.V1EnvVar(name="HOME", value=_BUILD_HOME),
         client.V1EnvVar(name="MLRUN_DOCKERFILE", value=_b64(dockerfile)),
     ]
-    if secret_name:
+    if secret_name or cloud_provider:
         env.append(client.V1EnvVar(name="REGISTRY_AUTH_FILE", value=_AUTHFILE_PATH))
+    if cloud_provider == "gar":
+        # minted just-in-time by this same container's push script, not an init container - see
+        # registry_auth.gar_credential_exchange_script.
+        env.append(
+            client.V1EnvVar(
+                name="MLRUN_GAR_CREDENTIAL_SCRIPT",
+                value=_b64(
+                    registry_auth.gar_credential_exchange_script(
+                        registry, _AUTHFILE_PATH
+                    )
+                ),
+            )
+        )
     if inline_code:
         env.append(client.V1EnvVar(name="MLRUN_INLINE_CODE", value=_b64(inline_code)))
     # gate on the same condition _build_script decodes it (requirements need a target path), so the
@@ -307,6 +354,7 @@ def _build_script(
     storage_driver: str,
     verbose: bool,
     secret_name: str | None,
+    cloud_provider: str | None,
     inline_code: str | None,
     inline_path: str | None,
     requirements: list | None,
@@ -334,32 +382,53 @@ def _build_script(
         global_opts += ["--log-level", "debug"]
     global_opts += ["--storage-driver", storage_driver]
 
+    has_push_auth = bool(secret_name or cloud_provider)
+
+    # GAR/GCR credentials are minted JIT (see registry_auth.gar_credential_exchange_script) rather
+    # than by an earlier init container, since GCP metadata-server tokens default to a 1h TTL that a
+    # long build could outlive. Minted immediately before both bud (in case the base image shares
+    # the same registry) and push, rather than once up front, for the same TTL reason.
+    gar_credential_exchange = (
+        [
+            f"mkdir -p {shlex.quote(_AUTHFILE_DIR)}",
+            f"echo ${{MLRUN_GAR_CREDENTIAL_SCRIPT}} | base64 -d > {shlex.quote(_GAR_SCRIPT_PATH)}",
+            shlex.join(["python3", _GAR_SCRIPT_PATH]),
+        ]
+        if cloud_provider == "gar"
+        else []
+    )
+    lines += gar_credential_exchange
+
     bud = global_opts + ["bud"]
+    # pull auth is intentionally scoped to secret_name, not cloud_provider: it's about arbitrary
+    # base-image registries, unrelated to the *destination*'s cloud classification.
     bud += _tls_verify_flag(
-        config.httpdb.builder.insecure_pull_registry_mode, secret_name
+        config.httpdb.builder.insecure_pull_registry_mode, bool(secret_name)
     )
     for arg_name in build_arg_names:
         bud += ["--build-arg", arg_name]
     bud += ["--tag", dest, "--file", dockerfile_path, _CONTEXT_DIR]
+    lines.append(shlex.join(bud))
+
+    lines += gar_credential_exchange
 
     push = global_opts + ["push"]
     push += _tls_verify_flag(
-        config.httpdb.builder.insecure_push_registry_mode, secret_name
+        config.httpdb.builder.insecure_push_registry_mode, has_push_auth
     )
     push += ["--retry", str(config.httpdb.builder.buildah_push_retry)]
-    if secret_name:
+    if has_push_auth:
         push += ["--authfile", _AUTHFILE_PATH]
     push += [dest, f"docker://{dest}"]
-
-    lines.append(shlex.join(bud))
     lines.append(shlex.join(push))
+
     return "\n".join(lines)
 
 
-def _tls_verify_flag(mode: str, secret_name: str | None) -> list[str]:
+def _tls_verify_flag(mode: str, has_registry_auth: bool) -> list[str]:
     # mirror Kaniko's insecure-registry resolution: "enabled" always, "auto" when there is no
-    # docker-config secret, "disabled" never. Buildah expresses it as --tls-verify=false.
-    if mode == "enabled" or (mode == "auto" and not secret_name):
+    # registry auth configured, "disabled" never. Buildah expresses it as --tls-verify=false.
+    if mode == "enabled" or (mode == "auto" and not has_registry_auth):
         return ["--tls-verify=false"]
     return []
 

@@ -15,7 +15,7 @@
 from datetime import datetime
 from typing import Any, Literal, Union
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_serializer
 
 from .._shared.schedule import ScheduleKinds
 from .auth import Credentials
@@ -113,6 +113,16 @@ class ScheduleRecord(ScheduleInput):
     next_run_time: datetime | None = None
 
     model_config = ConfigDict(from_attributes=True)
+
+    @field_serializer("scheduled_object", when_used="json")
+    def _serialize_scheduled_object(self, value):
+        # local_function schedules keep a live Python callable here, which pydantic 2
+        # cannot serialize to JSON. The pre-migration stack (fastapi's jsonable_encoder
+        # over pydantic v1) silently rendered such callables as an empty object; preserve
+        # that behavior so listing/getting these schedules doesn't fail on serialization.
+        if callable(value):
+            return {}
+        return value
 
 
 # Additional properties to return via API

@@ -111,7 +111,9 @@ class ProjectSpecOut(pydantic.BaseModel):
         default_factory=ProjectMonitoringSpec
     )
 
-    model_config = pydantic.ConfigDict(extra="allow")
+    # from_attributes lets the "full" list format coerce a ProjectSpec instance into
+    # ProjectSpecOut (pydantic v1 did this implicitly via its dict() fallback).
+    model_config = pydantic.ConfigDict(extra="allow", from_attributes=True)
 
 
 class Project(pydantic.BaseModel):
@@ -124,6 +126,10 @@ class Project(pydantic.BaseModel):
 # The reason we have a different schema for the response model is that we don't want to validate project.spec.build in
 # the response as the validation was added late and there may be corrupted values in the DB.
 class ProjectOut(pydantic.BaseModel):
+    # from_attributes lets ProjectsOutput coerce a full Project instance into ProjectOut
+    # (the "full" list format returns Project objects); pydantic v1 did this implicitly.
+    model_config = pydantic.ConfigDict(from_attributes=True)
+
     kind: typing.Literal[ObjectKind.project] = ObjectKind.project
     metadata: ProjectMetadata
     spec: ProjectSpecOut = ProjectSpecOut()

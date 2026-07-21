@@ -22,6 +22,9 @@ from uvicorn._types import (
     Scope,
 )
 
+import mlrun.errors
+import mlrun.utils
+
 import framework.utils.telemetry.rest_metrics
 from .base import BaseHTTPMiddleware, is_response_start
 
@@ -82,13 +85,20 @@ class RestMetricsMiddleware(BaseHTTPMiddleware):
             # http.response.start carries the status and is sent once, before
             # any body — the point at which processing time is complete.
             if should_record and is_response_start(message):
-                resource, project = parse_resource_and_project(path)
-                framework.utils.telemetry.rest_metrics.record_duration(
-                    duration_ms=self._elapsed_time_ms(start_time),
-                    method=scope["method"],
-                    status_code=message["status"],
-                    resource=resource,
-                    project=project,
-                )
+                try:
+                    resource, project = parse_resource_and_project(path)
+                    framework.utils.telemetry.rest_metrics.record_duration(
+                        duration_ms=self._elapsed_time_ms(start_time),
+                        method=scope["method"],
+                        status_code=message["status"],
+                        resource=resource,
+                        project=project,
+                    )
+                except Exception as exc:
+                    mlrun.utils.logger.warning(
+                        "REST metrics recording failed",
+                        path=path,
+                        error=mlrun.errors.err_to_str(exc),
+                    )
 
         await self.app(scope, receive, send_wrapper)

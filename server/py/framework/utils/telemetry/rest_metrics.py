@@ -155,23 +155,13 @@ def record_duration(
     """
     if _histogram is None:
         return
-    try:
-        _histogram.record(
-            duration_ms,
-            attributes={
-                "system_id": mlrun.mlconf.system_id or "",
-                "method": method,
-                "status_code": status_code,
-                "resource": resource,
-                "project": project,
-            },
-        )
-    except Exception as exc:
-        mlrun.utils.logger.warning(
-            "REST metrics telemetry emission failed",
-            method=method,
-            status_code=status_code,
-            resource=resource,
-            project=project,
-            error=mlrun.errors.err_to_str(exc),
-        )
+    _histogram.record(
+        duration_ms,
+        attributes={
+            "system_id": mlrun.mlconf.system_id or "",
+            "method": method,
+            "status_code": status_code,
+            "resource": resource,
+            "project": project,
+        },
+    )

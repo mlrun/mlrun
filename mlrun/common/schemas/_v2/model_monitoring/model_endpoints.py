@@ -16,7 +16,14 @@ from datetime import datetime
 from typing import Any, Literal, TypeVar
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, constr, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    constr,
+    field_validator,
+    model_validator,
+)
 
 from ..._shared.model_monitoring.constants import (
     FQN_REGEX,
@@ -182,6 +189,20 @@ class ModelEndpointSpec(ObjectSpec, ModelEndpointParser):
             "children",
             "children_uids",
         ]
+
+    @model_validator(mode="after")
+    def _populate_model_id_from_input(self):
+        # ML-12736: ``_model_id`` is a leading-underscore attribute, which pydantic v1 kept as an
+        # ordinary (``extra``-backed) attribute populatable from the constructor / spec dict and
+        # serialized by ``.dict()``. In pydantic v2 a leading-underscore annotated attribute is a
+        # *private* attribute that constructor kwargs do not populate — the value is diverted into
+        # ``extra`` instead, leaving ``spec._model_id`` at its default. Mirror the value onto the
+        # private attribute (so the DB layer, which reads ``spec._model_id``, links the endpoint to
+        # its model artifact) while leaving it in ``extra`` so ``.dict()`` still round-trips it over
+        # the wire, exactly as under v1.
+        if self.__pydantic_extra__ and "_model_id" in self.__pydantic_extra__:
+            self._model_id = self.__pydantic_extra__["_model_id"]
+        return self
 
 
 class ModelEndpointStatus(ObjectStatus, ModelEndpointParser):

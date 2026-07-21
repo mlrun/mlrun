@@ -19,7 +19,6 @@ from urllib.parse import urlparse
 from kubernetes import client
 
 import mlrun.common.constants
-import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.model
@@ -29,7 +28,6 @@ import mlrun.runtimes.pod
 import mlrun.runtimes.utils
 import mlrun.utils
 from mlrun.config import config
-from mlrun.k8s_utils import enrich_preemption_mode
 
 import framework.utils.helpers
 import framework.utils.singletons.k8s
@@ -76,21 +74,18 @@ def make_kaniko_pod(
     *,
     source_to_fetch: str | None = None,
 ):
-    extra_runtime_spec = {}
     if not registry:
         # if registry was not given, infer it from the image destination
         registry = dest.partition("/")[0]
 
-    # set kaniko's spec attributes from the runtime spec
-    for attribute, handler in get_kaniko_spec_attributes_from_runtime(
+    # runtime-derived scheduling/identity pod-spec attributes, shared with every backend so they
+    # can't drift between engines (see base.resolve_build_pod_spec_attributes).
+    extra_runtime_spec = base.resolve_build_pod_spec_attributes(
         project,
         runtime_spec,
         project_default_fucntion_node_selector,
         auth_info,
-    ).items():
-        attr_value = handler(getattr(runtime_spec, attribute, None))
-        if attr_value:
-            extra_runtime_spec[attribute] = attr_value
+    )
 
     if not dockertext and not dockerfile:
         raise ValueError("docker file or text must be specified")
@@ -125,42 +120,13 @@ def make_kaniko_pod(
         args, builder_env, project_secrets, extra_args
     )
 
-    # While requests mainly affect scheduling, setting a limit may prevent Kaniko
-    # from finishing successfully (destructive), since we're not allowing to override the default
-    # specifically for the Kaniko pod, we're setting only the requests
-    # we cannot specify gpu requests without specifying gpu limits, so we set requests without gpu field
-    default_requests = config.get_default_function_pod_requirement_resources(
-        "requests", with_gpu=False
-    )
-    resources = {
-        "requests": mlrun.runtimes.utils.generate_resources(
-            mem=default_requests.get("memory"), cpu=default_requests.get("cpu")
-        )
-    }
-    # Some cloud providers add a toleration when a GPU limit is set.
-    # If the Kaniko pod inherits a GPU-related node selector from the function
-    # but lacks a GPU limit, it may get stuck in a pending state due to unsatisfiable scheduling.
-    # Setting GPU limits to zero ensures tolerations are applied while preventing GPU allocation.
-    if runtime_spec:
-        gpu_resources = mlrun.utils.get_enriched_gpu_limits(
-            runtime_spec.resources.get("limits", {})
-        )
-        if gpu_resources:
-            resources["limits"] = gpu_resources
+    # requests-only + GPU-limit-zero, shared with every other builder backend so the policy
+    # can't drift between engines (see base.build_pod_resources for the rationale).
+    resources = base.build_pod_resources(runtime_spec)
 
-    # apply the configured builder pod labels (e.g. the azure.workload.identity/use label that lets the
-    # Azure workload-identity webhook inject ACR push credentials into the builder pod).
-    # these platform-level labels are the lowest-precedence layer: mlrun's own internal labels
-    # (mlrun/class, mlrun/project, etc., set by BasePod and the call site) must never be clobbered by them.
-    configured_pod_labels = {
-        key: value
-        for key, value in config.get_builder_pod_labels().items()
-        if key not in mlrun_constants.MLRunInternalLabels.all()
-    }
-    extra_labels = mlrun.utils.helpers.merge_dicts_with_precedence(
-        configured_pod_labels,
-        extra_labels or {},
-    )
+    # merge the configured builder pod labels (e.g. azure.workload.identity/use) under the
+    # caller's labels, shared with every backend so the precedence can't drift.
+    extra_labels = base.resolve_builder_pod_labels(extra_labels)
 
     kaniko_pod = framework.utils.singletons.k8s.BasePod(
         name or "mlrun-build",
@@ -512,76 +478,6 @@ class KanikoBackend:
             access_key=access_key,
             user=username,
         )
-
-
-def get_kaniko_spec_attributes_from_runtime(
-    project,
-    runtime_spec,
-    project_default_fucntion_node_selector,
-    auth_info: mlrun.common.schemas.AuthInfo = None,
-):
-    """Get the names of Kaniko spec attributes that are defined for runtime but should also be applied to Kaniko."""
-    # preemption mode scheduling constraints cache
-    _preemption_enrichment_result = {}
-
-    def service_account_handler(attr_value):
-        from framework.api.utils import resolve_project_service_account_details
-
-        (
-            allowed_service_accounts,
-            forbidden_service_accounts,
-            default_service_account,
-        ) = resolve_project_service_account_details(project, auth_info=auth_info)
-        if attr_value:
-            runtime_spec.validate_service_account(
-                allowed_service_accounts, forbidden_service_accounts
-            )
-        else:
-            attr_value = default_service_account
-        return attr_value
-
-    def get_merged_node_selector(attr_value):
-        attr_value = mlrun.utils.to_non_empty_values_dict(
-            mlrun.utils.helpers.merge_dicts_with_precedence(
-                mlrun.mlconf.get_default_function_node_selector(),
-                project_default_fucntion_node_selector,
-                attr_value,
-            )
-        )
-        return attr_value
-
-    def preemption_mode_handler(key):
-        if key not in _preemption_enrichment_result:
-            keys = ["node_selector", "tolerations", "affinity"]
-            values = enrich_preemption_mode(
-                preemption_mode=runtime_spec.preemption_mode,
-                node_selector=get_merged_node_selector(runtime_spec.node_selector),
-                affinity=runtime_spec.affinity,
-                tolerations=runtime_spec.tolerations,
-            )
-            _preemption_enrichment_result.update(dict(zip(keys, values)))
-        return _preemption_enrichment_result[key]
-
-    def node_selector_handler(attr_value):
-        return preemption_mode_handler("node_selector")
-
-    def affinity_handler(attr_value):
-        return preemption_mode_handler("affinity")
-
-    def tolerations_handler(attr_value):
-        return preemption_mode_handler("tolerations")
-
-    def identity_handler(attr_value):
-        return attr_value
-
-    return {
-        "node_name": identity_handler,
-        "node_selector": node_selector_handler,
-        "affinity": affinity_handler,
-        "tolerations": tolerations_handler,
-        "priority_class_name": identity_handler,
-        "service_account": service_account_handler,
-    }
 
 
 def _needs_source_fetch_init_container(source: str) -> bool:

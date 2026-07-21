@@ -31,6 +31,7 @@ import mlrun.runtimes.pod
 import mlrun.runtimes.utils
 import mlrun.utils
 from mlrun.config import config
+from mlrun.k8s_utils import enrich_preemption_mode
 from mlrun.utils.helpers import remove_image_protocol_prefix
 
 import framework.utils.helpers
@@ -356,6 +357,153 @@ def make_dockerfile(
     mlrun.utils.logger.debug("Resolved dockerfile", dockfile_contents=dock)
 
     return dock
+
+
+def build_pod_resources(runtime_spec) -> dict:
+    """Resolve the build-pod resource policy shared by every builder backend.
+
+    Requests-only + GPU-limit-zero, in one place so it can't drift between engines:
+
+    * Only **requests** are set. Requests affect scheduling; setting a limit could kill the
+      build mid-run (destructive), so the build pod is never given a limit for cpu/memory.
+    * A **zero GPU limit** is added when the function requests GPUs. Some cloud providers add a
+      toleration only when a GPU limit is present; without it a build pod that inherited a
+      GPU-related node selector from the function could stay pending. Zero keeps the toleration
+      applied while allocating no GPU.
+
+    :param runtime_spec: The function's runtime spec (for its resource limits), or ``None``.
+    :return: A resources dict with ``requests`` (and ``limits`` only when GPUs are requested).
+    """
+    # we cannot specify gpu requests without specifying gpu limits, so we set requests without gpu field
+    default_requests = config.get_default_function_pod_requirement_resources(
+        "requests", with_gpu=False
+    )
+    resources = {
+        "requests": mlrun.runtimes.utils.generate_resources(
+            mem=default_requests.get("memory"), cpu=default_requests.get("cpu")
+        )
+    }
+    if runtime_spec:
+        gpu_resources = mlrun.utils.get_enriched_gpu_limits(
+            runtime_spec.resources.get("limits", {})
+        )
+        if gpu_resources:
+            resources["limits"] = gpu_resources
+    return resources
+
+
+def resolve_builder_pod_labels(extra_labels: dict | None) -> dict:
+    """Merge the configured builder-pod labels under the caller's labels.
+
+    Shared by every builder backend so the precedence can't drift between engines. The
+    configured ``pod_labels`` (e.g. ``azure.workload.identity/use``, which lets the Azure
+    workload-identity webhook inject ACR push credentials) are the lowest-precedence layer:
+    MLRun's own internal labels (``mlrun/class``, ``mlrun/project``, ...) must never be clobbered
+    by them, so they are filtered out and the caller's ``extra_labels`` win on any conflict.
+
+    :param extra_labels: The backend/caller labels, which take precedence.
+    :return: The merged label dict for the build pod.
+    """
+    configured_pod_labels = {
+        key: value
+        for key, value in config.get_builder_pod_labels().items()
+        if key not in mlrun.common.constants.MLRunInternalLabels.all()
+    }
+    return mlrun.utils.helpers.merge_dicts_with_precedence(
+        configured_pod_labels,
+        extra_labels or {},
+    )
+
+
+def resolve_build_pod_spec_attributes(
+    project: str,
+    runtime_spec,
+    project_default_function_node_selector,
+    auth_info: mlrun.common.schemas.AuthInfo | None = None,
+) -> dict:
+    """Resolve the runtime-derived pod-spec attributes shared by every builder backend.
+
+    Reads the function's runtime spec and returns the pod-spec attributes the build pod should
+    carry - node name/selector, affinity, tolerations, priority class and service account - applying
+    the same preemption-mode enrichment and service-account resolution a regular function pod gets.
+    Engine-agnostic: both Kaniko and Buildah apply the result via
+    ``BasePod.default_pod_spec_attributes``, so scheduling/identity can't drift between engines.
+
+    :param project:            The project the build belongs to.
+    :param runtime_spec:       The function's runtime spec.
+    :param project_default_function_node_selector: Project-level default node selector.
+    :param auth_info:          The caller's auth info (for service-account resolution).
+    :return: The resolved pod-spec attributes (only non-empty values).
+    """
+    # preemption mode scheduling constraints cache
+    _preemption_enrichment_result = {}
+
+    def service_account_handler(attr_value):
+        from framework.api.utils import resolve_project_service_account_details
+
+        (
+            allowed_service_accounts,
+            forbidden_service_accounts,
+            default_service_account,
+        ) = resolve_project_service_account_details(project, auth_info=auth_info)
+        if attr_value:
+            runtime_spec.validate_service_account(
+                allowed_service_accounts, forbidden_service_accounts
+            )
+        else:
+            attr_value = default_service_account
+        return attr_value
+
+    def get_merged_node_selector(attr_value):
+        return mlrun.utils.to_non_empty_values_dict(
+            mlrun.utils.helpers.merge_dicts_with_precedence(
+                mlrun.mlconf.get_default_function_node_selector(),
+                project_default_function_node_selector,
+                attr_value,
+            )
+        )
+
+    def preemption_mode_handler(key):
+        if key not in _preemption_enrichment_result:
+            keys = ["node_selector", "tolerations", "affinity"]
+            values = enrich_preemption_mode(
+                preemption_mode=runtime_spec.preemption_mode,
+                node_selector=get_merged_node_selector(runtime_spec.node_selector),
+                affinity=runtime_spec.affinity,
+                tolerations=runtime_spec.tolerations,
+            )
+            _preemption_enrichment_result.update(dict(zip(keys, values)))
+        return _preemption_enrichment_result[key]
+
+    def node_selector_handler(attr_value):
+        return preemption_mode_handler("node_selector")
+
+    def affinity_handler(attr_value):
+        return preemption_mode_handler("affinity")
+
+    def tolerations_handler(attr_value):
+        return preemption_mode_handler("tolerations")
+
+    def identity_handler(attr_value):
+        return attr_value
+
+    # spec attributes defined on the runtime that should also apply to the build pod, each with the
+    # handler that resolves its value.
+    handlers = {
+        "node_name": identity_handler,
+        "node_selector": node_selector_handler,
+        "affinity": affinity_handler,
+        "tolerations": tolerations_handler,
+        "priority_class_name": identity_handler,
+        "service_account": service_account_handler,
+    }
+
+    resolved = {}
+    for attribute, handler in handlers.items():
+        attr_value = handler(getattr(runtime_spec, attribute, None))
+        if attr_value:
+            resolved[attribute] = attr_value
+    return resolved
 
 
 def _generate_builder_env(

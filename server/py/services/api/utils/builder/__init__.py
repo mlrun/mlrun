@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from base64 import b64decode
+from urllib.parse import urlparse
 
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
@@ -36,6 +37,7 @@ from services.api.utils.builder.base import (
     resolve_image_target,
     resolve_mlrun_install_command_version,
 )
+from services.api.utils.builder.buildah import BuildahBackend
 from services.api.utils.builder.kaniko import KanikoBackend
 
 
@@ -160,19 +162,20 @@ def build_image(
 def resolve_builder_backend(request: BuildRequest) -> BuilderBackend:
     """Return the builder backend to use for a build request.
 
-    By default this is the engine named in ``httpdb.builder.builder_backend``. The
-    whole ``request`` is accepted so a future backend can add a narrow,
-    request-derived override (e.g. force Kaniko for a specific target registry)
-    without changing this signature; no such override exists yet.
+    By default this is the engine named in ``httpdb.builder.builder_backend``. The whole
+    ``request`` is accepted so the choice can vary per build: when Buildah is configured but the
+    request needs a capability the Buildah adapter doesn't ship yet, this transparently falls back
+    to Kaniko (see :func:`_buildah_fallback_reason`).
 
     :param request: The resolved build request.
     :return: The builder backend instance for this build.
     :raises mlrun.errors.MLRunInvalidArgumentError: If the configured backend is unknown.
     """
-    # keyed by the httpdb.builder.builder_backend config value; buildah and future
-    # engines register here without touching the shared path.
+    # keyed by the httpdb.builder.builder_backend config value; future engines register here
+    # without touching the shared path.
     backends: dict[str, type[BuilderBackend]] = {
         "kaniko": KanikoBackend,
+        "buildah": BuildahBackend,
     }
     backend_name = config.httpdb.builder.builder_backend
     backend_class = backends.get(backend_name)
@@ -181,6 +184,20 @@ def resolve_builder_backend(request: BuildRequest) -> BuilderBackend:
             f"Unsupported builder backend '{backend_name}'. "
             f"Supported backends: {', '.join(sorted(backends))}"
         )
+
+    # Buildah is opt-in and, as of ML-12885, ships the rootless build pod but not yet the full
+    # runnable path. Fall back to Kaniko for the inputs it can't handle yet so a buildah-configured
+    # cluster never emits a pod that can't build or push.
+    if backend_class is BuildahBackend:
+        fallback_reason = _buildah_fallback_reason(request)
+        if fallback_reason:
+            mlrun.utils.logger.info(
+                "Builder backend falling back to Kaniko for an unsupported build",
+                requested_backend=backend_name,
+                reason=fallback_reason,
+            )
+            return KanikoBackend()
+
     return backend_class()
 
 
@@ -323,3 +340,54 @@ def build_runtime(
     runtime.spec.image = local + build.image
     runtime.status.state = mlrun.common.schemas.FunctionState.ready
     return True
+
+
+def _buildah_fallback_reason(request: BuildRequest) -> str | None:
+    """Return why a Buildah build must fall back to Kaniko, or ``None`` if Buildah can handle it.
+
+    Each guard is temporary — it exists only until its follow-up ships the missing capability, and
+    should be removed when that ticket merges.
+
+    :param request: The resolved build request.
+    :return: A human-readable fallback reason, or ``None`` when Buildah can build the request.
+    """
+    # (1) Cloud-registry credential-helper auth -> ML-12886. The Buildah adapter authenticates only
+    #     via a mounted static docker-config secret; ECR/ACR/GAR workload-identity credential
+    #     exchange is wired in ML-12886. Remove this guard when ML-12886 merges.
+    #     (The registry host is a plain hostname - safe to log; the source below is not, see below.)
+    target = request.registry or request.image_target or ""
+    if _is_cloud_registry(target):
+        return (
+            f"target registry '{target}' requires credential-helper auth not yet supported "
+            "on Buildah (ML-12886)"
+        )
+
+    # (2) Source acquisition -> ML-12887. The adapter builds only the no-source-context case;
+    #     fetching or mounting a source into the build context (local path, v3io, remote scheme) is
+    #     added in ML-12887. inline_code and load_source_on_run don't stage a build-context source,
+    #     so they stay on Buildah. Remove this guard when ML-12887 merges.
+    #     Only the scheme is put in the reason - a source URI can embed credentials
+    #     (e.g. https://<token>@github.com/...), which must never be logged.
+    loads_source_on_run = bool(
+        request.runtime_spec and request.runtime_spec.build.load_source_on_run
+    )
+    if request.source and not (request.inline_code or loads_source_on_run):
+        source_scheme = urlparse(request.source).scheme or "local"
+        return (
+            f"source (scheme '{source_scheme}') requires acquisition not yet supported "
+            "on Buildah (ML-12887)"
+        )
+
+    return None
+
+
+def _is_cloud_registry(target: str) -> bool:
+    # cloud registries whose auth needs a credential-helper token exchange (ML-12886).
+    if not target:
+        return False
+    if mlrun.utils.helpers.is_ecr_url(target):
+        return True
+    # ACR (Azure) and Artifact Registry / GCR (Google).
+    return any(
+        marker in target for marker in (".azurecr.io", "-docker.pkg.dev", "gcr.io")
+    )

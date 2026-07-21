@@ -1612,7 +1612,7 @@ def test_matching_args_dockerfile_and_kpod(builder_env, source, extra_args):
         extra_args=extra_args,
     )
     with unittest.mock.patch(
-        "services.api.utils.builder.kaniko.get_kaniko_spec_attributes_from_runtime",
+        "services.api.utils.builder.base.resolve_build_pod_spec_attributes",
         return_value={},
     ):
         kpod = services.api.utils.builder.kaniko.make_kaniko_pod(

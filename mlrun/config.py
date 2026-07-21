@@ -568,10 +568,10 @@ default_config = {
         # The API needs to know what is its k8s svc url so it could enrich it in the jobs it creates
         "api_url": "",
         "builder": {
-            # the container-image build engine used for kubernetes-based function builds. "kaniko" is the
-            # default and currently the only implemented backend; additional backends (e.g. buildah) are
-            # selected here without code changes once available. see BuilderBackend in
-            # services/api/utils/builder.py.
+            # the container-image build engine used for kubernetes-based function builds. "kaniko" (default)
+            # and "buildah" are implemented; the engine is selected here without code changes. see
+            # BuilderBackend in services/api/utils/builder/. buildah is opt-in and, until its follow-ups land,
+            # transparently falls back to kaniko for inputs it can't handle yet (see resolve_builder_backend).
             "builder_backend": "kaniko",
             # setting the docker registry to be used for built images, can include the repository as well, e.g.
             # index.docker.io/<username>, if not included repository will default to mlrun
@@ -603,6 +603,20 @@ default_config = {
             "kaniko_image_fs_extraction_retries": "3",
             # kaniko sometimes fails to push image to registry due to network issues
             "kaniko_image_push_retry": "3",
+            # buildah builder image (used when builder_backend="buildah"). the stock image is used as-is:
+            # it ships subuid/subgid for its "build" user (uid 1000), which is all the rootless build needs.
+            "buildah_image": "quay.io/buildah/stable",
+            # buildah storage driver, "overlay" (default, fast, shares layers) or "vfs" (slower, works
+            # anywhere). not auto-negotiated - buildah errors if the configured driver can't mount.
+            "buildah_storage_driver": "overlay",
+            # AppArmor profile for the buildah build container, applied via the
+            # container.apparmor.security.beta.kubernetes.io annotation. "unconfined" (default) is required
+            # wherever the runtime enforces its default profile (e.g. GKE/AKS) - that profile blocks the
+            # mount/unshare syscalls the rootless build needs; it is a harmless no-op where AppArmor is not
+            # loaded. "" skips the annotation; "localhost/<profile>" selects a site-provided profile.
+            "buildah_apparmor_profile": "unconfined",
+            # buildah retries a failed image push this many times (maps to `buildah push --retry`)
+            "buildah_push_retry": "3",
             # additional docker build args in json encoded base64 format
             "build_args": "",
             # labels to be applied to builder pods - json string base64 encoded format.

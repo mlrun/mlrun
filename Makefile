@@ -765,8 +765,6 @@ test-integration: clean ## Run mlrun integration tests
 .PHONY: test-migrations-dockerized
 # Migrations test the api server's DB layer -> server flavor (propagates to the build-test prerequisite).
 test-migrations-dockerized: MLRUN_TEST_FLAVOR := server
-# server flavor runs on pydantic 2 and must bind the native _v2 schema face
-test-migrations-dockerized: MLRUN_IS_API_SERVER := true
 test-migrations-dockerized: build-test ## Run mlrun db migrations tests in docker container
 	COVERAGE_MOUNT_PATH="$(ROOT_DIR)coverage_reports/migration_tests" ;\
 	$(SETUP_COVERAGE_MOUNTING) && \

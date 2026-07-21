@@ -539,7 +539,7 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
         entities = alert_objects.EventEntities(
             kind=alert_objects.EventEntityKind.MODEL_ENDPOINT_RESULT,
             project=project_name,
-            ids=[1234],
+            ids=["1234"],
         )
         alert_from_template.with_entities(entities=entities)
 

@@ -1022,6 +1022,11 @@ default_config = {
             # 0 = manual flush per do() (ManualMetricReader); >0 = PeriodicExportingMetricReader interval (seconds).
             "interval": 60,
         },
+        # Per-REST-call processing time middleware. Inherits the master `telemetry.enabled` kill-switch.
+        # Default true so that enabling telemetry (the master switch) is sufficient.
+        "rest_metrics": {
+            "enabled": True,
+        },
     },
     "system_id": "",
     "system_id_len": 12,

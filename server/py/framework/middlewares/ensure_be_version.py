@@ -23,6 +23,8 @@ from uvicorn._types import (
 
 import mlrun.common.schemas
 
+from .base import is_response_start
+
 
 class EnsureBackendVersionMiddleware:
     def __init__(
@@ -43,7 +45,7 @@ class EnsureBackendVersionMiddleware:
             return await self.app(scope, receive, send)
 
         async def send_wrapper(message: Message) -> None:
-            if message["type"] == "http.response.start":
+            if is_response_start(message):
                 headers = MutableHeaders(scope=message)
                 headers.append(
                     mlrun.common.schemas.constants.HeaderNames.backend_version,

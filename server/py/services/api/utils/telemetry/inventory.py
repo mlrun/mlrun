@@ -34,21 +34,17 @@ Call sites:
     cache refresh, once per (metric, attribute-set) tuple.
 """
 
-import os
-import socket
 from typing import TypeVar
 
 from opentelemetry import metrics
-from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
 from opentelemetry.metrics import Meter, Synchronous
 from opentelemetry.sdk.metrics import MeterProvider
-from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
-from opentelemetry.sdk.resources import Resource
 
 import mlrun
 import mlrun.errors
 import mlrun.utils
-import mlrun.utils.telemetry
+
+import framework.utils.telemetry.otel
 
 # OTel ``service.name`` for the API server's inventory metrics. The OTLP →
 # Prometheus pipeline maps ``service.name`` onto the ``job`` label, so without
@@ -116,7 +112,7 @@ def init() -> None:
         return
 
     cfg = mlrun.mlconf.telemetry
-    enabled = str(cfg.enabled).lower() == "true"
+    enabled = cfg.enabled
     if not enabled or not cfg.otlp_endpoint:
         mlrun.utils.logger.info(
             "Telemetry inventory disabled — gauges not registered",
@@ -125,7 +121,6 @@ def init() -> None:
         )
         return
 
-    insecure = str(cfg.insecure).lower() == "true"
     # Gauges are re-set every cache cycle, so the exporter is aligned to that
     # cadence: export every Nth cycle (default N=10 → 10 minutes at the default
     # 60s cache_interval). Sub-1 config values are misconfigurations — clamp
@@ -147,25 +142,10 @@ def init() -> None:
     multiplier = max(1, raw_multiplier)
     export_interval_ms = multiplier * cache_interval_seconds * 1000
 
-    exporter = OTLPMetricExporter(
-        endpoint=cfg.otlp_endpoint,
-        insecure=insecure,
-        headers=mlrun.utils.telemetry.resolve_otlp_headers(),
+    _provider = framework.utils.telemetry.otel.build_metric_provider(
+        service_name=_SERVICE_NAME,
+        export_interval_millis=export_interval_ms,
     )
-    reader = PeriodicExportingMetricReader(
-        exporter, export_interval_millis=export_interval_ms
-    )
-    # ``service.name`` → Prometheus ``job`` label, ``service.instance.id`` →
-    # ``instance`` label. Pod name comes from the MLRUN_POD_NAME downward-API
-    # env var, falling back to the hostname (which K8s sets to the pod name).
-    pod_name = os.getenv("MLRUN_POD_NAME") or socket.gethostname()
-    resource = Resource.create(
-        {
-            "service.name": _SERVICE_NAME,
-            "service.instance.id": pod_name,
-        }
-    )
-    _provider = MeterProvider(metric_readers=[reader], resource=resource)
     metrics.set_meter_provider(_provider)
 
     _meter = _provider.get_meter("mlrun.system")
@@ -175,9 +155,8 @@ def init() -> None:
     mlrun.utils.logger.info(
         "Telemetry inventory gauges registered",
         service_name=_SERVICE_NAME,
-        pod_name=pod_name,
         otlp_endpoint=cfg.otlp_endpoint,
-        insecure=insecure,
+        insecure=cfg.insecure,
         cache_interval_seconds=cache_interval_seconds,
         export_interval_multiplier=multiplier,
         export_interval_ms=export_interval_ms,

@@ -132,7 +132,7 @@ def test_requirement_specifiers_convention():
         # No specifier — pip resolves against the base storey requirement
         # in requirements.txt, so we don't duplicate the version constraint.
         "storey[otel]": {""},
-        "pydantic": {">=1.10.15", ">=1,<2"},
+        "pydantic": {">=1.10.15", ">=2,<3"},
         "nuclio-sdk": {">=0.5"},
         "scipy": {"~=1.16.3"},
         "docstring_parser": {"~=0.16"},
@@ -188,10 +188,10 @@ def test_requirement_specifiers_inconsistencies():
             inconsistent_specifiers_map[requirement_name] = requirement_specifiers
 
     ignored_inconsistencies_map = {
-        # mlrun api must have v1 due to fastapi https://github.com/fastapi/fastapi/issues/10360
-        # and the fact out pydantic currently requires v1
-        # on the other hand, mlrun client can have both and thus the inconsistency
-        "pydantic": {">=1,<2", ">=1.10.15"},
+        # ML-12891: the API server runs on pydantic 2 (native v2 schemas), while the
+        # mlrun client/SDK stays on pydantic 1 via the pydantic.v1 compatibility layer,
+        # so the pydantic specifier intentionally differs between server and client.
+        "pydantic": {">=2,<3", ">=1.10.15"},
     }
 
     all_keys_verified = set(ignored_inconsistencies_map.keys())

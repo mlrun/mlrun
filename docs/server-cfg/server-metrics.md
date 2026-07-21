@@ -3,7 +3,7 @@
 
 MLRun collects anonymized system-size statistics, for example, project counts, artifact counts, run activity, serving endpoints, etc., and exports them to Prometheus via OpenTelemetry. 
 
-In addition, MLRun can record the processing time of every REST API call as a histogram (opt-in; see [REST call metrics](#rest-call-metrics) below).
+In addition, MLRun records the processing time of every REST API call as a histogram whenever telemetry is enabled (see [REST call metrics](#rest-call-metrics) below).
 
 ## Metrics description
 Every metric carries a system_id attribute (MLRun installation UUID). Project-scoped metrics additionally carry a project name. 

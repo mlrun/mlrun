@@ -36,8 +36,12 @@ class ScheduleCronTrigger(BaseModel):
     hour: Union[int, str] | None = None
     minute: Union[int, str] | None = None
     second: Union[int, str] | None = None
-    start_date: Union[datetime, str] | None = None
-    end_date: Union[datetime, str] | None = None
+    # These only ever hold timestamps. Typed as plain datetime (v1 declared
+    # Union[datetime, str] but its left-to-right union always coerced ISO strings to
+    # datetime); a bare datetime field keeps coercing persisted ISO strings back to
+    # datetime, whereas a Union no longer does under native pydantic 2.
+    start_date: datetime | None = None
+    end_date: datetime | None = None
 
     # APScheduler also supports datetime.tzinfo type, but Pydantic doesn't - so we don't
     timezone: str | None = None

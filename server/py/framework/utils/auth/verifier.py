@@ -42,10 +42,10 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
 
     def __init__(self) -> None:
         super().__init__()
-        self._resources_prefix = mlrun.mlconf.httpdb.authorization.namespaces.mlrun
+        self._mlrun_prefix = mlrun.mlconf.httpdb.authorization.namespaces.mlrun
         self._mgmt_prefix = mlrun.mlconf.httpdb.authorization.namespaces.mgmt
         self._prefixes = {
-            schemas.AuthorizationResourceNamespace.mlrun: self._resources_prefix,
+            schemas.AuthorizationResourceNamespace.mlrun: self._mlrun_prefix,
             schemas.AuthorizationResourceNamespace.mgmt: self._mgmt_prefix,
         }
         if mlrun.mlconf.httpdb.authorization.mode == "none":

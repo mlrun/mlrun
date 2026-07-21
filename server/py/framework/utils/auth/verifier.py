@@ -42,10 +42,10 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
 
     def __init__(self) -> None:
         super().__init__()
-        self._resources_prefix = mlrun.mlconf.httpdb.authorization.namespaces.resources
+        self._resources_prefix = mlrun.mlconf.httpdb.authorization.namespaces.mlrun
         self._mgmt_prefix = mlrun.mlconf.httpdb.authorization.namespaces.mgmt
         self._prefixes = {
-            schemas.AuthorizationResourceNamespace.resources: self._resources_prefix,
+            schemas.AuthorizationResourceNamespace.mlrun: self._resources_prefix,
             schemas.AuthorizationResourceNamespace.mgmt: self._mgmt_prefix,
         }
         if mlrun.mlconf.httpdb.authorization.mode == "none":
@@ -64,7 +64,7 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
         project_and_resource_name_extractor: typing.Callable,
         auth_info: schemas.AuthInfo,
         action: schemas.AuthorizationAction = schemas.AuthorizationAction.read,
-        resource_namespace: schemas.AuthorizationResourceNamespace = schemas.AuthorizationResourceNamespace.resources,
+        resource_namespace: schemas.AuthorizationResourceNamespace = schemas.AuthorizationResourceNamespace.mlrun,
     ) -> list:
         def _generate_opa_resource(resource):
             project_name, resource_name = project_and_resource_name_extractor(resource)
@@ -84,7 +84,7 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
         project_names: list[str],
         auth_info: schemas.AuthInfo,
         action: schemas.AuthorizationAction = schemas.AuthorizationAction.read,
-        resource_namespace: schemas.AuthorizationResourceNamespace = schemas.AuthorizationResourceNamespace.resources,
+        resource_namespace: schemas.AuthorizationResourceNamespace = schemas.AuthorizationResourceNamespace.mlrun,
     ) -> list:
         def _generate_project_resource(project):
             return self._generate_resource_string_from_project_name(
@@ -106,7 +106,7 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
         action: schemas.AuthorizationAction,
         auth_info: schemas.AuthInfo,
         raise_on_forbidden: bool = True,
-        resource_namespace: schemas.AuthorizationResourceNamespace = schemas.AuthorizationResourceNamespace.resources,
+        resource_namespace: schemas.AuthorizationResourceNamespace = schemas.AuthorizationResourceNamespace.mlrun,
     ) -> bool:
         project_resources = [
             # project name, resource name
@@ -138,7 +138,7 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
         action: schemas.AuthorizationAction,
         auth_info: schemas.AuthInfo,
         raise_on_forbidden: bool = True,
-        resource_namespace: schemas.AuthorizationResourceNamespace = schemas.AuthorizationResourceNamespace.resources,
+        resource_namespace: schemas.AuthorizationResourceNamespace = schemas.AuthorizationResourceNamespace.mlrun,
     ) -> bool:
         return await self.query_permissions(
             self._generate_resource_string_from_project_resource(
@@ -158,7 +158,7 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
         action: schemas.AuthorizationAction,
         auth_info: schemas.AuthInfo,
         raise_on_forbidden: bool = True,
-        resource_namespace: schemas.AuthorizationResourceNamespace = schemas.AuthorizationResourceNamespace.resources,
+        resource_namespace: schemas.AuthorizationResourceNamespace = schemas.AuthorizationResourceNamespace.mlrun,
     ) -> bool:
         return await self.query_permissions(
             self._generate_resource_string_from_project_name(
@@ -175,7 +175,7 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
         action: schemas.AuthorizationAction,
         auth_info: schemas.AuthInfo,
         raise_on_forbidden: bool = True,
-        resource_namespace: schemas.AuthorizationResourceNamespace = schemas.AuthorizationResourceNamespace.resources,
+        resource_namespace: schemas.AuthorizationResourceNamespace = schemas.AuthorizationResourceNamespace.mlrun,
     ) -> bool:
         return await self.query_resource_permissions(
             resource_type,
@@ -193,7 +193,7 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
         action: schemas.AuthorizationAction,
         auth_info: schemas.AuthInfo,
         raise_on_forbidden: bool = True,
-        resource_namespace: schemas.AuthorizationResourceNamespace = schemas.AuthorizationResourceNamespace.resources,
+        resource_namespace: schemas.AuthorizationResourceNamespace = schemas.AuthorizationResourceNamespace.mlrun,
     ) -> bool:
         return await self.query_permissions(
             self._attach_resource_namespace(

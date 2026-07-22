@@ -157,19 +157,15 @@ def gar_credential_exchange_script(registry: str, authfile_path: str) -> str:
     :param authfile_path: Where to write the docker-config-shaped authfile.
     :return: The Python source to run (e.g. via ``python3 -c``).
     """
+    # kept terse - this is base64-embedded into a pod env var, so every byte here is sent over the
+    # wire. No `with` blocks: the process exits right after, so explicit close/flush isn't needed.
     lines = [
-        "import base64",
-        "import json",
-        "import urllib.request",
-        "",
+        "import base64, json, urllib.request",
         f"req = urllib.request.Request({_GCP_METADATA_TOKEN_URL!r}, headers="
         "{'Metadata-Flavor': 'Google'})",
-        "with urllib.request.urlopen(req) as resp:",
-        "    token = json.load(resp)['access_token']",
+        "token = json.load(urllib.request.urlopen(req))['access_token']",
         "auth = base64.b64encode(b'oauth2accesstoken:' + token.encode()).decode()",
-        f"registry = {registry!r}",
-        f"with open({authfile_path!r}, 'w') as fh:",
-        "    json.dump({'auths': {registry: {'auth': auth}}}, fh)",
+        f"json.dump({{'auths': {{{registry!r}: {{'auth': auth}}}}}}, open({authfile_path!r}, 'w'))",
     ]
     return "\n".join(lines)
 

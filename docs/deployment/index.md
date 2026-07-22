@@ -24,7 +24,6 @@ Generally, there are two main modes of deployment:
 :maxdepth: 1
 
 ../serving/serving-overview
-../feature-store/training-serving
 ../deployment/batch_inference
 ../serving/canary
 ```

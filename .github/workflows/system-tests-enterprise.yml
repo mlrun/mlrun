@@ -73,6 +73,18 @@ jobs:
     - name: Install dependencies
       run: |
         apt-get update -qqy && apt-get install -y sshpass
+    - name: Identify enterprise system-test cluster
+      run: |
+        sshpass \
+          -p "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }}" \
+          ssh \
+          -o StrictHostKeyChecking=no \
+          -o ConnectTimeout=15 \
+          ${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_USERNAME }}@${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }} \
+          "hostname -f; hostname -I; kubectl get ingress -n default-tenant mlrun-api -o jsonpath='{.spec.rules[0].host}'; echo"
+
+        echo "::error::Intentional stop after identifying the data cluster"
+        exit 1
     - name: cleanup docker images from registries
       # SSH to datanode and delete all docker images created by the system tests by restarting the docker-registry
       # deployment and the datanode docker-registry

@@ -87,8 +87,19 @@ def start_server(workdir, env_config: dict):
     env.update(env_config or {})
     cmd = [
         executable,
-        "-m",
-        "server.py.services.api.main",
+        "-c",
+        # DIAGNOSTIC (temporary, ML pagination hang): dump every thread's stack
+        # every 60s so a hung API server reveals where it is blocked in CI.
+        # faulthandler uses an independent timer thread, so it fires even when the
+        # event loop and threadpool are fully deadlocked; healthy servers finish in
+        # seconds and never trigger it. Dumps go to stderr, which the fixture prints
+        # on teardown. Revert once the pagination freeze is root-caused.
+        (
+            "import faulthandler; "
+            "faulthandler.dump_traceback_later(60, repeat=True); "
+            "import runpy; "
+            "runpy.run_module('server.py.services.api.main', run_name='__main__')"
+        ),
     ]
 
     proc = Popen(cmd, env=env, stdout=PIPE, stderr=PIPE, cwd=project_dir_path)

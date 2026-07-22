@@ -385,9 +385,11 @@ def _build_script(
     has_push_auth = bool(secret_name or cloud_provider)
 
     # GAR/GCR credentials are minted JIT (see registry_auth.gar_credential_exchange_script) rather
-    # than by an earlier init container, since GCP metadata-server tokens default to a 1h TTL that a
-    # long build could outlive. Minted immediately before both bud (in case the base image shares
-    # the same registry) and push, rather than once up front, for the same TTL reason.
+    # than by an earlier init container: the metadata server caches and reuses a token across callers
+    # until fewer than 5 minutes remain before its expiry, so any mint can hand back a token with as
+    # little as ~5 minutes left, regardless of when it's minted. Minting immediately before both bud
+    # (in case the base image shares the same registry) and push minimizes the gap between mint and
+    # use, rather than relying on a single early mint to outlast the whole build.
     gar_credential_exchange = (
         [
             f"mkdir -p {shlex.quote(_AUTHFILE_DIR)}",

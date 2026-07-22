@@ -12,21 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Tests for the Buildah cloud-registry credential exchange (ML-12886): the provider classifier and
-# the generated ECR/ACR/GAR scripts. The scripts run in a *different* container (an init container,
-# or - for GAR - later in the same container's push script) than mlrun's own process, so these tests
-# `exec()` the generated source directly, with the underlying SDK calls (boto3 / azure-identity /
-# requests / urllib) monkeypatched - this exercises the actual credential-exchange logic, not just
-# the script's shape.
+# Tests for the Buildah cloud-registry credential exchange (ML-12886): the provider classifier, the
+# ECR/ACR init-container wiring (they invoke `python -m mlrun mint-registry-credentials` - see
+# tests/utils/test_registry_auth.py for the actual credential-exchange logic those calls run), and
+# the generated GAR/GCR script (no mlrun installed where it runs, so it stays a generated script
+# `exec()`'d directly here with the underlying stdlib call mocked).
 
 import base64
 import json
 import unittest.mock
 
-import boto3
 import pytest
-import requests
 
+import framework.utils.singletons.k8s
 from services.api.utils.builder import registry_auth
 
 
@@ -47,81 +45,60 @@ def test_classify_cloud_registry(target, expected):
     assert registry_auth.classify_cloud_registry(target) == expected
 
 
-def test_ecr_credential_exchange_writes_authfile(tmp_path, monkeypatch):
-    fake_client = unittest.mock.MagicMock()
-    fake_client.exceptions.RepositoryAlreadyExistsException = type(
-        "RepositoryAlreadyExistsException", (Exception,), {}
-    )
-    fake_client.get_authorization_token.return_value = {
-        "authorizationData": [{"authorizationToken": "QVdTOnRvcC1zZWNyZXQ="}]
-    }
-    monkeypatch.setattr(boto3, "client", unittest.mock.Mock(return_value=fake_client))
+def _init_container(pod) -> object:
+    assert len(pod.init_containers) == 1
+    return pod.init_containers[0]
 
-    authfile = tmp_path / "config.json"
+
+def test_append_ecr_credential_exchange_init_container():
+    pod = framework.utils.singletons.k8s.BasePod(task_name="t", image="img")
     registry = "123456789012.dkr.ecr.us-east-1.amazonaws.com"
-    script = registry_auth._ecr_credential_exchange_script(
-        registry, f"{registry}/myrepo:latest", str(authfile)
+    dest = f"{registry}/myrepo:latest"
+    registry_auth.append_ecr_credential_exchange_init_container(
+        pod, registry, dest, "/auth/config.json"
     )
-    exec(script, {})  # noqa: S102 - exercising the generated init-container source, not user input
 
-    boto3.client.assert_called_once_with("ecr", region_name="us-east-1")
-    fake_client.create_repository.assert_any_call(repositoryName="myrepo")
-    fake_client.create_repository.assert_any_call(repositoryName="myrepo/cache")
-    assert json.loads(authfile.read_text()) == {
-        "auths": {registry: {"auth": "QVdTOnRvcC1zZWNyZXQ="}}
-    }
-
-
-def test_ecr_credential_exchange_repo_create_idempotent(tmp_path, monkeypatch):
-    already_exists = type("RepositoryAlreadyExistsException", (Exception,), {})
-    fake_client = unittest.mock.MagicMock()
-    fake_client.exceptions.RepositoryAlreadyExistsException = already_exists
-    fake_client.create_repository.side_effect = already_exists()
-    fake_client.get_authorization_token.return_value = {
-        "authorizationData": [{"authorizationToken": "token"}]
-    }
-    monkeypatch.setattr(boto3, "client", unittest.mock.Mock(return_value=fake_client))
-
-    authfile = tmp_path / "config.json"
-    registry = "123456789012.dkr.ecr.us-east-1.amazonaws.com"
-    script = registry_auth._ecr_credential_exchange_script(
-        registry, f"{registry}/myrepo:latest", str(authfile)
-    )
-    # must not raise even though create_repository always errors "already exists"
-    exec(script, {})  # noqa: S102
-
-    assert json.loads(authfile.read_text())["auths"][registry]["auth"] == "token"
+    container = _init_container(pod)
+    assert container.name == "registry-credential-exchange"
+    # same python -m mlrun <subcommand> convention Kaniko's source-fetch init container uses -
+    # mlrun is installed on the init container's image, so there's no need to inline a script.
+    assert container.command == ["python"]
+    assert container.args == [
+        "-m",
+        "mlrun",
+        "mint-registry-credentials",
+        "--provider",
+        "ecr",
+        "--registry",
+        registry,
+        "--dest",
+        dest,
+        "--authfile",
+        "/auth/config.json",
+    ]
 
 
-def test_acr_credential_exchange_writes_authfile(tmp_path, monkeypatch):
-    fake_credential = unittest.mock.MagicMock()
-    fake_credential.get_token.return_value = unittest.mock.Mock(token="aad-token")
-    monkeypatch.setattr(
-        "azure.identity.DefaultAzureCredential",
-        unittest.mock.Mock(return_value=fake_credential),
-    )
-    fake_response = unittest.mock.MagicMock()
-    fake_response.json.return_value = {"refresh_token": "my-refresh-token"}
-    monkeypatch.setattr(
-        requests, "post", unittest.mock.Mock(return_value=fake_response)
-    )
-    monkeypatch.setenv("AZURE_TENANT_ID", "tenant-123")
-
-    authfile = tmp_path / "config.json"
+def test_append_acr_credential_exchange_init_container():
+    pod = framework.utils.singletons.k8s.BasePod(task_name="t", image="img")
     registry = "myregistry.azurecr.io"
-    script = registry_auth._acr_credential_exchange_script(registry, str(authfile))
-    exec(script, {})  # noqa: S102
+    registry_auth.append_acr_credential_exchange_init_container(
+        pod, registry, "/auth/config.json"
+    )
 
-    requests.post.assert_called_once()
-    _, kwargs = requests.post.call_args
-    assert kwargs["data"]["tenant"] == "tenant-123"
-    assert kwargs["data"]["service"] == registry
-    assert kwargs["data"]["access_token"] == "aad-token"
-    fake_response.raise_for_status.assert_called_once()
-
-    written = json.loads(authfile.read_text())
-    decoded = base64.b64decode(written["auths"][registry]["auth"]).decode()
-    assert decoded == "00000000-0000-0000-0000-000000000000:my-refresh-token"
+    container = _init_container(pod)
+    assert container.name == "registry-credential-exchange"
+    assert container.command == ["python"]
+    assert container.args == [
+        "-m",
+        "mlrun",
+        "mint-registry-credentials",
+        "--provider",
+        "acr",
+        "--registry",
+        registry,
+        "--authfile",
+        "/auth/config.json",
+    ]
 
 
 def test_gar_credential_exchange_script_uses_metadata_server_only(
@@ -138,11 +115,12 @@ def test_gar_credential_exchange_script_uses_metadata_server_only(
     authfile = tmp_path / "config.json"
     registry = "us-docker.pkg.dev"
     script = registry_auth.gar_credential_exchange_script(registry, str(authfile))
-    # regression guard: only the stdlib the stock buildah image ships - no cloud SDK import, since
-    # this runs in the Buildah main container, not an MLRun-image init container.
+    # regression guard: only the stdlib the stock buildah image ships - no mlrun/cloud SDK import,
+    # since this runs in the Buildah main container, which has neither installed.
+    assert "import mlrun" not in script
     assert "import google" not in script
     assert "Metadata-Flavor" in script
-    exec(script, {})  # noqa: S102
+    exec(script, {})  # noqa: S102 - exercising the generated script, not user input
 
     written = json.loads(authfile.read_text())
     decoded = base64.b64decode(written["auths"][registry]["auth"]).decode()

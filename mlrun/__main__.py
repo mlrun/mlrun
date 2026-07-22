@@ -1396,6 +1396,57 @@ def load_source(source_uri, project, target):
         exit(1)
 
 
+@main.command(name="mint-registry-credentials")
+@click.option(
+    "--provider",
+    type=click.Choice(["ecr", "acr"]),
+    required=True,
+    help="the cloud registry provider to mint push credentials for",
+)
+@click.option("--registry", required=True, help="the registry host")
+@click.option(
+    "--dest",
+    default=None,
+    help="the destination image reference (ECR only, to derive the repository name)",
+)
+@click.option(
+    "--authfile",
+    required=True,
+    help="path to write the docker-config-shaped authfile",
+)
+def mint_registry_credentials(provider, registry, dest, authfile):
+    """Mint short-lived cloud-registry push credentials into a docker-config authfile.
+
+    This is an internal CLI command used by Buildah build init containers to exchange the pod's
+    workload identity for a registry push credential before the main container runs.
+
+    Examples:
+
+    \b
+        mlrun mint-registry-credentials --provider ecr \\
+            --registry 123456789012.dkr.ecr.us-east-1.amazonaws.com \\
+            --dest 123456789012.dkr.ecr.us-east-1.amazonaws.com/my-repo:latest \\
+            --authfile /auth/config.json
+        mlrun mint-registry-credentials --provider acr \\
+            --registry myregistry.azurecr.io --authfile /auth/config.json
+    """
+    from mlrun.utils.registry_auth import mint_acr_authfile, mint_ecr_authfile
+
+    try:
+        if provider == "ecr":
+            if not dest:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "--dest is required for --provider ecr"
+                )
+            mint_ecr_authfile(registry, dest, authfile)
+        else:
+            mint_acr_authfile(registry, authfile)
+        print(f"Successfully minted {provider} registry credentials to: {authfile}")
+    except Exception as err:
+        print(f"Error minting registry credentials: {err_to_str(err)}")
+        exit(1)
+
+
 def fill_params(params, params_dict=None):
     params_dict = params_dict or {}
     for param in params:

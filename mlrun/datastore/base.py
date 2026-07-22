@@ -220,6 +220,9 @@ class DataStore(BaseRemoteClient):
             paths.append(current_path.rstrip("/"))
             return
 
+        # Invalidating here guarantees each level is listed fresh
+        filesystem.invalidate_cache(current_path)
+
         directories = filesystem.ls(current_path, detail=True)
         if len(directories) == 0:
             return

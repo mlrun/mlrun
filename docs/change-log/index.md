@@ -1716,7 +1716,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | v1.5.0 |Unused artifact types: BokehArtifact, ChartArtifact      |NA|
 | v1.3.0 |`project.functions`   |`project.get_function`, `project.set_function`, `project.list_function`      |
 | v1.3.0 |`project.artifacts`  |`project.get_artifact`, `project.set_artifact`, `project.list_artifact`      |
-| v1.3.0 |`project.func()|`project.get_function()`    |
+| v1.3.0 |`project.func()`|`project.get_function()`    |
 | v1.3.0 |`project.create_vault_secrets()`     |NA      |
 | v1.3.0 |`project.get_vault_secret()`     |NA        |
 | v1.3.0 |`MlrunProjectLegacy` class     |`MlrunProject` |

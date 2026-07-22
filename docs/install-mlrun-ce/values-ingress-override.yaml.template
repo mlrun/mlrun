@@ -89,6 +89,7 @@ kube-prometheus-stack:
       nodePort: null
     ingress:
       enabled: true
+      className: ${INGRESS_CLASS_NAME}
       annotations: {}
       hosts:
         - grafana.${SYSTEM_FQDN}
@@ -102,6 +103,7 @@ kube-prometheus-stack:
       nodePort: null
     ingress:
       enabled: true
+      className: ${INGRESS_CLASS_NAME}
       annotations: {}
       hosts:
         - prometheus.${SYSTEM_FQDN}

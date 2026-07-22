@@ -73,18 +73,6 @@ jobs:
     - name: Install dependencies
       run: |
         apt-get update -qqy && apt-get install -y sshpass
-    - name: Identify enterprise system-test cluster
-      run: |
-        sshpass \
-          -p "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }}" \
-          ssh \
-          -o StrictHostKeyChecking=no \
-          -o ConnectTimeout=15 \
-          ${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_USERNAME }}@${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }} \
-          "hostname -f; hostname -I; kubectl get ingress -n default-tenant mlrun-api -o jsonpath='{.spec.rules[0].host}'; echo"
-
-        echo "::error::Intentional stop after identifying the data cluster"
-        exit 1
     - name: cleanup docker images from registries
       # SSH to datanode and delete all docker images created by the system tests by restarting the docker-registry
       # deployment and the datanode docker-registry
@@ -292,7 +280,7 @@ jobs:
           echo ${input_system_tests_clean_resources:-true})" >> $GITHUB_OUTPUT
         echo "override_iguazio_version=$INPUT_OVERRIDE_IGUAZIO_VERSION" >> $GITHUB_OUTPUT
       env:
-        SECRET_DOCKER_REGISTRY: ${{ secrets.SYSTEM_TESTS_ENTERPRISE_DOCKER_REGISTRY }}
+        SECRET_DOCKER_REGISTRY: ${{ secrets.SYSTEM_TESTS_ENTERPRISE_GHCR_PROXY_REGISTRY }}
         INPUT_DOCKER_REGISTRY: ${{ github.event.inputs.docker_registry }}
         INPUT_OVERRIDE_IGUAZIO_VERSION: ${{ github.event.inputs.override_iguazio_version }}
         INPUT_CLEAN_RESOURCES_IN_TEARDOWN: ${{ github.event.inputs.clean_resources_in_teardown }}

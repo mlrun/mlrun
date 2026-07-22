@@ -11,4 +11,252 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Native Pydantic 2 alert models. Empty until ML-12891 adds them."""
+
+from collections import defaultdict
+from collections.abc import Callable, Iterator
+from datetime import datetime
+from typing import Annotated, Any, Union
+
+import pydantic
+
+from .._shared.alert import (
+    AlertActiveState,
+    AlertSeverity,
+    EventEntityKind,
+    EventKind,
+    ResetPolicy,
+    _event_kind_entity_map,
+)
+from . import notification as notification_objects
+
+
+class EventEntities(pydantic.BaseModel):
+    kind: EventEntityKind
+    project: str
+    ids: pydantic.conlist(str, min_length=1, max_length=1)
+
+
+class Event(pydantic.BaseModel):
+    kind: EventKind
+    timestamp: Union[str, datetime, None] = None  # occurrence time
+    entity: EventEntities
+    value_dict: dict | None = pydantic.Field(default_factory=dict)
+
+    def is_valid(self):
+        return self.entity.kind in _event_kind_entity_map[self.kind]
+
+
+# what should trigger the alert. must be either event (at least 1), or prometheus query
+class AlertTrigger(pydantic.BaseModel):
+    events: list[EventKind] = []
+    prometheus_alert: str | None = None
+
+    def __eq__(self, other):
+        return (
+            self.prometheus_alert == other.prometheus_alert
+            and self.events == other.events
+        )
+
+
+class AlertCriteria(pydantic.BaseModel):
+    count: Annotated[
+        int,
+        pydantic.Field(
+            description="Number of events to wait until notification is sent"
+        ),
+    ] = 1
+    period: Annotated[
+        str | None,
+        pydantic.Field(
+            description="Time period during which event occurred. e.g. 1d, 3h, 5m, 15s"
+        ),
+    ] = None
+
+    def __eq__(self, other):
+        return self.count == other.count and self.period == other.period
+
+
+class AlertNotification(pydantic.BaseModel):
+    notification: notification_objects.Notification
+    cooldown_period: Annotated[
+        str | None,
+        pydantic.Field(
+            description="Period during which notifications "
+            "will not be sent after initial send. The format of this would be in time."
+            " e.g. 1d, 3h, 5m, 15s. Note: this field is currently persisted but not "
+            "enforced - notifications are sent on every qualifying event regardless "
+            "of this value."
+        ),
+    ] = None
+
+
+class AlertConfig(pydantic.BaseModel):
+    model_config = pydantic.ConfigDict(extra="allow")
+
+    project: str
+    id: int | None = None
+    name: str
+    description: str | None = ""
+    summary: Annotated[
+        str,
+        pydantic.Field(
+            description=(
+                "String to be sent in the notifications generated."
+                "e.g. 'Model {{project}}/{{entity}} is drifting.'"
+                "Supported variables: project, entity, name"
+            )
+        ),
+    ]
+    created: Union[str, datetime, None] = None
+    severity: AlertSeverity
+    entities: EventEntities
+    trigger: AlertTrigger
+    criteria: AlertCriteria | None = None
+    reset_policy: ResetPolicy = ResetPolicy.AUTO
+    cooldown_period: Annotated[
+        str | None,
+        pydantic.Field(
+            description=(
+                "Period during which the alert remains active after being triggered "
+                "before it is automatically reset. Only applicable when reset_policy=auto "
+                "and cooldown_period > 0. If not set or set to zero, the alert resets "
+                "immediately upon triggering. Format: e.g. 1d, 3h, 5m, 15s."
+            )
+        ),
+    ] = None
+    notifications: pydantic.conlist(AlertNotification, min_length=1)
+    state: AlertActiveState = AlertActiveState.INACTIVE
+    count: int | None = 0
+    updated: datetime | None = None
+
+    def get_raw_notifications(self) -> list[notification_objects.Notification]:
+        return [
+            alert_notification.notification for alert_notification in self.notifications
+        ]
+
+
+class AlertTemplate(
+    pydantic.BaseModel
+):  # Template fields that are not shared with created configs
+    template_id: int | None = None
+    template_name: str
+    template_description: str | None = "String explaining the purpose of this template"
+
+    # A property that identifies templates that were created by the system and cannot be modified/deleted by the user
+    system_generated: bool = False
+
+    # AlertConfig fields that are pre-defined
+    summary: str | None = (
+        "String to be sent in the generated notifications e.g. 'Model {{project}}/{{entity}} is drifting.'"
+        "See AlertConfig.summary description"
+    )
+    severity: AlertSeverity
+    trigger: AlertTrigger
+    criteria: AlertCriteria | None = None
+    reset_policy: ResetPolicy = ResetPolicy.AUTO
+    cooldown_period: str | None = None
+
+    # This is slightly different than __eq__ as it doesn't compare everything
+    def templates_differ(self, other):
+        return (
+            self.template_description != other.template_description
+            or self.summary != other.summary
+            or self.severity != other.severity
+            or self.trigger != other.trigger
+            or self.reset_policy != other.reset_policy
+            or self.criteria != other.criteria
+            or self.cooldown_period != other.cooldown_period
+        )
+
+
+class AlertActivation(pydantic.BaseModel):
+    id: int
+    name: str
+    project: str
+    severity: AlertSeverity
+    activation_time: datetime
+    entity_id: str
+    entity_kind: EventEntityKind
+    criteria: AlertCriteria
+    event_kind: EventKind
+    number_of_events: int
+    notifications: list[notification_objects.NotificationState]
+    reset_time: datetime | None = None
+
+    def group_key(self, attributes: list[str]) -> Union[Any, tuple]:
+        """
+        Dynamically create a key for grouping based on the provided attributes.
+
+        - If there's only one attribute, return the value directly (not a single-element tuple).
+        - If there are multiple attributes, return them as a tuple for grouping.
+
+        This ensures grouping behaves intuitively without redundant tuple representations.
+        """
+        if len(attributes) == 1:
+            # Avoid single-element tuple like (high,) when only one grouping attribute is used
+            return getattr(self, attributes[0])
+        # Otherwise, return a tuple of all specified attributes
+        return tuple(getattr(self, attr) for attr in attributes)
+
+
+class AlertActivations(pydantic.BaseModel):
+    activations: list[AlertActivation]
+    pagination: dict | None = None
+
+    def __iter__(self) -> Iterator[AlertActivation]:
+        return iter(self.activations)
+
+    def __getitem__(self, index: int) -> AlertActivation:
+        return self.activations[index]
+
+    def __len__(self) -> int:
+        return len(self.activations)
+
+    def group_by(self, *attributes: str) -> dict:
+        """
+        Group alert activations by specified attributes.
+
+        :param attributes: Attributes to group by.
+
+        :returns: A dictionary where keys are tuples of attribute values and values are lists of
+            AlertActivation objects.
+
+        Example::
+
+            # Group by project and severity
+            grouped = activations.group_by("project", "severity")
+        """
+        grouped = defaultdict(list)
+        for activation in self.activations:
+            key = activation.group_key(attributes)
+            grouped[key].append(activation)
+        return dict(grouped)
+
+    def aggregate_by(
+        self,
+        group_by_attrs: list[str],
+        aggregation_function: Callable[[list[AlertActivation]], Any],
+    ) -> dict:
+        """
+        Aggregate alert activations by specified attributes using a given aggregation function.
+
+
+        :param group_by_attrs: Attributes to group by.
+        :param aggregation_function: Function to aggregate grouped activations.
+
+        :returns: A dictionary where keys are tuples of attribute values and values are the result
+            of the aggregation function.
+
+        Example::
+
+            # Aggregate by name and entity_id and count number of activations in each group
+            activations.aggregate_by(
+                ["name", "entity_id"], lambda activations: len(activations)
+            )
+        """
+        grouped = self.group_by(*group_by_attrs)
+        aggregated = {
+            key: aggregation_function(activations)
+            for key, activations in grouped.items()
+        }
+        return aggregated

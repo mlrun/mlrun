@@ -11,4 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Native Pydantic 2 pipeline models. Empty until ML-12891 adds them."""
+
+import typing
+
+import pydantic
+
+
+class PipelinesOutput(pydantic.BaseModel):
+    # use the format query param to control what is returned
+    runs: list[typing.Union[dict, str]]
+    total_size: int
+    next_page_token: str | None = None

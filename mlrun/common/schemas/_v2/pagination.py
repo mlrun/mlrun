@@ -11,4 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Native Pydantic 2 pagination models. Empty until ML-12891 adds them."""
+
+
+import pydantic
+
+
+class PaginationInfo(pydantic.BaseModel):
+    model_config = pydantic.ConfigDict(populate_by_name=True)
+
+    page: int | None = None
+    page_size: int | None = pydantic.Field(default=None, alias="page-size")
+    page_token: str | None = pydantic.Field(default=None, alias="page-token")

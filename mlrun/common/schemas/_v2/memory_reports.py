@@ -11,4 +11,19 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Native Pydantic 2 memory_reports models. Empty until ML-12891 adds them."""
+
+import typing
+
+import pydantic
+
+
+class MostCommonObjectTypesReport(pydantic.BaseModel):
+    object_types: list[tuple[str, int]]
+
+
+class ObjectTypeReport(pydantic.BaseModel):
+    object_type: str
+    sample_size: int
+    start_index: int | None = None
+    max_depth: int
+    object_report: list[dict[str, typing.Any]]

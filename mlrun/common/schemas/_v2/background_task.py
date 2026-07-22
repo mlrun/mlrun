@@ -11,4 +11,41 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Native Pydantic 2 background_task models. Empty until ML-12891 adds them."""
+
+import datetime
+import typing
+
+import pydantic
+
+from .._shared.background_task import BackgroundTaskState
+from .._shared.object import ObjectKind
+
+
+class BackgroundTaskMetadata(pydantic.BaseModel):
+    name: str
+    id: int | None = None
+    kind: str | None = None
+    project: str | None = None
+    created: datetime.datetime | None = None
+    updated: datetime.datetime | None = None
+    timeout: int | None = None
+
+
+class BackgroundTaskSpec(pydantic.BaseModel):
+    pass
+
+
+class BackgroundTaskStatus(pydantic.BaseModel):
+    state: BackgroundTaskState
+    error: str | None = None
+
+
+class BackgroundTask(pydantic.BaseModel):
+    kind: typing.Literal[ObjectKind.background_task] = ObjectKind.background_task
+    metadata: BackgroundTaskMetadata
+    spec: BackgroundTaskSpec
+    status: BackgroundTaskStatus
+
+
+class BackgroundTaskList(pydantic.BaseModel):
+    background_tasks: list[BackgroundTask]

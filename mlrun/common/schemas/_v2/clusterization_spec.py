@@ -11,4 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Native Pydantic 2 clusterization_spec models. Empty until ML-12891 adds them."""
+
+
+import pydantic
+
+
+class ClusterizationSpec(pydantic.BaseModel):
+    chief_api_state: str | None = None
+    chief_version: str | None = None

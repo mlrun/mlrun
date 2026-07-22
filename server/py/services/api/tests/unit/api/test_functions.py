@@ -784,6 +784,10 @@ def test_build_function_force_build(
             "pod-name",
             "namespace",
         )
+        # service-account resolution reads project secrets from k8s; return a real dict
+        # (as a live cluster would) so SecretsData validation succeeds - pydantic 2 rejects
+        # the default MagicMock, whereas pydantic 1 silently coerced it to {}.
+        mock_get_k8s_helper.return_value.get_project_secret_data.return_value = {}
 
         # call build/function and assert the function was called or not called as expected,
         # based on the force_build flag

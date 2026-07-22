@@ -11,4 +11,51 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Native Pydantic 2 object models. Empty until ML-12891 adds them."""
+
+from datetime import datetime
+
+from pydantic import BaseModel, ConfigDict
+
+
+class ObjectMetadata(BaseModel):
+    name: str
+    project: str | None = None
+    tag: str | None = None
+    labels: dict | None = {}
+    updated: datetime | None = None
+    created: datetime | None = None
+    uid: str | None = None
+
+    model_config = ConfigDict(extra="allow")
+
+
+class ObjectStatus(BaseModel):
+    state: str | None = None
+
+    model_config = ConfigDict(extra="allow")
+
+
+class ObjectSpec(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+
+class LabelRecord(BaseModel):
+    id: int
+    name: str
+    value: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ObjectRecord(BaseModel):
+    id: int
+    name: str
+    project: str
+    uid: str
+    updated: datetime | None = None
+    labels: list[LabelRecord]
+    # state is extracted from the full status dict to enable queries
+    state: str | None = None
+    full_object: dict | None = None
+
+    model_config = ConfigDict(from_attributes=True)

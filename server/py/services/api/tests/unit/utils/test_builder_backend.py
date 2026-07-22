@@ -17,7 +17,11 @@
 # the byte-identical regression anchor covered by test_builder.py; here we lock the
 # seam, and (ML-12885) the Buildah backend: config-flip selection, the transparent
 # Kaniko fallback for inputs Buildah can't handle yet, and the rootless pod spec.
+# (ML-12887) also locks Buildah's own source routing - every remote source is fetched
+# via `mlrun load-source` or, for v3io, FUSE-mounted, since Buildah has no native
+# remote-context resolution the way Kaniko does.
 
+import base64
 import unittest.mock
 
 import pytest
@@ -173,13 +177,13 @@ def test_resolve_builder_backend_buildah_falls_back_for_cloud_registry(
     assert isinstance(backend, services.api.utils.builder.KanikoBackend)
 
 
-def test_resolve_builder_backend_buildah_falls_back_for_source(monkeypatch):
-    # a source needing acquisition is not on Buildah yet (ML-12887) -> fall back to Kaniko
+def test_resolve_builder_backend_buildah_handles_source(monkeypatch):
+    # source acquisition is implemented (ML-12887) -> Buildah is selected, no fallback
     monkeypatch.setattr(config.httpdb.builder, "builder_backend", "buildah")
     backend = services.api.utils.builder.resolve_builder_backend(
         _make_build_request(source="git://github.com/some-org/some-repo.git#main")
     )
-    assert isinstance(backend, services.api.utils.builder.KanikoBackend)
+    assert isinstance(backend, services.api.utils.builder.BuildahBackend)
 
 
 def test_resolve_builder_backend_buildah_keeps_inline_code_with_source(monkeypatch):
@@ -192,14 +196,6 @@ def test_resolve_builder_backend_buildah_keeps_inline_code_with_source(monkeypat
         )
     )
     assert isinstance(backend, services.api.utils.builder.BuildahBackend)
-
-
-def test_buildah_backend_rejects_unacquirable_source():
-    # the source guard in resolve_builder_backend should route this to Kaniko; if the adapter is
-    # somehow reached with an unacquirable source it must fail fast, not silently drop the source
-    request = _make_build_request(source="git://github.com/some-org/some-repo.git#main")
-    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError, match="ML-12887"):
-        services.api.utils.builder.BuildahBackend().make_build_pod(request)
 
 
 def test_make_buildah_pod_security_context_is_caps_rootless():
@@ -354,3 +350,138 @@ def _make_buildah_pod(**overrides) -> framework.utils.singletons.k8s.BasePod:
         )
         defaults.update(overrides)
         return services.api.utils.builder.buildah.make_buildah_pod(**defaults)
+
+
+# --- Buildah source routing (ML-12887) ------------------------------------------------------------
+
+
+def _make_buildah_backend_pod(
+    **overrides,
+) -> framework.utils.singletons.k8s.BasePod:
+    """Route a BuildRequest through BuildahBackend.make_build_pod with a real runtime spec.
+
+    A real runtime_spec is required: source routing mutates
+    ``request.runtime_spec.build.source_code_target_dir``, which a bare ``_make_build_request()``
+    (``runtime_spec=None``) cannot support.
+    """
+    with unittest.mock.patch(
+        "framework.api.utils.resolve_project_service_account_details",
+        return_value=(None, None, None),
+    ):
+        function = mlrun.new_function("test", "test", kind=RuntimeKinds.job)
+        request = _make_build_request(runtime_spec=function.spec, **overrides)
+        return services.api.utils.builder.BuildahBackend().make_build_pod(request)
+
+
+def _init_container_by_name(pod: framework.utils.singletons.k8s.BasePod, name: str):
+    for container in pod.pod.spec.init_containers or []:
+        if container.name == name:
+            return container
+    return None
+
+
+def _decoded_dockerfile(pod: framework.utils.singletons.k8s.BasePod) -> str:
+    env = {env_var.name: env_var.value for env_var in pod.pod.spec.containers[0].env}
+    return base64.b64decode(env["MLRUN_DOCKERFILE"]).decode("utf-8")
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "git://github.com/some-org/some-repo.git#main",
+        "s3://bucket/path/project.tar.gz",
+        "s3://bucket/path/main.py",
+        "http://example.com/main.py",
+        "https://example.com/main.py",
+    ],
+)
+def test_buildah_backend_routes_remote_source_through_fetch_init_container(source):
+    # unlike Kaniko (native --context for git/s3, Dockerfile ADD for bare http), Buildah has no
+    # native remote-context resolution - every remote source is fetched via `mlrun load-source`
+    # into the same emptyDir already mounted for Dockerfile staging.
+    pod = _make_buildah_backend_pod(source=source)
+
+    fetch_container = _init_container_by_name(pod, "fetch-source")
+    assert fetch_container is not None
+    assert fetch_container.command == ["python"]
+    assert fetch_container.args == [
+        "-m",
+        "mlrun",
+        "load-source",
+        source,
+        "--target",
+        "/empty/source",
+    ]
+    fetch_mounts = {
+        (vm.name, vm.mount_path) for vm in fetch_container.volume_mounts or []
+    }
+    assert ("context", "/empty") in fetch_mounts
+
+    assert "ADD ./source /home/mlrun_code" in _decoded_dockerfile(pod)
+
+
+def test_buildah_backend_mounts_v3io_source():
+    # v3io keeps its existing FUSE-mount mechanism (shared with Kaniko via
+    # base.mount_v3io_source) rather than being routed through the fetch-source init container.
+    pod = _make_buildah_backend_pod(
+        source="v3io:///bigdata/project/code",
+        auth_info=mlrun.common.schemas.AuthInfo(username="some-user", access_key="some-key"),
+    )
+
+    assert _init_container_by_name(pod, "fetch-source") is None
+
+    volume_mounts = {
+        (vm.name, vm.mount_path)
+        for vm in pod.pod.spec.containers[0].volume_mounts or []
+    }
+    assert ("v3io", "/empty/source") in volume_mounts
+
+    # v3io_to_vol returns a plain dict (not a V1Volume), unlike the other mount_* helpers.
+    v3io_volume = next(
+        v
+        for v in pod.pod.spec.volumes or []
+        if (v["name"] if isinstance(v, dict) else v.name) == "v3io"
+    )
+    flex_volume_options = v3io_volume["flexVolume"].options
+    assert flex_volume_options["container"] == "bigdata"
+    assert flex_volume_options["subPath"] == "/project"
+
+    assert "ADD ./source/code /home/mlrun_code" in _decoded_dockerfile(pod)
+
+
+def test_buildah_backend_local_abs_path_source_passthrough():
+    # parity with Kaniko's own edge case: an absolute local path is assumed valid inside the
+    # build image already (e.g. baked into a custom base image) - no fetch, no mount.
+    pod = _make_buildah_backend_pod(source="/opt/baked-in-source")
+
+    assert _init_container_by_name(pod, "fetch-source") is None
+    assert "ADD /opt/baked-in-source /home/mlrun_code" in _decoded_dockerfile(pod)
+
+
+def test_buildah_backend_relative_path_source_raises():
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError, match="relative source"):
+        _make_buildah_backend_pod(source="relative/path")
+
+
+def test_buildah_backend_unsupported_scheme_raises_before_pod_construction():
+    # fails fast at BuildRequest-resolution time, before scheduling a pod that would only fail
+    # once the fetch-source init container actually runs `mlrun load-source`.
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError, match="ftp"):
+        _make_buildah_backend_pod(source="ftp://example.com/file")
+
+
+def test_buildah_backend_no_source_has_no_fetch_container_or_mount():
+    pod = _make_buildah_backend_pod(source="")
+    assert _init_container_by_name(pod, "fetch-source") is None
+    assert "ADD" not in _decoded_dockerfile(pod)
+
+
+def test_buildah_backend_inline_code_with_source_ignores_source():
+    # inline_code takes precedence over source (Kaniko's own /empty-context rule) - no fetch,
+    # no mount, no ADD line for the ignored source.
+    pod = _make_buildah_backend_pod(
+        source="git://github.com/some-org/some-repo.git#main",
+        inline_code="print('hi')",
+    )
+    assert _init_container_by_name(pod, "fetch-source") is None
+    assert "ADD" not in _decoded_dockerfile(pod)

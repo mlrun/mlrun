@@ -26,6 +26,11 @@ import mlrun
 
 from .helpers import is_store_uri, logger
 
+# bare (non-archive) URIs load-source can fetch as a single file, the same shape store:// artifacts
+# already support. Excludes v3io (FUSE-mounted by callers, never fetched) and any scheme without a
+# datastore implementation.
+_SINGLE_FILE_SCHEMES = frozenset({"s3", "http", "https"})
+
 
 def _remove_directory_contents(target_dir):
     for filename in os.listdir(target_dir):
@@ -249,8 +254,9 @@ def load_source_code(
     - git:// URLs: Git repositories (cloned to target directory)
     - .zip files: ZIP archives (extracted to target directory)
     - .tar.gz files: Tarball archives (extracted to target directory)
+    - bare s3:// / http(s):// URLs: Single files (downloaded to target directory)
 
-    :param source_uri: Source URI (store://, git://, or archive URL)
+    :param source_uri: Source URI (store://, git://, archive URL, or a bare s3:// / http(s):// file)
     :param target_dir: Target directory where source will be placed
     :param project:    Optional project name (used for store:// URIs)
     :param secrets:    Optional secrets used to access secured data stores
@@ -258,8 +264,8 @@ def load_source_code(
 
     :returns: ``(target_dir, file_path)``. ``target_dir`` is always set.
               ``file_path`` is the resolved local file path for ``store://``
-              single-file artifacts, and ``None`` for git/archive sources
-              where there is no canonical entry file.
+              and bare s3/http(s) single-file sources, and ``None`` for
+              git/archive sources where there is no canonical entry file.
     """
     if not source_uri:
         raise mlrun.errors.MLRunInvalidArgumentError("source_uri is required")
@@ -274,14 +280,41 @@ def load_source_code(
     if source_uri.startswith("git://"):
         return _load_git_source(source_uri, target_dir), None
 
-    # Handle archive files (.zip, .tar.gz)
+    # Handle archive files (.zip, .tar.gz) - checked before the bare-scheme branch below so an
+    # archive under s3://.../foo.tar.gz still extracts rather than downloading as a single file.
     if source_uri.endswith(".zip") or source_uri.endswith(".tar.gz"):
         return _load_archive_source(source_uri, target_dir), None
 
+    # Handle bare (non-archive) s3:// / http(s):// single files
+    if urlparse(source_uri).scheme in _SINGLE_FILE_SCHEMES:
+        return _load_single_file_source(source_uri, target_dir, secrets=secrets)
+
     raise mlrun.errors.MLRunInvalidArgumentError(
-        f"Unsupported source type: {source_uri}. "
-        "Supported types: store:// URIs, git:// URLs, .zip and .tar.gz archives"
+        f"Unsupported source type: {source_uri}. Supported types: store:// URIs, git:// URLs, "
+        ".zip and .tar.gz archives, and bare s3:// / http(s):// files"
     )
+
+
+def is_source_loadable(source_uri: str) -> bool:
+    """
+    Return whether ``load_source_code`` can resolve ``source_uri``, without downloading it.
+
+    Mirrors ``load_source_code``'s dispatch conditions so a caller that schedules work around
+    the fetch (e.g. a build pod's init container) can fail fast on an unsupported source instead
+    of scheduling work that is guaranteed to fail once ``load_source_code`` actually runs.
+
+    :param source_uri: The source URI to check.
+    :return: Whether ``load_source_code`` has a dispatch branch for ``source_uri``.
+    """
+    if not source_uri:
+        return False
+    if mlrun.datastore.is_store_uri(source_uri):
+        return True
+    if source_uri.startswith("git://"):
+        return True
+    if source_uri.endswith(".zip") or source_uri.endswith(".tar.gz"):
+        return True
+    return urlparse(source_uri).scheme in _SINGLE_FILE_SCHEMES
 
 
 def resolve_artifact_filename(artifact) -> str:
@@ -375,9 +408,21 @@ def _download_artifact_to_dir(artifact, target_dir: str, secrets) -> tuple[str, 
             "(src_path, target_path, and metadata.key are all empty or "
             "basename-empty)"
         )
+    return _download_single_file_to_dir(
+        artifact_target_path, filename, target_dir, secrets=secrets
+    )
+
+
+def _download_single_file_to_dir(
+    source_path: str, filename: str, target_dir: str, secrets
+) -> tuple[str, str]:
+    """Download ``source_path`` as ``filename`` into ``target_dir``.
+
+    :returns: ``(target_dir, local_file_path)``.
+    """
     os.makedirs(target_dir, exist_ok=True)
     local_file_path = os.path.join(target_dir, filename)
-    _download_dataitem_to(local_file_path, artifact_target_path, secrets=secrets)
+    _download_dataitem_to(local_file_path, source_path, secrets=secrets)
 
     return target_dir, local_file_path
 
@@ -558,3 +603,25 @@ def _load_archive_source(source_uri: str, target_dir: str) -> str:
         ) from exc
 
     return target_dir
+
+
+def _load_single_file_source(
+    source_uri: str, target_dir: str, secrets=None
+) -> tuple[str, str]:
+    """
+    Download a bare (non-archive) s3:// or http(s):// URI as a single file.
+
+    :param source_uri: A non-archive s3:// or http(s):// URI pointing at one file
+    :param target_dir: Target directory where the file will be placed
+    :param secrets:    Optional secrets used to access secured data stores
+
+    :returns: ``(target_dir, local_file_path)``
+    """
+    filename = os.path.basename(urlparse(source_uri).path)
+    if not filename:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"Source {source_uri!r} has no resolvable filename in its path"
+        )
+    return _download_single_file_to_dir(
+        source_uri, filename, target_dir, secrets=secrets
+    )

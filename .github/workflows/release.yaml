@@ -350,7 +350,7 @@ jobs:
           token: ${{ steps.mlrun-app-token.outputs.token }}
           persist-credentials: false
           fetch-depth: 0
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: 3.9
           cache: pip

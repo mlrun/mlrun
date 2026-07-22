@@ -39,6 +39,7 @@ import mlrun.utils.helpers
 from mlrun.common.helpers import parse_versioned_object_uri
 from mlrun.runtimes.mounts import auto_mount as auto_mount_modifier
 from mlrun.utils.clones import load_source_code
+from mlrun.utils.registry_auth import mint_acr_authfile, mint_ecr_authfile
 
 from .config import config as mlconf
 from .db import get_run_db
@@ -1430,8 +1431,6 @@ def mint_registry_credentials(provider, registry, dest, authfile):
         mlrun mint-registry-credentials --provider acr \\
             --registry myregistry.azurecr.io --authfile /auth/config.json
     """
-    from mlrun.utils.registry_auth import mint_acr_authfile, mint_ecr_authfile
-
     try:
         if provider == "ecr":
             if not dest:

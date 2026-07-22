@@ -2706,7 +2706,7 @@ def is_async_serving_graph(function_spec) -> bool:
 def attach_authorization_namespace_prefix(
     resource: str,
     namespace: mlrun.common.schemas.AuthorizationResourceNamespace = (
-        mlrun.common.schemas.AuthorizationResourceNamespace.resources
+        mlrun.common.schemas.AuthorizationResourceNamespace.mlrun
     ),
 ) -> str:
     """
@@ -2714,11 +2714,11 @@ def attach_authorization_namespace_prefix(
 
     :param resource: The resource string to attach the namespace prefix to.
     :param namespace: The namespace to attach the prefix to.
-        Defaults to `mlrun.common.schemas.AuthorizationResourceNamespace.resources`.
+        Defaults to `mlrun.common.schemas.AuthorizationResourceNamespace.mlrun`.
     :returns: The resource string with the namespace prefix attached.
     """
-    if namespace == mlrun.common.schemas.AuthorizationResourceNamespace.resources:
-        namespace_prefix = config.httpdb.authorization.namespaces.resources
+    if namespace == mlrun.common.schemas.AuthorizationResourceNamespace.mlrun:
+        namespace_prefix = config.httpdb.authorization.namespaces.mlrun
     else:
         namespace_prefix = config.httpdb.authorization.namespaces.mgmt
 

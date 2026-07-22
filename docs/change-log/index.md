@@ -1632,6 +1632,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 
 | In    |ID            |Description                                                   |
 |--------|-------------|-----------------------------------------|
+|\v1.12.0 |NA  |Feature store is deprcated.|
 | v1.11.0 |NA  |Use of underscore '_' in function names will be deprecated. Use dashes '-' instead.|
 | v1.11.0 |NA  |TDEngine support will be removed in v1.11.0. MLRun will support TimescaleDB instead. Data will not be migrated.|
 | v1.10.0 |NA  |SQLtargets are no longer supported.|

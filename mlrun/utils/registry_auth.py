@@ -23,7 +23,11 @@ the server-side module for that script.
 import base64
 import json
 
-_ACR_TOKEN_SCOPE = "https://containerregistry.azure.com/.default"
+# the ACR-specific resource (https://containerregistry.azure.com) is Microsoft's documented scope
+# for this flow, but its resource principal isn't provisioned in every tenant (AADSTS500011 if not -
+# confirmed on a live cluster, ML-12886). ARM is provisioned in every tenant unconditionally, and
+# ACR's /oauth2/exchange accepts ARM-scoped tokens the same way, so it's the more portable choice.
+_ACR_TOKEN_SCOPE = "https://management.azure.com/.default"
 _ACR_ANONYMOUS_USERNAME = "00000000-0000-0000-0000-000000000000"
 
 

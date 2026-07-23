@@ -91,7 +91,19 @@ def start_server(workdir, env_config: dict):
         "server.py.services.api.main",
     ]
 
-    proc = Popen(cmd, env=env, stdout=PIPE, stderr=PIPE, cwd=project_dir_path)
+    # Redirect to files rather than PIPE: an unread pipe has a small, fixed-size OS
+    # buffer, and once the server's debug-level logging fills it, the writing thread
+    # blocks inside the stdlib logging Handler's flush() while holding its lock - which
+    # then blocks every other thread (including the event loop) the next time it tries
+    # to log anything, freezing the whole single-worker server until someone drains the
+    # pipe. Files have no such backpressure.
+    with (
+        open(os.path.join(workdir, "server-stdout.log"), "wb") as stdout_file,
+        open(os.path.join(workdir, "server-stderr.log"), "wb") as stderr_file,
+    ):
+        proc = Popen(
+            cmd, env=env, stdout=stdout_file, stderr=stderr_file, cwd=project_dir_path
+        )
     url = f"http://localhost:{port}"
 
     return proc, url
@@ -172,9 +184,12 @@ def server_fixture():
     def cleanup():
         if process:
             process.terminate()
-            stdout = process.stdout.read()
+            process.wait()
+            with open(os.path.join(workdir, "server-stdout.log"), "rb") as fh:
+                stdout = fh.read()
+            with open(os.path.join(workdir, "server-stderr.log"), "rb") as fh:
+                stderr = fh.read()
             human_readable_stdout = codecs.escape_decode(stdout)[0].decode("utf-8")
-            stderr = process.stderr.read()
             human_readable_stderr = codecs.escape_decode(stderr)[0].decode("utf-8")
             print(f"Stdout from server {human_readable_stdout}")
             print(f"Stderr from server {human_readable_stderr}")

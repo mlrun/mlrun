@@ -280,7 +280,7 @@ jobs:
           echo ${input_system_tests_clean_resources:-true})" >> $GITHUB_OUTPUT
         echo "override_iguazio_version=$INPUT_OVERRIDE_IGUAZIO_VERSION" >> $GITHUB_OUTPUT
       env:
-        SECRET_DOCKER_REGISTRY: ${{ secrets.SYSTEM_TESTS_ENTERPRISE_DOCKER_REGISTRY }}
+        SECRET_DOCKER_REGISTRY: ${{ secrets.SYSTEM_TESTS_ENTERPRISE_GHCR_PROXY_REGISTRY }}
         INPUT_DOCKER_REGISTRY: ${{ github.event.inputs.docker_registry }}
         INPUT_OVERRIDE_IGUAZIO_VERSION: ${{ github.event.inputs.override_iguazio_version }}
         INPUT_CLEAN_RESOURCES_IN_TEARDOWN: ${{ github.event.inputs.clean_resources_in_teardown }}

@@ -46,5 +46,5 @@ diff-cover~=9.2
 # NOTE: requests currently expects chardet < 6 when chardet is present
 chardet<6
 openai~=1.88
-transformers~=4.56
-pillow~=11.3
+transformers~=5.9
+pillow~=12.2

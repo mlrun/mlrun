@@ -392,14 +392,16 @@ def _build_script(
     # little as ~5 minutes left, regardless of when it's minted. Minting immediately before both bud
     # (in case the base image shares the same registry) and push minimizes the gap between mint and
     # use, rather than relying on a single early mint to outlast the whole build.
-    gar_credential_exchange = (
-        [
+    if cloud_provider == "gar":
+        gar_credential_exchange = [
             f"echo ${{MLRUN_GAR_CREDENTIAL_SCRIPT}} | base64 -d > {shlex.quote(_GAR_SCRIPT_PATH)}",
             shlex.join(["python3", _GAR_SCRIPT_PATH]),
         ]
-        if cloud_provider == "gar"
-        else []
-    )
+    else:
+        gar_credential_exchange = []
+
+    # First we do a credential exchange to ensure we have credentials for the
+    # build
     lines += gar_credential_exchange
 
     bud = global_opts + ["bud"]
@@ -413,6 +415,8 @@ def _build_script(
     bud += ["--tag", dest, "--file", dockerfile_path, _CONTEXT_DIR]
     lines.append(shlex.join(bud))
 
+    # We do another credential exchange to ensure we have credentials for the
+    # push since it can be that the token expired during the build
     lines += gar_credential_exchange
 
     push = global_opts + ["push"]

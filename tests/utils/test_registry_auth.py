@@ -95,9 +95,7 @@ def test_mint_acr_authfile_writes_authfile(tmp_path, monkeypatch):
     decoded = base64.b64decode(written["auths"][registry]["auth"]).decode()
     assert decoded == "00000000-0000-0000-0000-000000000000:my-refresh-token"
 
-    # ARM ("https://management.azure.com"), not the ACR-specific resource - the latter's resource
-    # principal isn't provisioned in every tenant (confirmed AADSTS500011 on a live cluster,
-    # ML-12886), while ARM is universal and ACR's /oauth2/exchange accepts ARM-scoped tokens too.
+    # ARM scope, not the ACR-specific resource - see _ACR_TOKEN_SCOPE in registry_auth.py for why.
     fake_credential.get_token.assert_called_once_with(
         "https://management.azure.com/.default"
     )

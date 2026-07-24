@@ -395,11 +395,7 @@ def test_make_buildah_pod_gar_credential_exchange_is_jit_not_init_container():
     mint_lines = [
         i for i, line in enumerate(lines) if "MLRUN_GAR_CREDENTIAL_SCRIPT" in line
     ]
-    # minted immediately before *both* bud and push (ML-12886): once up front for bud (in case the
-    # base image shares the same registry), and again right before push. GCP's metadata server
-    # caches and reuses a token until under 5 minutes remain before expiry, so any single mint can
-    # come back with as little as ~5 minutes left regardless of its original TTL - minting right
-    # before each use minimizes that gap rather than relying on one early mint to last the build.
+    # minted immediately before *both* bud and push - see buildah.py::_build_script for why.
     assert len(mint_lines) == 2
     assert mint_lines[0] < bud_line < mint_lines[1] < push_line
     assert lines[bud_line - 1] == "python3 /tmp/mlrun-gar-credential-exchange.py"

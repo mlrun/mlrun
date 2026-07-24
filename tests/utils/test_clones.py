@@ -343,7 +343,9 @@ def test_load_source_code_s3_archive_still_uses_archive_handler(tmp_path):
 
 def test_load_source_code_single_file_no_filename_raises(tmp_path):
     # a trailing slash resolves to an empty basename - nothing to name the downloaded file.
-    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError, match="no resolvable filename"):
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError, match="no resolvable filename"
+    ):
         mlrun.utils.clones.load_source_code(
             source_uri="s3://bucket/path/",
             target_dir=str(tmp_path / "target"),

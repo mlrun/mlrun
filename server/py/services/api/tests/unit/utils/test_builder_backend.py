@@ -425,7 +425,9 @@ def test_buildah_backend_mounts_v3io_source():
     # base.mount_v3io_source) rather than being routed through the fetch-source init container.
     pod = _make_buildah_backend_pod(
         source="v3io:///bigdata/project/code",
-        auth_info=mlrun.common.schemas.AuthInfo(username="some-user", access_key="some-key"),
+        auth_info=mlrun.common.schemas.AuthInfo(
+            username="some-user", access_key="some-key"
+        ),
     )
 
     assert _init_container_by_name(pod, "fetch-source") is None

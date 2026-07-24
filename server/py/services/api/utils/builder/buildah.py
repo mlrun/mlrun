@@ -261,20 +261,22 @@ def make_buildah_pod(
             _AUTHFILE_DIR,
             items=[{"key": ".dockerconfigjson", "path": "config.json"}],
         )
-    elif cloud_provider in ("ecr", "acr"):
-        # shared with the credential-exchange init container below - it writes the authfile here,
-        # this container reads it at push time.
+    elif cloud_provider:
+        # an emptyDir, not the container's own root filesystem: confirmed on a live GKE cluster
+        # that the rootless build user can't mkdir at the image's filesystem root ("/auth: Permission
+        # denied") - the mount is what actually guarantees a writable path, regardless of provider.
+        # For ECR/ACR it's also how the init container below hands the authfile to this container.
         buildah_pod.mount_empty(name="registry-auth", mount_path=_AUTHFILE_DIR)
         if cloud_provider == "ecr":
             registry_auth.append_ecr_credential_exchange_init_container(
                 buildah_pod, registry, dest, _AUTHFILE_PATH
             )
-        else:
+        elif cloud_provider == "acr":
             registry_auth.append_acr_credential_exchange_init_container(
                 buildah_pod, registry, _AUTHFILE_PATH
             )
-    # GAR/GCR needs no mount or init container - the authfile is written just-in-time by this
-    # container's own push script (see _build_script), directly into its writable root filesystem.
+        # GAR/GCR gets no init container - the authfile is written just-in-time by this container's
+        # own push script (see _build_script), into the mount above rather than the root filesystem.
 
     mlrun.utils.logger.debug(
         "Resolved buildah build pod",
@@ -392,7 +394,6 @@ def _build_script(
     # use, rather than relying on a single early mint to outlast the whole build.
     gar_credential_exchange = (
         [
-            f"mkdir -p {shlex.quote(_AUTHFILE_DIR)}",
             f"echo ${{MLRUN_GAR_CREDENTIAL_SCRIPT}} | base64 -d > {shlex.quote(_GAR_SCRIPT_PATH)}",
             shlex.join(["python3", _GAR_SCRIPT_PATH]),
         ]

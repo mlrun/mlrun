@@ -369,7 +369,10 @@ def test_make_buildah_pod_credential_exchange_init_container(registry, provider)
 
 
 def test_make_buildah_pod_gar_credential_exchange_is_jit_not_init_container():
-    # GAR/GCR: minted just-in-time in the main container's push script, no init container / mount
+    # GAR/GCR: minted just-in-time in the main container's push script, no init container - but it
+    # still gets the registry-auth emptyDir mount, same as ECR/ACR: confirmed on a live GKE cluster
+    # that the rootless build user can't mkdir on the image's own filesystem root ("permission
+    # denied"), so the mount is what actually guarantees a writable authfile path.
     registry = "us-docker.pkg.dev"
     buildah_pod = _make_buildah_pod(
         dest=f"{registry}/proj/repo/some-image:tag", registry=registry
@@ -380,7 +383,7 @@ def test_make_buildah_pod_gar_credential_exchange_is_jit_not_init_container():
     empty_dir_volumes = {
         volume.name for volume in pod.spec.volumes if volume.empty_dir is not None
     }
-    assert "registry-auth" not in empty_dir_volumes
+    assert "registry-auth" in empty_dir_volumes
 
     container = pod.spec.containers[0]
     env = {env_var.name: env_var.value for env_var in container.env}

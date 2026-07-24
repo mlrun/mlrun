@@ -46,11 +46,12 @@ def mint_ecr_authfile(registry: str, dest: str, authfile_path: str) -> None:
     region = registry.split(".")[3]
     repo = _ecr_repo_name(dest)
     client = boto3.client("ecr", region_name=region)
-    for repo_name in (repo, f"{repo}/cache"):
-        try:
-            client.create_repository(repositoryName=repo_name)
-        except client.exceptions.RepositoryAlreadyExistsException:
-            pass
+    # unlike ACR/GAR, ECR does not auto-create a repository on first push - it must exist first,
+    # or the push fails outright.
+    try:
+        client.create_repository(repositoryName=repo)
+    except client.exceptions.RepositoryAlreadyExistsException:
+        pass
 
     authorization_data = client.get_authorization_token()["authorizationData"][0]
     token = authorization_data["authorizationToken"]

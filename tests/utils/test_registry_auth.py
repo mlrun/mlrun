@@ -42,8 +42,7 @@ def test_mint_ecr_authfile_writes_authfile(tmp_path, monkeypatch):
     mint_ecr_authfile(registry, f"{registry}/myrepo:latest", str(authfile))
 
     boto3.client.assert_called_once_with("ecr", region_name="us-east-1")
-    fake_client.create_repository.assert_any_call(repositoryName="myrepo")
-    fake_client.create_repository.assert_any_call(repositoryName="myrepo/cache")
+    fake_client.create_repository.assert_called_once_with(repositoryName="myrepo")
     assert json.loads(authfile.read_text()) == {
         "auths": {registry: {"auth": "QVdTOnRvcC1zZWNyZXQ="}}
     }

@@ -521,7 +521,7 @@ default_config = {
         "authorization": {
             "mode": "none",  # one of none, opa
             "namespaces": {
-                "resources": "",
+                "mlrun": "",
                 "mgmt": "mgmt",
             },
             "opa": {

@@ -487,3 +487,73 @@ def test_project_lifecycle_unsupported_action_raises(client):
             project_name="my-project",
             actor=None,
         )
+
+
+# ---------------------------------------------------------------------------
+# generate_project_secret_event
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "action,expected_config_name,expected_description",
+    [
+        (
+            mlrun.common.schemas.SecretEventActions.created,
+            iguazio_v4_events.PROJECT_SECRET_CREATED,
+            "Project my-project secret created",
+        ),
+        (
+            mlrun.common.schemas.SecretEventActions.updated,
+            iguazio_v4_events.PROJECT_SECRET_UPDATED,
+            "Project my-project secret updated",
+        ),
+        (
+            mlrun.common.schemas.SecretEventActions.deleted,
+            iguazio_v4_events.PROJECT_SECRET_DELETED,
+            "Project my-project secret deleted",
+        ),
+    ],
+)
+def test_generate_project_secret_event_audit_fields(
+    client, action, expected_config_name, expected_description
+):
+    event = client.generate_project_secret_event(
+        project="my-project",
+        secret_name="mlrun.secret.k8s",
+        action=action,
+    )
+    assert event.config_name == expected_config_name
+    assert event.kind == "audit"
+    assert event.class_ == "user action"
+    assert event.entity_name == "my-project"
+    assert event.description == expected_description
+    assert event.source == ""
+    assert event.initiator is None
+
+
+def test_generate_project_secret_event_with_initiator(client):
+    event = client.generate_project_secret_event(
+        project="my-project",
+        secret_name="mlrun.secret.k8s",
+        action=mlrun.common.schemas.SecretEventActions.created,
+        initiator="alice",
+    )
+    assert event.initiator == "alice"
+
+
+def test_generate_project_secret_event_no_initiator(client):
+    event = client.generate_project_secret_event(
+        project="my-project",
+        secret_name="mlrun.secret.k8s",
+        action=mlrun.common.schemas.SecretEventActions.updated,
+    )
+    assert event.initiator is None
+
+
+def test_generate_project_secret_event_unsupported_action_raises(client):
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+        client.generate_project_secret_event(
+            project="my-project",
+            secret_name="mlrun.secret.k8s",
+            action="bogus",  # type: ignore[arg-type]
+        )

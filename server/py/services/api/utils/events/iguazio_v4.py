@@ -107,6 +107,28 @@ PROJECT_LIFECYCLE_EVENTS: dict[
     ),
 }
 
+PROJECT_SECRET_CREATED = "UserAction.Project.MLRunSecret.Created"
+PROJECT_SECRET_UPDATED = "UserAction.Project.MLRunSecret.Updated"
+PROJECT_SECRET_DELETED = "UserAction.Project.MLRunSecret.Deleted"
+
+PROJECT_SECRET_EVENTS: dict[
+    mlrun.common.schemas.SecretEventActions,
+    tuple[str, str],
+] = {
+    mlrun.common.schemas.SecretEventActions.created: (
+        PROJECT_SECRET_CREATED,
+        "Project {} secret created",
+    ),
+    mlrun.common.schemas.SecretEventActions.updated: (
+        PROJECT_SECRET_UPDATED,
+        "Project {} secret updated",
+    ),
+    mlrun.common.schemas.SecretEventActions.deleted: (
+        PROJECT_SECRET_DELETED,
+        "Project {} secret deleted",
+    ),
+}
+
 
 class Client(base_events.BaseEventClient):
     """
@@ -291,9 +313,32 @@ class Client(base_events.BaseEventClient):
         secret_name: str,
         secret_keys: list[str] | None = None,
         action: mlrun.common.schemas.SecretEventActions = mlrun.common.schemas.SecretEventActions.created,
-    ):
-        # TODO: map v3 project-secret events onto the v4 catalog (separate change).
-        pass
+        initiator: str | None = None,
+    ) -> iguazio.schemas.EventActivationSpec:
+        """
+        Generate a project secret audit event.
+        :param project: project name (used as entity_name)
+        :param secret_name: secret name (unused in v4; kept for interface compatibility)
+        :param secret_keys: secret keys (unused in v4; kept for interface compatibility)
+        :param action: created, updated, or deleted
+        :param initiator: username of the user who performed the action
+        :return: EventActivationSpec to emit
+        """
+        try:
+            config_name, description_template = PROJECT_SECRET_EVENTS[action]
+        except KeyError as exc:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Unsupported project secret action {action}"
+            ) from exc
+
+        return iguazio.schemas.EventActivationSpec(
+            config_name=config_name,
+            kind="audit",
+            class_="user action",
+            entity_name=project,
+            description=description_template.format(project),
+            initiator=initiator,
+        )
 
     @staticmethod
     def _resolve_entity_name() -> str:

@@ -71,7 +71,7 @@ class ClientSpec(pydantic.v1.BaseModel):
     # Iguazio V4 OAuth token provider configuration
     oauth_internal_token_endpoint: str | None
     oauth_external_token_endpoint: str | None
-    authorization_namespaces_resources: str | None
+    authorization_namespaces_mlrun: str | None
     default_runtime_image_by_kind: dict[str, str] | None
     telemetry_enabled: bool | None = None
     telemetry_otlp_endpoint: str | None = None

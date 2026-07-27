@@ -181,7 +181,8 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
             page_size,
             method,
             method_kwargs,
-        ) = self._create_or_update_pagination_cache_record(
+        ) = await framework.utils.asyncio.await_or_call_in_threadpool(
+            self._create_or_update_pagination_cache_record,
             session,
             method,
             auth_info,

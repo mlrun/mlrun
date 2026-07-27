@@ -387,7 +387,7 @@ jobs:
 
       - name: Set up uv
         if: github.event.inputs.skip_publish_pypi != 'true'
-        uses: astral-sh/setup-uv@f98e06938123ccabd21905ea5d0069192241f9f1 # 8.3.1
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # 9.0.0
 
       - name: Upload package to target PyPI repo
         if: github.event.inputs.skip_publish_pypi != 'true'

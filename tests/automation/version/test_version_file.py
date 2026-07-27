@@ -223,6 +223,8 @@ def test_is_stable_version(version: str, expected_is_stable: bool):
         ("1.5.0", ["1.4.0-rc1"], ""),
         # realistic patch line with an in-flight rc above the previous GA
         ("1.10.4", ["1.10.3", "1.10.4-rc1", "1.9.0"], "1.10.3"),
+        ("1.12.0-rc17", ["1.11.0", "1.12.0-rc16", "1.12.0-rc17"], "1.12.0-rc16"),
+        ("1.12.0-rc1", ["1.11.0", "1.12.0-rc1"], "1.11.0"),
     ],
 )
 def test_previous_version(git_repo, target_version, tags, expected_previous_version):
@@ -254,6 +256,18 @@ def test_resolve_promotion_inputs_derives_previous(git_repo):
     resolved = resolve_promotion_inputs(version="1.5.0")
     assert resolved["previous_version"] == "1.4.0"
     assert resolved["make_latest"] == "true"
+
+
+def test_resolve_promotion_inputs_derives_previous_rc(git_repo):
+    for tag in ["1.11.0", "1.12.0-rc16", "1.12.0-rc17"]:
+        subprocess.run(["git", "tag", "-a", "-m", f"test tag {tag}", f"v{tag}", "HEAD"])
+    resolved = resolve_promotion_inputs(version="1.12.0-rc17")
+    assert resolved == {
+        "version": "1.12.0-rc17",
+        "previous_version": "1.12.0-rc16",
+        "prerelease": "true",
+        "make_latest": "false",
+    }
 
 
 def test_resolve_promotion_inputs_invalid_version():

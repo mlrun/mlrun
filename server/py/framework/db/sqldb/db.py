@@ -154,7 +154,11 @@ class now(GenericFunction):  # noqa: N801
 
 @compiles(now, mlrun.common.db.dialects.Dialects.POSTGRESQL)
 def _pg_now(element, compiler, **kw):
-    return "now()"
+    # clock_timestamp(), not now(): PostgreSQL now()/transaction_timestamp() is frozen at transaction start. This
+    # stamps a run's terminal end_time, and the abort flow holds one transaction open across the long runtime-
+    # resource deletion, so now() would record end_time at transaction start - dropping the run out of the
+    # notification pusher's sliding end_time window so its notifications are never sent (ML-12865).
+    return "clock_timestamp()"
 
 
 NULL = None  # Avoid flake8 issuing warnings when comparing in filter
@@ -168,6 +172,8 @@ conflict_messages = [
     "(sqlite3.IntegrityError) UNIQUE constraint failed",
     "(pymysql.err.IntegrityError) (1062",
     "(pymysql.err.IntegrityError) (1586",
+    "(psycopg2.errors.UniqueViolation)",
+    "(psycopg.errors.UniqueViolation)",
 ]
 
 
@@ -1985,7 +1991,7 @@ class SQLDB(DBInterface):
                 # Third sort by tag ID to ensure consistent ordering when an artifact has multiple tags.
                 # Put "latest" tag first, then others by tag_id desc
                 latest_first_case = case(
-                    (text(f"{tag_name_alias} = 'latest'"), 0),
+                    (query.statement.selected_columns[tag_name_alias] == "latest", 0),
                     else_=1,
                 )
 
@@ -2540,7 +2546,9 @@ class SQLDB(DBInterface):
         fn.kind = function.pop("kind", None)
         fn.state = function.get("status", {}).pop("state", None)
         fn.struct = function
-        self._upsert(session, [fn])
+        # flush the function and let tag_objects_v2 commit it together with its
+        # tag, so a concurrent reader never sees it without its "latest" tag
+        self._flush(session, [fn])
         self.tag_objects_v2(session, [fn], project, tag)
         return hash_key
 
@@ -2743,6 +2751,11 @@ class SQLDB(DBInterface):
             updated = True
             existing_invocation_urls.append(url)
             struct["status"]["external_invocation_urls"] = existing_invocation_urls
+            # Sync address to the new URL only when address is currently unset, so
+            # that the next deploy_status poll sees no address change and avoids a
+            # spurious versioned re-store that would orphan linked model endpoints.
+            if not struct["status"].get("address"):
+                struct["status"]["address"] = url
         elif (
             operation == mlrun.common.types.Operation.REMOVE
             and url in existing_invocation_urls
@@ -2755,6 +2768,9 @@ class SQLDB(DBInterface):
             )
             updated = True
             struct["status"]["external_invocation_urls"].remove(url)
+            # Clear address only when it points at the URL being removed.
+            if struct["status"].get("address") == url:
+                struct["status"]["address"] = ""
 
         # update the function record only if the external invocation URLs were updated
         if updated:
@@ -5866,6 +5882,23 @@ class SQLDB(DBInterface):
             session.add(object_)
         self._commit(session, objects, ignore, silent)
 
+    def _flush(self, session, objects):
+        # Flush without committing, so objects get generated fields (e.g. their
+        # id) while the transaction stays open for a single downstream commit.
+        # Use to persist an object together with its tag atomically: _flush(obj)
+        # then tag_objects_v2(obj) issues the one commit that covers both, so a
+        # concurrent reader never sees the object without its tag (ML-12864).
+        if not objects:
+            return
+        for object_ in objects:
+            session.add(object_)
+        try:
+            session.flush()
+        except SQLAlchemyError:
+            # roll back so @retry_on_conflict retries on a clean session
+            session.rollback()
+            raise
+
     def _upsert_batch(self, session, objects, ignore=False, silent=False):
         if not objects:
             return
@@ -6285,8 +6318,12 @@ class SQLDB(DBInterface):
         else:
             # Basically do an "or" query on the predicates, and count how many rows each parent object has -
             # if it has as much rows as predicates, then it means it answers all the conditions.
+            # Select only the grouped column: a plain `session.query(cls.Label)` here selects every
+            # mapped column (id, name, value, parent) while grouping only by `parent`, which MySQL's
+            # nonstandard "loose" GROUP BY allows but PostgreSQL's strict GROUP BY rejects with
+            # GroupingError. The join below only needs `parent`, so that's all we select.
             subq = (
-                session.query(cls.Label)
+                session.query(cls.Label.parent)
                 .filter(or_(*preds))
                 .group_by(cls.Label.parent)
                 .having(func.count(cls.Label.parent) == len(preds))

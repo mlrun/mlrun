@@ -609,7 +609,13 @@ with warnings.catch_warnings():
 
         @cron_trigger.setter
         def cron_trigger(self, trigger: mlrun.common.schemas.ScheduleCronTrigger):
-            self.cron_trigger_str = orjson.dumps(trigger.dict(exclude_unset=True))
+            # orjson.dumps() returns bytes; binding bytes into this text column goes through
+            # psycopg's bytea adapter on PostgreSQL, storing the bytea hex-escape string instead
+            # of the JSON, so it fails to parse back on every read. MySQL/SQLite round-trip bytes
+            # fine, which is why this only surfaced on Postgres - ML-12860.
+            self.cron_trigger_str = orjson.dumps(
+                trigger.dict(exclude_unset=True)
+            ).decode()
 
     class Project(Base, LabelMixin, framework.db.sqldb.base.BaseModel):
         __tablename__ = "projects"

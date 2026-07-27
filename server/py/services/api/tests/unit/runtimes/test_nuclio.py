@@ -1568,7 +1568,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         }
 
     def test_load_function_with_source_archive_azure_blob(self):
-        """az:// sources resolve to a datastore-minted read-only HTTPS URL."""
+        """az:// sources resolve to HTTPS archive URLs."""
         fn = self._generate_runtime(self.runtime_kind)
         fn.with_source_archive(
             "az://data/projects/x/src.tar.gz", handler="main:handler", workdir="wd"
@@ -1581,6 +1581,34 @@ class TestNuclioRuntime(TestRuntimeBase):
             return_value=minted,
         ) as mock_url:
             archive = get_archive_spec(fn, {"AZURE_STORAGE_ACCOUNT_NAME": "acct"})
+        assert archive == {
+            "spec": {
+                "handler": "main:handler",
+                "build": {
+                    "path": minted,
+                    "codeEntryType": "archive",
+                    "codeEntryAttributes": {"workDir": "wd"},
+                },
+            },
+        }
+        mock_url.assert_called_once()
+        assert mock_url.call_args.args[0].lstrip("/") == "projects/x/src.tar.gz"
+
+    @pytest.mark.parametrize("scheme", ["gs", "gcs"])
+    def test_load_function_with_source_archive_gcs(self, scheme):
+        """gs:// and gcs:// sources resolve to HTTPS archive URLs."""
+        fn = self._generate_runtime(self.runtime_kind)
+        fn.with_source_archive(
+            f"{scheme}://data/projects/x/src.tar.gz",
+            handler="main:handler",
+            workdir="wd",
+        )
+        minted = "https://storage.googleapis.com/data/projects/x/src.tar.gz?X-Goog-Signature=fake"
+        with unittest.mock.patch(
+            "mlrun.datastore.google_cloud_storage.GoogleCloudStorageStore.get_read_only_https_url",
+            return_value=minted,
+        ) as mock_url:
+            archive = get_archive_spec(fn, {"GCP_CREDENTIALS": "{}"})
         assert archive == {
             "spec": {
                 "handler": "main:handler",

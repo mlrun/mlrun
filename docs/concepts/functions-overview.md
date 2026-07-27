@@ -18,7 +18,6 @@ Batch runtimes:
 * **{ref}`databricks <databricks>`** &mdash; run code on Databricks cluster (python scripts, Spark etc)
 * **{ref}`mpijob <horovod>`** &mdash; run distributed jobs and Horovod over the MPI job operator, used mainly for deep learning jobs 
 * **{ref}`spark <spark-operator>`** &mdash; run the job as a Spark job (using Spark Kubernetes Operator)
-* **[remote-spark](../feature-store/using-spark-engine.md#remote-spark-ingestion-example)** &mdash; run the job on a remote Spark service/cluster (e.g. Iguazio Spark service)
 
 **Common attributes for Kubernetes-based functions** 
 

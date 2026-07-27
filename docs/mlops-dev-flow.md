@@ -24,7 +24,7 @@ In most cases, the raw data cannot be used "as-is" for machine learning algorith
 - The data is unstructured in text, json, image, or audio formats, and needs to be converted to tabular or vector formats.
 - The data needs to be grouped or aggregated to make it meaningful.
 - The data is encoded or requires joins with reference information.
-- The ML process starts with manual exploratory data analysis and feature engineering on small data extractions. In order to bring accurate models into production, ML teams must work on larger datasets and automate the process of collecting and preparing the data.
+- The ML process starts with manual exploratory data analysis on small data extractions. In order to bring accurate models into production, ML teams must work on larger datasets and automate the process of collecting and preparing the data.
 
 Furthermore, batch collection and preparation methodologies such as ETL, SQL queries, and batch analytics don’t work well for operational or 
 real-time pipelines. As a result, ML teams often build separate data pipelines which use stream processing, NoSQL, and containerized micro-
@@ -32,11 +32,6 @@ services. 80% of data today is unstructured, so an essential part of building op
 audio, and visual data into machine learning- or deep learning-friendly data organization.
 
 <img src="_static/images/data-collect-and-prep.png" alt="data-collection-and-preparation" width="800" /><br>
-
-MLOps solutions should incorporate a [feature store](./feature-store/feature-store.md) that defines the data collection and transformations 
-just once for both batch and real-time scenarios, processes features automatically without manual involvement, and serves the features from 
-a shared catalog to training, serving, and data governance applications. Feature stores must also extend beyond traditional analytics and 
-enable advanced transformations on unstructured data and complex layouts.
 
 ## Develop and train models
 Whether it’s deep learning or machine learning, MLRun allows you to train your models at scale and capture all the relevant metadata for experiments tracking and lineage. 
@@ -54,7 +49,7 @@ Pipelines can be more complex, for example, when ML teams need to develop a comb
 ML pipelines can be triggered manually, or preferably triggered automatically when:
 
 - The code, packages or parameters change
-- The input data or feature engineering logic changes
+- The input data logic changes
 - Concept drift is detected, and the model needs to be re-trained with fresh data
 
 ML pipelines:
@@ -81,15 +76,14 @@ components aren’t treated as an integral part of the application or production
 
 Production pipelines usually consist of:
 
-- Real-time data collection, validation, and feature engineering logic
+- Real-time data collection and validation
 - One or more model serving services
 - API services and/or application integration logic
 - Data and {ref}`model-monitoring-overview` services
 - Resource monitoring and alerting services
 - Event, telemetry, and data/features logging services
 
-The different services are interdependent. For example, if the inputs to a model change, the feature engineering logic must be upgraded 
-along with the model serving and model monitoring services. These dependencies require online production pipelines (graphs) to reflect these 
+The different services are interdependent. For example, if the inputs to a model change, the model serving and model monitoring services must be upgraded. These dependencies require online production pipelines (graphs) to reflect these 
 changes.
 
 <img src="_static/images/build-online-ml-services.png" alt="building-online-ml-services" width="800" /><br>
@@ -105,7 +99,6 @@ Production pipeline development and deployment flow:
 
 1. Develop production components:
    - API services and application integration logic
-   - Feature collection, validation, and transformation
    - Model serving graphs
 2. Test online pipelines with simulated data
 2. Deploy online pipelines to production

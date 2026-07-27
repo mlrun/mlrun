@@ -561,7 +561,7 @@ To upgrade the MLRun server:
 | ID      | Description                                                                                      |
 |---------|--------------------------------------------------------------------------------------------------|
 | ML-3303 | Optimized the parquet read when the partitioning is on fields other than the timestamp.          |
-| ML-5656 | Add [Snowflake as an offline target store](../feature-store/sources-targets.md#snowflake-target) |
+| ML-5656 | Add Snowflake as an offline target store. |
 
 #### UI
 | ID    |Description                                                                 |
@@ -726,7 +726,7 @@ To upgrade the MLRun server:
 #### Feature store
 | ID      | Description                                                                                                                                                         |
 |---------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| ML-4622 | Feature set and feature vector APIs are now class methods. See examples in {ref}`feature-sets` and {ref}`create-use-feature-vectors`.                               | 
+| ML-4622 | Feature set and feature vector APIs are now class methods. | 
 | ML-5109 | You can set `min_replicas` and `max_replicas` for `KafkaSource`. See [Consumer function configuration](../serving/graph-ha-cfg.md#consumer-function-configuration). |
 
 #### Model monitoring 
@@ -766,7 +766,7 @@ To upgrade the MLRun server:
 |ML-3663| New: How to build a docker image externally using a Dockerfile and then use it. See [Building a docker image using a Dockerfile and then using it](../runtimes/images.md#building-a-docker-image-using-a-dockerfile-and-then-using-it). |
 |ML-4048| New: Creating and using a custom function hub. See [Custom hub](../runtimes/load-from-hub.md#custom-hub).                                                                                                  |
 |ML-5260| New: [Load code at runtime using a non-default source](../runtimes/create-and-use-functions.ipynb#load-code-at-runtime-using-a-non-default-source).                                                                           |
-|ML-5602, ML-5680| Improved feature store documentation including sources and targets, and partitioning. See {ref}`sources-targets`.                                                                                                             |
+|ML-5602, ML-5680| Improved feature store documentation including sources and targets, and partitioning. |
 |NA| New: {ref}`project-setup`.                                                                                                                                                                                                    |
 |NA| Improved serving function example, and new example of a serving function with Git integration. See {ref}`serving-function`.                                                                                                   
 
@@ -782,7 +782,7 @@ To upgrade the MLRun server:
 | ML-1373 | Incorrect service names do not result in stuck pods during ContainerCreating.                                                                                                                     |
 | ML-1835 | The index record is not duplicated in the datasets metadata.                                                                                                                                      | 
 | ML-3714 | Runs that complete successfully do not show errors in Kubeflow.                                                                                                                                   |
-| ML-3856 | Documentation: Add how to update a feature set with appending ingestion (and not create a new FS on every ingest). See [Ingest data locally](../data-prep/ingest-data-fs.md#ingest-data-locally). |
+| ML-3856 | Documentation: Add how to update a feature set with appending ingestion (and not create a new FS on every ingest).  |
 | ML-4093 | Documentation: Improved description of [handlers](../runtimes/create-and-use-functions.ipynb#creating-functions) and {ref}`functions`.                                                            |
 | ML-4370 | Hyper-param and single runs no longer generate artifacts with the same name.                                                                                                                      |
 | ML-4563 | Local jobs can now be aborted in the UI.                                                                                                                                                          |
@@ -828,7 +828,7 @@ To upgrade the MLRun server:
 ####  Closed issues
 | ID          | Description                                                                                                                                  |
 |----------|----------------------------------------------------------------------------------------------------------------------------------------------|
-|ML-3480| Add details about `label_feature` parameter. See [Creating a feature vector](../feature-store/feature-vectors.md#creating-a-feature-vector). | 
+|ML-3480| Add details about `label_feature` parameter.  | 
 |ML-4839/4844| Running `project.build_image` now always reads the requirements.txt file.                                                                    |
 |ML-4860| Fixed creating and running functions with no parameters from the UI.                                                                         |
 |ML-4872| Fixed synchronizing functions from project yaml.                                                                                             |
@@ -844,7 +844,7 @@ To upgrade the MLRun server:
 #### Feature store
 | ID     | Description                                                                                                                                                                                                                                                                                                                |
 |---------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-|ML-3784| Support for feature vector-defined feature-set relations and join-type (per-join). Tech Preview. See [Feature vector with different entities and complex joins](../feature-store/feature-vectors.md#feature-vectors-with-different-entities-and-complex-joins) and [view in Git](https://github.com/mlrun/mlrun/pull/3947). |
+|ML-3784| Support for feature vector-defined feature-set relations and join-type (per-join). Tech Preview. [View in Git](https://github.com/mlrun/mlrun/pull/3947). |
 
 #### Infrastructure
 | ID      | Description                                                                                                                                                                                                                                                |
@@ -945,7 +945,7 @@ See [Deprecations and removed code](#deprecations-and-removed-code).
 |---------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | ML-1248 | The engine type now displays in the **Feature Set Overview** tab.                                                                                                                                                                    |
 | ML-2083 | The **Run on spot** value now displays in the **Jobs Overview** tab.                                                                                                                                                                 |
-| ML-3176 | The new **Passthrough** button in the Create Feature Set enables [creating a feature set without ingesting its data](../feature-store/feature-sets.md#create-a-feature-set-without-ingesting-its-data), previously supported by SDK. |
+| ML-3176 | The new **Passthrough** button in the Create Feature Set enables creating a feature set without ingesting its data, previously supported by SDK. |
 | ML-3549 | The new **Resource monitoring** button in the **Jobs Details** view opens the **Grafana** dashboard.                                                                                                                                 |
 | ML-3551 | Nested workflows (`ParallelFor`) now fully display in UI.                                                                                                                                                                            |
 | ML-2922 | The **Artifacts**, **Datasets** and **Models** pages have an improved filter. Enhanced look and feel in tables.                                                                                                                      |
@@ -1007,7 +1007,7 @@ See [Deprecations and removed code](#deprecations-and-removed-code).
 | ML-3703 | `project.set_secrets()` now throws a `file not found` exception if the file does not exist. [View in Git](https://github.com/mlrun/mlrun/pull/3549).                                                                                                                                                  |
 | ML-3713 | Users can now use pipeline parameters in the spec of jobs created within the workflow python file without causing run failure. [View in Git](https://github.com/mlrun/mlrun/pull/3812).                                                                                                               |
 | ML-3761 | \**kwargs now forward as expected in MLRun jobs and hyper params. [View in Git](https://github.com/mlrun/mlrun/pull/3533).                                                                                                                                                                            |
-| ML-3782 | The (incorrect) naming of features causes error when getting the feature vector from the online feature service. The fix is an additional restriction in feature names. See [Aggregations](../feature-store/transformations.md#aggregations) [View in Git](https://github.com/mlrun/storey/pull/440). |
+| ML-3782 | The (incorrect) naming of features causes error when getting the feature vector from the online feature service. The fix is an additional restriction in feature names. [View in Git](https://github.com/mlrun/storey/pull/440). |
 | ML-3806 | Mismatch errors now printed when ingesting from Kafka into offline target. In case of errors (due to type mismatch) no errors are printed.[View in Git](https://github.com/mlrun/storey/pull/446).                                                                                                    |
 | ML-3847 | `add_code_metadata` now prints error messages when working with git [View in Git](https://github.com/mlrun/mlrun/pull/3810).                                                                                                                                                                          |
 | ML-3900 | Improved error message when ingesting into a feature set (online target) and no features found on retrieval. [View in Git](https://github.com/mlrun/mlrun/pull/3687).                                                                                                                                 |
@@ -1097,14 +1097,14 @@ conda activate python39
 #### Feature store
 | ID      | Description                                                                                                                                                                                                                                                                                                                                     |
 |---------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| ML-2592 | Offline data can be registered as feature sets (Tech Preview). See [Create a feature set without ingesting its data](../feature-store/feature-sets.md#create-a-feature-set-without-ingesting-its-data).                                                                                                                                         |
-| ML-2610 | Supports SQLSource for batch ingestion (Tech Preview). See [SQL data source](../feature-store/sources-targets.md#sql-source).                                                                                                                                                                                                                   |
-| ML-2610 | Supports SQLTarget for storey engine (Tech Preview). (Spark is not yet supported.) See [SQL target store](../data-prep/ingest-data-fs.md).                                                                                                                                                                                                      |
-| ML-2709 | The Spark engine now supports the steps: `MapValues`, `Imputer`, `OneHotEncoder`, `DropFeatures`; and supports extracting the time parts from the date in the `DateExtractor` step. See [Data transformations](../feature-store/transformations.md#data-transformation-steps).                                                                  |
+| ML-2592 | Offline data can be registered as feature sets (Tech Preview).                                                                                                                                          |
+| ML-2610 | Supports SQLSource for batch ingestion (Tech Preview).                                                                                                                                                                                                                    |
+| ML-2610 | Supports SQLTarget for storey engine (Tech Preview). (Spark is not yet supported.)                                                                                                            |
+| ML-2709 | The Spark engine now supports the steps: `MapValues`, `Imputer`, `OneHotEncoder`, `DropFeatures`; and supports extracting the time parts from the date in the `DateExtractor` step.                                                                  |
 | ML-2802 | `get_offline_features` supports Spark Operator and Remote Spark.                                                                                                                                                                                                                                                                                |
-| ML-2957 | The username and password for the RedisNoSqlTarget are now configured using secrets, as `<prefix_>REDIS_USER <prefix_>REDIS_PASSWORD` where \<prefix> is the optional RedisNoSqlTarget `credentials_prefix` parameter. See [Redis target store](../feature-store/sources-targets.md#redisnosql-target).                                         |
+| ML-2957 | The username and password for the RedisNoSqlTarget are now configured using secrets, as `<prefix_>REDIS_USER <prefix_>REDIS_PASSWORD` where \<prefix> is the optional RedisNoSqlTarget `credentials_prefix` parameter. |
 | ML-3008 | Supports Spark using Redis as an online KV target, which caused a [breaking change](#breaking-changes).                                                                                                                                                                                                                                         |
-| ML-3373 | Supports creating a feature vector over several feature sets with different entities. (Outer joins are Tech Preview.) See [Using an offline feature vector](../feature-store/feature-vectors.md#using-an-offline-feature-vector). This API will change in a future release, moving the relationship from the feature set to the feature vector. |
+| ML-3373 | Supports creating a feature vector over several feature sets with different entities. (Outer joins are Tech Preview.) This API will change in a future release, moving the relationship from the feature set to the feature vector. |
 
 #### Logging data
 | ID      | Description                                                                                                                                                                                                                                                                                                                                                              |
@@ -1182,9 +1182,9 @@ Starting with v1.3.0, and continuing in subsequent releases, obsolete functions 
 | ML-3316        | Users with developer and data permissions can now add members to projects they created. (Previously appeared successful in the UI but users were not added). [View in Git](https://github.com/mlrun/ui/pull/1617).                                                                                  |
 | ML-3365 / 3349 | Fix: UI Projects' metrics show N/A for all projects when ml-pipeline is down. [View in Git](https://github.com/mlrun/ui/pull/1613).                                                                                                                                                                 |
 | ML-3378        | Aggregation over a fixed-window that starts at or near the epoch now functions as expected. [View in Git](https://github.com/mlrun/storey/pull/418).                                                                                                                                                |
-| ML-3380        | Documentation: added details on [aggregation in windows](../feature-store/transformations.md#aggregations).                                                                                                                                                                                         |
+| ML-3380        | Documentation: added details on aggregation in windows.                                                                                                                                 |
 | ML-3389        | Hyperparameters run does not present artifacts iteration when selector is not defined. [View in Git](https://github.com/mlrun/ui/pull/1635).                                                                                                                                                        |
-| ML-3424        | Documentation: new matrix of which engines support which [sources](../feature-store/sources-targets.md#sources)/[targets](../feature-store/sources-targets.md#targets). [View in Git](https://github.com/mlrun/mlrun/pull/3279).                                                                    |
+| ML-3424        | Documentation: new matrix of which engines support which sources/targets. [View in Git](https://github.com/mlrun/mlrun/pull/3279).                                                                    |
 | ML-3505        | Removed the upperbound on the `google-cloud-bigquery` requirement.                                                                                                                                                                                                                                  |
 | ML-3575        | `project.run_function()` now uses the argument `artifact_path` (previously used the project's configured `artifact_path` instead). [View in Git](https://github.com/mlrun/mlrun/pull/3246).                                                                                                         |
 | ML-3403        | Error on Spark ingestion with offline target without defined path (error: `NoneType` object has no attribute `startswith`). Fix: default path defined. [View in Git](https://github.com/mlrun/mlrun/pull/3118).                                                                                     |
@@ -1217,7 +1217,7 @@ Starting with v1.3.0, and continuing in subsequent releases, obsolete functions 
 - Supports ingesting Avro-encoded Kafka records. [View in Git](https://github.com/mlrun/mlrun/issues/2649).
 
 #### Third party integrations
-- Supports Confluent Kafka as a feature store data-source (Tech Preview). See [Confluent Kafka data source](../feature-store/sources-targets.md#kafka-source).
+- Supports Confluent Kafka as a feature store data-source (Tech Preview). 
     
 #### Closed issues
 
@@ -1253,7 +1253,7 @@ DB to connect to. [View in Git](https://github.com/mlrun/mlrun/pull/2856).
 - Restructured, and added new content.
 
 #### Feature store
-- Support Redis as an online feature set for storey engine only. (See [Redis target store](../feature-store/sources-targets.md#redisnosql-target).)
+- Support Redis as an online feature set for storey engine only. 
 - Fully supports ingesting with pandas engine, now equivalent to ingestion with `storey` engine (TechPreview):
    - Support DataFrame with multi-index.
    - Support mlrun steps when using pandas engine: `OneHotEncoder` , `DateExtractor`, `MapValue`, `Imputer` and `FeatureValidation`.
@@ -1361,7 +1361,7 @@ service, which is applied to the service's user-created pods. The default is 2.
 -  Supports pipeline scheduling.
       
 #### Documentation
-- Added Azure and S3 examples to {ref}`ingest-features-spark`.
+- Added Azure and S3 examples Ingest features with Spark.
 
 #### Feature store
 - Supports S3, Azure, GCS targets when using Spark as an engine for the feature store.

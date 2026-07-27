@@ -76,7 +76,7 @@ project = mlrun.new_project(
 ## Adding functions, artifacts, workflow, and config
 
 Projects host [functions](../runtimes/functions.md), [workflows](../concepts/workflow-overview.md), [artifacts (files, datasets, models, etc.)](../store/artifacts.md), features, and configuration (parameters, [secrets](../secrets.md), source, etc.).
-This section explains how to add or register different project elements. For details on the feature store and its elements (sets, vectors) see the [**feature store documentation**](../feature-store/feature-store.md).
+This section explains how to add or register different project elements. 
 
 **Adding and registering functions:**
 

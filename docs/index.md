@@ -226,18 +226,14 @@ Project access can be restricted to a set of users and roles.
 ### Ingest and process data
 
 MLRun provides abstract interfaces to various offline and online [**data sources**](./store/datastore.md), supports batch or realtime data processing at scale, data lineage and versioning, structured and unstructured data, and more. 
-In addition, the MLRun [**Feature store**](./feature-store/feature-store.md) automates the collection, transformation, storage, catalog, serving, and monitoring of data features across the ML lifecycle and enables feature reuse and sharing.
 {bdg-link-primary-line}`more... <./data-prep/index.html>`
 
 `````{div} full-width
 {octicon}`mortar-board` **Docs:**
 {bdg-link-info}`Ingest and process data <./data-prep/index.html>`
-{bdg-link-info}`Feature store <./feature-store/feature-store.html>`
 {bdg-link-info}`Data and artifacts <./concepts/data.html>`
 <br> {octicon}`code-square` **Tutorials:**
 {bdg-link-primary}`quick start <./tutorials/01-mlrun-basics.html>`
-{bdg-link-primary}`Feature store <./feature-store/basic-demo.html>`
-
 `````
 
 ### Develop and train models
@@ -350,7 +346,7 @@ MLRun includes the following major components:
 
 **{ref}`Serverless functions <Functions>`:** An automatically deployed software package with one or more methods and runtime-specific attributes (such as image, libraries, command, arguments, resources, etc.).
 
-**{ref}`Data & artifacts <data-feature-store>`:** Glueless connectivity to various data sources, metadata management, catalog, and versioning for structured/unstructured artifacts.
+**{ref}`Data & artifacts <data-artifacts>`:** Glueless connectivity to various data sources, metadata management, catalog, and versioning for structured/unstructured artifacts.
 
 **{ref}`Batch Runs & workflows <workflows>`:** Execute one or more functions with specific parameters and collect, track, and compare all their results and artifacts.
 

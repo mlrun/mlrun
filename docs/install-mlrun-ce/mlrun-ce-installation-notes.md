@@ -7,7 +7,6 @@ This page lists additional steps or configuration options you may need to follow
 - [Advanced chart configuration](#advanced-chart-configuration)
 - [Opt out of components](#opt-out-of-components)
 - [Using NFS storage](#using-nfs-storage)
-- [Configuring the online feature store](#configuring-the-online-feature-store)
 - [Using Azure Blob Storage for MLRun artifacts](#using-azure-blob-storage-for-mlrun-artifacts)
 - [Installing Spark Operator on non-mlrun namespace](#installing-spark-operator-on-non-mlrun-namespace)
 
@@ -38,17 +37,6 @@ If you are using NFS storage in your Kubernetes cluster, add these flags to the 
   --set kube-prometheus-stack.grafana.securityContext.fsGroup=1000 
   --set kube-prometheus-stack.grafana.securityContext.fsGroupChangePolicy=OnRootMismatch 
   --set kube-prometheus-stack.grafana.initChownData.enabled
-```
-
-## Configuring the online feature store
-
-The MLRun Community Edition supports the online feature store. To enable it, you need to first deploy a Redis service that is accessible to your MLRun CE cluster.
-To deploy a Redis service, refer to the [Redis documentation](https://redis.io/learn/howtos/quick-start).
-
-When you have a Redis service deployed, you can configure MLRun CE to use it by adding the following helm value configuration to your helm install command:
-
-```bash
---set mlrun.api.extraEnvKeyValue.MLRUN_REDIS__URL=<redis-address>
 ```
 
 ## Using Azure Blob Storage for MLRun artifacts

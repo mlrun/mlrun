@@ -17,7 +17,7 @@
 # the byte-identical regression anchor covered by test_builder.py; here we lock the
 # seam, and (ML-12885) the Buildah backend: config-flip selection, the transparent
 # Kaniko fallback for inputs Buildah can't handle yet, and the rootless pod spec.
-# (ML-12887) also locks Buildah's own source routing - every remote source is fetched
+# It also locks Buildah's own source routing - every remote source is fetched
 # via `mlrun load-source` or, for v3io, FUSE-mounted, since Buildah has no native
 # remote-context resolution the way Kaniko does.
 
@@ -178,7 +178,7 @@ def test_resolve_builder_backend_buildah_falls_back_for_cloud_registry(
 
 
 def test_resolve_builder_backend_buildah_handles_source(monkeypatch):
-    # source acquisition is implemented (ML-12887) -> Buildah is selected, no fallback
+    # source acquisition is implemented -> Buildah is selected, no fallback
     monkeypatch.setattr(config.httpdb.builder, "builder_backend", "buildah")
     backend = services.api.utils.builder.resolve_builder_backend(
         _make_build_request(source="git://github.com/some-org/some-repo.git#main")
@@ -352,7 +352,7 @@ def _make_buildah_pod(**overrides) -> framework.utils.singletons.k8s.BasePod:
         return services.api.utils.builder.buildah.make_buildah_pod(**defaults)
 
 
-# --- Buildah source routing (ML-12887) ------------------------------------------------------------
+# --- Buildah source routing -----------------------------------------------------------------------
 
 
 def _make_buildah_backend_pod(

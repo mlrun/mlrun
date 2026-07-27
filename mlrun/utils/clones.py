@@ -282,7 +282,10 @@ def load_source_code(
 
     # Handle archive files (.zip, .tar.gz) - checked before the bare-scheme branch below so an
     # archive under s3://.../foo.tar.gz still extracts rather than downloading as a single file.
-    if source_uri.endswith(".zip") or source_uri.endswith(".tar.gz"):
+    # Matched against the URL path, not the raw URI, so a query string (e.g. a presigned-URL
+    # token) doesn't hide the extension from detection.
+    source_path = urlparse(source_uri).path
+    if source_path.endswith(".zip") or source_path.endswith(".tar.gz"):
         return _load_archive_source(source_uri, target_dir), None
 
     # Handle bare (non-archive) s3:// / http(s):// single files
@@ -312,7 +315,16 @@ def is_source_loadable(source_uri: str) -> bool:
         return True
     if source_uri.startswith("git://"):
         return True
-    if source_uri.endswith(".zip") or source_uri.endswith(".tar.gz"):
+    source_path = urlparse(source_uri).path
+    if source_path.endswith(".zip") or source_path.endswith(".tar.gz"):
+        # archive extraction goes through mlrun.get_dataitem, which only resolves schemes
+        # mlrun.datastore actually registers - reject anything else (e.g. ftp://) up front,
+        # rather than letting Buildah schedule a pod that's guaranteed to fail once
+        # load_source_code actually runs.
+        try:
+            mlrun.datastore.datastore.schema_to_store(urlparse(source_uri).scheme)
+        except Exception:
+            return False
         return True
     return urlparse(source_uri).scheme in _SINGLE_FILE_SCHEMES
 
@@ -468,14 +480,15 @@ def _download_dataitem_to(local_file_path: str, source_path: str, secrets) -> No
 
     Wraps any failure as ``MLRunRuntimeError`` for a consistent error type,
     surfacing the underlying cause in the message so a log-only context still
-    shows why the download failed.
+    shows why the download failed. Only ``source_path``'s scheme is included -
+    the full path can embed credentials (e.g. a presigned URL's query string).
     """
     try:
         mlrun.get_dataitem(source_path, secrets=secrets).download(local_file_path)
     except Exception as exc:
         raise mlrun.errors.MLRunRuntimeError(
-            f"Failed to download artifact from {source_path} to {local_file_path}: "
-            f"{mlrun.errors.err_to_str(exc)}"
+            f"Failed to download source (scheme {urlparse(source_path).scheme!r}) "
+            f"to {local_file_path}: {mlrun.errors.err_to_str(exc)}"
         ) from exc
 
 
@@ -592,10 +605,13 @@ def _load_archive_source(source_uri: str, target_dir: str) -> str:
     """
     os.makedirs(target_dir, exist_ok=True)
 
+    # matched against the URL path, not the raw URI, so a query string doesn't hide the
+    # extension from detection (mirrors the dispatch in load_source_code).
+    source_path = urlparse(source_uri).path
     try:
-        if source_uri.endswith(".zip"):
+        if source_path.endswith(".zip"):
             clone_zip(source_uri, target_dir)
-        elif source_uri.endswith(".tar.gz"):
+        elif source_path.endswith(".tar.gz"):
             clone_tgz(source_uri, target_dir)
     except Exception as exc:
         raise mlrun.errors.MLRunRuntimeError(
@@ -620,7 +636,8 @@ def _load_single_file_source(
     filename = os.path.basename(urlparse(source_uri).path)
     if not filename:
         raise mlrun.errors.MLRunInvalidArgumentError(
-            f"Source {source_uri!r} has no resolvable filename in its path"
+            f"Source (scheme {urlparse(source_uri).scheme!r}) has no resolvable "
+            "filename in its path"
         )
     return _download_single_file_to_dir(
         source_uri, filename, target_dir, secrets=secrets

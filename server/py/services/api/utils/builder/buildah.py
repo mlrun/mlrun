@@ -71,10 +71,10 @@ class BuildahBackend:
     :func:`~services.api.utils.builder.resolve_builder_backend` transparently falls back to Kaniko
     for those inputs until it lands.
 
-    Source acquisition (ML-12887): Buildah's ``bud --context`` has no native remote-context
-    resolution (unlike Kaniko's git/s3 ``--context`` and Dockerfile ``ADD``-from-URL for http), so
-    every remote source is either fetched via the ``fetch-source`` init container (git, archives,
-    s3, http(s)) or, for v3io, FUSE-mounted - both write/mount into
+    Source acquisition: Buildah's ``bud --context`` has no native remote-context resolution
+    (unlike Kaniko's git/s3 ``--context`` and Dockerfile ``ADD``-from-URL for http), so every
+    remote source is either fetched via the ``fetch-source`` init container (git, archives, s3,
+    http(s)) or, for v3io, FUSE-mounted - both write/mount into
     ``{_CONTEXT_DIR}/{base.FETCHED_SOURCE_SUBDIR}``, the same emptyDir already mounted for
     Dockerfile/inline-code staging.
     """

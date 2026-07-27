@@ -525,10 +525,12 @@ def test_generate_project_secret_event_audit_fields(
     assert event.config_name == expected_config_name
     assert event.kind == "audit"
     assert event.class_ == "user action"
+    assert event.project_name == "my-project"
     assert event.entity_name == "my-project"
     assert event.description == expected_description
     assert event.source == ""
     assert event.initiator is None
+    assert event.details == {}
 
 
 def test_generate_project_secret_event_with_initiator(client):

@@ -317,7 +317,7 @@ class Client(base_events.BaseEventClient):
     ) -> iguazio.schemas.EventActivationSpec:
         """
         Generate a project secret audit event.
-        :param project: project name (used as entity_name)
+        :param project: project name
         :param secret_name: secret name (unused in v4; kept for interface compatibility)
         :param secret_keys: secret keys (unused in v4; kept for interface compatibility)
         :param action: created, updated, or deleted
@@ -335,6 +335,7 @@ class Client(base_events.BaseEventClient):
             config_name=config_name,
             kind="audit",
             class_="user action",
+            project_name=project,
             entity_name=project,
             description=description_template.format(project),
             initiator=initiator,

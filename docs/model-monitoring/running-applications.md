@@ -54,7 +54,7 @@ Each result exposes two fixed gauges. The name is a label, not part of the metri
 (OTLP→Prometheus turns dots into underscores, e.g. result_name.)
 
 To export results:
-1. Enable export to OTel collection for the project by setting `oltp_enabled=True` when you run {py:meth}`~mlrun.projects.MlrunProject.enable_model_monitoring`.
+1. Enable export to OTel collection for the project by setting `otlp_enabled=True` when you run {py:meth}`~mlrun.projects.MlrunProject.enable_model_monitoring`.
 2. To add a step that exports metrics from your serving graph, see {ref}`otel-export-step`.
 3. To disable exporting metrics per model monitoring application, set the parameter `otlp_enabled=False` in {py:meth}`~mlrun.projects.MlrunProject.set_model_monitoring_function`.
 

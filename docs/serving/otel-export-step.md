@@ -15,7 +15,6 @@ Add a step for exporting metrics with {py:meth}`~mlrun.serving.OTelMetricsExport
 graph = function.set_topology("flow", engine="async")
 graph.to(name="my_step", class_name="MyStep").to(
     class_name="mlrun.serving.OTelMetricsExporter",
-    # endpoint
     headers_source="file",
 )
 ```

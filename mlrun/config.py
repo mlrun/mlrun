@@ -571,9 +571,9 @@ default_config = {
             # the container-image build engine used for kubernetes-based function builds. "kaniko" (default)
             # and "buildah" are implemented; the engine is selected here without code changes. see
             # BuilderBackend in services/api/utils/builder/. buildah is opt-in; it still transparently
-            # falls back to kaniko for build sources it can't acquire yet (ML-12887, see
-            # resolve_builder_backend) but handles Docker Hub / private / ECR / ACR / GAR registry auth
-            # itself. Set to "kaniko" to force kaniko regardless of registry.
+            # falls back to kaniko for build sources it can't acquire yet (see resolve_builder_backend)
+            # but handles Docker Hub / private / ECR / ACR / GAR registry auth itself. Set to "kaniko"
+            # to force kaniko regardless of registry.
             "builder_backend": "kaniko",
             # setting the docker registry to be used for built images, can include the repository as well, e.g.
             # index.docker.io/<username>, if not included repository will default to mlrun

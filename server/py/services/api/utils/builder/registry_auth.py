@@ -37,6 +37,7 @@ from urllib.parse import urlparse
 import mlrun.utils
 import mlrun.utils.helpers
 from mlrun.config import config
+from mlrun.utils.registry_auth import CloudRegistryProvider
 
 _CREDENTIAL_EXCHANGE_INIT_CONTAINER_NAME = "registry-credential-exchange"
 
@@ -51,21 +52,21 @@ _GCP_METADATA_TOKEN_URL = (
 )
 
 
-def classify_cloud_registry(target: str) -> str | None:
+def classify_cloud_registry(target: str) -> CloudRegistryProvider | None:
     """Return which cloud provider's registry ``target`` belongs to, or ``None``.
 
     :param target: A registry host, or a full image reference (only the host matters).
-    :return: ``"ecr"``, ``"acr"``, ``"gar"``, or ``None`` for anything else (Docker Hub, a
-        private/self-signed registry, ...).
+    :return: The registry's :class:`CloudRegistryProvider`, or ``None`` for anything else (Docker
+        Hub, a private/self-signed registry, ...).
     """
     if not target:
         return None
     if mlrun.utils.helpers.is_ecr_url(target):
-        return "ecr"
+        return CloudRegistryProvider.ECR
     if _is_acr_registry(target):
-        return "acr"
+        return CloudRegistryProvider.ACR
     if _is_gar_registry(target):
-        return "gar"
+        return CloudRegistryProvider.GAR
     return None
 
 
@@ -94,7 +95,7 @@ def append_ecr_credential_exchange_init_container(
             "mlrun",
             "mint-registry-credentials",
             "--provider",
-            "ecr",
+            CloudRegistryProvider.ECR.value,
             "--registry",
             registry,
             "--dest",
@@ -131,7 +132,7 @@ def append_acr_credential_exchange_init_container(
             "mlrun",
             "mint-registry-credentials",
             "--provider",
-            "acr",
+            CloudRegistryProvider.ACR.value,
             "--registry",
             registry,
             "--authfile",
@@ -163,7 +164,7 @@ def gar_credential_exchange_script(registry: str, authfile_path: str) -> str:
         "import base64, json, urllib.request",
         f"req = urllib.request.Request({_GCP_METADATA_TOKEN_URL!r}, headers="
         "{'Metadata-Flavor': 'Google'})",
-        "token = json.load(urllib.request.urlopen(req))['access_token']",
+        "token = json.load(urllib.request.urlopen(req, timeout=10))['access_token']",
         "auth = base64.b64encode(b'oauth2accesstoken:' + token.encode()).decode()",
         f"json.dump({{'auths': {{{registry!r}: {{'auth': auth}}}}}}, open({authfile_path!r}, 'w'))",
     ]

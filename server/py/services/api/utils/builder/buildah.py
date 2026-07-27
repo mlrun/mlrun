@@ -21,6 +21,7 @@ import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils
 from mlrun.config import config
+from mlrun.utils.registry_auth import CloudRegistryProvider
 
 import framework.utils.singletons.k8s
 from services.api.utils.builder import base, registry_auth
@@ -267,11 +268,11 @@ def make_buildah_pod(
         # denied") - the mount is what actually guarantees a writable path, regardless of provider.
         # For ECR/ACR it's also how the init container below hands the authfile to this container.
         buildah_pod.mount_empty(name="registry-auth", mount_path=_AUTHFILE_DIR)
-        if cloud_provider == "ecr":
+        if cloud_provider == CloudRegistryProvider.ECR:
             registry_auth.append_ecr_credential_exchange_init_container(
                 buildah_pod, registry, dest, _AUTHFILE_PATH
             )
-        elif cloud_provider == "acr":
+        elif cloud_provider == CloudRegistryProvider.ACR:
             registry_auth.append_acr_credential_exchange_init_container(
                 buildah_pod, registry, _AUTHFILE_PATH
             )
@@ -309,7 +310,7 @@ def _build_env(
     requirements: list | None,
     requirements_path: str | None,
     secret_name: str | None,
-    cloud_provider: str | None,
+    cloud_provider: CloudRegistryProvider | None,
     registry: str,
     builder_env: list | None,
     project_secrets: list | None,
@@ -323,7 +324,7 @@ def _build_env(
     ]
     if secret_name or cloud_provider:
         env.append(client.V1EnvVar(name="REGISTRY_AUTH_FILE", value=_AUTHFILE_PATH))
-    if cloud_provider == "gar":
+    if cloud_provider == CloudRegistryProvider.GAR:
         # minted just-in-time by this same container's push script, not an init container - see
         # registry_auth.gar_credential_exchange_script.
         env.append(
@@ -356,7 +357,7 @@ def _build_script(
     storage_driver: str,
     verbose: bool,
     secret_name: str | None,
-    cloud_provider: str | None,
+    cloud_provider: CloudRegistryProvider | None,
     inline_code: str | None,
     inline_path: str | None,
     requirements: list | None,
@@ -392,7 +393,7 @@ def _build_script(
     # little as ~5 minutes left, regardless of when it's minted. Minting immediately before both bud
     # (in case the base image shares the same registry) and push minimizes the gap between mint and
     # use, rather than relying on a single early mint to outlast the whole build.
-    if cloud_provider == "gar":
+    if cloud_provider == CloudRegistryProvider.GAR:
         gar_credential_exchange = [
             f"echo ${{MLRUN_GAR_CREDENTIAL_SCRIPT}} | base64 -d > {shlex.quote(_GAR_SCRIPT_PATH)}",
             shlex.join(["python3", _GAR_SCRIPT_PATH]),

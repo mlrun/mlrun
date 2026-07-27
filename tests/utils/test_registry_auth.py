@@ -22,8 +22,10 @@ import json
 import unittest.mock
 
 import boto3
+import pytest
 import requests
 
+import mlrun.errors
 from mlrun.utils.registry_auth import mint_acr_authfile, mint_ecr_authfile
 
 
@@ -89,6 +91,7 @@ def test_mint_acr_authfile_writes_authfile(tmp_path, monkeypatch):
     assert kwargs["data"]["tenant"] == "tenant-123"
     assert kwargs["data"]["service"] == registry
     assert kwargs["data"]["access_token"] == "aad-token"
+    assert kwargs["timeout"] == 10
     fake_response.raise_for_status.assert_called_once()
 
     written = json.loads(authfile.read_text())
@@ -99,3 +102,10 @@ def test_mint_acr_authfile_writes_authfile(tmp_path, monkeypatch):
     fake_credential.get_token.assert_called_once_with(
         "https://management.azure.com/.default"
     )
+
+
+def test_mint_acr_authfile_requires_azure_tenant_id(tmp_path, monkeypatch):
+    monkeypatch.delenv("AZURE_TENANT_ID", raising=False)
+
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+        mint_acr_authfile("myregistry.azurecr.io", str(tmp_path / "config.json"))

@@ -22,6 +22,19 @@ the server-side module for that script.
 
 import base64
 import json
+import os
+
+import requests
+
+import mlrun
+import mlrun.common.types
+
+
+class CloudRegistryProvider(mlrun.common.types.StrEnum):
+    ECR = "ecr"
+    ACR = "acr"
+    GAR = "gar"
+
 
 # the ACR-specific resource (https://containerregistry.azure.com) is Microsoft's documented scope
 # for this flow, but its resource principal isn't provisioned in every tenant (AADSTS500011 if not -
@@ -71,20 +84,26 @@ def mint_acr_authfile(registry: str, authfile_path: str) -> None:
     :param registry: The ACR registry host.
     :param authfile_path: Where to write the docker-config-shaped authfile.
     """
-    import os
-
-    import requests
+    # lazy: azure-identity is only needed for ACR, not ECR/GAR - avoid requiring it unless this path
+    # actually runs, same as boto3 in mint_ecr_authfile.
     from azure.identity import DefaultAzureCredential
 
+    tenant = os.environ.get("AZURE_TENANT_ID")
+    if not tenant:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "AZURE_TENANT_ID is not set - Azure Workload Identity does not appear to be configured "
+            "on this pod"
+        )
     aad_token = DefaultAzureCredential().get_token(_ACR_TOKEN_SCOPE).token
     response = requests.post(
         f"https://{registry}/oauth2/exchange",
         data={
             "grant_type": "access_token",
             "service": registry,
-            "tenant": os.environ["AZURE_TENANT_ID"],
+            "tenant": tenant,
             "access_token": aad_token,
         },
+        timeout=10,
     )
     response.raise_for_status()
     refresh_token = response.json()["refresh_token"]

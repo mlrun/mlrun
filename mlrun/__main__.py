@@ -39,7 +39,11 @@ import mlrun.utils.helpers
 from mlrun.common.helpers import parse_versioned_object_uri
 from mlrun.runtimes.mounts import auto_mount as auto_mount_modifier
 from mlrun.utils.clones import load_source_code
-from mlrun.utils.registry_auth import mint_acr_authfile, mint_ecr_authfile
+from mlrun.utils.registry_auth import (
+    CloudRegistryProvider,
+    mint_acr_authfile,
+    mint_ecr_authfile,
+)
 
 from .config import config as mlconf
 from .db import get_run_db
@@ -1400,7 +1404,9 @@ def load_source(source_uri, project, target):
 @main.command(name="mint-registry-credentials")
 @click.option(
     "--provider",
-    type=click.Choice(["ecr", "acr"]),
+    type=click.Choice(
+        [CloudRegistryProvider.ECR.value, CloudRegistryProvider.ACR.value]
+    ),
     required=True,
     help="the cloud registry provider to mint push credentials for",
 )
@@ -1432,14 +1438,18 @@ def mint_registry_credentials(provider, registry, dest, authfile):
             --registry myregistry.azurecr.io --authfile /auth/config.json
     """
     try:
-        if provider == "ecr":
+        if provider == CloudRegistryProvider.ECR:
             if not dest:
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     "--dest is required for --provider ecr"
                 )
             mint_ecr_authfile(registry, dest, authfile)
-        else:
+        elif provider == CloudRegistryProvider.ACR:
             mint_acr_authfile(registry, authfile)
+        else:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Unsupported --provider: {provider}"
+            )
         print(f"Successfully minted {provider} registry credentials to: {authfile}")
     except Exception as err:
         print(f"Error minting registry credentials: {err_to_str(err)}")

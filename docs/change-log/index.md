@@ -1595,17 +1595,17 @@ with a drill-down to view the steps and their details. [Tech Preview]
 
 | In    |ID            |Description                                                   |
 |--------|-------------|-----------------------------------------|
-| v1.11.0 |NA  |Use of underscore '_' in function names will be deprecated. Use dashes '-' instead.|
-| v1.11.0 |NA  |TDEngine support will be removed in v1.11.0. MLRun will support TimescaleDB instead. Data will not be migrated.|
-| v1.10.0 |NA  |SQLtargets are no longer supported.|
+| v1.12.0 |NA  |Docker image `mlrun/ml-base`. Use `mlrun/mlrun` instead.|
+| v1.11.0 |NA  |Python 3.9.|
+| v1.11.0 |NA  |Use of underscore '_' in function names. Use dashes '-' instead.|
+| v1.11.0 |NA  |TDEngine is not supported. MLRun supports TimescaleDB instead. Data is not migrated.|
+| v1.10.0 |NA  |SQLtargets are not supported.|
 | v1.10.0 |NA  |`project="default"` is deprecated. See [Breaking changes](#1.10.0-breaking).
-| v1.10.0 |NA  |The Docker image `mlrun/ml-base` is deprecated. Use `mlrun/mlrun` instead.|
-| v1.10.0 |NA  |Python 3.9 is deprecated and will be removed in MLRun 1.11.0.|
 | v1.6.0 |ML-5137|The Create/edit function pane was removed from the UI.|
 | v1.5.0 |ML-4075|Python 3.7                                                     |
-| v1.5.0 |ML-4366 |MLRun images `mlrun/ml-models` and `mlrun/ml-models-gpu`   |
+| v1.5.0 |ML-4366 |MLRun images `mlrun/ml-models` and `mlrun/ml-models-gpu`.  |
 | v1.5.0 |ML-3605|Model Monitoring:  Most of the charts and KPIs in Grafana are now based on the data store target instead of the MLRun API. It is recommended to update the model monitoring dashboards since the old dashboards are not supported. |
-| v1.0.0 |NA      |MLRun / Nuclio does not support python 3.6.      |
+| v1.0.0 |NA      |MLRun / Nuclio do not support python 3.6.      |
 
 
 ## Removed APIs
@@ -1613,22 +1613,21 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | Version|API                                       |Use instead                       |
 |---------|------------------------------------------|------------------------------------|
 |v1.12.0|`APIHandlerConfig.body_map`, `add_body_mapping()` and `remove_body_mapping()` are removed.|Callers must migrate to attaching a BodyMappings instance via `input_body_mappings` on `add_endpoint_handler`. |
-| v1.12.0|Parameter: `mlrun.projects.MlrunProject.list_runs` `state`                     |`states`      |
-| v1.12.0|Parameter: `mlrun.db.httpdb.HTTPRunDB.list_runs` `state`                       |`states`      |
-| v1.12.0 |Function: `record_results()`                             |Run monitored serving function as a job|
-| v1.12.0 |Function: `get_or_create_model_endpoint()` in `mlrun.model_monitoring.api` |Deploy monitored serving function|
+| v1.12.0|Parameter: `state` in `mlrun.projects.MlrunProject.list_runs`                      |`states`      |
+| v1.12.0|Parameter: `state` in `mlrun.db.httpdb.HTTPRunDB.list_runs`         |`states`      |
+| v1.12.0|Function: `record_results()` in `mlrun.model_monitoring.api`  |Run monitored serving function as a job|
+| v1.12.0|Function: `get_or_create_model_endpoint()` in `mlrun.model_monitoring.api` |Deploy monitored serving function|
 | v1.12.0|`GET /projects/{project}/runs?state` | `states` |
-| v1.12.0|`artifact_path` in `MlrunProject.run_function`| `output path`|
-| v1.12.0|`artifact_path` in `mlrun.projects.operations.run_function`| `output path`|
-| v1.12.0 |`artifact_path` and `out_path` in `BaseRuntime.run`| `output path`|
-| v1.12.0 |`auth_info` param in `RemoteRuntime.get_url`|NA|
-| v1.12.0 |When using underscores as a name, the code no longer replaces them with dashes. |Use dashes|
+| v1.12.0|Parameter: `artifact_path` in `MlrunProject.run_function`| `output path`|
+| v1.12.0|Parameter: `artifact_path` in `mlrun.projects.operations.run_function`| `output path`|
+| v1.12.0 |Parameters: `artifact_path` and `out_path` in `BaseRuntime.run`| `output path`|
+| v1.12.0 |Parameter: `auth_info` in `RemoteRuntime.get_url`|NA|
 | v1.12.0 |any `mlrun.api.schemas.*`  import        |`mlrun.common.schemas.*`| 
-| v1.12.0 |key name `S3_ENDPOINT_URL`                    |`AWS_ENDPOINT_URL_S3`|
-| v1.12.0 |Datastore class: `DatastoreProfileKafkaSource`, `DatastoreProfileKafkaTarget`    |`DatastoreProfileKafkaStream`|
-| v1.12.0 |Real-time processing of model endpoints (the branch)|NA (job-based serving)|
-| v1.12.0 |`fetch_credentials_from_sys_config`                                       |NA|
-| v1.11.0|TDEngine support is removed in v1.11.0. Data is not migrated.|MLRun supports TimescaleDB instead.|
+| v1.12.0 |key name `S3_ENDPOINT_URL`env-var fallback in `mlrun/datastore/s3`|`AWS_ENDPOINT_URL_S3`|
+| v1.12.0 |Datastore class: `DatastoreProfileKafkaSource`, `DatastoreProfileKafkaTarget` in `mlrun/datastore/datastore_profile`|`DatastoreProfileKafkaStream`|
+| v1.12.0 |Real-time processing of model endpoints (the branch) in `mlrun/model_monitoring/controller`|NA (job-based serving)|
+ v1.12.0 |`route` in `server/py/services/api/api/endpoints/model_endpoints`|GET /projects/{project}/model-monitoring/metrics|
+| v1.12.0 |Query param: `fetch_credentials_from_sys_config`                                       |NA|
 | v1.11.0|`get_cached_artifact` of MLClientCtx                                              |`get_artifact`|
 | v1.11.0|`remove_function` of MLrunProject                            |`delete_function`|
 | v1.11.0|`batch` of `ServingRuntime.set_tracking`                   |NA|
@@ -1712,7 +1711,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | v1.5.0 |`mount_v3io_extended`   |`mount_v3io`                                                                 |
 | v1.5.0 |`init_functions` in pipelines    |Add the function initialization to the pipeline code instead                 |
 | v1.5.0 |The entire `mlrun/mlutils` library  |`mlrun.framework`                                                            |
-| v1.5.0 |`run_pipeline`    |
+| v1.5.0 |`run_pipeline`    |`project.run`|
 | v1.5.0 |Unused artifact types: BokehArtifact, ChartArtifact      |NA|
 | v1.3.0 |`project.functions`   |`project.get_function`, `project.set_function`, `project.list_function`      |
 | v1.3.0 |`project.artifacts`  |`project.get_artifact`, `project.set_artifact`, `project.list_artifact`      |

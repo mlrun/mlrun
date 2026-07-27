@@ -140,8 +140,8 @@ class ClientSpec(
             authentication_mode=self._get_config_value_if_not_default(
                 "httpdb.authentication.mode"
             ),
-            authorization_namespaces_resources=self._get_config_value_if_not_default(
-                "httpdb.authorization.namespaces.resources"
+            authorization_namespaces_mlrun=self._get_config_value_if_not_default(
+                "httpdb.authorization.namespaces.mlrun"
             ),
             oauth_internal_token_endpoint=oauth_internal_token_endpoint,
             oauth_external_token_endpoint=oauth_external_token_endpoint,

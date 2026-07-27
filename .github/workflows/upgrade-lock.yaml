@@ -31,7 +31,7 @@ jobs:
     steps:
     - uses: actions/checkout@v7
 
-    - uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # 8.3.2
+    - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # 9.0.0
 
     - name: Upgrade dependencies in the lock file with uv
       run: make upgrade-mlrun-deps-lock

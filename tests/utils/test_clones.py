@@ -920,3 +920,50 @@ def test_download_artifact_to_dir_unresolvable_filename_raises(tmp_path):
         )
 
     mock_get_dataitem.assert_not_called()
+
+
+def test_clone_tgz_blocks_tar_slip(tmp_path, monkeypatch):
+    """clone_tgz must reject a malicious .tar.gz member that escapes target_dir (tar-slip)."""
+    target_dir = tmp_path / "target"
+    target_dir.mkdir()
+
+    # a .tar.gz whose member path traverses out of the extraction directory
+    malicious = tmp_path / "malicious.tar.gz"
+    with tarfile.open(malicious, "w:gz") as tf:
+        payload = b"pwned"
+        member = tarfile.TarInfo(name="../evil.txt")
+        member.size = len(payload)
+        tf.addfile(member, io.BytesIO(payload))
+
+    # skip the network download; hand clone_tgz the crafted archive directly
+    monkeypatch.setattr(
+        mlrun.utils.clones, "_prep_dir", lambda *args, **kwargs: str(malicious)
+    )
+
+    # the shared safe extractor rejects the traversal member instead of escaping
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+        mlrun.utils.clones.clone_tgz("dummy://source", str(target_dir))
+
+    assert not (tmp_path / "evil.txt").exists()
+    # the downloaded archive is cleaned up even though extraction failed
+    assert not malicious.exists()
+
+
+def test_clone_zip_blocks_zip_slip(tmp_path, monkeypatch):
+    """clone_zip must reject a malicious .zip member that escapes target_dir (zip-slip)."""
+    target_dir = tmp_path / "target"
+    target_dir.mkdir()
+
+    malicious = tmp_path / "malicious.zip"
+    with zipfile.ZipFile(malicious, "w") as zf:
+        zf.writestr("../evil.txt", "pwned")
+
+    monkeypatch.setattr(
+        mlrun.utils.clones, "_prep_dir", lambda *args, **kwargs: str(malicious)
+    )
+
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+        mlrun.utils.clones.clone_zip("dummy://source", str(target_dir))
+
+    assert not (tmp_path / "evil.txt").exists()
+    assert not malicious.exists()

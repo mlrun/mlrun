@@ -1,0 +1,117 @@
+global:
+  nuclio:
+    dashboard:
+      nodePort: null
+jupyterNotebook:
+  service:
+    type: ClusterIP
+    nodePort: null
+  ingress:
+    enabled: true
+    ingressClassName: ${INGRESS_CLASS_NAME}
+    annotations: {}
+    hosts:
+      - host: jupyter.${SYSTEM_FQDN}
+        paths:
+          - path: /
+            pathType: Prefix
+    tls: []
+nuclio:
+  dashboard:
+    nodePort: null
+    ingress:
+      enabled: true
+      ingressClassName: ${INGRESS_CLASS_NAME}
+      annotations: {}
+      hosts:
+        - nuclio.${SYSTEM_FQDN}
+      path: /
+      tls: []
+mlrun:
+  nuclio:
+    uiURL: nuclio.${SYSTEM_FQDN}
+  api:
+    service:
+      type: ClusterIP
+      nodePort: null
+    chief:
+      ingress:
+        enabled: true
+        ingressClassName: ${INGRESS_CLASS_NAME}
+        annotations: {}
+        hosts:
+          - host: mlrun-api.${SYSTEM_FQDN}
+            paths:
+              - path: /
+                pathType: Prefix
+        tls: []
+    ingress:
+      enabled: true
+      ingressClassName: ${INGRESS_CLASS_NAME}
+      annotations: {}
+      hosts:
+        - host: mlrun-api.${SYSTEM_FQDN}
+          paths:
+            - path: /
+              pathType: Prefix
+      tls: []
+  ui:
+    service:
+      type: ClusterIP
+      targetPort: http
+      nodePort: null
+    ingress:
+      enabled: true
+      ingressClassName: ${INGRESS_CLASS_NAME}
+      annotations: {}
+      hosts:
+        - host: mlrun.${SYSTEM_FQDN}
+          paths:
+            - path: /
+              pathType: Prefix
+      tls: []
+seaweedfs:
+  adminService:
+    type: ClusterIP
+    nodePort: null
+    ingress:
+      enabled: true
+      className: ${INGRESS_CLASS_NAME}
+      annotations: {}
+      host: seaweedfs.${SYSTEM_FQDN}
+      path: /
+      pathType: Prefix
+      tls: []
+kube-prometheus-stack:
+  grafana:
+    service:
+      type: ClusterIP
+      nodePort: null
+    ingress:
+      enabled: true
+      className: ${INGRESS_CLASS_NAME}
+      annotations: {}
+      hosts:
+        - grafana.${SYSTEM_FQDN}
+      path: /
+      pathType: Prefix
+      labels: {}
+      tls: []
+  prometheus:
+    service:
+      type: ClusterIP
+      nodePort: null
+    ingress:
+      enabled: true
+      className: ${INGRESS_CLASS_NAME}
+      annotations: {}
+      hosts:
+        - prometheus.${SYSTEM_FQDN}
+      paths:
+        - /
+      labels: {}
+      tls: []
+timescaledb:
+  service:
+    type: ClusterIP
+    nodePort: null

@@ -391,20 +391,6 @@ def test_allowed_project_owners_cache_clean_expired(
             "resources",
             "mgmt",
             mlrun.common.schemas.AuthorizationResourceTypes.function,
-            mlrun.common.schemas.AuthorizationResourceNamespace.resources,
-            f"/resources/projects/{TEST_PROJECT_NAME}/functions/{TEST_RESOURCE_NAME}",
-        ),
-        (
-            "resources",
-            "mgmt",
-            mlrun.common.schemas.AuthorizationResourceTypes.project,
-            mlrun.common.schemas.AuthorizationResourceNamespace.resources,
-            f"/resources/projects/{TEST_PROJECT_NAME}",
-        ),
-        (
-            "resources",
-            "mgmt",
-            mlrun.common.schemas.AuthorizationResourceTypes.function,
             mlrun.common.schemas.AuthorizationResourceNamespace.mgmt,
             f"/mgmt/projects/{TEST_PROJECT_NAME}/functions/{TEST_RESOURCE_NAME}",
         ),
@@ -419,14 +405,14 @@ def test_allowed_project_owners_cache_clean_expired(
             "",
             "",
             mlrun.common.schemas.AuthorizationResourceTypes.function,
-            mlrun.common.schemas.AuthorizationResourceNamespace.resources,
+            mlrun.common.schemas.AuthorizationResourceNamespace.mlrun,
             f"/projects/{TEST_PROJECT_NAME}/functions/{TEST_RESOURCE_NAME}",
         ),
         (
             "",
             "",
             mlrun.common.schemas.AuthorizationResourceTypes.project,
-            mlrun.common.schemas.AuthorizationResourceNamespace.resources,
+            mlrun.common.schemas.AuthorizationResourceNamespace.mlrun,
             f"/projects/{TEST_PROJECT_NAME}",
         ),
         (
@@ -443,6 +429,20 @@ def test_allowed_project_owners_cache_clean_expired(
             mlrun.common.schemas.AuthorizationResourceNamespace.mgmt,
             f"/projects/{TEST_PROJECT_NAME}",
         ),
+        (
+            "mlrun",
+            "mgmt",
+            mlrun.common.schemas.AuthorizationResourceTypes.function,
+            mlrun.common.schemas.AuthorizationResourceNamespace.mlrun,
+            f"/mlrun/projects/{TEST_PROJECT_NAME}/functions/{TEST_RESOURCE_NAME}",
+        ),
+        (
+            "mlrun",
+            "mgmt",
+            mlrun.common.schemas.AuthorizationResourceTypes.project,
+            mlrun.common.schemas.AuthorizationResourceNamespace.mlrun,
+            f"/mlrun/projects/{TEST_PROJECT_NAME}",
+        ),
     ],
 )
 def test_attach_resource_namespace(
@@ -454,7 +454,7 @@ def test_attach_resource_namespace(
     monkeypatch: pytest.MonkeyPatch,
 ):
     monkeypatch.setattr(
-        "mlrun.mlconf.httpdb.authorization.namespaces.resources", resources_namespace
+        "mlrun.mlconf.httpdb.authorization.namespaces.mlrun", resources_namespace
     )
     monkeypatch.setattr(
         "mlrun.mlconf.httpdb.authorization.namespaces.mgmt", mgmt_namespace

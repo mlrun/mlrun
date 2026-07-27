@@ -22,6 +22,7 @@ See the supported data stores, development tools, services, platforms, etc., sup
 The deployment options are:
 - {ref}`Kubernetes<install-on-kubernetes>`: Deploys the MLRun CE server over Kubernetes. 
 - {ref}`AWS cluster<aws-install>`: Deploys the MLRun CE server on an AWS cluster.
+- {ref}`Azure cluster<azure-install>`: Deploys the MLRun CE server on an Azure AKS cluster.
 - [Iguazio's Managed  Service](https://www.iguazio.com): A commercial offering by Iguazio. This is the fastest way to explore the full set of MLRun functionalities.<br>
   Note that Iguazio provides a 14 day free trial.
 

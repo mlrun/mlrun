@@ -17,7 +17,7 @@ import unittest.mock
 from datetime import UTC, datetime
 
 import pytest
-from sqlalchemy.dialects import postgresql
+from sqlalchemy.dialects import mysql, postgresql, sqlite
 
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
@@ -25,6 +25,7 @@ import mlrun.errors
 import mlrun.model
 from tests.conftest import new_run
 
+import framework.db.sqldb.db
 import framework.db.sqldb.helpers
 import framework.db.sqldb.models
 from framework.tests.unit.db.common_fixtures import TestDatabaseBase
@@ -107,6 +108,17 @@ class TestRuns(TestDatabaseBase):
             "the multi-label OR+GROUP BY subquery must select only the grouped "
             f"column on PostgreSQL, got: {labels_subquery_select!r}"
         )
+
+    def test_terminal_end_time_uses_clock_timestamp_on_postgres(self):
+        # ML-12865: the `now` helper stamps a run's terminal end_time. On PostgreSQL it must compile to
+        # clock_timestamp(), not now()/transaction_timestamp() which is frozen at transaction start - the abort
+        # flow holds one transaction open across the long runtime-resource deletion, so now() would record
+        # end_time in the past, dropping the run out of the notification pusher's sliding end_time window.
+        # MySQL/SQLite are unaffected - only the PostgreSQL compilation is overridden.
+        now = framework.db.sqldb.db.now
+        assert str(now(6).compile(dialect=postgresql.dialect())) == "clock_timestamp()"
+        assert "clock_timestamp" not in str(now(6).compile(dialect=mysql.dialect()))
+        assert "clock_timestamp" not in str(now(6).compile(dialect=sqlite.dialect()))
 
     def test_runs_with_notifications(self):
         project_name = "project"

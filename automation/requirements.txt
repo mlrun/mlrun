@@ -1,7 +1,7 @@
 click~=8.1
 # Pin to avoid PyNaCl 1.6.1 which breaks cffi compatibility
 PyNaCl==1.6.0
-paramiko~=3.5
+paramiko~=5.0
 semver~=3.0
 requests~=2.32
 boto3>=1.28.0,<1.36

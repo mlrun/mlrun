@@ -46,9 +46,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-go@v6
+      - name: Determine Go minor version
+        id: go-version
+        run: |
+          echo "version=$(grep -m1 '^go ' server/go/go.mod | awk '{split($2,a,"."); print a[1]"."a[2]}')" >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-go@v7
         with:
-          go-version-file: "server/go/go.mod"
+          # use the major.minor from go.mod but let setup-go resolve the latest patch,
+          # so lint/test always run on the same patch used to build the log-collector image
+          go-version: ${{ steps.go-version.outputs.version }}
           cache-dependency-path: "server/go/go.sum"
           cache: true
       - name: Install protobuf compiler

@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import datetime
 import json
 import os
 from pathlib import Path
@@ -24,6 +25,9 @@ import mlrun.errors
 from mlrun.utils import logger
 
 from .base import DataStore, FileStats, make_datastore_schema_sanitizer
+
+# Validity window for read-only signed URLs.
+_SIGNED_URL_TTL = datetime.timedelta(hours=2)
 
 # Google storage objects will be represented with the following URL: gcs://<bucket name>/<path> or gs://...
 
@@ -64,6 +68,36 @@ class GoogleCloudStorageStore(DataStore):
             raise ValueError(f"Unsupported token type: {type(token)}")
         self._storage_client = Client(credentials=credentials)
         return self._storage_client
+
+    def get_read_only_https_url(self, key, *, ttl=_SIGNED_URL_TTL):
+        """Return a short-lived GET signed URL for a GCS object."""
+        blob_name = key.lstrip("/")
+        bucket_name = self.endpoint
+        if not bucket_name or not blob_name:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"could not resolve GCS bucket/blob for key {key!r}"
+            )
+
+        try:
+            blob = self.storage_client.bucket(bucket_name).blob(blob_name)
+        except Exception as exc:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "GCS signed URLs require GCP_CREDENTIALS or "
+                "GOOGLE_APPLICATION_CREDENTIALS: "
+                f"{mlrun.errors.err_to_str(exc)}"
+            ) from exc
+
+        try:
+            return blob.generate_signed_url(
+                version="v4",
+                expiration=ttl,
+                method="GET",
+            )
+        except Exception as exc:
+            raise mlrun.errors.MLRunRuntimeError(
+                f"failed to create read-only GCS signed URL for {blob_name!r}: "
+                f"{mlrun.errors.err_to_str(exc)}"
+            ) from exc
 
     @property
     def filesystem(self):

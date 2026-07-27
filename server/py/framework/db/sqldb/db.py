@@ -154,7 +154,11 @@ class now(GenericFunction):  # noqa: N801
 
 @compiles(now, mlrun.common.db.dialects.Dialects.POSTGRESQL)
 def _pg_now(element, compiler, **kw):
-    return "now()"
+    # clock_timestamp(), not now(): PostgreSQL now()/transaction_timestamp() is frozen at transaction start. This
+    # stamps a run's terminal end_time, and the abort flow holds one transaction open across the long runtime-
+    # resource deletion, so now() would record end_time at transaction start - dropping the run out of the
+    # notification pusher's sliding end_time window so its notifications are never sent (ML-12865).
+    return "clock_timestamp()"
 
 
 NULL = None  # Avoid flake8 issuing warnings when comparing in filter
@@ -168,6 +172,8 @@ conflict_messages = [
     "(sqlite3.IntegrityError) UNIQUE constraint failed",
     "(pymysql.err.IntegrityError) (1062",
     "(pymysql.err.IntegrityError) (1586",
+    "(psycopg2.errors.UniqueViolation)",
+    "(psycopg.errors.UniqueViolation)",
 ]
 
 
@@ -2540,7 +2546,9 @@ class SQLDB(DBInterface):
         fn.kind = function.pop("kind", None)
         fn.state = function.get("status", {}).pop("state", None)
         fn.struct = function
-        self._upsert(session, [fn])
+        # flush the function and let tag_objects_v2 commit it together with its
+        # tag, so a concurrent reader never sees it without its "latest" tag
+        self._flush(session, [fn])
         self.tag_objects_v2(session, [fn], project, tag)
         return hash_key
 
@@ -5873,6 +5881,23 @@ class SQLDB(DBInterface):
         for object_ in objects:
             session.add(object_)
         self._commit(session, objects, ignore, silent)
+
+    def _flush(self, session, objects):
+        # Flush without committing, so objects get generated fields (e.g. their
+        # id) while the transaction stays open for a single downstream commit.
+        # Use to persist an object together with its tag atomically: _flush(obj)
+        # then tag_objects_v2(obj) issues the one commit that covers both, so a
+        # concurrent reader never sees the object without its tag (ML-12864).
+        if not objects:
+            return
+        for object_ in objects:
+            session.add(object_)
+        try:
+            session.flush()
+        except SQLAlchemyError:
+            # roll back so @retry_on_conflict retries on a clean session
+            session.rollback()
+            raise
 
     def _upsert_batch(self, session, objects, ignore=False, silent=False):
         if not objects:

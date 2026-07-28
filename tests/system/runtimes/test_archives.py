@@ -56,6 +56,17 @@ need_gcs = pytest.mark.skipif(
     reason="GCS_BUCKET_NAME / GOOGLE_APPLICATION_CREDENTIALS env vars not set",
 )
 
+# ML-12940: verifies the Workload Identity fallback (no explicit GCP_CREDENTIALS/
+# GOOGLE_APPLICATION_CREDENTIALS secret). Opt-in via a dedicated flag since it requires the
+# cluster's ambient identity (e.g. GKE Workload Identity) to both read `gcs_bucket` and hold
+# `roles/iam.serviceAccountTokenCreator` on itself - not something every GCS-configured
+# environment has.
+gcs_workload_identity_enabled = _test_env.get("GCS_WORKLOAD_IDENTITY_TEST_ENABLED")
+need_gcs_workload_identity = pytest.mark.skipif(
+    not (gcs_bucket and gcs_workload_identity_enabled),
+    reason="GCS_BUCKET_NAME / GCS_WORKLOAD_IDENTITY_TEST_ENABLED env vars not set",
+)
+
 
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured
 class TestArchiveSources(tests.system.base.TestMLRunSystem):
@@ -244,6 +255,41 @@ class TestArchiveSources(tests.system.base.TestMLRunSystem):
         )
 
         fn = self._new_function("nuclio", "gcs")
+        fn.metadata.project = self.project.name
+        fn.with_source_archive(archive_url, handler="rootfn:nuclio_handler")
+        mlrun.deploy_function(fn)
+        resp = fn.invoke("")
+        assert resp.decode() == "tag=main"
+
+    @need_gcs_workload_identity
+    def test_nuclio_gcs_archive_workload_identity(self):
+        """
+        ML-12940: on GCP with Workload Identity, deploying a Nuclio function from a `gcs://`
+        project source must succeed without an explicit GCP_CREDENTIALS/
+        GOOGLE_APPLICATION_CREDENTIALS project secret - MLRun mints the signed archive URL via
+        the IAM signBlob API using the cluster's ambient identity, instead of requiring a
+        service-account key.
+        """
+        # Ensure no explicit credentials linger on the project from other tests in this class.
+        mlrun.get_run_db().delete_project_secrets(
+            project=self.project_name,
+            secrets=["GCP_CREDENTIALS", "GOOGLE_APPLICATION_CREDENTIALS"],
+        )
+
+        archive_url = f"gcs://{gcs_bucket}/{self.project_name}/source_archive_workload_identity.tar.gz"
+        # Uploading the test fixture is a client-side concern and may use whichever
+        # credentials (explicit key or the test runner's own ADC) are available here; the
+        # part under test is that the *server-side* deploy needs none.
+        upload_secrets = (
+            {"GOOGLE_APPLICATION_CREDENTIALS": gcs_credentials}
+            if gcs_credentials
+            else {}
+        )
+        mlrun.get_dataitem(archive_url, secrets=upload_secrets).upload(
+            str(self.assets_path / "source_archive.tar.gz")
+        )
+
+        fn = self._new_function("nuclio", "gcs-wi")
         fn.metadata.project = self.project.name
         fn.with_source_archive(archive_url, handler="rootfn:nuclio_handler")
         mlrun.deploy_function(fn)

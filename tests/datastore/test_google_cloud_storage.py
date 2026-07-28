@@ -14,6 +14,8 @@
 
 from unittest.mock import MagicMock
 
+import google.auth.credentials
+import google.auth.exceptions
 import pytest
 
 import mlrun.errors
@@ -93,11 +95,91 @@ def test_read_only_url_signing_failure_wrapped():
     assert "no signer" in str(exc_info.value)
 
 
-def test_read_only_url_missing_credentials_raises_client_error():
-    # Missing signing credentials should be a client-side error.
+def test_read_only_url_missing_credentials_raises_client_error(monkeypatch):
+    # Missing explicit credentials falls back to Application Default Credentials; when those
+    # are also unavailable (e.g. not running on GCE/GKE), it should be a client-side error.
     store = GoogleCloudStorageStore(
         parent="parent", schema="gcs", name="name", endpoint="data"
     )
     store._get_secret_or_env = MagicMock(return_value=None)
+    monkeypatch.setattr(
+        "google.auth.default",
+        MagicMock(
+            side_effect=google.auth.exceptions.DefaultCredentialsError("no ADC found")
+        ),
+    )
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError, match="GCP_CREDENTIALS"):
+        store.get_read_only_https_url("/src.tar.gz")
+
+
+def test_storage_client_requests_iam_scope_for_adc_fallback(monkeypatch):
+    # The IAM signBlob fallback (see `_get_identity_signing_kwargs`) needs the IAM scope on top
+    # of storage access; it must be requested upfront, since ADC credentials are fetched once
+    # and reused for both listing/reading and (potentially) signing.
+    store = GoogleCloudStorageStore(
+        parent="parent", schema="gcs", name="name", endpoint="data"
+    )
+    store._get_secret_or_env = MagicMock(return_value=None)
+    mock_default = MagicMock(
+        return_value=(MagicMock(spec=google.auth.credentials.Signing), None)
+    )
+    monkeypatch.setattr("google.auth.default", mock_default)
+    monkeypatch.setattr("mlrun.datastore.google_cloud_storage.Client", MagicMock())
+
+    _ = store.storage_client
+
+    mock_default.assert_called_once()
+    scopes = mock_default.call_args.kwargs["scopes"]
+    assert scopes == [
+        "https://www.googleapis.com/auth/devstorage.full_control",
+        "https://www.googleapis.com/auth/iam",
+    ]
+
+
+class _FakeWorkloadIdentityCredentials:
+    """Mimics google.auth.compute_engine.Credentials: can't sign locally, but resolves a
+    concrete service account email once refreshed (e.g. via GCE/GKE Workload Identity)."""
+
+    def __init__(self, service_account_email="default"):
+        self.service_account_email = service_account_email
+        self.token = None
+
+    def refresh(self, request):
+        self.token = "fake-access-token"
+        if self.service_account_email == "default":
+            self.service_account_email = "sa@project.iam.gserviceaccount.com"
+
+
+class _FakeUserADCCredentials:
+    """Mimics google.oauth2.credentials.Credentials (user ADC): not a service account, so it
+    has no `service_account_email` and can't self-sign via IAM signBlob."""
+
+    token = None
+
+    def refresh(self, request):
+        self.token = "fake-access-token"
+
+
+def test_read_only_url_signs_via_iam_for_workload_identity():
+    store, client, blob = _store_with_mock_client()
+    client._credentials = _FakeWorkloadIdentityCredentials()
+    store.get_read_only_https_url("/src.tar.gz")
+    kwargs = blob.generate_signed_url.call_args.kwargs
+    assert kwargs["service_account_email"] == "sa@project.iam.gserviceaccount.com"
+    assert kwargs["access_token"] == "fake-access-token"
+
+
+def test_read_only_url_skips_iam_signing_for_explicit_credentials():
+    store, client, blob = _store_with_mock_client()
+    client._credentials = MagicMock(spec=google.auth.credentials.Signing)
+    store.get_read_only_https_url("/src.tar.gz")
+    kwargs = blob.generate_signed_url.call_args.kwargs
+    assert "service_account_email" not in kwargs
+    assert "access_token" not in kwargs
+
+
+def test_read_only_url_requires_resolvable_service_account_for_iam_signing():
+    store, client, blob = _store_with_mock_client()
+    client._credentials = _FakeUserADCCredentials()
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentError, match="GCP_CREDENTIALS"):
         store.get_read_only_https_url("/src.tar.gz")

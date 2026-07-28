@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import collections.abc
+import http
 import unittest.mock
 
 import pytest
@@ -20,6 +21,13 @@ import pytest
 import mlrun
 
 import framework.utils.telemetry.rest_metrics as telemetry_rest_metrics
+
+_ALL_INSTRUMENT_ATTRS = (
+    "_duration_histogram",
+    "_request_size_histogram",
+    "_response_size_histogram",
+    "_items_returned_histogram",
+)
 
 
 @pytest.fixture
@@ -30,13 +38,15 @@ def reset_state() -> collections.abc.Iterator[None]:
     """
     telemetry_rest_metrics._provider = None
     telemetry_rest_metrics._meter = None
-    telemetry_rest_metrics._histogram = None
+    for attr in _ALL_INSTRUMENT_ATTRS:
+        setattr(telemetry_rest_metrics, attr, None)
     yield
     if telemetry_rest_metrics._provider is not None:
         telemetry_rest_metrics.shutdown(timeout_millis=100)
     telemetry_rest_metrics._provider = None
     telemetry_rest_metrics._meter = None
-    telemetry_rest_metrics._histogram = None
+    for attr in _ALL_INSTRUMENT_ATTRS:
+        setattr(telemetry_rest_metrics, attr, None)
 
 
 @pytest.fixture
@@ -53,13 +63,14 @@ def test_is_enabled_false_before_init(reset_state: None) -> None:
     assert telemetry_rest_metrics.is_enabled() is False
 
 
-def test_init_registers_histogram_when_enabled(
+def test_init_registers_all_instruments_when_enabled(
     reset_state: None, telemetry_enabled: None
 ) -> None:
     telemetry_rest_metrics.init(service_name="api")
 
     assert telemetry_rest_metrics.is_enabled() is True
-    assert telemetry_rest_metrics._histogram is not None
+    for attr in _ALL_INSTRUMENT_ATTRS:
+        assert getattr(telemetry_rest_metrics, attr) is not None
 
 
 def test_init_is_idempotent(
@@ -88,22 +99,125 @@ def test_shutdown_clears_module_state(reset_state: None) -> None:
     fake_provider = unittest.mock.MagicMock()
     telemetry_rest_metrics._provider = fake_provider
     telemetry_rest_metrics._meter = unittest.mock.MagicMock()
-    telemetry_rest_metrics._histogram = unittest.mock.MagicMock()
+    for attr in _ALL_INSTRUMENT_ATTRS:
+        setattr(telemetry_rest_metrics, attr, unittest.mock.MagicMock())
 
     telemetry_rest_metrics.shutdown(timeout_millis=1234)
 
     fake_provider.shutdown.assert_called_once_with(timeout_millis=1234)
     assert telemetry_rest_metrics._provider is None
     assert telemetry_rest_metrics._meter is None
-    assert telemetry_rest_metrics._histogram is None
+    for attr in _ALL_INSTRUMENT_ATTRS:
+        assert getattr(telemetry_rest_metrics, attr) is None
+
+
+class TestShouldSample:
+    @pytest.fixture(autouse=True)
+    def _configure_thresholds(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(mlrun.mlconf.telemetry.rest_metrics, "sample_rate", 1.0)
+        monkeypatch.setattr(telemetry_rest_metrics, "_SLOW_THRESHOLD_SECONDS", 10)
+        monkeypatch.setattr(telemetry_rest_metrics, "_LARGE_RESPONSE_KIB", 100)
+
+    def test_full_sample_rate_always_keeps_routine_calls(self) -> None:
+        assert (
+            telemetry_rest_metrics.should_sample(
+                status_code=200, elapsed_seconds=0.1, response_size_kib=1
+            )
+            is True
+        )
+
+    def test_zero_sample_rate_drops_routine_calls(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(mlrun.mlconf.telemetry.rest_metrics, "sample_rate", 0.0)
+
+        assert (
+            telemetry_rest_metrics.should_sample(
+                status_code=200, elapsed_seconds=0.1, response_size_kib=1
+            )
+            is False
+        )
+
+    def test_zero_sample_rate_still_keeps_failed_calls(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(mlrun.mlconf.telemetry.rest_metrics, "sample_rate", 0.0)
+
+        assert (
+            telemetry_rest_metrics.should_sample(
+                status_code=500, elapsed_seconds=0.1, response_size_kib=1
+            )
+            is True
+        )
+
+    def test_zero_sample_rate_still_keeps_slow_calls(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(mlrun.mlconf.telemetry.rest_metrics, "sample_rate", 0.0)
+
+        assert (
+            telemetry_rest_metrics.should_sample(
+                status_code=200, elapsed_seconds=11, response_size_kib=1
+            )
+            is True
+        )
+
+    def test_zero_sample_rate_still_keeps_large_calls(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(mlrun.mlconf.telemetry.rest_metrics, "sample_rate", 0.0)
+
+        assert (
+            telemetry_rest_metrics.should_sample(
+                status_code=200, elapsed_seconds=0.1, response_size_kib=101
+            )
+            is True
+        )
+
+    def test_redirect_status_codes_are_treated_as_failed(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(mlrun.mlconf.telemetry.rest_metrics, "sample_rate", 0.0)
+
+        assert (
+            telemetry_rest_metrics.should_sample(
+                status_code=302, elapsed_seconds=0.1, response_size_kib=1
+            )
+            is True
+        )
+
+    def test_sample_rate_respects_random_draw(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(mlrun.mlconf.telemetry.rest_metrics, "sample_rate", 0.5)
+        monkeypatch.setattr(telemetry_rest_metrics.random, "random", lambda: 0.4)
+        assert (
+            telemetry_rest_metrics.should_sample(
+                status_code=200, elapsed_seconds=0.1, response_size_kib=1
+            )
+            is True
+        )
+
+        monkeypatch.setattr(telemetry_rest_metrics.random, "random", lambda: 0.6)
+        assert (
+            telemetry_rest_metrics.should_sample(
+                status_code=200, elapsed_seconds=0.1, response_size_kib=1
+            )
+            is False
+        )
 
 
 def test_record_duration_noop_when_uninitialized(reset_state: None) -> None:
     # Must not raise when the histogram was never created (telemetry off).
     telemetry_rest_metrics.record_duration(
-        0.5, method="GET", status_code=200, resource="runs", project="p"
+        0.5,
+        method=http.HTTPMethod.GET,
+        status_code=200,
+        resource="runs",
+        project="p",
+        get_vs_list="list",
     )
-    assert telemetry_rest_metrics._histogram is None
+    assert telemetry_rest_metrics._duration_histogram is None
 
 
 def test_record_duration_records_with_system_id_and_attributes(
@@ -111,17 +225,22 @@ def test_record_duration_records_with_system_id_and_attributes(
 ) -> None:
     monkeypatch.setattr(mlrun.mlconf, "system_id", "sys-xyz")
     histogram = unittest.mock.MagicMock()
-    telemetry_rest_metrics._histogram = histogram
+    telemetry_rest_metrics._duration_histogram = histogram
 
     telemetry_rest_metrics.record_duration(
-        0.25, method="POST", status_code=201, resource="functions", project="proj-a"
+        0.25,
+        method=http.HTTPMethod.POST,
+        status_code=201,
+        resource="functions",
+        project="proj-a",
+        get_vs_list="",
     )
 
     histogram.record.assert_called_once_with(
         0.25,
         attributes={
             "system_id": "sys-xyz",
-            "method": "POST",
+            "method": http.HTTPMethod.POST,
             "status_code": 201,
             "resource": "functions",
             "project": "proj-a",
@@ -129,14 +248,118 @@ def test_record_duration_records_with_system_id_and_attributes(
     )
 
 
-def test_record_duration_propagates_histogram_exceptions(
+def test_record_duration_omits_get_vs_list_key_when_empty(reset_state: None) -> None:
+    """get_vs_list is only meaningful for GET calls — for anything else it must
+    be left off the attributes entirely, not attached as "".
+    """
+    histogram = unittest.mock.MagicMock()
+    telemetry_rest_metrics._duration_histogram = histogram
+
+    telemetry_rest_metrics.record_duration(
+        0.1,
+        method=http.HTTPMethod.DELETE,
+        status_code=204,
+        resource="runs",
+        project="proj-a",
+        get_vs_list="",
+    )
+
+    attributes = histogram.record.call_args.kwargs["attributes"]
+    assert "get_vs_list" not in attributes
+
+
+def test_record_request_size_noop_when_uninitialized(reset_state: None) -> None:
+    telemetry_rest_metrics.record_request_size(
+        1.5,
+        method=http.HTTPMethod.POST,
+        status_code=200,
+        resource="runs",
+        project="p",
+        get_vs_list="",
+    )
+    assert telemetry_rest_metrics._request_size_histogram is None
+
+
+def test_record_request_size_records_with_attributes(reset_state: None) -> None:
+    histogram = unittest.mock.MagicMock()
+    telemetry_rest_metrics._request_size_histogram = histogram
+
+    telemetry_rest_metrics.record_request_size(
+        2.5,
+        method=http.HTTPMethod.POST,
+        status_code=201,
+        resource="runs",
+        project="proj-a",
+        get_vs_list="",
+    )
+
+    histogram.record.assert_called_once_with(
+        2.5,
+        attributes={
+            "system_id": "",
+            "method": http.HTTPMethod.POST,
+            "status_code": 201,
+            "resource": "runs",
+            "project": "proj-a",
+        },
+    )
+
+
+def test_record_response_size_records_with_attributes(reset_state: None) -> None:
+    histogram = unittest.mock.MagicMock()
+    telemetry_rest_metrics._response_size_histogram = histogram
+
+    telemetry_rest_metrics.record_response_size(
+        12.75,
+        method=http.HTTPMethod.GET,
+        status_code=200,
+        resource="artifacts",
+        project="proj-a",
+        get_vs_list="list",
+    )
+
+    histogram.record.assert_called_once_with(
+        12.75,
+        attributes={
+            "system_id": "",
+            "method": http.HTTPMethod.GET,
+            "status_code": 200,
+            "resource": "artifacts",
+            "project": "proj-a",
+            "get_vs_list": "list",
+        },
+    )
+
+
+def test_record_items_returned_noop_when_uninitialized(reset_state: None) -> None:
+    telemetry_rest_metrics.record_items_returned(
+        5, status_code=200, resource="runs", project="p"
+    )
+    assert telemetry_rest_metrics._items_returned_histogram is None
+
+
+def test_record_items_returned_records_without_method_or_get_vs_list(
     reset_state: None,
 ) -> None:
+    """method is always GET and get_vs_list is always "list" for this metric —
+    neither varies, so neither is attached as an attribute.
+    """
     histogram = unittest.mock.MagicMock()
-    histogram.record.side_effect = RuntimeError("instrument broken")
-    telemetry_rest_metrics._histogram = histogram
+    telemetry_rest_metrics._items_returned_histogram = histogram
 
-    with pytest.raises(RuntimeError, match="instrument broken"):
-        telemetry_rest_metrics.record_duration(
-            1.0, method="GET", status_code=500, resource="runs", project=""
-        )
+    telemetry_rest_metrics.record_items_returned(
+        7,
+        status_code=200,
+        resource="runs",
+        project="proj-a",
+    )
+
+    histogram.record.assert_called_once_with(
+        7,
+        attributes={
+            "system_id": "",
+            "status_code": 200,
+            "resource": "runs",
+            "project": "proj-a",
+        },
+    )

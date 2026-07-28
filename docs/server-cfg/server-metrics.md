@@ -46,7 +46,7 @@ delta(sum(mlrun_artifacts)[24h:])
 
 (rest-call-metrics)=
 ## REST call metrics
-Beyond the system-size gauges above, MLRun can record the processing time of every REST API call as an OpenTelemetry histogram, exported to Prometheus. It is emitted from every API-bearing replica (the API chief and workers, and the alerts service).
+Beyond the system-size gauges above, MLRun records processing time, request/response body size, and (for list calls) the number of objects returned for every REST API call, as OpenTelemetry histograms, exported to Prometheus. These are emitted from every API-bearing replica (the API chief and workers, and the alerts service).
 
 This feature is enabled by default whenever the master switch is on. No extra flag is needed:
 ```
@@ -57,15 +57,35 @@ To disable REST metrics independently while keeping other telemetry on:
 MLRUN_TELEMETRY__REST_METRICS__ENABLED=false
 ```
 
-|Metric name |Attributes       |Meaning       |
-|---------------------|--------------------------------|--------------------------------------------------------------------------------|
-|mlrun_rest_request_duration_milliseconds|system_id, method, status_code, resource, project|Processing time (in milliseconds) of each REST call, exposed as a histogram (`_bucket` / `_sum` / `_count` series). `resource` is the object type the route operates on (for example `functions`, `runs`, `artifacts`); `project` is set for project-scoped routes and empty otherwise. Health-check (`/healthz`) requests are excluded.|
+`system_id`, `status_code`, `resource`, and `project` are common to every instrument below. `resource` is the object type the route operates on (for example `functions`, `runs`, `artifacts`); `project` is set for project-scoped routes and empty otherwise. Health-check (`/healthz`) requests are excluded.
+
+`method` and `get_vs_list` are attached only where they actually vary. `get_vs_list` distinguishes a single-object GET (`"get"`) from a collection-returning GET (`"list"`), and — like `method` — is omitted entirely (not just empty) wherever it wouldn't vary: both are absent from `mlrun_rest_response_num_items`, since that metric only ever records `method="GET", get_vs_list="list"` calls by construction — a label that never varies within a metric adds nothing to query it by.
+
+All four are histograms — including items-returned, deliberately: it's a per-call value like duration or size, so a histogram preserves the per-call distribution (e.g. p95 list size) on top of the sum/count a plain counter would give.
+
+|Metric name |Kind |Meaning       |
+|---------------------|------|--------------------------------------------------------------------------------|
+|mlrun_rest_request_duration_milliseconds|Histogram|Processing time (in milliseconds) of each REST call, from receipt to the full response being sent (excludes any background-task processing after the response completes).|
+|mlrun_rest_request_size_kibibytes|Histogram|Size of the REST request body, in kibibytes.|
+|mlrun_rest_response_size_kibibytes|Histogram|Size of the REST response body, in kibibytes.|
+|mlrun_rest_response_num_items|Histogram|Number of objects returned by list calls (`get_vs_list="list"` only).|
+
+The size histograms carry the OTel unit `KiBy` (kibibytes, 2^10 bytes) — matching the binary division the code actually performs — and their metric name already ends in `_kibibytes` to agree with it. Both matter: the OTel<->Prometheus exporter only skips re-appending a unit suffix when the name already ends with that unit's exact expansion, so the name and the `unit=` tag must spell out the same unit (`kibibytes` here) or the exported name doubles up (this is what caused an earlier, now-fixed bug: a `_kilobytes`-suffixed name paired with `unit="KiBy"` produced `..._kilobytes_kibibytes_count`). See the [OTel<->Prometheus metric-metadata docs](https://opentelemetry.io/docs/specs/otel/compatibility/prometheus_and_openmetrics/#metric-metadata).
+
+### Sampling
+Not every call needs to be recorded to keep the metrics useful, so routine calls can be sampled:
+```
+MLRUN_TELEMETRY__REST_METRICS__SAMPLE_RATE=0.1
+```
+`sample_rate` (default `1.0`, i.e. no sampling) is the probability that a routine call's metrics are recorded. Failed calls (status >= 300), slow calls, and calls with a large response are always recorded regardless of the rate — those thresholds are fixed in code, not configurable. When sampling is enabled, compensate by dividing any count-based query by `sample_rate` to estimate the true call volume.
 
 ### Example output
 ```
-mlrun_rest_request_duration_milliseconds_count{system_id="f3a2b1c4d5e6", method="GET", status_code="200", resource="functions", project="name1"} 134
-mlrun_rest_request_duration_milliseconds_count{system_id="f3a2b1c4d5e6", method="GET", status_code="404", resource="runs", project="name1"}        2
-mlrun_rest_request_duration_milliseconds_bucket{system_id="f3a2b1c4d5e6", method="GET", status_code="200", resource="functions", project="name1", le="5"} 96
+mlrun_rest_request_duration_milliseconds_count{system_id="f3a2b1c4d5e6", method="GET", status_code="200", resource="functions", project="name1", get_vs_list="list"} 134
+mlrun_rest_request_duration_milliseconds_count{system_id="f3a2b1c4d5e6", method="GET", status_code="404", resource="runs", project="name1", get_vs_list="get"}        2
+mlrun_rest_request_duration_milliseconds_bucket{system_id="f3a2b1c4d5e6", method="GET", status_code="200", resource="functions", project="name1", get_vs_list="list", le="5"} 96
+mlrun_rest_response_num_items_count{system_id="f3a2b1c4d5e6", status_code="200", resource="functions", project="name1"} 76
+mlrun_rest_response_num_items_sum{system_id="f3a2b1c4d5e6", status_code="200", resource="functions", project="name1"} 812
 ```
 
 ### Example PromQL views
@@ -78,6 +98,10 @@ sum by (resource) (rate(mlrun_rest_request_duration_milliseconds_count[5m]))
 histogram_quantile(0.95, sum by (le) (rate(mlrun_rest_request_duration_milliseconds_bucket[5m])))
 # Error rate (req/s) by status code
 sum by (status_code) (rate(mlrun_rest_request_duration_milliseconds_count{status_code=~"4..|5.."}[5m]))
+# Average objects returned per list call, by object type
+sum by (resource) (rate(mlrun_rest_response_num_items_sum[5m])) / sum by (resource) (rate(mlrun_rest_response_num_items_count[5m]))
+# 95th-percentile objects returned per list call, by object type
+histogram_quantile(0.95, sum by (resource, le) (rate(mlrun_rest_response_num_items_bucket[5m])))
 ```
 
 ## Configure metrics

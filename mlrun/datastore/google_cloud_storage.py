@@ -31,10 +31,8 @@ from .base import DataStore, FileStats, make_datastore_schema_sanitizer
 # Validity window for read-only signed URLs.
 _SIGNED_URL_TTL = datetime.timedelta(hours=2)
 
-# Required, on top of the storage scope, when Application Default Credentials (e.g. Workload
-# Identity) need to self-sign a URL remotely via the IAM signBlob API (see
-# `_get_identity_signing_kwargs`). Without it, signBlob calls fail with
-# ACCESS_TOKEN_SCOPE_INSUFFICIENT even if the identity otherwise has the right IAM role.
+# Without this scope, IAM signing fails with ACCESS_TOKEN_SCOPE_INSUFFICIENT even when the
+# required role is granted.
 _IAM_SIGN_BLOB_SCOPE = "https://www.googleapis.com/auth/iam"
 
 # Google storage objects will be represented with the following URL: gcs://<bucket name>/<path> or gs://...
@@ -73,10 +71,7 @@ class GoogleCloudStorageStore(DataStore):
         elif isinstance(token, Credentials):
             credentials = token
         elif token is None:
-            # No explicit GCP_CREDENTIALS/GOOGLE_APPLICATION_CREDENTIALS configured; fall back
-            # to Application Default Credentials (e.g. GCE/GKE Workload Identity). Request the
-            # IAM scope too, upfront, since these credentials may later need to self-sign a URL
-            # via signBlob (see `_get_identity_signing_kwargs`).
+            # The IAM scope enables remote signing with Workload Identity.
             credentials, _ = google.auth.default(scopes=[access, _IAM_SIGN_BLOB_SCOPE])
         else:
             raise ValueError(f"Unsupported token type: {type(token)}")
@@ -116,13 +111,9 @@ class GoogleCloudStorageStore(DataStore):
             ) from exc
 
     def _get_identity_signing_kwargs(self) -> dict:
-        """Resolve extra kwargs for ``Blob.generate_signed_url`` when the client's credentials
-        can't sign locally (no private key), e.g. Application Default Credentials obtained via
-        GCE/GKE Workload Identity. Such credentials can still sign remotely through the IAM
-        ``signBlob`` API by supplying ``service_account_email``/``access_token``, mirroring
-        Google's documented ADC signing recipe; this requires the identity to hold
-        ``roles/iam.serviceAccountTokenCreator`` on itself. Returns an empty dict when the
-        credentials can sign locally (e.g. an explicit ``GCP_CREDENTIALS`` service-account key).
+        """Return remote-signing arguments for credentials without a private key.
+
+        IAM signing requires ``roles/iam.serviceAccountTokenCreator`` on the service account.
         """
         credentials = self.storage_client._credentials
         if isinstance(credentials, Signing):

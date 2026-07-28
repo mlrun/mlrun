@@ -67,9 +67,7 @@ AWS_SECRET_ACCESS_KEY:
 # Path to Google credentials file (in JSON format)
 GOOGLE_APPLICATION_CREDENTIALS:
 GCS_BUCKET_NAME:
-# Set to any non-empty value to opt into GCS Workload Identity tests (ML-12940). Requires the
-# cluster's ambient identity to read GCS_BUCKET_NAME and hold
-# `roles/iam.serviceAccountTokenCreator` on itself.
+# Requires GCS access and `roles/iam.serviceAccountTokenCreator` on the cluster identity.
 GCS_WORKLOAD_IDENTITY_TEST_ENABLED:
 
 # Azure

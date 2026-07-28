@@ -96,8 +96,6 @@ def test_read_only_url_signing_failure_wrapped():
 
 
 def test_read_only_url_missing_credentials_raises_client_error(monkeypatch):
-    # Missing explicit credentials falls back to Application Default Credentials; when those
-    # are also unavailable (e.g. not running on GCE/GKE), it should be a client-side error.
     store = GoogleCloudStorageStore(
         parent="parent", schema="gcs", name="name", endpoint="data"
     )
@@ -113,9 +111,7 @@ def test_read_only_url_missing_credentials_raises_client_error(monkeypatch):
 
 
 def test_storage_client_requests_iam_scope_for_adc_fallback(monkeypatch):
-    # The IAM signBlob fallback (see `_get_identity_signing_kwargs`) needs the IAM scope on top
-    # of storage access; it must be requested upfront, since ADC credentials are fetched once
-    # and reused for both listing/reading and (potentially) signing.
+    # Remote signing requires the IAM scope in addition to GCS access.
     store = GoogleCloudStorageStore(
         parent="parent", schema="gcs", name="name", endpoint="data"
     )
@@ -137,8 +133,7 @@ def test_storage_client_requests_iam_scope_for_adc_fallback(monkeypatch):
 
 
 class _FakeWorkloadIdentityCredentials:
-    """Mimics google.auth.compute_engine.Credentials: can't sign locally, but resolves a
-    concrete service account email once refreshed (e.g. via GCE/GKE Workload Identity)."""
+    """Model relevant google.auth.compute_engine.Credentials behavior."""
 
     def __init__(self, service_account_email="default"):
         self.service_account_email = service_account_email
@@ -151,8 +146,7 @@ class _FakeWorkloadIdentityCredentials:
 
 
 class _FakeUserADCCredentials:
-    """Mimics google.oauth2.credentials.Credentials (user ADC): not a service account, so it
-    has no `service_account_email` and can't self-sign via IAM signBlob."""
+    """Model google.oauth2.credentials.Credentials without a service account."""
 
     token = None
 

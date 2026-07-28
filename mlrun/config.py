@@ -625,7 +625,7 @@ default_config = {
             # must have python and the same SDKs. GAR/GCR credential exchange runs inline in the
             # main Buildah container instead (see registry_auth.gar_credential_exchange_script) and
             # does not use this image.
-            "buildah_registry_credential_exchange_image": "",
+            "registry_credential_exchange_image": "",
             # additional docker build args in json encoded base64 format
             "build_args": "",
             # labels to be applied to builder pods - json string base64 encoded format.

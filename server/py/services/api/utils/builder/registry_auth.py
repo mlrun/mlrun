@@ -172,7 +172,7 @@ def gar_credential_exchange_script(registry: str, authfile_path: str) -> str:
 
 
 def _credential_exchange_image() -> str:
-    image = config.httpdb.builder.buildah_registry_credential_exchange_image
+    image = config.httpdb.builder.registry_credential_exchange_image
     if not image:
         image = mlrun.utils.enrich_image_url(_DEFAULT_CREDENTIAL_EXCHANGE_IMAGE)
     return image

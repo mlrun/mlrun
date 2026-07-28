@@ -666,7 +666,7 @@ class Pipelines(
         try:
             kfp_client = self._initialize_kfp_client()
             experiment = mlrun_pipelines.models.PipelineExperiment(
-                kfp_client.create_experiment(name=experiment_name)
+                kfp_client.create_experiment(name=experiment_name, namespace=namespace)
             )
             run = mlrun_pipelines.models.PipelineRun(
                 kfp_client.run_pipeline(

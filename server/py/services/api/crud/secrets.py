@@ -112,6 +112,7 @@ class Secrets(
         allow_internal_secrets: bool = False,
         key_map_secret_key: str | None = None,
         allow_storing_key_maps: bool = False,
+        auth_info: mlrun.common.schemas.AuthInfo | None = None,
     ):
         """
         When secret keys are coming from other object identifiers, which may not be valid secret keys, use
@@ -152,6 +153,7 @@ class Secrets(
                         secret_name=secret_name,
                         secret_keys=secret_keys,
                         action=action,
+                        initiator=auth_info.username if auth_info else None,
                     )
                     events_client.emit(event)
 
@@ -221,6 +223,7 @@ class Secrets(
         provider: mlrun.common.schemas.SecretProviderName,
         secrets: list[str] | None = None,
         allow_internal_secrets: bool = False,
+        auth_info: mlrun.common.schemas.AuthInfo | None = None,
     ):
         if not allow_internal_secrets:
             if secrets:
@@ -258,6 +261,7 @@ class Secrets(
                         secret_name=secret_name,
                         secret_keys=secrets,
                         action=action,
+                        initiator=auth_info.username if auth_info else None,
                     )
                     events_client.emit(event)
 

@@ -45,6 +45,7 @@ class BaseEventClient:
         secret_name: str,
         secret_keys: list[str] | None = None,
         action: mlrun.common.schemas.SecretEventActions = mlrun.common.schemas.SecretEventActions.created,
+        initiator: str | None = None,
     ):
         """
         Generate a project secret event
@@ -52,6 +53,7 @@ class BaseEventClient:
         :param secret_name: secret name
         :param secret_keys: secret keys, optional, only relevant for created/updated events
         :param action: preformed action
+        :param initiator: username of the user who performed the action
         :return: event object to emit
         """
         pass

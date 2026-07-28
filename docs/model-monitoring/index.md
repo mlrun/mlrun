@@ -86,7 +86,7 @@ The recommended versions are:
 - Kafka: `3.9.0` self-hosted, or Confluent Cloud (tested against `7.9`)
 
 Before you deploy the model monitoring or serving function, you need to set the credentials with {py:meth}`~mlrun.projects.MlrunProject.set_model_monitoring_credentials`.
-See also [Configuring TimescaleDB and Kafka for model monitoring](../install-mlrun-ce/mlrun-ce-development-notes.md#configuring-timescaledb-and-kafka-for-model-monitoring).
+See also [Configuring TimescaleDB and Kafka for model monitoring](../install-mlrun-ce/mlrun-ce-development-notes.md#configure-timescaledb-and-kafka-for-model-monitoring).
 
 ## Model monitoring applications
 

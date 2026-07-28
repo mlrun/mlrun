@@ -11,7 +11,5 @@ model management features and ML monitoring reports. It monitors all of your mod
 hundreds of models simultaneously, you can be sure to spot and remediate the one that has drifted.
 - Automated retraining: When drift is detected, Iguazio automatically starts the entire training pipeline to retrain the model, including all 
 relevant steps in the pipeline. The output is a production-ready challenger model, ready to be deployed. This keeps your models up to date, automatically.
-- Native feature store integration: Feature vectors and labels are stored and analyzed in the Iguazio feature store and are easily compared to the 
-trained features and labels running as part of the model development phase, making it easier for data science teams to collaborate and maintain consistency between AI projects.
 
 See full details in {ref}`model-monitoring-overview`.

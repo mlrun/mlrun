@@ -14,7 +14,6 @@ More advanced or custom routing can be used, for example, the ensemble router se
 **In this section**
 
 - [ModelRouter](#modelrouter)
-- [EnrichmentVotingEnsemble](#enrichmentvotingensemble)
 
 ## ModelRouter
 Description:  Basic model router, for calling different models per each model path. See {py:class}`~mlrun.serving.routers.ModelRouter`.
@@ -44,30 +43,3 @@ server.wait_for_completion()
 
 print(result)
 ```
-## EnrichmentVotingEnsemble
-### Description
-The typical usage is to pass a feature vector URI that points to a registered feature store vector. The router:
-- Fetches features from the feature vector  
-- Enriches the incoming event  
-- Runs the internal model routes  
-- Aggregates the results based on `vote_type`
-
-Notes:
-- Only `feature_vector_uri` and `vote_type` are required (no need to pass `models` or `feature_store` in many versions).  
-- The router internally handles model execution and merging.
-
-```{admonition} Note
-The `*` prefix indicates a router class (not a simple processing step).
-```
-
-### Example
-```python
-enricher = graph.add_step(
-    "*mlrun.serving.EnrichmentVotingEnsemble",
-    name="enricher",
-    feature_vector_uri="store://feature-vectors/user_features_v1",
-    vote_type="regression",  # or "classification"
-)
-```
-
-

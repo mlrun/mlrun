@@ -31,8 +31,6 @@ real-time pipelines. As a result, ML teams often build separate data pipelines w
 services. 80% of data today is unstructured, so an essential part of building operational data pipelines is to convert unstructured textual, 
 audio, and visual data into machine learning- or deep learning-friendly data organization.
 
-<img src="_static/images/data-collect-and-prep.png" alt="data-collection-and-preparation" width="800" /><br>
-
 ## Develop and train models
 Whether it’s deep learning or machine learning, MLRun allows you to train your models at scale and capture all the relevant metadata for experiments tracking and lineage. 
 

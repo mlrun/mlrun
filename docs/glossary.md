@@ -13,8 +13,6 @@ This page describes commonly used MLRun and industry terminology.
 
 | MLRun terms        | Description                                                                                                                                                                                                                                 |
 |--------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Feature set        | A group of features that are ingested together and stored in logical group. See {ref}`feature-sets`.                                                                                                                                        |
-| Feature vector     | A combination of multiple features originating from different feature sets. See {ref}`create-use-feature-vectors`.                                                                                                                          |
 | HTTPRunDB          | API for wrapper to the internal DB in MLRun. See {py:meth}`~mlrun.db.httpdb.HTTPRunDB`.                                                                                                                                                      |
 | hub                | Used in code to reference the {ref}`load-from-hub`.                                                                                                                                                                                         |
 | MLRun function     | An abstraction over the code, extra packages, runtime configuration and desired resources which allow execution in a local environment and on various serverless engines on top of K8s. See {ref}`functions` .                              |
@@ -23,7 +21,7 @@ This page describes commonly used MLRun and industry terminology.
 | mpijob             | One of the MLRun batch runtimes that runs distributed jobs and Horovod over the MPI job operator, used mainly for deep learning jobs. See {ref}`horovod`.                                                                                   |
 | Nuclio function    | Subtype of MLRun function that uses the Nuclio runtime for any generic real-time function. See {ref}`nuclio-real-time-functions` and the [Nuclio documentation](https://docs.nuclio.io/en/latest/index.html).                               |
 | Serving function   | Subtype of MLRun function that uses the Nuclio runtime specifically for serving ML models or real-time pipelines. See {ref}`serving-graph`.                                                                                                 |
-| storey             | Asynchronous streaming library for real time event processing and feature extraction. Used in Iguazio's feature store and real-time pipelines. See [storey.transformations - Graph transformations](./api/storey.transormations/index.rst). |  
+| storey             | Asynchronous streaming library for real time event processing and feature extraction. Used for real-time pipelines. See [storey.transformations - Graph transformations](./api/storey.transormations/index.rst). |  
 
 
 ## Iguazio (V3IO) terms

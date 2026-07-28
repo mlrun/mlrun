@@ -314,18 +314,6 @@ To set it on a function, use:
 function.spec.env.append({"name": "HADOOP_USER_NAME", "value": "galt"})
 ```
 
-In feature store, you can set it via `RunConfig`:
-```python
-from mlrun.feature_store.common import RunConfig
-
-run_config = RunConfig(
-    local=False,
-    kind="remote-spark",
-    extra_spec={"spec": {"env": [{"name": "HADOOP_USER_NAME", "value": "galt"}]}},
-)
-feature_set.ingest(..., run_config=run_config)
-```
-
 ## S3
 
 ### S3 credentials and parameters

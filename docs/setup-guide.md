@@ -36,9 +36,6 @@ Starting from MLRun v1.3.0, the MLRun server is compatible with the client and i
 After you update the MLRun package client version by running `pip install mlrun==<"new-client-version">`, you must update the images to use the same client version you installed.
 For example, when running this command `pip install mlrun==1.8.0` you must update your images to use MLRun v1.8.0 by adding `mlrun==<"new-client-version">` as a function requirement. See {py:meth}`~mlrun.runtimes.BaseRuntime.with_requirements`.
 
-```{admonition} Important
-The feature store is not backward compatible. 
-```
 
 ## Set up your client environment
 

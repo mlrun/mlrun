@@ -187,7 +187,7 @@ jobs:
         INPUT_DOCKER_REPO: ${{ inputs.docker_repo }}
 
     - name: Docker login (ghcr)
-      uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # 4.4.0
+      uses: docker/login-action@371161bbe7024a29a25c5e19bfcbc0804fe9ad2c # 4.5.2
       with:
         registry: ghcr.io
         username: ${{ github.repository_owner }}
@@ -196,7 +196,7 @@ jobs:
     - name: Docker login (quay.io)
       continue-on-error: true
       if: inputs.pr_number == ''
-      uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # 4.4.0
+      uses: docker/login-action@371161bbe7024a29a25c5e19bfcbc0804fe9ad2c # 4.5.2
       with:
         registry: quay.io
         username: ${{ secrets.QUAY_IO_DOCKER_REGISTRY_USERNAME }}
@@ -205,7 +205,7 @@ jobs:
     - name: Docker login (docker.com)
       if: inputs.pr_number == ''
       continue-on-error: true
-      uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # 4.4.0
+      uses: docker/login-action@371161bbe7024a29a25c5e19bfcbc0804fe9ad2c # 4.5.2
       with:
         registry: registry.hub.docker.com
         username: ${{ secrets.DOCKER_HUB_DOCKER_REGISTRY_USERNAME }}
@@ -213,7 +213,7 @@ jobs:
 
     - name: Docker login (Artifactory)
       if: inputs.is_private_release == true
-      uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # 4.4.0
+      uses: docker/login-action@371161bbe7024a29a25c5e19bfcbc0804fe9ad2c # 4.5.2
       with:
         registry: ${{ secrets.PRIVATE_ARTIFACTORY_DOCKER_URL }}
         username: ${{ secrets.PRIVATE_ARTIFACTORY_USERNAME }}

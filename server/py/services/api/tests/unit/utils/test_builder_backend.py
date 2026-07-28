@@ -352,9 +352,6 @@ def _make_buildah_pod(**overrides) -> framework.utils.singletons.k8s.BasePod:
         return services.api.utils.builder.buildah.make_buildah_pod(**defaults)
 
 
-# --- Buildah source routing -----------------------------------------------------------------------
-
-
 def _make_buildah_backend_pod(
     **overrides,
 ) -> framework.utils.singletons.k8s.BasePod:

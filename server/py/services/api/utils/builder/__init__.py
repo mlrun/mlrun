@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from base64 import b64decode
-from urllib.parse import urlparse
 
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
@@ -351,31 +350,15 @@ def _buildah_fallback_reason(request: BuildRequest) -> str | None:
     :param request: The resolved build request.
     :return: A human-readable fallback reason, or ``None`` when Buildah can build the request.
     """
-    # (1) Cloud-registry credential-helper auth -> ML-12886. The Buildah adapter authenticates only
-    #     via a mounted static docker-config secret; ECR/ACR/GAR workload-identity credential
-    #     exchange is wired in ML-12886. Remove this guard when ML-12886 merges.
-    #     (The registry host is a plain hostname - safe to log; the source below is not, see below.)
+    # Cloud-registry credential-helper auth -> ML-12886. The Buildah adapter authenticates only
+    # via a mounted static docker-config secret; ECR/ACR/GAR workload-identity credential
+    # exchange is wired in ML-12886. Remove this guard when ML-12886 merges.
+    # (The registry host is a plain hostname - safe to log.)
     target = request.registry or request.image_target or ""
     if _is_cloud_registry(target):
         return (
             f"target registry '{target}' requires credential-helper auth not yet supported "
             "on Buildah (ML-12886)"
-        )
-
-    # (2) Source acquisition -> ML-12887. The adapter builds only the no-source-context case;
-    #     fetching or mounting a source into the build context (local path, v3io, remote scheme) is
-    #     added in ML-12887. inline_code and load_source_on_run don't stage a build-context source,
-    #     so they stay on Buildah. Remove this guard when ML-12887 merges.
-    #     Only the scheme is put in the reason - a source URI can embed credentials
-    #     (e.g. https://<token>@github.com/...), which must never be logged.
-    loads_source_on_run = bool(
-        request.runtime_spec and request.runtime_spec.build.load_source_on_run
-    )
-    if request.source and not (request.inline_code or loads_source_on_run):
-        source_scheme = urlparse(request.source).scheme or "local"
-        return (
-            f"source (scheme '{source_scheme}') requires acquisition not yet supported "
-            "on Buildah (ML-12887)"
         )
 
     return None

@@ -70,6 +70,19 @@ PG_CATEGORIES: dict[str, str] = {
     "28P01": CATEGORY_AUTH_FAILED,  # invalid_password
 }
 
+# psycopg2/3 raise these for connection *establishment* failures with neither
+# a SQLSTATE (no backend was ever reached to issue one) nor a message matching
+# SQLAlchemy's own disconnect heuristic (which only covers connections that
+# died *after* being established). Matched case-insensitively, substring.
+PG_UNREACHABLE_MESSAGES: tuple[str, ...] = (
+    "connection refused",
+    "could not connect to server",
+    "could not translate host name",
+    "no route to host",
+    "network is unreachable",
+    "timeout expired",
+)
+
 SUPPORTED_DIALECTS: frozenset[str] = frozenset(
     {
         mlrun.common.db.dialects.Dialects.MYSQL,
@@ -122,6 +135,46 @@ def classify(
     return None, None
 
 
+def classify_exception(
+    exc: BaseException,
+) -> tuple[str | None, int | str | None]:
+    """
+    Classify a caught exception into ``(category, driver_code)``, for call
+    sites with no ``handle_error`` :class:`ExceptionContext` available (e.g. a
+    one-off connection attempt through a throwaway engine that was never
+    registered with :func:`register`). See :func:`classify` for the return
+    contract.
+    """
+    original = getattr(exc, "orig", exc)
+
+    if getattr(exc, "connection_invalidated", False):
+        code = _extract_pg_sqlstate(original) or _extract_mysql_code(original)
+        return CATEGORY_DISCONNECT, code
+
+    if isinstance(original, sqlalchemy.exc.TimeoutError):
+        return CATEGORY_POOL_TIMEOUT, None
+
+    mysql_code = _extract_mysql_code(original)
+    if mysql_code is not None:
+        category = MYSQL_CATEGORIES.get(mysql_code)
+        if category is not None:
+            return category, mysql_code
+
+    pg_code = _extract_pg_sqlstate(original)
+    if pg_code is not None:
+        category = PG_CATEGORIES.get(pg_code)
+        if category is not None:
+            return category, pg_code
+
+    # A connection that was never established has no SQLSTATE (the backend
+    # never responded) and SQLAlchemy's own is_disconnect/connection_invalidated
+    # heuristic only covers connections that died *after* being established.
+    if _is_pg_unreachable(original):
+        return CATEGORY_DISCONNECT, None
+
+    return None, None
+
+
 def publish_connection_failed(
     error: BaseException,
     dialect: str | None,
@@ -162,6 +215,32 @@ def publish_connection_failed(
             exc_info=publish_exc,
         )
         return False
+
+
+def publish_connection_failed_from_exception(
+    exc: BaseException,
+    dialect: str | None = None,
+) -> bool:
+    """
+    Best-effort classify-and-publish for a caught exception (no
+    ``handle_error`` :class:`ExceptionContext` available). Never raises.
+
+    :return: True if an event was emitted, False if not a connection-level
+        error, throttled, or unsupported.
+    """
+    try:
+        category, code = classify_exception(exc)
+        if category is None:
+            return False
+    except Exception as classify_exc:
+        logger.warning(
+            "Failed to classify DB error for connection event, ignoring",
+            exc_info=classify_exc,
+        )
+        return False
+    return publish_connection_failed(
+        error=exc, dialect=dialect, category=category, error_code=code
+    )
 
 
 def register(engine: sqlalchemy.engine.Engine) -> None:
@@ -245,3 +324,19 @@ def _extract_pg_sqlstate(exc: BaseException | None) -> str | None:
     if isinstance(code, str) and code:
         return code
     return None
+
+
+def _is_pg_unreachable(exc: BaseException | None) -> bool:
+    """
+    True if ``exc`` is a psycopg2/3 error whose message matches a known
+    "could not establish a connection at all" phrasing (see
+    ``PG_UNREACHABLE_MESSAGES``). Module-checked the same way as
+    :func:`_extract_mysql_code`, to avoid matching an unrelated driver's
+    exception that happens to share wording.
+    """
+    if exc is None:
+        return False
+    if not type(exc).__module__.startswith(("psycopg2", "psycopg")):
+        return False
+    message = str(exc).lower()
+    return any(phrase in message for phrase in PG_UNREACHABLE_MESSAGES)

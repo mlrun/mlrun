@@ -161,10 +161,8 @@ def build_image(
 def resolve_builder_backend(request: BuildRequest) -> BuilderBackend:
     """Return the builder backend to use for a build request.
 
-    By default this is the engine named in ``httpdb.builder.builder_backend``. The whole
-    ``request`` is accepted so the choice can vary per build: when Buildah is configured but the
-    request needs a capability the Buildah adapter doesn't ship yet, this transparently falls back
-    to Kaniko (see :func:`_buildah_fallback_reason`).
+    The engine is the one named in ``httpdb.builder.builder_backend``. The whole ``request`` is
+    accepted for symmetry with the backends themselves, which each take the same ``BuildRequest``.
 
     :param request: The resolved build request.
     :return: The builder backend instance for this build.
@@ -183,19 +181,6 @@ def resolve_builder_backend(request: BuildRequest) -> BuilderBackend:
             f"Unsupported builder backend '{backend_name}'. "
             f"Supported backends: {', '.join(sorted(backends))}"
         )
-
-    # Buildah is opt-in and, as of ML-12885, ships the rootless build pod but not yet the full
-    # runnable path. Fall back to Kaniko for the inputs it can't handle yet so a buildah-configured
-    # cluster never emits a pod that can't build or push.
-    if backend_class is BuildahBackend:
-        fallback_reason = _buildah_fallback_reason(request)
-        if fallback_reason:
-            mlrun.utils.logger.info(
-                "Builder backend falling back to Kaniko for an unsupported build",
-                requested_backend=backend_name,
-                reason=fallback_reason,
-            )
-            return KanikoBackend()
 
     return backend_class()
 
@@ -339,38 +324,3 @@ def build_runtime(
     runtime.spec.image = local + build.image
     runtime.status.state = mlrun.common.schemas.FunctionState.ready
     return True
-
-
-def _buildah_fallback_reason(request: BuildRequest) -> str | None:
-    """Return why a Buildah build must fall back to Kaniko, or ``None`` if Buildah can handle it.
-
-    Each guard is temporary — it exists only until its follow-up ships the missing capability, and
-    should be removed when that ticket merges.
-
-    :param request: The resolved build request.
-    :return: A human-readable fallback reason, or ``None`` when Buildah can build the request.
-    """
-    # Cloud-registry credential-helper auth -> ML-12886. The Buildah adapter authenticates only
-    # via a mounted static docker-config secret; ECR/ACR/GAR workload-identity credential
-    # exchange is wired in ML-12886. Remove this guard when ML-12886 merges.
-    # (The registry host is a plain hostname - safe to log.)
-    target = request.registry or request.image_target or ""
-    if _is_cloud_registry(target):
-        return (
-            f"target registry '{target}' requires credential-helper auth not yet supported "
-            "on Buildah (ML-12886)"
-        )
-
-    return None
-
-
-def _is_cloud_registry(target: str) -> bool:
-    # cloud registries whose auth needs a credential-helper token exchange (ML-12886).
-    if not target:
-        return False
-    if mlrun.utils.helpers.is_ecr_url(target):
-        return True
-    # ACR (Azure) and Artifact Registry / GCR (Google).
-    return any(
-        marker in target for marker in (".azurecr.io", "-docker.pkg.dev", "gcr.io")
-    )

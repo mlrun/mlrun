@@ -39,6 +39,11 @@ import mlrun.utils.helpers
 from mlrun.common.helpers import parse_versioned_object_uri
 from mlrun.runtimes.mounts import auto_mount as auto_mount_modifier
 from mlrun.utils.clones import load_source_code
+from mlrun.utils.registry_auth import (
+    CloudRegistryProvider,
+    mint_acr_authfile,
+    mint_ecr_authfile,
+)
 
 from .config import config as mlconf
 from .db import get_run_db
@@ -1395,6 +1400,61 @@ def load_source(source_uri, project, target):
         print(f"Successfully loaded source to: {loaded_dir}")
     except Exception as err:
         print(f"Error loading source: {err_to_str(err)}")
+        exit(1)
+
+
+@main.command(name="mint-registry-credentials")
+@click.option(
+    "--provider",
+    type=click.Choice(
+        [CloudRegistryProvider.ECR.value, CloudRegistryProvider.ACR.value]
+    ),
+    required=True,
+    help="the cloud registry provider to mint push credentials for",
+)
+@click.option("--registry", required=True, help="the registry host")
+@click.option(
+    "--dest",
+    default=None,
+    help="the destination image reference (ECR only, to derive the repository name)",
+)
+@click.option(
+    "--authfile",
+    required=True,
+    help="path to write the docker-config-shaped authfile",
+)
+def mint_registry_credentials(provider, registry, dest, authfile):
+    """Mint short-lived cloud-registry push credentials into a docker-config authfile.
+
+    This is an internal CLI command used by Buildah build init containers to exchange the pod's
+    workload identity for a registry push credential before the main container runs.
+
+    Examples:
+
+    \b
+        mlrun mint-registry-credentials --provider ecr \\
+            --registry 123456789012.dkr.ecr.us-east-1.amazonaws.com \\
+            --dest 123456789012.dkr.ecr.us-east-1.amazonaws.com/my-repo:latest \\
+            --authfile /auth/config.json
+        mlrun mint-registry-credentials --provider acr \\
+            --registry myregistry.azurecr.io --authfile /auth/config.json
+    """
+    try:
+        if provider == CloudRegistryProvider.ECR:
+            if not dest:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "--dest is required for --provider ecr"
+                )
+            mint_ecr_authfile(registry, dest, authfile)
+        elif provider == CloudRegistryProvider.ACR:
+            mint_acr_authfile(registry, authfile)
+        else:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Unsupported --provider: {provider}"
+            )
+        print(f"Successfully minted {provider} registry credentials to: {authfile}")
+    except Exception as err:
+        print(f"Error minting registry credentials: {err_to_str(err)}")
         exit(1)
 
 

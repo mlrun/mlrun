@@ -58,7 +58,10 @@ async def store_project_secrets(
         )
     )
     await run_in_threadpool(
-        services.api.crud.Secrets().store_project_secrets, project, secrets
+        services.api.crud.Secrets().store_project_secrets,
+        project,
+        secrets,
+        auth_info=auth_info,
     )
 
     return fastapi.Response(status_code=HTTPStatus.CREATED.value)
@@ -93,7 +96,11 @@ async def delete_project_secrets(
         )
     )
     await run_in_threadpool(
-        services.api.crud.Secrets().delete_project_secrets, project, provider, secrets
+        services.api.crud.Secrets().delete_project_secrets,
+        project,
+        provider,
+        secrets,
+        auth_info=auth_info,
     )
 
     return fastapi.Response(status_code=HTTPStatus.NO_CONTENT.value)

@@ -410,7 +410,7 @@ However, we provide a way to disable the default HTTP trigger using:
 ```{admonition} Note
 
 - `disable_default_http_trigger` is supported from Nuclio 1.13.1.
-- RabbitMQ is supported from 
+- RabbitMQ is supported from v1.11.0.
 ```
 
 Also, you can explicitly enable the default HTTP trigger creation with:

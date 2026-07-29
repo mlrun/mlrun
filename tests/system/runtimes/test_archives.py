@@ -56,6 +56,13 @@ need_gcs = pytest.mark.skipif(
     reason="GCS_BUCKET_NAME / GOOGLE_APPLICATION_CREDENTIALS env vars not set",
 )
 
+# Workload Identity and signBlob access cannot be inferred from GCS configuration.
+gcs_workload_identity_enabled = _test_env.get("GCS_WORKLOAD_IDENTITY_TEST_ENABLED")
+need_gcs_workload_identity = pytest.mark.skipif(
+    not (gcs_bucket and gcs_workload_identity_enabled),
+    reason="GCS_BUCKET_NAME / GCS_WORKLOAD_IDENTITY_TEST_ENABLED env vars not set",
+)
+
 
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured
 class TestArchiveSources(tests.system.base.TestMLRunSystem):
@@ -244,6 +251,33 @@ class TestArchiveSources(tests.system.base.TestMLRunSystem):
         )
 
         fn = self._new_function("nuclio", "gcs")
+        fn.metadata.project = self.project.name
+        fn.with_source_archive(archive_url, handler="rootfn:nuclio_handler")
+        mlrun.deploy_function(fn)
+        resp = fn.invoke("")
+        assert resp.decode() == "tag=main"
+
+    @need_gcs_workload_identity
+    def test_nuclio_gcs_archive_workload_identity(self):
+        """Deploy a GCS archive using the API pod's Workload Identity."""
+        # Do not allow project secrets to mask the Workload Identity path.
+        mlrun.get_run_db().delete_project_secrets(
+            project=self.project_name,
+            secrets=["GCP_CREDENTIALS", "GOOGLE_APPLICATION_CREDENTIALS"],
+        )
+
+        archive_url = f"gcs://{gcs_bucket}/{self.project_name}/source_archive_workload_identity.tar.gz"
+        # The upload may use runner credentials; server-side signing is under test.
+        upload_secrets = (
+            {"GOOGLE_APPLICATION_CREDENTIALS": gcs_credentials}
+            if gcs_credentials
+            else {}
+        )
+        mlrun.get_dataitem(archive_url, secrets=upload_secrets).upload(
+            str(self.assets_path / "source_archive.tar.gz")
+        )
+
+        fn = self._new_function("nuclio", "gcs-wi")
         fn.metadata.project = self.project.name
         fn.with_source_archive(archive_url, handler="rootfn:nuclio_handler")
         mlrun.deploy_function(fn)

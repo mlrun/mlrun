@@ -11,7 +11,6 @@ The main kinds of artifacts are:
 - Files — Files, directories, images, figures, and plot lines
 - Datasets — Any data, such as tables and DataFrames
 - Models — All trained models
-- Feature Store Objects — Feature sets and feature vectors
 - Code — Source code for a function or workflow. See {ref}`code-artifacts`.
 
 Artifacts metadata is stored in the MLRun database. 
@@ -35,7 +34,7 @@ Artifacts metadata is stored in the MLRun database.
 
 Artifacts that are stored in certain paths (see [Artifact path](#artifact-path)) can be viewed and managed in the UI. 
 In the **Project** page, select the type of artifact you want to view from the left-hand menu: 
-Feature Store (for feature-sets, feature-vectors, and features), Datasets, Models, and Artifacts (holds everything not 
+Datasets, Documents, LLM prompts, and Other artifacts (holds everything not 
 in the other categories).
 
 Example dataset artifact screen:

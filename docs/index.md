@@ -239,7 +239,7 @@ MLRun provides abstract interfaces to various offline and online [**data sources
 
 ### Develop and train models
 
-MLRun allows you to easily build ML pipelines that take data from various sources or the Feature Store and process it, 
+MLRun allows you to easily build ML pipelines that take data from various sources and process it, 
 train models at scale with multiple parameters, test models, track each experiment, and register, version and deploy 
 models, etc. MLRun provides scalable built-in or custom model training services that integrate with any framework and 
 can work with 3rd party training/auto-ML services. You can also bring your own pre-trained model and use it in the pipeline.

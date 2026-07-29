@@ -9,9 +9,8 @@ Generally, there are two main modes of deployment:
 1. **Real-time deployment/serving**: this is the process of having a data and models pipeline respond for real-time events.
    The challenge here is usually ensuring that the data processing is performed in the same way that the batch
    training was done and sending the response in low latency. MLRun includes a specialized serving graph that
-   eases that creation of a data transformation pipeline as part of the model serving. Feature store support
-   is another way of ensuring that feature calculations remain consistent between the training process and the serving
-   process. For an end-to-end demo of model serving, refer to the
+   eases that creation of a data transformation pipeline as part of the model serving.
+   For an end-to-end demo of model serving, refer to the
   [**Serving pre-trained ML/DL models tutorial**](../tutorials/03-model-serving.ipynb).
 2. **Batch inference**: this includes a process that runs on a large dataset. The data is usually read from
   an offline source, such as files or databases, and the result is also written to offline targets. It is common

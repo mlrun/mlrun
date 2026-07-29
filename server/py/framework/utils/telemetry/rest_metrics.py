@@ -17,10 +17,13 @@
 Runs on every replica (API chief + workers and the alerts service) — unlike the
 chief-only inventory telemetry. Each call is recorded to a handful of
 instruments (processing-time, request/response size, and — for list calls —
-items-returned histograms), all tagged with ``system_id`` plus
-bounded ``method``/``status_code``/``resource``/``project`` attributes (plus
-``get_vs_list`` on GET calls only), exported over OTLP and aggregatable in
-Grafana.
+items-returned histograms), all tagged with ``system_id`` plus bounded
+``method``/``status_code``/``resource``/``project`` attributes, exported over
+OTLP and aggregatable in Grafana. ``method`` is the real HTTP method, except a
+collection-returning GET is reported as the synthetic ``"LIST"`` value instead
+of ``"GET"`` — see ``framework.middlewares.rest_metrics.parse_method`` — so
+list calls are distinguishable from single-object gets without a separate
+label.
 
 The whole feature sits behind the master ``telemetry.enabled`` kill-switch and
 the ``telemetry.rest_metrics.enabled`` sub-flag: when either is off (or no OTLP
@@ -35,6 +38,16 @@ it once per request and skips all ``record_*()`` calls when it returns False.
 Grafana counts need a ``1 / sample_rate`` compensation factor whenever
 sampling is enabled.
 
+The configured ``sample_rate`` is also exported as its own gauge
+(``mlrun_rest_metrics_sample_rate_ratio``) so the compensation factor can be
+looked up in Grafana/PromQL instead of hard-coded from the current config. It's an
+``ObservableGauge`` rather than a plain ``Gauge``: the SDK itself re-invokes
+its callback on every export tick, so it keeps showing up in every
+collection for as long as the process runs, with no need to re-``set()`` it
+from request-handling code (a plain ``Gauge``'s last value is only exported
+once and then dropped until ``set()`` is called again — see
+``_LastValueAggregation.collect()`` in the OTel SDK).
+
 Call sites:
   - ``init()`` from the shared service startup path (all replicas).
   - ``shutdown()`` from the shared service teardown path — flushes pending
@@ -44,10 +57,15 @@ Call sites:
 """
 
 import collections.abc
-import enum
 import random
 
-from opentelemetry.metrics import Histogram, Meter
+from opentelemetry.metrics import (
+    CallbackOptions,
+    Histogram,
+    Meter,
+    ObservableGauge,
+    Observation,
+)
 from opentelemetry.sdk.metrics import MeterProvider
 
 import mlrun
@@ -55,18 +73,6 @@ import mlrun.errors
 import mlrun.utils
 
 import framework.utils.telemetry.otel
-
-
-class GetVsList(enum.StrEnum):
-    """Values for the ``get_vs_list`` attribute — meaningful for GET calls only.
-
-    Non-GET calls and unclassified GETs use "" instead, which isn't a member
-    here: it means "not applicable," not a third classification.
-    """
-
-    GET = "get"
-    LIST = "list"
-
 
 # Milliseconds (not the Prometheus/OTel base unit of seconds) on purpose: the
 # SDK's default histogram buckets (5, 10, 25, ... 10000) map onto real request
@@ -87,6 +93,12 @@ _DURATION_INSTRUMENT_NAME = "mlrun_rest_request_duration_milliseconds"
 _REQUEST_SIZE_INSTRUMENT_NAME = "mlrun_rest_request_size_kibibytes"
 _RESPONSE_SIZE_INSTRUMENT_NAME = "mlrun_rest_response_size_kibibytes"
 _ITEMS_RETURNED_INSTRUMENT_NAME = "mlrun_rest_response_num_items"
+# "_ratio", matching unit="1"'s OTel<->Prometheus expansion (same
+# name/unit-agreement rule as the "_kibibytes" histograms above) —
+# verified empirically: without it, the exporter appended its own
+# "_ratio" suffix on top, giving "..._sample_rate_ratio" anyway, just
+# with a name that doesn't self-document the unit.
+_SAMPLE_RATE_INSTRUMENT_NAME = "mlrun_rest_metrics_sample_rate_ratio"
 
 # Always-keep carve-outs for should_sample() (unlike sample_rate, these aren't
 # operator-tunable — they encode what "slow" and "large" mean for this feature,
@@ -100,6 +112,7 @@ _duration_histogram: Histogram | None = None
 _request_size_histogram: Histogram | None = None
 _response_size_histogram: Histogram | None = None
 _items_returned_histogram: Histogram | None = None
+_sample_rate_gauge: ObservableGauge | None = None
 
 
 def is_enabled() -> bool:
@@ -129,7 +142,8 @@ def init(service_name: str) -> None:
         _duration_histogram, \
         _request_size_histogram, \
         _response_size_histogram, \
-        _items_returned_histogram
+        _items_returned_histogram, \
+        _sample_rate_gauge
 
     if _provider is not None:
         mlrun.utils.logger.warning(
@@ -152,15 +166,8 @@ def init(service_name: str) -> None:
         unit="ms",
         description="Duration of REST API request processing, in milliseconds.",
     )
-    # unit="KiBy" (binary UCUM, matches the /1024 division in the middleware)
-    # must agree with the "_kibibytes" already in the name above — the
-    # exporter only skips re-appending the unit as a suffix when the name
-    # already ends with its exact expansion ("kibibytes"). Naming this
-    # "_kilobytes" while passing unit="KiBy" (or vice versa, "kBy" with a
-    # "_kibibytes" name) mismatches and doubles the suffix — verified
-    # empirically against this deployment's OTel Collector/Prometheus
-    # exporter. See the OTel<->Prometheus metric-metadata docs:
-    # https://opentelemetry.io/docs/specs/otel/compatibility/prometheus_and_openmetrics/#metric-metadata
+    # unit="KiBy" must agree with the "_kibibytes" already in the name above
+    # (see the comment on _REQUEST_SIZE_INSTRUMENT_NAME).
     _request_size_histogram = _meter.create_histogram(
         name=_REQUEST_SIZE_INSTRUMENT_NAME,
         unit="KiBy",
@@ -176,6 +183,15 @@ def init(service_name: str) -> None:
         unit="1",
         description="Number of objects returned by list REST calls.",
     )
+    _sample_rate_gauge = _meter.create_observable_gauge(
+        name=_SAMPLE_RATE_INSTRUMENT_NAME,
+        callbacks=[_sample_rate_callback],
+        unit="1",
+        description=(
+            "Configured REST-metrics sample rate, for compensating "
+            "count-based queries on the other instruments."
+        ),
+    )
 
     mlrun.utils.logger.info(
         "REST metrics telemetry instruments registered",
@@ -186,6 +202,7 @@ def init(service_name: str) -> None:
             _REQUEST_SIZE_INSTRUMENT_NAME,
             _RESPONSE_SIZE_INSTRUMENT_NAME,
             _ITEMS_RETURNED_INSTRUMENT_NAME,
+            _SAMPLE_RATE_INSTRUMENT_NAME,
         ],
     )
 
@@ -203,7 +220,8 @@ def shutdown(timeout_millis: int = 2000) -> None:
         _duration_histogram, \
         _request_size_histogram, \
         _response_size_histogram, \
-        _items_returned_histogram
+        _items_returned_histogram, \
+        _sample_rate_gauge
     if _provider is None:
         return
     try:
@@ -221,6 +239,22 @@ def shutdown(timeout_millis: int = 2000) -> None:
         _request_size_histogram = None
         _response_size_histogram = None
         _items_returned_histogram = None
+        _sample_rate_gauge = None
+
+
+def _sample_rate_callback(
+    options: CallbackOptions,
+) -> collections.abc.Iterable[Observation]:
+    """Report the currently configured sample rate on every export tick.
+
+    Reading live config here (rather than capturing the rate once at
+    ``init()`` time) means a config change takes effect on the very next
+    tick, with no re-init needed.
+    """
+    yield Observation(
+        mlrun.mlconf.telemetry.rest_metrics.sample_rate,
+        attributes={"system_id": mlrun.mlconf.system_id or ""},
+    )
 
 
 def should_sample(
@@ -260,7 +294,6 @@ def record_duration(
     status_code: int,
     resource: str,
     project: str,
-    get_vs_list: str,
 ) -> None:
     """Record a single request-processing duration to the histogram.
 
@@ -269,13 +302,12 @@ def record_duration(
     picked up.
 
     :param duration_ms:  Processing time in milliseconds.
-    :param method:       HTTP method (e.g. ``GET``).
+    :param method:       HTTP method (e.g. ``GET``), or the synthetic
+                         ``"LIST"`` value for a collection-returning GET.
     :param status_code:  HTTP response status code.
     :param resource:     Object type the route operates on (e.g. ``functions``),
                          or "" when none applies.
     :param project:      Project name for project-scoped routes, else "".
-    :param get_vs_list:  ``"get"``/``"list"`` for single-object vs collection GET
-                         calls, else "".
     """
     _record(
         _duration_histogram.record if _duration_histogram is not None else None,
@@ -284,7 +316,6 @@ def record_duration(
         status_code=status_code,
         resource=resource,
         project=project,
-        get_vs_list=get_vs_list,
     )
 
 
@@ -294,7 +325,6 @@ def record_request_size(
     status_code: int,
     resource: str,
     project: str,
-    get_vs_list: str,
 ) -> None:
     """Record a single request body size, in kibibytes, to the histogram.
 
@@ -310,7 +340,6 @@ def record_request_size(
         status_code=status_code,
         resource=resource,
         project=project,
-        get_vs_list=get_vs_list,
     )
 
 
@@ -320,7 +349,6 @@ def record_response_size(
     status_code: int,
     resource: str,
     project: str,
-    get_vs_list: str,
 ) -> None:
     """Record a single response body size, in kibibytes, to the histogram.
 
@@ -338,7 +366,6 @@ def record_response_size(
         status_code=status_code,
         resource=resource,
         project=project,
-        get_vs_list=get_vs_list,
     )
 
 
@@ -357,10 +384,10 @@ def record_items_returned(
 
     Only meaningful for list calls — callers must only invoke this once the
     response body was successfully parsed and a list-shaped payload found.
-    ``method`` is always GET and ``get_vs_list`` is always "list" for every
-    point on this metric, so unlike the other ``record_*()`` functions neither
-    is accepted or attached as an attribute here — a label that never varies
-    within a metric adds nothing to query it by.
+    ``method`` is always ``"LIST"`` for every point on this metric, so unlike
+    the other ``record_*()`` functions it's not accepted or attached as an
+    attribute here — a label that never varies within a metric adds nothing to
+    query it by.
 
     See ``record_duration`` for the shared no-op behavior and remaining
     parameter meanings.
@@ -376,7 +403,6 @@ def record_items_returned(
         status_code=status_code,
         resource=resource,
         project=project,
-        get_vs_list="",
     )
 
 
@@ -388,7 +414,6 @@ def _record(
     status_code: int,
     resource: str,
     project: str,
-    get_vs_list: str,
 ) -> None:
     """Shared attributes-building + no-op logic.
 
@@ -397,11 +422,11 @@ def _record(
     ``attributes`` mapping, so any instrument kind can share this helper). None
     when the instrument was never initialized (telemetry disabled).
 
-    ``method`` and ``get_vs_list`` are required here — every caller must make an
-    explicit choice — but each is omitted entirely (rather than attached as "")
-    when passed as "": a label that never varies within a metric adds nothing
-    to query it by. ``record_items_returned`` is the only caller that does this,
-    since method/get_vs_list never vary for that specific instrument.
+    ``method`` is required here — every caller must make an explicit choice —
+    but is omitted entirely (rather than attached as "") when passed as "": a
+    label that never varies within a metric adds nothing to query it by.
+    ``record_items_returned`` is the only caller that does this, since
+    ``method`` never varies (always ``"LIST"``) for that specific instrument.
     """
     if record_fn is None:
         return
@@ -413,6 +438,4 @@ def _record(
     }
     if method:
         attributes["method"] = method
-    if get_vs_list:
-        attributes["get_vs_list"] = get_vs_list
     record_fn(value, attributes=attributes)

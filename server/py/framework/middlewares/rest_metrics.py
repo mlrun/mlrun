@@ -70,36 +70,39 @@ def parse_resource_and_project(path: str) -> tuple[str, str]:
     return segments[0], ""
 
 
-def parse_get_vs_list(method: str, scope: "Scope") -> str:
-    """Distinguish a single-object GET from a collection-returning GET.
+_LIST_METHOD = "LIST"
 
-    Defaults every GET to "get" and only promotes to "list" when the matched
-    endpoint function's name starts with ``list_`` — the one signal this
-    codebase applies consistently to every genuine collection endpoint
-    (``list_runs``, ``list_artifact_tags``, ``list_pipelines``, ...). Path
-    shape alone doesn't work: plenty of singleton/action endpoints have a
-    literal trailing segment without returning a collection (``/build/status``,
-    ``/client-spec``, ``.../drift-over-time``, ``.../nuclio/{name}/deploy``),
-    and their function names don't follow any ``get_``/``list_`` convention
-    either (``build_status``, ``clusterization_spec``) — so requiring an
-    explicit ``get_`` match would leave them unclassified. The matched route
-    (and its endpoint function) is stamped onto ``scope["route"]`` by
-    FastAPI's router before the endpoint runs, so it's available once
-    ``http.response.start`` fires. Only GET calls are classified; everything
-    else (and unmatched/404 routes, which never get a ``route``) returns "".
+
+def parse_method(method: str, scope: "Scope") -> str:
+    """The ``method`` attribute value: the real HTTP method, except a
+    collection-returning GET, which is reported as the synthetic ``"LIST"``
+    value instead of ``"GET"`` — so list calls are distinguishable from
+    single-object gets without a separate label.
+
+    A GET is promoted to ``"LIST"`` only when the matched endpoint function's
+    name starts with ``list_`` — the one signal this codebase applies
+    consistently to every genuine collection endpoint (``list_runs``,
+    ``list_artifact_tags``, ``list_pipelines``, ...). Path shape alone doesn't
+    work: plenty of singleton/action endpoints have a literal trailing segment
+    without returning a collection (``/build/status``, ``/client-spec``,
+    ``.../drift-over-time``, ``.../nuclio/{name}/deploy``), and their function
+    names don't follow any ``get_``/``list_`` convention either
+    (``build_status``, ``clusterization_spec``) — so requiring an explicit
+    ``get_`` match would leave them unclassified. The matched route (and its
+    endpoint function) is stamped onto ``scope["route"]`` by FastAPI's router
+    before the endpoint runs, so it's available once ``http.response.start``
+    fires. Non-GET calls and unmatched/404 routes (which never get a
+    ``route``) just return ``method`` unchanged.
 
     :param method: HTTP method (e.g. ``GET``).
     :param scope:  The ASGI request scope, post-routing.
-    :return: A ``GetVsList`` member, or "" when not applicable.
+    :return: ``method``, or ``"LIST"`` for a collection-returning GET.
     """
     if method != http.HTTPMethod.GET:
-        return ""
+        return method
     route = scope.get("route")
     endpoint_name = getattr(getattr(route, "endpoint", None), "__name__", "")
-    if not endpoint_name:
-        return ""
-    get_vs_list = framework.utils.telemetry.rest_metrics.GetVsList
-    return get_vs_list.LIST if endpoint_name.startswith("list_") else get_vs_list.GET
+    return _LIST_METHOD if endpoint_name.startswith("list_") else method
 
 
 def parse_item_count(body: bytes) -> int | None:
@@ -166,7 +169,7 @@ class RestMetricsMiddleware(BaseHTTPMiddleware):
         # http.response.start has been observed.
         response_state = {
             "status_code": None,
-            "get_vs_list": "",
+            "method": "",
             "response_size_bytes": 0,
             "response_body": bytearray(),
         }
@@ -178,25 +181,19 @@ class RestMetricsMiddleware(BaseHTTPMiddleware):
             try:
                 if is_response_start(message):
                     response_state["status_code"] = message["status"]
-                    response_state["get_vs_list"] = parse_get_vs_list(
-                        scope["method"], scope
-                    )
+                    response_state["method"] = parse_method(scope["method"], scope)
                     return
                 if message.get("type") != "http.response.body":
                     return
                 body = message.get("body") or b""
                 response_state["response_size_bytes"] += len(body)
-                if (
-                    response_state["get_vs_list"]
-                    == framework.utils.telemetry.rest_metrics.GetVsList.LIST
-                ):
+                if response_state["method"] == _LIST_METHOD:
                     response_state["response_body"].extend(body)
                 if message.get("more_body", False):
                     # Streamed body still in flight — nothing to record yet.
                     return
                 self._record_call(
                     path=path,
-                    method=scope["method"],
                     duration_ms=self._elapsed_time_ms(start_time),
                     request_size_bytes=request_size_bytes,
                     response_state=response_state,
@@ -214,7 +211,6 @@ class RestMetricsMiddleware(BaseHTTPMiddleware):
     def _record_call(
         *,
         path: str,
-        method: str,
         duration_ms: float,
         request_size_bytes: int,
         response_state: dict,
@@ -222,7 +218,7 @@ class RestMetricsMiddleware(BaseHTTPMiddleware):
         """Decide whether to sample, then record every instrument for one call."""
         resource, project = parse_resource_and_project(path)
         status_code = response_state["status_code"]
-        get_vs_list = response_state["get_vs_list"]
+        method = response_state["method"]
         request_size_kib = request_size_bytes / _BYTES_PER_KIBIBYTE
         response_size_kib = response_state["response_size_bytes"] / _BYTES_PER_KIBIBYTE
 
@@ -239,7 +235,6 @@ class RestMetricsMiddleware(BaseHTTPMiddleware):
             status_code=status_code,
             resource=resource,
             project=project,
-            get_vs_list=get_vs_list,
         )
         framework.utils.telemetry.rest_metrics.record_request_size(
             size_kib=request_size_kib,
@@ -247,7 +242,6 @@ class RestMetricsMiddleware(BaseHTTPMiddleware):
             status_code=status_code,
             resource=resource,
             project=project,
-            get_vs_list=get_vs_list,
         )
         framework.utils.telemetry.rest_metrics.record_response_size(
             size_kib=response_size_kib,
@@ -255,9 +249,8 @@ class RestMetricsMiddleware(BaseHTTPMiddleware):
             status_code=status_code,
             resource=resource,
             project=project,
-            get_vs_list=get_vs_list,
         )
-        if get_vs_list == framework.utils.telemetry.rest_metrics.GetVsList.LIST:
+        if method == _LIST_METHOD:
             item_count = parse_item_count(bytes(response_state["response_body"]))
             if item_count is not None:
                 framework.utils.telemetry.rest_metrics.record_items_returned(

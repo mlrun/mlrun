@@ -27,6 +27,7 @@ _ALL_INSTRUMENT_ATTRS = (
     "_request_size_histogram",
     "_response_size_histogram",
     "_items_returned_histogram",
+    "_sample_rate_gauge",
 )
 
 
@@ -109,6 +110,20 @@ def test_shutdown_clears_module_state(reset_state: None) -> None:
     assert telemetry_rest_metrics._meter is None
     for attr in _ALL_INSTRUMENT_ATTRS:
         assert getattr(telemetry_rest_metrics, attr) is None
+
+
+def test_sample_rate_callback_reports_live_config(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(mlrun.mlconf.telemetry.rest_metrics, "sample_rate", 0.25)
+    monkeypatch.setattr(mlrun.mlconf, "system_id", "abc123")
+
+    (observation,) = list(
+        telemetry_rest_metrics._sample_rate_callback(unittest.mock.MagicMock())
+    )
+
+    assert observation.value == 0.25
+    assert observation.attributes == {"system_id": "abc123"}
 
 
 class TestShouldSample:
@@ -211,11 +226,10 @@ def test_record_duration_noop_when_uninitialized(reset_state: None) -> None:
     # Must not raise when the histogram was never created (telemetry off).
     telemetry_rest_metrics.record_duration(
         0.5,
-        method=http.HTTPMethod.GET,
+        method="LIST",
         status_code=200,
         resource="runs",
         project="p",
-        get_vs_list="list",
     )
     assert telemetry_rest_metrics._duration_histogram is None
 
@@ -233,7 +247,6 @@ def test_record_duration_records_with_system_id_and_attributes(
         status_code=201,
         resource="functions",
         project="proj-a",
-        get_vs_list="",
     )
 
     histogram.record.assert_called_once_with(
@@ -248,24 +261,21 @@ def test_record_duration_records_with_system_id_and_attributes(
     )
 
 
-def test_record_duration_omits_get_vs_list_key_when_empty(reset_state: None) -> None:
-    """get_vs_list is only meaningful for GET calls — for anything else it must
-    be left off the attributes entirely, not attached as "".
-    """
+def test_record_duration_omits_method_key_when_empty(reset_state: None) -> None:
+    """method is omitted entirely (not attached as "") when passed as ""."""
     histogram = unittest.mock.MagicMock()
     telemetry_rest_metrics._duration_histogram = histogram
 
     telemetry_rest_metrics.record_duration(
         0.1,
-        method=http.HTTPMethod.DELETE,
+        method="",
         status_code=204,
         resource="runs",
         project="proj-a",
-        get_vs_list="",
     )
 
     attributes = histogram.record.call_args.kwargs["attributes"]
-    assert "get_vs_list" not in attributes
+    assert "method" not in attributes
 
 
 def test_record_request_size_noop_when_uninitialized(reset_state: None) -> None:
@@ -275,7 +285,6 @@ def test_record_request_size_noop_when_uninitialized(reset_state: None) -> None:
         status_code=200,
         resource="runs",
         project="p",
-        get_vs_list="",
     )
     assert telemetry_rest_metrics._request_size_histogram is None
 
@@ -290,7 +299,6 @@ def test_record_request_size_records_with_attributes(reset_state: None) -> None:
         status_code=201,
         resource="runs",
         project="proj-a",
-        get_vs_list="",
     )
 
     histogram.record.assert_called_once_with(
@@ -311,22 +319,20 @@ def test_record_response_size_records_with_attributes(reset_state: None) -> None
 
     telemetry_rest_metrics.record_response_size(
         12.75,
-        method=http.HTTPMethod.GET,
+        method="LIST",
         status_code=200,
         resource="artifacts",
         project="proj-a",
-        get_vs_list="list",
     )
 
     histogram.record.assert_called_once_with(
         12.75,
         attributes={
             "system_id": "",
-            "method": http.HTTPMethod.GET,
+            "method": "LIST",
             "status_code": 200,
             "resource": "artifacts",
             "project": "proj-a",
-            "get_vs_list": "list",
         },
     )
 
@@ -338,11 +344,11 @@ def test_record_items_returned_noop_when_uninitialized(reset_state: None) -> Non
     assert telemetry_rest_metrics._items_returned_histogram is None
 
 
-def test_record_items_returned_records_without_method_or_get_vs_list(
+def test_record_items_returned_records_without_method(
     reset_state: None,
 ) -> None:
-    """method is always GET and get_vs_list is always "list" for this metric —
-    neither varies, so neither is attached as an attribute.
+    """method is always "LIST" for this metric — it never varies, so it's not
+    attached as an attribute.
     """
     histogram = unittest.mock.MagicMock()
     telemetry_rest_metrics._items_returned_histogram = histogram

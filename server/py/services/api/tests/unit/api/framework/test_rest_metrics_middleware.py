@@ -85,69 +85,31 @@ def _route(endpoint_name: str) -> types.SimpleNamespace:
 @pytest.mark.parametrize(
     "method,route,expected",
     [
-        # list_ prefix -> collection
-        (
-            http.HTTPMethod.GET,
-            _route("list_runs"),
-            framework.utils.telemetry.rest_metrics.GetVsList.LIST,
-        ),
-        (
-            http.HTTPMethod.GET,
-            _route("list_artifact_tags"),
-            framework.utils.telemetry.rest_metrics.GetVsList.LIST,
-        ),
-        (
-            http.HTTPMethod.GET,
-            _route("list_pipelines"),
-            framework.utils.telemetry.rest_metrics.GetVsList.LIST,
-        ),
-        (
-            http.HTTPMethod.GET,
-            _route("list_model_endpoints"),
-            framework.utils.telemetry.rest_metrics.GetVsList.LIST,
-        ),
-        # explicit get_ prefix -> single identified object
-        (
-            http.HTTPMethod.GET,
-            _route("get_run"),
-            framework.utils.telemetry.rest_metrics.GetVsList.GET,
-        ),
-        (
-            http.HTTPMethod.GET,
-            _route("get_artifact"),
-            framework.utils.telemetry.rest_metrics.GetVsList.GET,
-        ),
+        # list_ prefix -> synthetic "LIST" value
+        (http.HTTPMethod.GET, _route("list_runs"), "LIST"),
+        (http.HTTPMethod.GET, _route("list_artifact_tags"), "LIST"),
+        (http.HTTPMethod.GET, _route("list_pipelines"), "LIST"),
+        (http.HTTPMethod.GET, _route("list_model_endpoints"), "LIST"),
+        # explicit get_ prefix -> unchanged, real method
+        (http.HTTPMethod.GET, _route("get_run"), http.HTTPMethod.GET),
+        (http.HTTPMethod.GET, _route("get_artifact"), http.HTTPMethod.GET),
         # singleton/action endpoints with no get_/list_ convention at all,
         # but which return a single object, not a collection
-        (
-            http.HTTPMethod.GET,
-            _route("build_status"),
-            framework.utils.telemetry.rest_metrics.GetVsList.GET,
-        ),
-        (
-            http.HTTPMethod.GET,
-            _route("clusterization_spec"),
-            framework.utils.telemetry.rest_metrics.GetVsList.GET,
-        ),
-        (
-            http.HTTPMethod.GET,
-            _route("get_client_spec"),
-            framework.utils.telemetry.rest_metrics.GetVsList.GET,
-        ),
+        (http.HTTPMethod.GET, _route("build_status"), http.HTTPMethod.GET),
+        (http.HTTPMethod.GET, _route("clusterization_spec"), http.HTTPMethod.GET),
+        (http.HTTPMethod.GET, _route("get_client_spec"), http.HTTPMethod.GET),
         # unmatched/404 routes never get a scope["route"]
-        (http.HTTPMethod.GET, None, ""),
+        (http.HTTPMethod.GET, None, http.HTTPMethod.GET),
         # verb classification only applies to GET
-        (http.HTTPMethod.POST, _route("list_runs"), ""),
-        (http.HTTPMethod.DELETE, _route("get_run"), ""),
+        (http.HTTPMethod.POST, _route("list_runs"), http.HTTPMethod.POST),
+        (http.HTTPMethod.DELETE, _route("get_run"), http.HTTPMethod.DELETE),
     ],
 )
-def test_parse_get_vs_list(
+def test_parse_method(
     method: str, route: types.SimpleNamespace | None, expected: str
 ) -> None:
     scope = {"route": route} if route is not None else {}
-    assert framework.middlewares.rest_metrics.parse_get_vs_list(method, scope) == (
-        expected
-    )
+    assert framework.middlewares.rest_metrics.parse_method(method, scope) == expected
 
 
 @pytest.mark.parametrize(
@@ -307,7 +269,6 @@ def test_rest_metrics_middleware_records_after_response_completes() -> None:
     assert kwargs["duration_ms"] >= 0
     assert kwargs["resource"] == "functions"
     assert kwargs["project"] == "proj"
-    assert kwargs["get_vs_list"] == framework.utils.telemetry.rest_metrics.GetVsList.GET
 
 
 def test_rest_metrics_middleware_excludes_healthz() -> None:
@@ -461,10 +422,7 @@ def test_rest_metrics_middleware_records_item_count_for_list_calls() -> None:
 
     mocks["record_items_returned"].assert_called_once()
     assert mocks["record_items_returned"].call_args.kwargs["item_count"] == 3
-    assert (
-        mocks["record_duration"].call_args.kwargs["get_vs_list"]
-        == framework.utils.telemetry.rest_metrics.GetVsList.LIST
-    )
+    assert mocks["record_duration"].call_args.kwargs["method"] == "LIST"
 
 
 def test_rest_metrics_middleware_skips_item_count_for_get_calls() -> None:

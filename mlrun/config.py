@@ -620,10 +620,10 @@ default_config = {
             "buildah_push_retry": "3",
             # init container image that mints ECR/ACR push credentials for Buildah via boto3 /
             # azure-identity (see services/api/utils/builder/registry_auth.py). Empty derives from
-            # the mlrun image, which already carries those SDKs via the "complete" extra; override
-            # must have python and the same SDKs. GAR/GCR credential exchange runs inline in the
-            # main Buildah container instead (see registry_auth.gar_credential_exchange_script) and
-            # does not use this image.
+            # default_base_image, which ships those SDKs via the "complete" extra unless overridden;
+            # override must have python and the same SDKs. GAR/GCR credential exchange runs inline in
+            # the main Buildah container instead (see registry_auth.gar_credential_exchange_script)
+            # and does not use this image.
             "registry_credential_exchange_image": "",
             # additional docker build args in json encoded base64 format
             "build_args": "",

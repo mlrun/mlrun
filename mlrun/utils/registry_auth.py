@@ -47,6 +47,9 @@ _ACR_ANONYMOUS_USERNAME = "00000000-0000-0000-0000-000000000000"
 def mint_ecr_authfile(registry: str, dest: str, authfile_path: str) -> None:
     """Create the target ECR repository (idempotent) and write a push authfile.
 
+    Unlike ACR/GAR, ECR does not auto-create a repository on first push - it must exist first, or
+    the push fails outright, so this creates it up front.
+
     Credentials come from boto3's default chain (IRSA or instance role, resolved via the build
     pod's own service account/environment) - nothing else needs to be configured.
 
@@ -59,8 +62,6 @@ def mint_ecr_authfile(registry: str, dest: str, authfile_path: str) -> None:
     region = registry.split(".")[3]
     repo = _ecr_repo_name(dest)
     client = boto3.client("ecr", region_name=region)
-    # unlike ACR/GAR, ECR does not auto-create a repository on first push - it must exist first,
-    # or the push fails outright.
     try:
         client.create_repository(repositoryName=repo)
     except client.exceptions.RepositoryAlreadyExistsException:

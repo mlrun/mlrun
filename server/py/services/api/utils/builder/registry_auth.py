@@ -41,11 +41,6 @@ from mlrun.utils.registry_auth import CloudRegistryProvider
 
 _CREDENTIAL_EXCHANGE_INIT_CONTAINER_NAME = "registry-credential-exchange"
 
-# the mlrun/mlrun image ships boto3 / azure-identity via the "complete" extra - the same image
-# kaniko's source-fetch init container derives from by default (see
-# kaniko_source_fetch_init_container_image), so ECR/ACR credential exchange reuses that convention.
-_DEFAULT_CREDENTIAL_EXCHANGE_IMAGE = "mlrun/mlrun"
-
 _GCP_METADATA_TOKEN_URL = (
     "http://metadata.google.internal/computeMetadata/v1/"
     "instance/service-accounts/default/token"
@@ -174,7 +169,10 @@ def gar_credential_exchange_script(registry: str, authfile_path: str) -> str:
 def _credential_exchange_image() -> str:
     image = config.httpdb.builder.registry_credential_exchange_image
     if not image:
-        image = mlrun.utils.enrich_image_url(_DEFAULT_CREDENTIAL_EXCHANGE_IMAGE)
+        # default_base_image (mlrun/mlrun unless the user overrides it) ships boto3 / azure-identity
+        # via the "complete" extra. Falling back to it, rather than hardcoding "mlrun/mlrun", means a
+        # user-configured default is honored consistently instead of silently ignored here.
+        image = mlrun.utils.enrich_image_url(config.default_base_image)
     return image
 
 

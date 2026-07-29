@@ -24,6 +24,8 @@ import unittest.mock
 
 import pytest
 
+from mlrun.config import config
+
 import framework.utils.singletons.k8s
 from services.api.utils.builder import registry_auth
 
@@ -99,6 +101,21 @@ def test_append_acr_credential_exchange_init_container():
         "--authfile",
         "/auth/config.json",
     ]
+
+
+def test_credential_exchange_image_defaults_to_default_base_image(monkeypatch):
+    monkeypatch.setattr(config.httpdb.builder, "registry_credential_exchange_image", "")
+    monkeypatch.setattr(config, "default_base_image", "myorg/custom-mlrun:v9")
+
+    assert registry_auth._credential_exchange_image() == "myorg/custom-mlrun:v9"
+
+
+def test_credential_exchange_image_explicit_override(monkeypatch):
+    monkeypatch.setattr(
+        config.httpdb.builder, "registry_credential_exchange_image", "myorg/other:v1"
+    )
+
+    assert registry_auth._credential_exchange_image() == "myorg/other:v1"
 
 
 def test_gar_credential_exchange_script_uses_metadata_server_only(

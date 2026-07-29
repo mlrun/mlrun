@@ -62,7 +62,14 @@ class LabelsModel(pydantic.BaseModel):
 
     labels: typing.Union[str, dict[str, str | None], list[str]] | None = None
 
-    @pydantic.field_validator("labels")
+    # mode="before": v1's field-then-validator pipeline lets the validator return any
+    # shape regardless of the declared type; v2's default "after" mode type-checks the
+    # raw input against the Union *before* the validator runs, which rejects a dict with
+    # non-str values (e.g. {"label1": 1}) that v1 happily coerced. Running before type
+    # validation reproduces the v1 leniency (the branch below already `f"{key}={value}"`
+    # -stringifies non-str values), and the `list[str]` this returns satisfies the
+    # declared Union on its own.
+    @pydantic.field_validator("labels", mode="before")
     @classmethod
     def validate(cls, labels) -> list[str]:
         if labels is None:

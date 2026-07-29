@@ -129,6 +129,22 @@ make fmt
     make test-integration-dockerized
     ```
 
+  The Buildah/Kaniko parity integration tests
+  (`server/py/services/api/tests/integration/k8s/test_builder_parity.py`) additionally need the
+  [`container-diff`](https://github.com/GoogleContainerTools/container-diff) CLI on `PATH` to
+  compare the two engines' output images (config/files/pip/apt - not byte-for-byte, since
+  timestamps and filesystem metadata always differ between engines). Install it locally with:
+    ```shell script
+    # macOS
+    brew install container-diff
+    # Linux
+    curl -LO https://storage.googleapis.com/container-diff/latest/container-diff-linux-amd64 && \
+      chmod +x container-diff-linux-amd64 && sudo mv container-diff-linux-amd64 /usr/local/bin/container-diff
+    ```
+  If it isn't installed, that test module skips itself rather than failing. Wiring it into CI
+  (installing it on the `test-integration` runner) is tracked separately - `.github/workflows/*.yaml`
+  changes need maintainer review.
+
 * System tests - see dedicated section below
 
 ## Pull requests

@@ -22,6 +22,7 @@
 # Buildah has no native remote-context resolution the way Kaniko does.
 
 import base64
+import json
 import unittest.mock
 
 import pytest
@@ -33,6 +34,7 @@ import mlrun.errors
 from mlrun.config import config
 from mlrun.runtimes import RuntimeKinds
 
+import framework.api.utils
 import framework.utils.singletons.k8s
 import services.api.utils.builder
 import services.api.utils.builder.buildah
@@ -107,10 +109,37 @@ def _patch_k8s_helper(monkeypatch):
     get_k8s_helper_mock.get_project_secret_keys = unittest.mock.Mock(
         side_effect=lambda project, filter_internal: ["KEY"]
     )
+    get_k8s_helper_mock.get_project_secret_data = unittest.mock.Mock(
+        side_effect=lambda project, keys: {"KEY": "val"}
+    )
     monkeypatch.setattr(
         framework.utils.singletons.k8s,
         "get_k8s_helper",
         lambda *args, **kwargs: get_k8s_helper_mock,
+    )
+
+
+def _create_pod_mock_pod_spec():
+    # deliberately mirrors test_builder.py's helper of the same name rather than importing it -
+    # test modules in this directory are self-contained; keep both in sync if either changes.
+    return (
+        framework.utils.singletons.k8s.get_k8s_helper()
+        .create_pod.call_args[0][0]
+        .pod.spec
+    )
+
+
+def _mock_default_service_account(monkeypatch, service_account):
+    resolve_project_service_account_details_mock = unittest.mock.MagicMock()
+    resolve_project_service_account_details_mock.return_value = (
+        [],
+        [],
+        service_account,
+    )
+    monkeypatch.setattr(
+        framework.api.utils,
+        "resolve_project_service_account_details",
+        resolve_project_service_account_details_mock,
     )
 
 
@@ -591,3 +620,170 @@ def test_buildah_backend_inline_code_with_source_ignores_source():
     )
     assert _init_container_by_name(pod, "fetch-source") is None
     assert "ADD" not in _decoded_dockerfile(pod)
+
+
+# --- Buildah pod-spec parity (ML-12889) ------------------------------------------------------------
+#
+# resolve_build_pod_spec_attributes (base.py) resolves node/affinity/tolerations/priority/service
+# account identically for both backends; test_builder.py locks this for Kaniko via build_runtime.
+# These mirror the same scenarios end-to-end through build_runtime, with builder_backend=buildah,
+# to lock that the seam can't silently drift between engines.
+
+
+def _build_via_buildah(function, monkeypatch):
+    monkeypatch.setattr(config.httpdb.builder, "builder_backend", "buildah")
+    _patch_k8s_helper(monkeypatch)
+    config.httpdb.builder.docker_registry = "registry.hub.docker.com/username"
+    services.api.utils.builder.build_runtime(
+        mlrun.common.schemas.AuthInfo(),
+        function,
+        force_build=True,
+    )
+
+
+def test_buildah_pod_spec_default_service_account_enrichment(monkeypatch):
+    # parity with test_kaniko_pod_spec_default_service_account_enrichment (test_builder.py)
+    service_account = "my-service-account"
+    _mock_default_service_account(monkeypatch, service_account)
+    function = mlrun.new_function(
+        "some-function",
+        "some-project",
+        "some-tag",
+        image="mlrun/mlrun",
+        kind=RuntimeKinds.job,
+    )
+    _build_via_buildah(function, monkeypatch)
+    assert _create_pod_mock_pod_spec().service_account == service_account
+
+
+def test_buildah_pod_spec_user_service_account_enrichment(monkeypatch):
+    # parity with test_kaniko_pod_spec_user_service_account_enrichment (test_builder.py)
+    _mock_default_service_account(monkeypatch, "my-default-service-account")
+    function = mlrun.new_function(
+        "some-function",
+        "some-project",
+        "some-tag",
+        image="mlrun/mlrun",
+        kind=RuntimeKinds.job,
+    )
+    service_account = "my-actual-sa"
+    function.spec.service_account = service_account
+    _build_via_buildah(function, monkeypatch)
+    assert _create_pod_mock_pod_spec().service_account == service_account
+
+
+def test_buildah_pod_spec_node_selector_and_preemption_parity(monkeypatch):
+    # parity with test_build_runtime_use_default_node_selector_and_sets_gpu_limits_to_zero
+    # (test_builder.py), minus the GPU-limit assertion - that enrichment happens above the
+    # backend seam and is already covered there.
+    default_node_selector = {"label-1": "val1", "label-2": "val2"}
+    preemptible_selector = {"spot": "true"}
+    func_node_selector = {"label-3": "val3"}
+    mlrun.mlconf.default_function_node_selector = base64.b64encode(
+        json.dumps(default_node_selector).encode("utf-8")
+    )
+    mlrun.mlconf.preemptible_nodes.node_selector = base64.b64encode(
+        json.dumps(preemptible_selector).encode("utf-8")
+    )
+    mlrun.mlconf.preemptible_nodes.tolerations = base64.b64encode(
+        json.dumps(
+            [
+                {
+                    "key": "spot",
+                    "operator": "Equal",
+                    "value": "true",
+                    "effect": "NoSchedule",
+                }
+            ]
+        ).encode("utf-8")
+    )
+
+    function = mlrun.new_function(
+        "some-function",
+        "some-project",
+        "some-tag",
+        image="mlrun/mlrun",
+        kind=RuntimeKinds.job,
+    )
+    function.spec.node_selector = func_node_selector | preemptible_selector
+    function.with_preemption_mode("prevent")
+    # scheduling attributes only - service-account resolution is exercised separately above
+    _mock_default_service_account(monkeypatch, None)
+    _build_via_buildah(function, monkeypatch)
+
+    pod_spec = _create_pod_mock_pod_spec()
+    expected_node_selector = {**default_node_selector, **func_node_selector}
+    assert pod_spec.node_selector == expected_node_selector
+    # preemptible tolerations are removed in 'prevent' mode
+    assert pod_spec.tolerations is None or pod_spec.tolerations == []
+
+
+def test_buildah_pod_spec_attributes_from_spec(monkeypatch):
+    # parity with test_function_build_with_attributes_from_spec (test_builder.py)
+    function = mlrun.new_function(
+        "some-function",
+        "some-project",
+        "some-tag",
+        image="mlrun/mlrun",
+        kind=RuntimeKinds.job,
+    )
+    node_selector = {"label-1": "val1", "label-2": "val2"}
+    node_name = "node_test"
+    priority_class_name = "test-priority"
+    function.spec.node_name = node_name
+    function.spec.node_selector = node_selector
+    function.spec.priority_class_name = priority_class_name
+    # scheduling attributes only - service-account resolution is exercised separately above
+    _mock_default_service_account(monkeypatch, None)
+    _build_via_buildah(function, monkeypatch)
+
+    pod_spec = _create_pod_mock_pod_spec()
+    assert pod_spec.node_name == node_name
+    assert pod_spec.node_selector == node_selector
+    assert pod_spec.priority_class_name == priority_class_name
+
+
+def test_make_buildah_pod_mounts_pip_ca(monkeypatch):
+    # parity with production Kaniko's pip-CA handling (base.make_dockerfile's Dockerfile COPY +
+    # kaniko.py's own secret mount) - _mount_pip_ca itself is gated purely on
+    # config.is_pip_ca_configured(), not on dockerfile content, so the dockerfile passed to
+    # _make_buildah_pod below is just the helper's default and isn't asserted on here.
+    monkeypatch.setattr(config.httpdb.builder, "pip_ca_secret_name", "pip-ca-secret")
+    monkeypatch.setattr(config.httpdb.builder, "pip_ca_secret_key", "ca.crt")
+    buildah_pod = _make_buildah_pod()
+    pod = buildah_pod.pod
+    mounted_secrets = {
+        volume.secret.secret_name for volume in pod.spec.volumes if volume.secret
+    }
+    assert "pip-ca-secret" in mounted_secrets
+    ca_mount = next(
+        vm
+        for vm in pod.spec.containers[0].volume_mounts
+        if vm.mount_path.endswith("pip-ca-certificates.crt")
+    )
+    assert ca_mount.sub_path == "pip-ca-certificates.crt"
+
+
+# --- Failure-contract invariant (ML-12889) ---------------------------------------------------------
+#
+# Engine-agnostic: FunctionState.get_function_state_from_pod_state is what
+# server/py/services/api/api/endpoints/functions.py maps a build pod's phase through, for either
+# backend. Locking it here means the invariant "failed build -> pod Failed -> function error" can't
+# silently regress for either engine, independent of which one produced the failing pod.
+
+
+@pytest.mark.parametrize("pod_phase", ["failed", "error"])
+def test_failed_pod_state_maps_to_function_error(pod_phase):
+    assert (
+        mlrun.common.schemas.FunctionState.get_function_state_from_pod_state(pod_phase)
+        == mlrun.common.schemas.FunctionState.error
+    )
+
+
+def test_succeeded_pod_state_maps_to_function_ready():
+    assert (
+        mlrun.common.schemas.FunctionState.get_function_state_from_pod_state(
+            "succeeded"
+        )
+        == mlrun.common.schemas.FunctionState.ready
+    )

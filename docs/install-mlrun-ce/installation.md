@@ -8,6 +8,7 @@ MLRun CE can be installed on different platforms. Choose the installation guide 
 
 kubernetes-install
 aws-install
+azure-install
 mlrun-ce-installation-notes
 storing-artifact-in-aws-s3-storage
 ```

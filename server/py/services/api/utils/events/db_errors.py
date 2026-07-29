@@ -117,22 +117,7 @@ def classify(
         code = _extract_pg_sqlstate(original) or _extract_mysql_code(original)
         return CATEGORY_DISCONNECT, code
 
-    if isinstance(original, sqlalchemy.exc.TimeoutError):
-        return CATEGORY_POOL_TIMEOUT, None
-
-    mysql_code = _extract_mysql_code(original)
-    if mysql_code is not None:
-        category = MYSQL_CATEGORIES.get(mysql_code)
-        if category is not None:
-            return category, mysql_code
-
-    pg_code = _extract_pg_sqlstate(original)
-    if pg_code is not None:
-        category = PG_CATEGORIES.get(pg_code)
-        if category is not None:
-            return category, pg_code
-
-    return None, None
+    return _classify_by_driver_code(original)
 
 
 def classify_exception(
@@ -151,28 +136,7 @@ def classify_exception(
         code = _extract_pg_sqlstate(original) or _extract_mysql_code(original)
         return CATEGORY_DISCONNECT, code
 
-    if isinstance(original, sqlalchemy.exc.TimeoutError):
-        return CATEGORY_POOL_TIMEOUT, None
-
-    mysql_code = _extract_mysql_code(original)
-    if mysql_code is not None:
-        category = MYSQL_CATEGORIES.get(mysql_code)
-        if category is not None:
-            return category, mysql_code
-
-    pg_code = _extract_pg_sqlstate(original)
-    if pg_code is not None:
-        category = PG_CATEGORIES.get(pg_code)
-        if category is not None:
-            return category, pg_code
-
-    # A connection that was never established has no SQLSTATE (the backend
-    # never responded) and SQLAlchemy's own is_disconnect/connection_invalidated
-    # heuristic only covers connections that died *after* being established.
-    if _is_pg_unreachable(original):
-        return CATEGORY_DISCONNECT, None
-
-    return None, None
+    return _classify_by_driver_code(original)
 
 
 def publish_connection_failed(
@@ -295,6 +259,39 @@ def _on_dbapi_error(ctx: sqlalchemy.engine.ExceptionContext) -> None:
             "Failed to handle DB error event, ignoring",
             exc_info=exc,
         )
+
+
+def _classify_by_driver_code(
+    original: BaseException | None,
+) -> tuple[str | None, int | str | None]:
+    """
+    Classify a DBAPI error that carries no explicit disconnect signal
+    (``is_disconnect``/``connection_invalidated``) by its driver-level error
+    code, and — for Postgres — by message text as a last resort. Shared by
+    :func:`classify` and :func:`classify_exception` so both the mid-session
+    ``handle_error`` listener and the bootstrap-time caught-exception path get
+    the same coverage, including a connection that was never established at
+    all (no SQLSTATE, since the backend never responded).
+    """
+    if isinstance(original, sqlalchemy.exc.TimeoutError):
+        return CATEGORY_POOL_TIMEOUT, None
+
+    mysql_code = _extract_mysql_code(original)
+    if mysql_code is not None:
+        category = MYSQL_CATEGORIES.get(mysql_code)
+        if category is not None:
+            return category, mysql_code
+
+    pg_code = _extract_pg_sqlstate(original)
+    if pg_code is not None:
+        category = PG_CATEGORIES.get(pg_code)
+        if category is not None:
+            return category, pg_code
+
+    if _is_pg_unreachable(original):
+        return CATEGORY_DISCONNECT, None
+
+    return None, None
 
 
 def _extract_mysql_code(exc: BaseException | None) -> int | None:

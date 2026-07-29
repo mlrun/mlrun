@@ -197,6 +197,25 @@ def test_classify_postgres_unknown_sqlstate_returns_none():
     assert code is None
 
 
+def test_classify_postgres_never_connected_via_message_fallback():
+    """
+    A fresh-connect attempt against a fully unreachable Postgres server (no
+    established connection to invalidate, hence no SQLSTATE and
+    is_disconnect=False) must still classify as a disconnect. This is the
+    same shape mlrun-api-chief hits mid-session when the DB pool needs a new
+    connection and the server is down, not just at bootstrap.
+    """
+    exc = psycopg2.OperationalError(
+        'connection to server at "mlrun-db" (10.43.154.75), port 5432 '
+        "failed: Connection refused"
+    )
+    category, code = db_errors.classify(
+        _ctx(exc, is_disconnect=False, dialect_name="postgresql")
+    )
+    assert category == db_errors.CATEGORY_DISCONNECT
+    assert code is None
+
+
 @pytest.mark.parametrize(
     "exc",
     [

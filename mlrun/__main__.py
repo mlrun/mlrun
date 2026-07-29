@@ -1380,6 +1380,7 @@ def load_source(source_uri, project, target):
     - git:// URLs: Git repositories (cloned to target directory)
     - .zip files: ZIP archives (extracted to target directory)
     - .tar.gz files: Tarball archives (extracted to target directory)
+    - bare s3:// / http(s):// URLs: Single files (downloaded to target directory)
 
     Examples:
 
@@ -1387,6 +1388,7 @@ def load_source(source_uri, project, target):
         mlrun load-source store://artifacts/my-project/app.py -t /tmp/code
         mlrun load-source git://github.com/org/repo.git#main -t /tmp/code
         mlrun load-source https://example.com/source.tar.gz -t /tmp/code
+        mlrun load-source s3://my-bucket/main.py -t /tmp/code
     """
 
     try:

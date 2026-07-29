@@ -18,6 +18,7 @@ import re
 import textwrap
 import typing
 from collections import defaultdict
+from urllib.parse import urlparse
 
 from kubernetes import client
 
@@ -36,6 +37,13 @@ from mlrun.utils.helpers import remove_image_protocol_prefix
 
 import framework.utils.helpers
 import framework.utils.singletons.k8s
+
+# subdirectory (under an engine's build-context emptyDir) that a fetch-source init container
+# writes into, and that a v3io FUSE-mount is nested under - shared so the two backends' Dockerfile
+# ``ADD``/``COPY`` source paths agree with what they actually mounted.
+FETCHED_SOURCE_SUBDIR = "source"
+
+_DEFAULT_SOURCE_FETCH_IMAGE = "mlrun/mlrun"
 
 
 @dataclasses.dataclass(frozen=True)
@@ -504,6 +512,156 @@ def resolve_build_pod_spec_attributes(
         if attr_value:
             resolved[attribute] = attr_value
     return resolved
+
+
+def normalize_git_source_fragment(source: str) -> str:
+    """Normalize a ``git://`` source's fragment to a full ``refs/...`` ref.
+
+    A user-supplied branch/tag fragment without the ``refs/heads/``/``refs/tags/`` prefix is
+    assumed to be a branch. Shared by every backend that resolves a ``git://`` source itself
+    (rather than delegating the whole URI to the engine), so the assumption can't drift.
+
+    :param source: The raw ``git://...#<fragment>`` source descriptor.
+    :return: ``source`` with its fragment normalized, unchanged if there is no fragment or it
+        already starts with ``refs/``.
+    """
+    fragment = urlparse(source).fragment or ""
+    if fragment and not fragment.startswith("refs/"):
+        source = source.replace("#" + fragment, f"#refs/heads/{fragment}")
+    return source
+
+
+def resolve_source_code_target_dir(
+    request: BuildRequest, source_to_copy: str | None
+) -> None:
+    """Resolve the in-image source target dir (mutates the runtime build spec).
+
+    Only relevant when there is source to copy; a relative or unset target dir is anchored under
+    ``/home/mlrun_code``. Shared by every backend so the anchoring can't drift between engines.
+
+    :param request:        The build request (its ``runtime_spec`` is mutated).
+    :param source_to_copy: The routed source, or ``None`` when nothing is copied.
+    """
+    source_code_target_dir = request.runtime_spec.build.source_code_target_dir
+    if source_to_copy and (
+        not source_code_target_dir or not os.path.isabs(source_code_target_dir)
+    ):
+        relative_workdir = source_code_target_dir or ""
+        relative_workdir = relative_workdir.removeprefix("./")
+
+        request.runtime_spec.build.source_code_target_dir = os.path.join(
+            "/home/mlrun_code", relative_workdir
+        )
+
+
+def mount_v3io_source(
+    request: BuildRequest,
+    pod: "framework.utils.singletons.k8s.BasePod",
+    v3io_dir_to_mount: str,
+    mount_path: str,
+) -> None:
+    """Mount a v3io source directory into a build pod's build context.
+
+    Shared by every backend that supports a v3io source, so the credential-resolution precedence
+    (``builder_env`` overrides, falling back to ``auth_info``) can't drift between engines - only
+    the mount path (each engine's own build-context layout) is engine-specific.
+
+    :param request:           The build request (for v3io credentials).
+    :param pod:               The build pod to mount into.
+    :param v3io_dir_to_mount: The normalized v3io directory to mount.
+    :param mount_path:        Where to mount it inside the pod (engine-specific).
+    """
+    access_key = request.builder_env.get(
+        "V3IO_ACCESS_KEY",
+        request.auth_info.data_session or request.auth_info.access_key,
+    )
+    username = request.builder_env.get("V3IO_USERNAME", request.auth_info.username)
+    pod.mount_v3io(
+        remote=v3io_dir_to_mount,
+        mount_path=mount_path,
+        access_key=access_key,
+        user=username,
+    )
+
+
+def append_source_fetch_init_container(
+    pod: "framework.utils.singletons.k8s.BasePod",
+    source: str,
+    target_dir: str,
+    builder_env_list: list,
+    project_secrets: list,
+) -> None:
+    """Append a ``fetch-source`` init container that runs ``mlrun load-source``.
+
+    Fetches ``source`` into ``target_dir`` on a volume already mounted into ``pod`` (every init
+    container inherits the pod's volume mounts). Shared by every backend that stages a remote
+    source locally before its build step runs.
+
+    :param pod:              The build pod to append the init container to.
+    :param source:           The raw source URI to fetch.
+    :param target_dir:       Where ``mlrun load-source`` should write the fetched source, inside
+                             a volume the build container also has mounted.
+    :param builder_env_list: Build-time env vars (highest precedence).
+    :param project_secrets:  Project secrets exposed as build-time env vars (next precedence).
+    """
+    # Env precedence: builder_env_list > project_secrets > storage.auto_mount_params.
+    # First-write wins so caller-supplied values are not overwritten by auto-mount defaults.
+    image = config.httpdb.builder.kaniko_source_fetch_init_container_image
+    if not image:
+        image = mlrun.utils.enrich_image_url(_DEFAULT_SOURCE_FETCH_IMAGE)
+
+    args = ["-m", "mlrun", "load-source", source, "--target", target_dir]
+
+    env_list = list(builder_env_list or []) + list(project_secrets or [])
+    already_set = {env_var.name for env_var in env_list}
+    for env_var in resolve_storage_auto_mount_env():
+        if env_var.name in already_set:
+            continue
+        env_list.append(env_var)
+        already_set.add(env_var.name)
+
+    # only the scheme is logged - a source URI can embed credentials
+    # (e.g. https://<token>@github.com/... or a presigned s3/http URL), which must never be logged.
+    mlrun.utils.logger.debug(
+        "Adding source-fetch init container",
+        image=image,
+        source_scheme=urlparse(source).scheme or "local",
+        target=target_dir,
+    )
+    pod.append_init_container(
+        image,
+        command=["python"],
+        args=args,
+        env=env_list,
+        name="fetch-source",
+    )
+
+
+def resolve_storage_auto_mount_env() -> list:
+    # Gate on env_style_modifiers so mount-style outputs (volumes/volume_mounts) are
+    # not silently dropped. KubeResource.apply sanitizes spec.env to plain dicts, so
+    # rebuild V1EnvVar for callers that rely on attribute access.
+    auto_mount_type = mlrun.runtimes.pod.AutoMountType(
+        mlrun.mlconf.storage.auto_mount_type
+    )
+    modifier = auto_mount_type.get_modifier()
+    if (
+        modifier is None
+        or modifier not in mlrun.runtimes.pod.AutoMountType.env_style_modifiers()
+    ):
+        return []
+    scratch = mlrun.runtimes.KubejobRuntime()
+    scratch.try_auto_mount_based_on_config()
+    return [
+        client.V1EnvVar(
+            name=env_var["name"],
+            value=env_var.get("value"),
+            value_from=env_var.get("valueFrom"),
+        )
+        if isinstance(env_var, dict)
+        else env_var
+        for env_var in scratch.spec.env or []
+    ]
 
 
 def _generate_builder_env(

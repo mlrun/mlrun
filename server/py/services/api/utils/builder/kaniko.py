@@ -24,7 +24,6 @@ import mlrun.errors
 import mlrun.model
 import mlrun.runtimes
 import mlrun.runtimes.mounts
-import mlrun.runtimes.pod
 import mlrun.runtimes.utils
 import mlrun.utils
 from mlrun.config import config
@@ -44,10 +43,6 @@ _FETCH_SUPPORTED_SCHEMES = frozenset({"az", "wasb", "wasbs", "ds", "oss", "gs", 
 # matches what ``mlrun load-source`` extracts.
 # TODO: support .tgz
 _FETCHABLE_ARCHIVE_EXTENSIONS = (".tar.gz", ".zip")
-
-_FETCHED_SOURCE_SUBDIR = "source"
-
-_DEFAULT_SOURCE_FETCH_IMAGE = "mlrun/mlrun"
 
 
 def make_kaniko_pod(
@@ -206,9 +201,10 @@ def make_kaniko_pod(
         kaniko_pod.mount_secret(secret_name, "/kaniko/.docker", items=items)
 
     if source_to_fetch:
-        _append_source_fetch_init_container(
-            kaniko_pod=kaniko_pod,
+        base.append_source_fetch_init_container(
+            pod=kaniko_pod,
             source=source_to_fetch,
+            target_dir=f"/empty/{base.FETCHED_SOURCE_SUBDIR}",
             builder_env_list=builder_env,
             project_secrets=project_secrets,
         )
@@ -300,7 +296,7 @@ class KanikoBackend:
             to_mount,
             needs_source_fetch_init_container,
         ) = self._route_source(request)
-        self._resolve_source_code_target_dir(request, source_to_copy=source_to_copy)
+        base.resolve_source_code_target_dir(request, source_to_copy=source_to_copy)
 
         dock = base.make_dockerfile(
             request.base_image,
@@ -342,7 +338,9 @@ class KanikoBackend:
         )
 
         if to_mount:
-            self._mount_v3io_source(request, kaniko_pod, source_dir_to_mount)
+            base.mount_v3io_source(
+                request, kaniko_pod, source_dir_to_mount, mount_path="/context"
+            )
 
         return kaniko_pod
 
@@ -385,16 +383,13 @@ class KanikoBackend:
         elif source and _needs_source_fetch_init_container(source):
             _validate_source_fetch_archive(source)
             context = "/empty"
-            source_to_copy = f"./{_FETCHED_SOURCE_SUBDIR}"
+            source_to_copy = f"./{base.FETCHED_SOURCE_SUBDIR}"
             needs_source_fetch_init_container = True
 
         # source is remote (kaniko-native)
         elif source and "://" in source and not is_v3io_source:
             if source.startswith("git://"):
-                # if the user provided branch (w/o refs/..) we add the "refs/.."
-                fragment = parsed_url.fragment or ""
-                if not fragment.startswith("refs/"):
-                    source = source.replace("#" + fragment, f"#refs/heads/{fragment}")
+                source = base.normalize_git_source_fragment(source)
 
             # set remote source as kaniko's build context and copy it
             context = source
@@ -432,53 +427,6 @@ class KanikoBackend:
             needs_source_fetch_init_container,
         )
 
-    @staticmethod
-    def _resolve_source_code_target_dir(
-        request: base.BuildRequest, source_to_copy: str | None
-    ) -> None:
-        """Resolve the in-image source target dir (mutates the runtime build spec).
-
-        Only relevant when there is source to copy; a relative or unset target dir is
-        anchored under ``/home/mlrun_code``.
-
-        :param request:        The build request (its ``runtime_spec`` is mutated).
-        :param source_to_copy: The routed source, or ``None`` when nothing is copied.
-        """
-        source_code_target_dir = request.runtime_spec.build.source_code_target_dir
-        if source_to_copy and (
-            not source_code_target_dir or not os.path.isabs(source_code_target_dir)
-        ):
-            relative_workdir = source_code_target_dir or ""
-            relative_workdir = relative_workdir.removeprefix("./")
-
-            request.runtime_spec.build.source_code_target_dir = os.path.join(
-                "/home/mlrun_code", relative_workdir
-            )
-
-    @staticmethod
-    def _mount_v3io_source(
-        request: base.BuildRequest,
-        kaniko_pod: framework.utils.singletons.k8s.BasePod,
-        source_dir_to_mount: str | None,
-    ) -> None:
-        """Mount a v3io source directory as the Kaniko build context.
-
-        :param request:             The build request (for v3io credentials).
-        :param kaniko_pod:                The build pod to mount into.
-        :param source_dir_to_mount: The normalized v3io directory to mount.
-        """
-        access_key = request.builder_env.get(
-            "V3IO_ACCESS_KEY",
-            request.auth_info.data_session or request.auth_info.access_key,
-        )
-        username = request.builder_env.get("V3IO_USERNAME", request.auth_info.username)
-        kaniko_pod.mount_v3io(
-            remote=source_dir_to_mount,
-            mount_path="/context",
-            access_key=access_key,
-            user=username,
-        )
-
 
 def _needs_source_fetch_init_container(source: str) -> bool:
     return urlparse(source).scheme in _FETCH_SUPPORTED_SCHEMES
@@ -495,71 +443,6 @@ def _validate_source_fetch_archive(source: str) -> None:
             "supported as a kaniko build context. Provide the source as an "
             f"archive ending in one of: {', '.join(_FETCHABLE_ARCHIVE_EXTENSIONS)}"
         )
-
-
-def _append_source_fetch_init_container(
-    kaniko_pod,
-    source: str,
-    builder_env_list: list,
-    project_secrets: list,
-) -> None:
-    # Env precedence: builder_env_list > project_secrets > storage.auto_mount_params.
-    # First-write wins so caller-supplied values are not overwritten by auto-mount defaults.
-    image = config.httpdb.builder.kaniko_source_fetch_init_container_image
-    if not image:
-        image = mlrun.utils.enrich_image_url(_DEFAULT_SOURCE_FETCH_IMAGE)
-
-    target_dir = f"/empty/{_FETCHED_SOURCE_SUBDIR}"
-    args = ["-m", "mlrun", "load-source", source, "--target", target_dir]
-
-    env_list = list(builder_env_list or []) + list(project_secrets or [])
-    already_set = {env_var.name for env_var in env_list}
-    for env_var in _resolve_storage_auto_mount_env():
-        if env_var.name in already_set:
-            continue
-        env_list.append(env_var)
-        already_set.add(env_var.name)
-
-    mlrun.utils.logger.debug(
-        "Adding source-fetch init container",
-        image=image,
-        source=source,
-        target=target_dir,
-    )
-    kaniko_pod.append_init_container(
-        image,
-        command=["python"],
-        args=args,
-        env=env_list,
-        name="fetch-source",
-    )
-
-
-def _resolve_storage_auto_mount_env() -> list:
-    # Gate on env_style_modifiers so mount-style outputs (volumes/volume_mounts) are
-    # not silently dropped. KubeResource.apply sanitizes spec.env to plain dicts, so
-    # rebuild V1EnvVar for callers that rely on attribute access.
-    auto_mount_type = mlrun.runtimes.pod.AutoMountType(
-        mlrun.mlconf.storage.auto_mount_type
-    )
-    modifier = auto_mount_type.get_modifier()
-    if (
-        modifier is None
-        or modifier not in mlrun.runtimes.pod.AutoMountType.env_style_modifiers()
-    ):
-        return []
-    scratch = mlrun.runtimes.KubejobRuntime()
-    scratch.try_auto_mount_based_on_config()
-    return [
-        client.V1EnvVar(
-            name=env_var["name"],
-            value=env_var.get("value"),
-            value_from=env_var.get("valueFrom"),
-        )
-        if isinstance(env_var, dict)
-        else env_var
-        for env_var in scratch.spec.env or []
-    ]
 
 
 def _add_kaniko_args_with_all_build_args(

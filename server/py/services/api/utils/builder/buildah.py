@@ -11,15 +11,18 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import os.path
 import pathlib
 import shlex
 from base64 import b64encode
+from urllib.parse import urlparse
 
 from kubernetes import client
 
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils
+import mlrun.utils.clones
 from mlrun.config import config
 from mlrun.utils.registry_auth import CloudRegistryProvider
 
@@ -70,11 +73,15 @@ class BuildahBackend:
     (``SETUID``/``SETGID`` + ``allowPrivilegeEscalation``); the ``hostUsers`` model was dropped after
     POC-1 showed it is not viable on the target runtimes.
 
-    Scope note: this adapter handles the no-source-context build (inline code / requirements /
-    commands). Registry auth covers static docker-config secrets and ECR/ACR/GAR credential
-    exchange (see :mod:`services.api.utils.builder.registry_auth`); remote source acquisition
-    (ML-12887) is not implemented here - :func:`~services.api.utils.builder.resolve_builder_backend`
-    transparently falls back to Kaniko for that input until its follow-up lands.
+    Registry auth covers static docker-config secrets and ECR/ACR/GAR credential exchange (see
+    :mod:`services.api.utils.builder.registry_auth`).
+
+    Source acquisition: Buildah's ``bud --context`` has no native remote-context resolution
+    (unlike Kaniko's git/s3 ``--context`` and Dockerfile ``ADD``-from-URL for http), so every
+    remote source is either fetched via the ``fetch-source`` init container (git, archives, s3,
+    http(s)) or, for v3io, FUSE-mounted - both write/mount into
+    ``{_CONTEXT_DIR}/{base.FETCHED_SOURCE_SUBDIR}``, the same emptyDir already mounted for
+    Dockerfile/inline-code staging.
     """
 
     def make_build_pod(
@@ -84,31 +91,22 @@ class BuildahBackend:
 
         :param request: The resolved, engine-agnostic build inputs.
         :return: The Buildah build pod.
-        :raises mlrun.errors.MLRunInvalidArgumentError: If the request carries a source needing
-            acquisition (resolve_builder_backend should have routed it to Kaniko - ML-12887).
         """
-        # source acquisition is not implemented in this adapter yet (ML-12887). resolve_builder_backend
-        # falls back to Kaniko when a request carries such a source, so reaching here with one is a bug
-        # in the selection gate, not a user error - fail fast rather than silently drop the source.
-        loads_source_on_run = bool(
-            request.runtime_spec and request.runtime_spec.build.load_source_on_run
-        )
-        if request.source and not (request.inline_code or loads_source_on_run):
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "BuildahBackend received a build source it cannot acquire yet (ML-12887); "
-                "this should have fallen back to Kaniko in resolve_builder_backend"
-            )
+        source_to_copy, source_to_fetch, v3io_dir_to_mount = self._route_source(request)
+        base.resolve_source_code_target_dir(request, source_to_copy=source_to_copy)
+
         dockerfile = base.make_dockerfile(
             request.base_image,
             request.commands,
-            source=None,
+            source=source_to_copy,
             requirements_path=request.requirements_path,
             extra=request.extra,
+            target_dir=request.runtime_spec.build.source_code_target_dir,
             builder_env=request.builder_env_list,
             project_secrets=request.project_secrets,
             extra_args=request.extra_args,
         )
-        return make_buildah_pod(
+        buildah_pod = make_buildah_pod(
             project=request.project,
             dest=request.image_target,
             dockerfile=dockerfile,
@@ -126,6 +124,77 @@ class BuildahBackend:
             extra_labels=request.labels,
             project_default_function_node_selector=request.project_default_function_node_selector,
             auth_info=request.auth_info,
+        )
+
+        if source_to_fetch:
+            base.append_source_fetch_init_container(
+                pod=buildah_pod,
+                source=source_to_fetch,
+                target_dir=f"{_CONTEXT_DIR}/{base.FETCHED_SOURCE_SUBDIR}",
+                builder_env_list=request.builder_env_list,
+                project_secrets=request.project_secrets,
+            )
+        elif v3io_dir_to_mount:
+            base.mount_v3io_source(
+                request,
+                buildah_pod,
+                v3io_dir_to_mount,
+                mount_path=f"{_CONTEXT_DIR}/{base.FETCHED_SOURCE_SUBDIR}",
+            )
+
+        return buildah_pod
+
+    @staticmethod
+    def _route_source(
+        request: base.BuildRequest,
+    ) -> tuple[str | None, str | None, str | None]:
+        """Route the raw source descriptor to the Buildah build context.
+
+        Buildah has no native remote-context resolution, so - unlike Kaniko - every remote source
+        is either fetched or FUSE-mounted; none is ever passed through as a raw remote URI.
+
+        :param request: The build request carrying the raw ``source``.
+        :return: ``(source_to_copy, source_to_fetch, v3io_dir_to_mount)``. At most one of
+            ``source_to_fetch``/``v3io_dir_to_mount`` is set.
+        """
+        source = request.source
+        loads_source_on_run = bool(
+            request.runtime_spec and request.runtime_spec.build.load_source_on_run
+        )
+        if request.inline_code or loads_source_on_run or not source:
+            return None, None, None
+
+        if source.startswith("v3io://") or source.startswith("v3ios://"):
+            v3io_path = urlparse(source).path
+            v3io_dir_to_mount, basename = os.path.split(v3io_path)
+            v3io_dir_to_mount = os.path.normpath(v3io_dir_to_mount)
+            source_to_copy = f"./{base.FETCHED_SOURCE_SUBDIR}/{basename}"
+            return source_to_copy, None, v3io_dir_to_mount
+
+        if "://" in source:
+            # fail fast, before scheduling a pod, on a scheme `mlrun load-source` can't resolve
+            # (the fetch-source init container would otherwise fail only once it actually runs).
+            # git's own ref-fragment normalization happens inside `clone_git`, which
+            # ``load-source`` calls - the raw source is handed through unchanged.
+            if not mlrun.utils.clones.is_source_loadable(source):
+                scheme = urlparse(source).scheme
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"Source scheme '{scheme}://' is not supported by mlrun load-source. "
+                    "Provide a store:// URI, a git:// URL, a .zip/.tar.gz archive, or a bare "
+                    "s3:// / http(s):// file"
+                )
+            return f"./{base.FETCHED_SOURCE_SUBDIR}", source, None
+
+        # no scheme: local path, same edge-case semantics Kaniko has - assumed to be a valid path
+        # already inside the build image (e.g. baked into a custom base image); relative paths are
+        # not supported at build time.
+        if os.path.isabs(source):
+            return source, None, None
+
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"Load of relative source ({source}) is not supported at build time "
+            "see 'mlrun.runtimes.kubejob.KubejobRuntime.with_source_archive' or "
+            "'mlrun.projects.project.MlrunProject.set_source' for more details"
         )
 
 

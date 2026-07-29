@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from base64 import b64decode
-from urllib.parse import urlparse
 
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
@@ -162,10 +161,8 @@ def build_image(
 def resolve_builder_backend(request: BuildRequest) -> BuilderBackend:
     """Return the builder backend to use for a build request.
 
-    By default this is the engine named in ``httpdb.builder.builder_backend``. The whole
-    ``request`` is accepted so the choice can vary per build: when Buildah is configured but the
-    request needs a capability the Buildah adapter doesn't ship yet, this transparently falls back
-    to Kaniko (see :func:`_buildah_fallback_reason`).
+    The engine is the one named in ``httpdb.builder.builder_backend``. The whole ``request`` is
+    accepted for symmetry with the backends themselves, which each take the same ``BuildRequest``.
 
     :param request: The resolved build request.
     :return: The builder backend instance for this build.
@@ -184,20 +181,6 @@ def resolve_builder_backend(request: BuildRequest) -> BuilderBackend:
             f"Unsupported builder backend '{backend_name}'. "
             f"Supported backends: {', '.join(sorted(backends))}"
         )
-
-    # Buildah is opt-in and, as of ML-12886, handles Docker Hub / private / ECR / ACR / GAR registry
-    # auth directly. Fall back to Kaniko for the one input it still can't handle (a build source
-    # needing acquisition, ML-12887) so a buildah-configured cluster never emits a pod that can't
-    # build or push.
-    if backend_class is BuildahBackend:
-        fallback_reason = _buildah_fallback_reason(request)
-        if fallback_reason:
-            mlrun.utils.logger.info(
-                "Builder backend falling back to Kaniko for an unsupported build",
-                requested_backend=backend_name,
-                reason=fallback_reason,
-            )
-            return KanikoBackend()
 
     return backend_class()
 
@@ -341,33 +324,3 @@ def build_runtime(
     runtime.spec.image = local + build.image
     runtime.status.state = mlrun.common.schemas.FunctionState.ready
     return True
-
-
-def _buildah_fallback_reason(request: BuildRequest) -> str | None:
-    """Return why a Buildah build must fall back to Kaniko, or ``None`` if Buildah can handle it.
-
-    This guard is temporary — it exists only until its follow-up ships the missing capability, and
-    should be removed when that ticket merges. (Registry auth, the other historical guard here, is
-    handled directly by Buildah as of ML-12886 - see
-    :mod:`services.api.utils.builder.registry_auth` - so it no longer falls back.)
-
-    :param request: The resolved build request.
-    :return: A human-readable fallback reason, or ``None`` when Buildah can build the request.
-    """
-    # Source acquisition -> ML-12887. The adapter builds only the no-source-context case;
-    # fetching or mounting a source into the build context (local path, v3io, remote scheme) is
-    # added in ML-12887. inline_code and load_source_on_run don't stage a build-context source,
-    # so they stay on Buildah. Remove this guard when ML-12887 merges.
-    # Only the scheme is put in the reason - a source URI can embed credentials
-    # (e.g. https://<token>@github.com/...), which must never be logged.
-    loads_source_on_run = bool(
-        request.runtime_spec and request.runtime_spec.build.load_source_on_run
-    )
-    if request.source and not (request.inline_code or loads_source_on_run):
-        source_scheme = urlparse(request.source).scheme or "local"
-        return (
-            f"source (scheme '{source_scheme}') requires acquisition not yet supported "
-            "on Buildah (ML-12887)"
-        )
-
-    return None

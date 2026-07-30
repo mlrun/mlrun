@@ -623,6 +623,5 @@ class TestDaskRuntime(TestRuntimeBase):
             self._generate_security_context(
                 run_as_group=mlrun.mlconf.function.spec.security_context.enrichment_group_id,
                 run_as_user=user_unix_id,
-                run_as_non_root=True,
             )
         )

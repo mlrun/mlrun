@@ -310,12 +310,10 @@ class TestRuntimeBase(services.api.tests.unit.conftest.MockedK8sHelper):
         self,
         run_as_user: int | None = None,
         run_as_group: int | None = None,
-        run_as_non_root: bool | None = None,
     ) -> k8s_client.V1SecurityContext:
         return k8s_client.V1SecurityContext(
             run_as_user=run_as_user,
             run_as_group=run_as_group,
-            run_as_non_root=run_as_non_root,
         )
 
     def _mock_create_namespaced_pod(self):

@@ -859,7 +859,7 @@ def ensure_function_security_context(
     For iguazio we enforce that pods run with user id and group id depending on
     mlrun.mlconf.function.spec.security_context.enrichment_mode
     and mlrun.mlconf.function.spec.security_context.enrichment_group_id, and run as non-root
-    per mlrun.mlconf.function.spec.security_context.default's "runAsNonRoot" value (True if unset)
+    per mlrun.mlconf.function.spec.security_context.default's "runAsNonRoot" value
     """
 
     # if security context is not required.
@@ -934,10 +934,8 @@ def ensure_function_security_context(
         )
         # runAsNonRoot is a policy choice, not a per-user identity value like uid/gid above, so
         # it's sourced from the platform-wide default security context rather than hardcoded here.
-        # Defaults to True when unset, so enrichment enforces non-root even if the default context
-        # doesn't mention it at all (e.g. mlrun's own shipped default is an empty dict).
         run_as_non_root = mlrun.mlconf.get_default_function_security_context().get(
-            "runAsNonRoot", True
+            "runAsNonRoot"
         )
         logger.debug(
             "Enriching/overriding security context",

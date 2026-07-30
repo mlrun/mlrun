@@ -856,9 +856,10 @@ def ensure_function_security_context(
     function, auth_info: mlrun.common.schemas.AuthInfo
 ):
     """
-    For iguazio we enforce that pods run as non-root, with user id and group id depending on
+    For iguazio we enforce that pods run with user id and group id depending on
     mlrun.mlconf.function.spec.security_context.enrichment_mode
-    and mlrun.mlconf.function.spec.security_context.enrichment_group_id
+    and mlrun.mlconf.function.spec.security_context.enrichment_group_id, and run as non-root
+    per mlrun.mlconf.function.spec.security_context.default's "runAsNonRoot" value (True if unset)
     """
 
     # if security context is not required.
@@ -931,17 +932,25 @@ def ensure_function_security_context(
         enriched_group_id = mlrun.mlconf.get_security_context_enrichment_group_id(
             auth_info.user_unix_id
         )
+        # runAsNonRoot is a policy choice, not a per-user identity value like uid/gid above, so
+        # it's sourced from the platform-wide default security context rather than hardcoded here.
+        # Defaults to True when unset, so enrichment enforces non-root even if the default context
+        # doesn't mention it at all (e.g. mlrun's own shipped default is an empty dict).
+        run_as_non_root = mlrun.mlconf.get_default_function_security_context().get(
+            "runAsNonRoot", True
+        )
         logger.debug(
             "Enriching/overriding security context",
             mode=mlrun.mlconf.function.spec.security_context.enrichment_mode,
             function_name=function.metadata.name,
             enriched_group_id=enriched_group_id,
             user_unix_id=auth_info.user_unix_id,
+            run_as_non_root=run_as_non_root,
         )
         function.spec.security_context = kubernetes.client.V1SecurityContext(
             run_as_user=auth_info.user_unix_id,
             run_as_group=enriched_group_id,
-            run_as_non_root=True,
+            run_as_non_root=run_as_non_root,
         )
 
     else:

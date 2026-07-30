@@ -30,6 +30,7 @@ import framework.middlewares
 import framework.middlewares.base
 import framework.middlewares.rest_metrics
 import framework.utils.telemetry.rest_metrics
+import framework.utils.telemetry.rest_records
 import services.api.main
 
 
@@ -442,48 +443,6 @@ def test_rest_metrics_middleware_skips_item_count_for_get_calls() -> None:
     mocks["record_duration"].assert_called_once()
 
 
-def test_rest_metrics_middleware_skips_all_recording_when_not_sampled(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(
-        framework.utils.telemetry.rest_metrics, "should_sample", lambda **_: False
-    )
-
-    async def downstream_app(scope, receive, send):
-        await send({"type": "http.response.start", "status": 200, "headers": []})
-        await send({"type": "http.response.body", "body": b"ok"})
-
-    with _patch_all_record_fns() as mocks:
-        asyncio.run(_run_middleware(downstream_app, _http_scope()))
-
-    mocks["record_duration"].assert_not_called()
-    mocks["record_request_size"].assert_not_called()
-    mocks["record_response_size"].assert_not_called()
-    mocks["record_items_returned"].assert_not_called()
-
-
-def test_rest_metrics_middleware_passes_sampling_inputs() -> None:
-    """should_sample is evaluated exactly once per call, from the complete
-    picture (final chunk) — so a call is kept or dropped for every instrument
-    together, never a mix.
-    """
-
-    async def downstream_app(scope, receive, send):
-        await send({"type": "http.response.start", "status": 404, "headers": []})
-        await send({"type": "http.response.body", "body": b"x" * 2048})
-
-    with unittest.mock.patch.object(
-        framework.utils.telemetry.rest_metrics, "should_sample", return_value=True
-    ) as should_sample:
-        asyncio.run(_run_middleware(downstream_app, _http_scope()))
-
-    should_sample.assert_called_once()
-    kwargs = should_sample.call_args.kwargs
-    assert kwargs["status_code"] == 404
-    assert kwargs["response_size_kib"] == pytest.approx(2048 / 1024)
-    assert kwargs["elapsed_seconds"] >= 0
-
-
 def test_rest_metrics_middleware_swallows_recording_errors() -> None:
     async def downstream_app(scope, receive, send):
         await send({"type": "http.response.start", "status": 200, "headers": []})
@@ -506,21 +465,34 @@ def test_service_lifecycle_wires_rest_metrics_init_and_shutdown(
     """The shared service startup/teardown must call the telemetry lifecycle hooks.
 
     Guards the wiring in framework.service._setup_service / _teardown_service so
-    the histogram provider is stood up (and flushed) on every replica.
+    both the histogram provider and the log-records provider are stood up (and
+    flushed) on every replica.
     """
     mlrun.mlconf.telemetry.enabled = True
     mlrun.mlconf.telemetry.rest_metrics.enabled = True
     mlrun.mlconf.telemetry.otlp_endpoint = "http://otel-collector:4317"
 
-    init_mock = unittest.mock.MagicMock()
-    shutdown_mock = unittest.mock.MagicMock()
-    monkeypatch.setattr(framework.utils.telemetry.rest_metrics, "init", init_mock)
+    metrics_init_mock = unittest.mock.MagicMock()
+    metrics_shutdown_mock = unittest.mock.MagicMock()
+    records_init_mock = unittest.mock.MagicMock()
+    records_shutdown_mock = unittest.mock.MagicMock()
     monkeypatch.setattr(
-        framework.utils.telemetry.rest_metrics, "shutdown", shutdown_mock
+        framework.utils.telemetry.rest_metrics, "init", metrics_init_mock
+    )
+    monkeypatch.setattr(
+        framework.utils.telemetry.rest_metrics, "shutdown", metrics_shutdown_mock
+    )
+    monkeypatch.setattr(
+        framework.utils.telemetry.rest_records, "init", records_init_mock
+    )
+    monkeypatch.setattr(
+        framework.utils.telemetry.rest_records, "shutdown", records_shutdown_mock
     )
 
     with fastapi.testclient.TestClient(app):
         pass
 
-    init_mock.assert_called()
-    shutdown_mock.assert_called()
+    metrics_init_mock.assert_called()
+    metrics_shutdown_mock.assert_called()
+    records_init_mock.assert_called()
+    records_shutdown_mock.assert_called()

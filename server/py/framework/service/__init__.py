@@ -41,6 +41,7 @@ import framework.utils.pagination
 import framework.utils.periodic
 import framework.utils.singletons.db
 import framework.utils.telemetry.rest_metrics
+import framework.utils.telemetry.rest_records
 
 
 class Service(ABC):
@@ -211,9 +212,6 @@ class Service(ABC):
             and mlrun.mlconf.telemetry.otlp_endpoint
         )
 
-    def _rest_metrics_emit_sample_rate_gauge(self) -> bool:
-        return False
-
     async def _setup_service(self):
         """
         This method is called when the service is starting up.
@@ -240,7 +238,9 @@ class Service(ABC):
         if self._rest_metrics_configured():
             framework.utils.telemetry.rest_metrics.init(
                 service_name=self.service_name,
-                emit_sample_rate_gauge=self._rest_metrics_emit_sample_rate_gauge(),
+            )
+            framework.utils.telemetry.rest_records.init(
+                service_name=self.service_name,
             )
 
         await self._custom_setup_service()
@@ -277,6 +277,9 @@ class Service(ABC):
         if self._rest_metrics_configured():
             await mlrun.utils.run_in_threadpool(
                 framework.utils.telemetry.rest_metrics.shutdown
+            )
+            await mlrun.utils.run_in_threadpool(
+                framework.utils.telemetry.rest_records.shutdown
             )
 
     async def _custom_teardown_service(self):

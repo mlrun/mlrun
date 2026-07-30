@@ -28,6 +28,7 @@ import mlrun.errors
 import mlrun.utils
 
 import framework.utils.telemetry.rest_metrics
+import framework.utils.telemetry.rest_records
 from .base import BaseHTTPMiddleware, is_response_start
 
 # Noise endpoints excluded from metrics (mirrors RequestLoggerMiddleware). K8s
@@ -134,17 +135,11 @@ def parse_item_count(body: bytes) -> int | None:
 
 class RestMetricsMiddleware(BaseHTTPMiddleware):
     """
-    Measures how long each REST call took to process, its request/response
-    body sizes, and (for list calls) how many objects it returned, then
-    records them to the OpenTelemetry instruments in
-    ``framework.utils.telemetry.rest_metrics``.
-
-    Everything is recorded together at the final ``http.response.body``
-    message, once every value is available — request/response size, item
-    count, and duration (covering the full time to deliver the response, not
-    just time-to-first-byte). ``should_sample`` is evaluated exactly once per
-    call, from that single, complete picture, so a call is either kept for
-    every instrument or dropped for every instrument — never a mix.
+    Records per-REST-call OTel signals: histogram metrics (always) and
+    log records (sampled). Both are recorded at the final
+    ``http.response.body`` message, once every value is available —
+    request/response size, item count, and duration covering the full
+    time to deliver the response.
     """
 
     async def _handle_http(
@@ -155,6 +150,17 @@ class RestMetricsMiddleware(BaseHTTPMiddleware):
         should_record = not any(
             substring in path for substring in _SILENT_PATH_SUBSTRINGS
         )
+
+        query_string = scope.get("query_string", b"").decode("utf-8", errors="replace")
+        _headers = {
+            k.decode("latin-1"): v.decode("latin-1")
+            for k, v in scope.get("headers", [])
+        }
+        _fwd = _headers.get("x-forwarded-for", "")
+        client_ip = (
+            _fwd.split(",")[0].strip() if _fwd else (scope.get("client") or ("",))[0]
+        )
+        request_id = _headers.get("x-request-id", "")
 
         request_size_bytes = 0
 
@@ -192,12 +198,44 @@ class RestMetricsMiddleware(BaseHTTPMiddleware):
                 if message.get("more_body", False):
                     # Streamed body still in flight — nothing to record yet.
                     return
+                duration_ms = self._elapsed_time_ms(start_time)
+                method = response_state["method"]
+                item_count = (
+                    parse_item_count(bytes(response_state["response_body"]))
+                    if method == _LIST_METHOD
+                    else None
+                )
                 self._record_call(
                     path=path,
-                    duration_ms=self._elapsed_time_ms(start_time),
+                    duration_ms=duration_ms,
                     request_size_bytes=request_size_bytes,
                     response_state=response_state,
+                    item_count=item_count,
                 )
+                status_code = response_state["status_code"]
+                response_size_kib = (
+                    response_state["response_size_bytes"] / _BYTES_PER_KIBIBYTE
+                )
+                if framework.utils.telemetry.rest_records.should_sample_record(
+                    status_code=status_code,
+                    elapsed_seconds=duration_ms / 1000,
+                    response_size_kib=response_size_kib,
+                ):
+                    resource, project = parse_resource_and_project(path)
+                    framework.utils.telemetry.rest_records.emit_record(
+                        path=path,
+                        query_string=query_string,
+                        method=method,
+                        status_code=status_code,
+                        duration_ms=duration_ms,
+                        request_size_bytes=request_size_bytes,
+                        response_size_bytes=response_state["response_size_bytes"],
+                        resource=resource,
+                        project=project,
+                        client_ip=client_ip,
+                        request_id=request_id,
+                        item_count=item_count,
+                    )
             except Exception as exc:
                 mlrun.utils.logger.warning(
                     "REST metrics recording failed",
@@ -214,20 +252,14 @@ class RestMetricsMiddleware(BaseHTTPMiddleware):
         duration_ms: float,
         request_size_bytes: int,
         response_state: dict,
+        item_count: int | None,
     ) -> None:
-        """Decide whether to sample, then record every instrument for one call."""
+        """Record all metric instruments for one completed call."""
         resource, project = parse_resource_and_project(path)
         status_code = response_state["status_code"]
         method = response_state["method"]
         request_size_kib = request_size_bytes / _BYTES_PER_KIBIBYTE
         response_size_kib = response_state["response_size_bytes"] / _BYTES_PER_KIBIBYTE
-
-        if not framework.utils.telemetry.rest_metrics.should_sample(
-            status_code=status_code,
-            elapsed_seconds=duration_ms / 1000,
-            response_size_kib=response_size_kib,
-        ):
-            return
 
         framework.utils.telemetry.rest_metrics.record_duration(
             duration_ms=duration_ms,
@@ -250,12 +282,10 @@ class RestMetricsMiddleware(BaseHTTPMiddleware):
             resource=resource,
             project=project,
         )
-        if method == _LIST_METHOD:
-            item_count = parse_item_count(bytes(response_state["response_body"]))
-            if item_count is not None:
-                framework.utils.telemetry.rest_metrics.record_items_returned(
-                    item_count=item_count,
-                    status_code=status_code,
-                    resource=resource,
-                    project=project,
-                )
+        if item_count is not None:
+            framework.utils.telemetry.rest_metrics.record_items_returned(
+                item_count=item_count,
+                status_code=status_code,
+                resource=resource,
+                project=project,
+            )

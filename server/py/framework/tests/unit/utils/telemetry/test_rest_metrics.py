@@ -27,7 +27,6 @@ _ALL_INSTRUMENT_ATTRS = (
     "_request_size_histogram",
     "_response_size_histogram",
     "_items_returned_histogram",
-    "_sample_rate_gauge",
 )
 
 
@@ -74,19 +73,6 @@ def test_init_registers_all_instruments_when_enabled(
         assert getattr(telemetry_rest_metrics, attr) is not None
 
 
-def test_init_skips_sample_rate_gauge_when_disabled(
-    reset_state: None, telemetry_enabled: None
-) -> None:
-    telemetry_rest_metrics.init(service_name="api", emit_sample_rate_gauge=False)
-
-    assert telemetry_rest_metrics.is_enabled() is True
-    assert telemetry_rest_metrics._sample_rate_gauge is None
-    for attr in _ALL_INSTRUMENT_ATTRS:
-        if attr == "_sample_rate_gauge":
-            continue
-        assert getattr(telemetry_rest_metrics, attr) is not None
-
-
 def test_init_is_idempotent(
     reset_state: None, telemetry_enabled: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -123,116 +109,6 @@ def test_shutdown_clears_module_state(reset_state: None) -> None:
     assert telemetry_rest_metrics._meter is None
     for attr in _ALL_INSTRUMENT_ATTRS:
         assert getattr(telemetry_rest_metrics, attr) is None
-
-
-def test_sample_rate_callback_reports_live_config(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(mlrun.mlconf.telemetry.rest_metrics, "sample_rate", 0.25)
-    monkeypatch.setattr(mlrun.mlconf, "system_id", "abc123")
-
-    (observation,) = list(
-        telemetry_rest_metrics._sample_rate_callback(unittest.mock.MagicMock())
-    )
-
-    assert observation.value == 0.25
-    assert observation.attributes == {"system_id": "abc123"}
-
-
-class TestShouldSample:
-    @pytest.fixture(autouse=True)
-    def _configure_thresholds(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setattr(mlrun.mlconf.telemetry.rest_metrics, "sample_rate", 1.0)
-        monkeypatch.setattr(telemetry_rest_metrics, "_SLOW_THRESHOLD_SECONDS", 10)
-        monkeypatch.setattr(telemetry_rest_metrics, "_LARGE_RESPONSE_KIB", 100)
-
-    def test_full_sample_rate_always_keeps_routine_calls(self) -> None:
-        assert (
-            telemetry_rest_metrics.should_sample(
-                status_code=200, elapsed_seconds=0.1, response_size_kib=1
-            )
-            is True
-        )
-
-    def test_zero_sample_rate_drops_routine_calls(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        monkeypatch.setattr(mlrun.mlconf.telemetry.rest_metrics, "sample_rate", 0.0)
-
-        assert (
-            telemetry_rest_metrics.should_sample(
-                status_code=200, elapsed_seconds=0.1, response_size_kib=1
-            )
-            is False
-        )
-
-    def test_zero_sample_rate_still_keeps_failed_calls(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        monkeypatch.setattr(mlrun.mlconf.telemetry.rest_metrics, "sample_rate", 0.0)
-
-        assert (
-            telemetry_rest_metrics.should_sample(
-                status_code=500, elapsed_seconds=0.1, response_size_kib=1
-            )
-            is True
-        )
-
-    def test_zero_sample_rate_still_keeps_slow_calls(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        monkeypatch.setattr(mlrun.mlconf.telemetry.rest_metrics, "sample_rate", 0.0)
-
-        assert (
-            telemetry_rest_metrics.should_sample(
-                status_code=200, elapsed_seconds=11, response_size_kib=1
-            )
-            is True
-        )
-
-    def test_zero_sample_rate_still_keeps_large_calls(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        monkeypatch.setattr(mlrun.mlconf.telemetry.rest_metrics, "sample_rate", 0.0)
-
-        assert (
-            telemetry_rest_metrics.should_sample(
-                status_code=200, elapsed_seconds=0.1, response_size_kib=101
-            )
-            is True
-        )
-
-    def test_redirect_status_codes_are_treated_as_failed(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        monkeypatch.setattr(mlrun.mlconf.telemetry.rest_metrics, "sample_rate", 0.0)
-
-        assert (
-            telemetry_rest_metrics.should_sample(
-                status_code=302, elapsed_seconds=0.1, response_size_kib=1
-            )
-            is True
-        )
-
-    def test_sample_rate_respects_random_draw(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        monkeypatch.setattr(mlrun.mlconf.telemetry.rest_metrics, "sample_rate", 0.5)
-        monkeypatch.setattr(telemetry_rest_metrics.random, "random", lambda: 0.4)
-        assert (
-            telemetry_rest_metrics.should_sample(
-                status_code=200, elapsed_seconds=0.1, response_size_kib=1
-            )
-            is True
-        )
-
-        monkeypatch.setattr(telemetry_rest_metrics.random, "random", lambda: 0.6)
-        assert (
-            telemetry_rest_metrics.should_sample(
-                status_code=200, elapsed_seconds=0.1, response_size_kib=1
-            )
-            is False
-        )
 
 
 def test_record_duration_noop_when_uninitialized(reset_state: None) -> None:

@@ -1026,9 +1026,10 @@ default_config = {
         # Default true so that enabling telemetry (the master switch) is sufficient.
         "rest_metrics": {
             "enabled": True,
-            # Probability that a routine call's metrics are emitted. 1.0 = no sampling.
+            # Probability that a routine call's log record is emitted. 1.0 = no sampling.
             # Failed/slow/large calls are always emitted regardless of this rate (see
-            # the non-configurable thresholds in framework.utils.telemetry.rest_metrics).
+            # the non-configurable thresholds in framework.utils.telemetry.rest_records).
+            # Does NOT affect histogram metrics — those are always-on.
             "sample_rate": 1.0,
         },
     },

@@ -263,7 +263,7 @@ class Service(ABC):
         # added first, so it ends up innermost (closest to the router) once the stack is built,
         # normalizing the request right before FastAPI's body parsing.
         self.app.add_middleware(
-            framework.middlewares.EnsureJsonContentTypeMiddleware,
+            framework.middlewares.EnsureJSONContentTypeMiddleware,
         )
         self.app.add_middleware(
             framework.middlewares.EnsureBackendVersionMiddleware,

@@ -13,38 +13,38 @@
 # limitations under the License.
 
 from starlette.datastructures import MutableHeaders
-from uvicorn._types import (
-    ASGI3Application,
-    ASGIReceiveCallable,
-    ASGISendCallable,
-    Scope,
-)
+from starlette.types import ASGIApp, Receive, Scope, Send
+
+_BODY_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 
 
-class EnsureJsonContentTypeMiddleware:
-    def __init__(
-        self,
-        app: "ASGI3Application",
-    ) -> None:
+class EnsureJSONContentTypeMiddleware:
+    app: ASGIApp
+
+    def __init__(self, app: ASGIApp) -> None:
         self.app = app
 
-    async def __call__(
-        self, scope: "Scope", receive: "ASGIReceiveCallable", send: "ASGISendCallable"
-    ) -> None:
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         """
         FastAPI's strict_content_type option (default on since 0.128) only parses a request body as
-        JSON when Content-Type: application/json is set. Some clients send pre-serialized JSON bodies
-        without that header, which used to parse fine under lenient older FastAPI versions. Default a
-        missing Content-Type to application/json so those requests keep working — this intentionally
-        reverts strict_content_type's protection for back-compat; FastAPI <0.128 had no such
-        protection either, so this is parity, not a new hole. Requests that already declare a content
-        type (multipart/form uploads included, since those always carry their own boundary-bearing
-        Content-Type) are left untouched.
+        JSON when Content-Type: application/json is set. Some clients send pre-serialized JSON
+        bodies without that header, which used to parse fine under lenient older FastAPI versions.
+        Default a missing Content-Type to application/json for body-bearing requests so those keep
+        working — this intentionally reverts strict_content_type's protection for back-compat;
+        FastAPI <0.128 had no such protection either, so this is parity, not a new hole. Requests
+        with no body, or that already declare a content type (multipart/form uploads included),
+        are left untouched.
         """
-        if scope["type"] != "http":
-            return await self.app(scope, receive, send)
-
-        headers = MutableHeaders(scope=scope)
-        headers.setdefault("content-type", "application/json")
+        if scope["type"] == "http" and scope.get("method") in _BODY_METHODS:
+            headers = MutableHeaders(scope=scope)
+            if not headers.get("content-type") and _has_body(headers):
+                headers["content-type"] = "application/json"
 
         return await self.app(scope, receive, send)
+
+
+def _has_body(headers: MutableHeaders) -> bool:
+    return (
+        headers.get("content-length") not in (None, "", "0")
+        or "transfer-encoding" in headers
+    )

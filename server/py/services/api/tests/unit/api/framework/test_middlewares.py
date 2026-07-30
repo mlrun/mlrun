@@ -107,14 +107,29 @@ async def _run_ensure_json_content_type_middleware(scope: dict) -> dict:
     async def downstream_app(inner_scope, receive, send):
         downstream_scope.update(inner_scope)
 
-    middleware = framework.middlewares.EnsureJsonContentTypeMiddleware(downstream_app)
+    middleware = framework.middlewares.EnsureJSONContentTypeMiddleware(downstream_app)
     await middleware(scope, _noop_receive, _noop_send)
     return downstream_scope
 
 
-async def test_ensure_json_content_type_middleware_defaults_missing_header() -> None:
+def _http_scope(method: str, headers: list[tuple[bytes, bytes]]) -> dict:
+    return {"type": "http", "method": method, "headers": headers}
+
+
+async def test_ensure_json_content_type_middleware_defaults_missing_header_with_content_length() -> (
+    None
+):
     downstream_scope = await _run_ensure_json_content_type_middleware(
-        {"type": "http", "headers": []}
+        _http_scope("POST", [(b"content-length", b"13")])
+    )
+    assert dict(downstream_scope["headers"])[b"content-type"] == b"application/json"
+
+
+async def test_ensure_json_content_type_middleware_defaults_missing_header_with_chunked_transfer_encoding() -> (
+    None
+):
+    downstream_scope = await _run_ensure_json_content_type_middleware(
+        _http_scope("PUT", [(b"transfer-encoding", b"chunked")])
     )
     assert dict(downstream_scope["headers"])[b"content-type"] == b"application/json"
 
@@ -123,17 +138,34 @@ async def test_ensure_json_content_type_middleware_does_not_override_existing_co
     None
 ):
     downstream_scope = await _run_ensure_json_content_type_middleware(
-        {
-            "type": "http",
-            "headers": [
-                (b"content-type", b"multipart/form-data; boundary=some-boundary")
+        _http_scope(
+            "POST",
+            [
+                (b"content-length", b"13"),
+                (b"content-type", b"multipart/form-data; boundary=some-boundary"),
             ],
-        }
+        )
     )
     assert (
         dict(downstream_scope["headers"])[b"content-type"]
         == b"multipart/form-data; boundary=some-boundary"
     )
+
+
+async def test_ensure_json_content_type_middleware_skips_non_body_bearing_method() -> (
+    None
+):
+    downstream_scope = await _run_ensure_json_content_type_middleware(
+        _http_scope("GET", [(b"content-length", b"13")])
+    )
+    assert dict(downstream_scope["headers"]) == {b"content-length": b"13"}
+
+
+async def test_ensure_json_content_type_middleware_skips_bodyless_request() -> None:
+    downstream_scope = await _run_ensure_json_content_type_middleware(
+        _http_scope("POST", [(b"content-length", b"0")])
+    )
+    assert dict(downstream_scope["headers"]) == {b"content-length": b"0"}
 
 
 async def test_ensure_json_content_type_middleware_skips_non_http_scope() -> None:

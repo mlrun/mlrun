@@ -270,16 +270,16 @@ class ModelProvider(BaseRemoteClient):
                                                 Note: The usage dictionary may contain additional
                                                 keys depending on the model provider:
 
-                                    .. code-block:: json
+                                                .. code-block:: json
 
-                                        {
-                                            "answer": "<generated_text>",
-                                            "usage": {
-                                            "prompt_tokens": <int>,
-                                            "completion_tokens": <int>,
-                                            "total_tokens": <int>
-                                            }
-                                        }
+                                                    {
+                                                        "answer": "<generated_text>",
+                                                        "usage": {
+                                                        "prompt_tokens": <int>,
+                                                        "completion_tokens": <int>,
+                                                        "total_tokens": <int>
+                                                        }
+                                                    }
 
 
                                     - full:   Returns the full model output.
@@ -335,16 +335,16 @@ class ModelProvider(BaseRemoteClient):
                                                 Note: The usage dictionary may contain additional
                                                 keys depending on the model provider:
 
-                                    .. code-block:: json
+                                                .. code-block:: json
 
-                                        {
-                                            "answer": "<generated_text>",
-                                            "usage": {
-                                            "prompt_tokens": <int>,
-                                            "completion_tokens": <int>,
-                                            "total_tokens": <int>
-                                            }
-                                        }
+                                                    {
+                                                        "answer": "<generated_text>",
+                                                        "usage": {
+                                                        "prompt_tokens": <int>,
+                                                        "completion_tokens": <int>,
+                                                        "total_tokens": <int>
+                                                        }
+                                                    }
 
 
                                     - full:   Returns the full model output.

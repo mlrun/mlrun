@@ -74,6 +74,19 @@ def test_init_registers_all_instruments_when_enabled(
         assert getattr(telemetry_rest_metrics, attr) is not None
 
 
+def test_init_skips_sample_rate_gauge_when_disabled(
+    reset_state: None, telemetry_enabled: None
+) -> None:
+    telemetry_rest_metrics.init(service_name="api", emit_sample_rate_gauge=False)
+
+    assert telemetry_rest_metrics.is_enabled() is True
+    assert telemetry_rest_metrics._sample_rate_gauge is None
+    for attr in _ALL_INSTRUMENT_ATTRS:
+        if attr == "_sample_rate_gauge":
+            continue
+        assert getattr(telemetry_rest_metrics, attr) is not None
+
+
 def test_init_is_idempotent(
     reset_state: None, telemetry_enabled: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -93,6 +93,12 @@ class Service(framework.service.Service):
         ]
         self._retry_in_progress_run_uids: dict[str, datetime.datetime] = {}
 
+    def _rest_metrics_emit_sample_rate_gauge(self) -> bool:
+        return (
+            mlconf.httpdb.clusterization.role
+            == mlrun.common.schemas.ClusterizationRole.chief
+        )
+
     async def _move_service_to_online(self):
         # scheduler is needed on both workers and chief
         # on workers - it allows to us to list/get scheduler(s)

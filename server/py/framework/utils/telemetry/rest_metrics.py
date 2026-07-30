@@ -39,10 +39,13 @@ Grafana counts need a ``1 / sample_rate`` compensation factor whenever
 sampling is enabled.
 
 The configured ``sample_rate`` is also exported as its own gauge
-(``mlrun_rest_metrics_sample_rate_ratio``) so the compensation factor can be
-looked up in Grafana/PromQL instead of hard-coded from the current config. It's an
-``ObservableGauge`` rather than a plain ``Gauge``: the SDK itself re-invokes
-its callback on every export tick, so it keeps showing up in every
+(``mlrun_rest_metrics_sample_rate_ratio``) from the API chief only — one
+point per system per export tick. Workers and the alerts service share the
+same config value, so emitting identical ``{system_id: "X", value: 0.5}``
+series from every replica adds no information. Callers control this via the
+``emit_sample_rate_gauge`` argument to ``init()``. The gauge is
+an ``ObservableGauge`` rather than a plain ``Gauge``: the SDK itself
+re-invokes its callback on every export tick, so it keeps showing up in every
 collection for as long as the process runs, with no need to re-``set()`` it
 from request-handling code (a plain ``Gauge``'s last value is only exported
 once and then dropped until ``set()`` is called again — see
@@ -124,7 +127,7 @@ def is_enabled() -> bool:
     return _provider is not None
 
 
-def init(service_name: str) -> None:
+def init(service_name: str, *, emit_sample_rate_gauge: bool = True) -> None:
     """Wire up the REST-metrics MeterProvider and Histogram instrument.
 
     No-op when already initialized — a stray re-init (hot reload, double
@@ -134,8 +137,13 @@ def init(service_name: str) -> None:
     this module's own provider reference so it never clobbers the global
     provider that the chief-only inventory telemetry claims.
 
-    :param service_name: Bare service name (e.g. ``"api"``); ``"mlrun-"`` is
-                         prepended internally to form the OTel resource name.
+    :param service_name:          Bare service name (e.g. ``"api"``);
+                                  ``"mlrun-"`` is prepended internally to form
+                                  the OTel resource name.
+    :param emit_sample_rate_gauge: When ``False``, the sample-rate gauge is not
+                                   created. Pass ``False`` for every replica
+                                   that is not the API chief — one point per
+                                   system is enough.
     """
     global _provider, _meter
     global \
@@ -183,27 +191,28 @@ def init(service_name: str) -> None:
         unit="1",
         description="Number of objects returned by list REST calls.",
     )
-    _sample_rate_gauge = _meter.create_observable_gauge(
-        name=_SAMPLE_RATE_INSTRUMENT_NAME,
-        callbacks=[_sample_rate_callback],
-        unit="1",
-        description=(
-            "Configured REST-metrics sample rate, for compensating "
-            "count-based queries on the other instruments."
-        ),
-    )
-
+    instruments = [
+        _DURATION_INSTRUMENT_NAME,
+        _REQUEST_SIZE_INSTRUMENT_NAME,
+        _RESPONSE_SIZE_INSTRUMENT_NAME,
+        _ITEMS_RETURNED_INSTRUMENT_NAME,
+    ]
+    if emit_sample_rate_gauge:
+        _sample_rate_gauge = _meter.create_observable_gauge(
+            name=_SAMPLE_RATE_INSTRUMENT_NAME,
+            callbacks=[_sample_rate_callback],
+            unit="1",
+            description=(
+                "Configured REST-metrics sample rate, for compensating "
+                "count-based queries on the other instruments."
+            ),
+        )
+        instruments.append(_SAMPLE_RATE_INSTRUMENT_NAME)
     mlrun.utils.logger.info(
         "REST metrics telemetry instruments registered",
         service_name=service_name,
         otlp_endpoint=mlrun.mlconf.telemetry.otlp_endpoint,
-        instruments=[
-            _DURATION_INSTRUMENT_NAME,
-            _REQUEST_SIZE_INSTRUMENT_NAME,
-            _RESPONSE_SIZE_INSTRUMENT_NAME,
-            _ITEMS_RETURNED_INSTRUMENT_NAME,
-            _SAMPLE_RATE_INSTRUMENT_NAME,
-        ],
+        instruments=instruments,
     )
 
 

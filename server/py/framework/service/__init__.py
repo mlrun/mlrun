@@ -211,6 +211,9 @@ class Service(ABC):
             and mlrun.mlconf.telemetry.otlp_endpoint
         )
 
+    def _rest_metrics_emit_sample_rate_gauge(self) -> bool:
+        return False
+
     async def _setup_service(self):
         """
         This method is called when the service is starting up.
@@ -235,9 +238,10 @@ class Service(ABC):
         await mlrun.utils.run_in_threadpool(framework.utils.singletons.db.initialize_db)
 
         if self._rest_metrics_configured():
-            # Per-REST-call metrics run on every replica (chief + workers + alerts),
-            # so init lives in the shared setup path (no-op when telemetry is off).
-            framework.utils.telemetry.rest_metrics.init(service_name=self.service_name)
+            framework.utils.telemetry.rest_metrics.init(
+                service_name=self.service_name,
+                emit_sample_rate_gauge=self._rest_metrics_emit_sample_rate_gauge(),
+            )
 
         await self._custom_setup_service()
 

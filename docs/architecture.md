@@ -43,7 +43,7 @@ When one of the components detailed above is updated, it immediately impacts the
 
 By default, MLRun assigns the root user to MLRun runtimes and pods. You can improve the security context by changing the security mode, which is implemented by Iguazio during installation, and applied system-wide:
 
-- **Override**: Use the user id of the user that triggered the current run or use the nogroupid for group id. Requires Iguazio v3.5.1 and higher.
+- **Override**: Use the user id of the user that triggered the current run (running as non-root) and use the nogroupid for group id. Requires Iguazio v3.5.1 and higher.
 - **Disabled**: Security context is not auto applied (the system applies the root user). (default)
 
 See also {ref}`images-usage`.

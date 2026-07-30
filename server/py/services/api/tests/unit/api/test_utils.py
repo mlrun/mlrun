@@ -1150,6 +1150,7 @@ def test_ensure_function_security_context_override_enrichment_mode(
         run_as_group=int(
             mlrun.mlconf.function.spec.security_context.enrichment_group_id
         ),
+        run_as_non_root=True,
     )
     assert (
         DeepDiff(
@@ -1183,6 +1184,7 @@ def test_ensure_function_security_context_enrichment_group_id(
     original_function.spec.security_context = kubernetes.client.V1SecurityContext(
         run_as_user=auth_info.user_unix_id,
         run_as_group=group_id,
+        run_as_non_root=True,
     )
 
     function = mlrun.new_function(runtime=original_function_dict)
@@ -1204,6 +1206,7 @@ def test_ensure_function_security_context_enrichment_group_id(
     original_function.spec.security_context = kubernetes.client.V1SecurityContext(
         run_as_user=auth_info.user_unix_id,
         run_as_group=auth_info.user_unix_id,
+        run_as_non_root=True,
     )
 
     function = mlrun.new_function(runtime=original_function_dict)
@@ -1308,6 +1311,7 @@ def test_ensure_function_security_context_get_user_unix_id(
     original_function.spec.security_context = kubernetes.client.V1SecurityContext(
         run_as_user=user_unix_id,
         run_as_group=mlrun.mlconf.function.spec.security_context.enrichment_group_id,
+        run_as_non_root=True,
     )
 
     function = mlrun.new_function(runtime=original_function_dict)

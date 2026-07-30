@@ -856,7 +856,7 @@ def ensure_function_security_context(
     function, auth_info: mlrun.common.schemas.AuthInfo
 ):
     """
-    For iguazio we enforce that pods run with user id and group id depending on
+    For iguazio we enforce that pods run as non-root, with user id and group id depending on
     mlrun.mlconf.function.spec.security_context.enrichment_mode
     and mlrun.mlconf.function.spec.security_context.enrichment_group_id
     """
@@ -941,6 +941,7 @@ def ensure_function_security_context(
         function.spec.security_context = kubernetes.client.V1SecurityContext(
             run_as_user=auth_info.user_unix_id,
             run_as_group=enriched_group_id,
+            run_as_non_root=True,
         )
 
     else:

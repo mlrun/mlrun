@@ -262,25 +262,25 @@ class ModelProvider(BaseRemoteClient):
         :param invoke_response_format:   Determines how the model response is returned:
 
                                     - string:   Returns only the generated text content from the model output,
-                                                for single-answer responses only.
+                                      for single-answer responses only.
 
                                     - usage:    Combines the STRING response with additional metadata (token usage),
-                                                and returns the result in a dictionary.
+                                      and returns the result in a dictionary.
 
                                                 Note: The usage dictionary may contain additional
                                                 keys depending on the model provider:
 
                                     .. code-block:: json
 
-                                    {
-                                        "answer": "<generated_text>",
-                                        "usage": {
-                                        "prompt_tokens": <int>,
-                                        "completion_tokens": <int>,
-                                        "total_tokens": <int>
+                                        {
+                                            "answer": "<generated_text>",
+                                            "usage": {
+                                            "prompt_tokens": <int>,
+                                            "completion_tokens": <int>,
+                                            "total_tokens": <int>
+                                            }
                                         }
 
-                                    }
 
                                     - full:   Returns the full model output.
 
@@ -324,35 +324,34 @@ class ModelProvider(BaseRemoteClient):
                                     This format is consistent across all backends. Defaults to None if no messages
                                     are provided.
 
-        :param invoke_response_format:   Determines how the model response is returned:
+        :param invoke_response_format:  Determines how the model response is returned:
 
                                     - string:   Returns only the generated text content from the model output,
-                                                for single-answer responses only.
+                                      for single-answer responses only.
 
                                     - usage:    Combines the STRING response with additional metadata (token usage),
-                                                and returns the result in a dictionary.
+                                      and returns the result in a dictionary.
 
                                                 Note: The usage dictionary may contain additional
                                                 keys depending on the model provider:
 
                                     .. code-block:: json
 
-                                    {
-                                        "answer": "<generated_text>",
-                                        "usage": {
-                                        "prompt_tokens": <int>,
-                                        "completion_tokens": <int>,
-                                        "total_tokens": <int>
+                                        {
+                                            "answer": "<generated_text>",
+                                            "usage": {
+                                            "prompt_tokens": <int>,
+                                            "completion_tokens": <int>,
+                                            "total_tokens": <int>
+                                            }
                                         }
 
-                                    }
 
                                     - full:   Returns the full model output.
 
-        :param invoke_kwargs:
-                                    Additional keyword arguments to be passed to the underlying model API call.
-                                    These can include parameters such as temperature, max tokens, etc.,
-                                    depending on the capabilities of the specific backend being used.
+        :param invoke_kwargs: Additional keyword arguments to be passed to the underlying model API call.
+                              These can include parameters such as temperature, max tokens, etc.,
+                              depending on the capabilities of the specific backend being used.
 
         :return:                    The invoke result formatted according to the specified
                                     invoke_response_format parameter.

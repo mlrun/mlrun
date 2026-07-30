@@ -3,6 +3,10 @@
 
 Large Language Models (LLMs) address the significant challenge posed by unstructured data, such as text, images, and audio files, making it possible to extract valuable insights or information from very large quantities of data.
 
+**In this section**
+- [The challenge of unstructured data](#the-challenge-of-unstructured-data)
+- [Real world example: call center analytics](#real-world-example-call-center-analytics)
+
 ## The challenge of unstructured data
 
 Unstructured data is the opposite of structured data, which has a predefined format or schema. Text documents, social media posts, emails, and even audio and video recordings are all examples of unstructured data. Processing this type of data can be time-consuming and labor-intensive, often requiring human intervention to extract meaningful information.
@@ -31,7 +35,7 @@ An incredibly powerful way to leverage LLMs is to transform unstructured data in
 
 A great example of using LLMs to process unstructured data is the [MLRun Call Center Demo](https://github.com/mlrun/demo-call-center). It is based on a real use case with a banking client where audio recordings between call center agents and customers are analyzed into structured data which can be visualized in a dashboard and used in other downstream applications.
 
-![](_static/call-center-workflow.png)
+<img src="_static/call-center-workflow.png" width="900">
 
 ### Call analysis workflow
 The call analysis workflow includes multiple steps for which all of the main functions are imported from the **[MLRun Function hub](https://www.mlrun.org/hub/)**. You can see each hub function's docstring, code, and example, by clicking the function name in the following list:
@@ -102,6 +106,9 @@ workflow_run = project.run(
     timeout=60 * 120,
 )
 ```
-![](_static/call-center-workflow-graph.png)
+
+<img src="_static/call-center-workflow-graph.png" width="800">
+
+</br>
 
 For more information and full source code, see the [MLRun Call Center Demo](https://github.com/mlrun/demo-call-center).

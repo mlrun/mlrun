@@ -270,7 +270,7 @@ class ModelProvider(BaseRemoteClient):
                                                 Note: The usage dictionary may contain additional
                                                 keys depending on the model provider:
 
-                                                .. code-block:: json
+                                                .. code-block:: none
 
                                                     {
                                                         "answer": "<generated_text>",
@@ -335,7 +335,7 @@ class ModelProvider(BaseRemoteClient):
                                                 Note: The usage dictionary may contain additional
                                                 keys depending on the model provider:
 
-                                                .. code-block:: json
+                                                .. code-block:: none
 
                                                     {
                                                         "answer": "<generated_text>",

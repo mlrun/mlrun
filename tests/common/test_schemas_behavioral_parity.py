@@ -227,17 +227,13 @@ def test_accept_case_round_trips_both_directions(case_id, v1_model, v2_model, pa
 def test_reject_case_matches_error_loci(
     case_id, v1_model, v2_model, payload, expected_loci
 ):
-    try:
+    with pytest.raises(v1.ValidationError) as v1_exc_info:
         v1_model.parse_obj(payload)
-        pytest.fail(f"{case_id}: _v1 accepted a reject-verdict input")
-    except v1.ValidationError as exc:
-        v1_loci = _error_loci(exc)
-
-    try:
+    with pytest.raises(v2.ValidationError) as v2_exc_info:
         v2_model.model_validate(payload)
-        pytest.fail(f"{case_id}: _v2 accepted a reject-verdict input")
-    except v2.ValidationError as exc:
-        v2_loci = _error_loci(exc)
+
+    v1_loci = _error_loci(v1_exc_info.value)
+    v2_loci = _error_loci(v2_exc_info.value)
 
     assert v1_loci == expected_loci, (
         f"{case_id}: _v1 error loci {v1_loci} != expected {expected_loci}"

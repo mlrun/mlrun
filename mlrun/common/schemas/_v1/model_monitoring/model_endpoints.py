@@ -16,8 +16,7 @@ from datetime import datetime
 from typing import Any, Literal, TypeVar
 from uuid import UUID
 
-from pydantic import validator  # use `validator` if you’re still on Pydantic v1
-from pydantic.v1 import BaseModel, Field, constr
+from pydantic.v1 import BaseModel, Field, constr, validator
 
 from ..._shared.model_monitoring.constants import (
     FQN_REGEX,

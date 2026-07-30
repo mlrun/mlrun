@@ -12,14 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import unittest.mock
+import uuid
+from http import HTTPStatus
 
 import fastapi.testclient
 import pytest
 import sqlalchemy.orm
 
+import mlrun.common.schemas
 import mlrun.common.schemas.constants
 import mlrun.utils.version
+
+import framework.middlewares
 
 
 @pytest.mark.parametrize(
@@ -85,3 +91,99 @@ def test_ensure_be_version_middleware(
         response.headers[mlrun.common.schemas.constants.HeaderNames.backend_version]
         == "dummy-version"
     )
+
+
+async def _noop_receive():
+    return {"type": "http.disconnect"}
+
+
+async def _noop_send(message):
+    pass
+
+
+async def _run_ensure_json_content_type_middleware(scope: dict) -> dict:
+    downstream_scope = {}
+
+    async def downstream_app(inner_scope, receive, send):
+        downstream_scope.update(inner_scope)
+
+    middleware = framework.middlewares.EnsureJSONContentTypeMiddleware(downstream_app)
+    await middleware(scope, _noop_receive, _noop_send)
+    return downstream_scope
+
+
+def _http_scope(method: str, headers: list[tuple[bytes, bytes]]) -> dict:
+    return {"type": "http", "method": method, "headers": headers}
+
+
+async def test_ensure_json_content_type_middleware_defaults_missing_header_with_content_length() -> (
+    None
+):
+    downstream_scope = await _run_ensure_json_content_type_middleware(
+        _http_scope("POST", [(b"content-length", b"13")])
+    )
+    assert dict(downstream_scope["headers"])[b"content-type"] == b"application/json"
+
+
+async def test_ensure_json_content_type_middleware_defaults_missing_header_with_chunked_transfer_encoding() -> (
+    None
+):
+    downstream_scope = await _run_ensure_json_content_type_middleware(
+        _http_scope("PUT", [(b"transfer-encoding", b"chunked")])
+    )
+    assert dict(downstream_scope["headers"])[b"content-type"] == b"application/json"
+
+
+async def test_ensure_json_content_type_middleware_does_not_override_existing_content_type() -> (
+    None
+):
+    downstream_scope = await _run_ensure_json_content_type_middleware(
+        _http_scope(
+            "POST",
+            [
+                (b"content-length", b"13"),
+                (b"content-type", b"multipart/form-data; boundary=some-boundary"),
+            ],
+        )
+    )
+    assert (
+        dict(downstream_scope["headers"])[b"content-type"]
+        == b"multipart/form-data; boundary=some-boundary"
+    )
+
+
+async def test_ensure_json_content_type_middleware_skips_non_body_bearing_method() -> (
+    None
+):
+    downstream_scope = await _run_ensure_json_content_type_middleware(
+        _http_scope("GET", [(b"content-length", b"13")])
+    )
+    assert dict(downstream_scope["headers"]) == {b"content-length": b"13"}
+
+
+async def test_ensure_json_content_type_middleware_skips_bodyless_request() -> None:
+    downstream_scope = await _run_ensure_json_content_type_middleware(
+        _http_scope("POST", [(b"content-length", b"0")])
+    )
+    assert dict(downstream_scope["headers"]) == {b"content-length": b"0"}
+
+
+async def test_ensure_json_content_type_middleware_skips_non_http_scope() -> None:
+    downstream_scope = await _run_ensure_json_content_type_middleware(
+        {"type": "websocket", "headers": []}
+    )
+    assert downstream_scope["headers"] == []
+
+
+def test_ensure_json_content_type_middleware_lets_headerless_json_body_through(
+    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+) -> None:
+    # simulates a v1-client sending a pre-serialized JSON body without a Content-Type header
+    # (e.g. mlrun.db.httpdb.HTTPRunDB.api_call's `body=` kwarg, which requests/httpx never tag
+    # with Content-Type on their own, unlike the `json=` kwarg)
+    project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name=f"prj-{uuid.uuid4().hex}"),
+        spec=mlrun.common.schemas.ProjectSpec(),
+    )
+    response = client.post("projects", content=json.dumps(project.dict()).encode())
+    assert response.status_code == HTTPStatus.CREATED.value

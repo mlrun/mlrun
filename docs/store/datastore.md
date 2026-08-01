@@ -209,7 +209,6 @@ Credential authentication:
 - `credential` &mdash; TokenCredential or SAS token. The credentials with which to authenticate.
 This variable is sensitive information and is kept confidential.
 - `container` &mdash; A string representing the container. When specified, it is automatically prepended to the object path, and thus, it should not be manually included in the target path by the user.
-This parameter will become mandatory starting with version 1.9.
 
 ## Databricks file system
 ### DBFS credentials and parameters
@@ -267,7 +266,6 @@ The equivalent to this parameter in environment authentication is "GOOGLE_APPLIC
 For privacy reasons, it's tagged as a private attribute, and its default value is `None`.
 The equivalent to this parameter in environment authentication is "GCP_CREDENTIALS".
 - `bucket` &mdash; A string representing the bucket. When specified, it is automatically prepended to the object path, and thus, it should not be manually included in the target path by the user. 
-This parameter will become mandatory starting with version 1.9.
 
 The code prioritizes `gcp_credentials` over `credentials_path`.
 
@@ -359,8 +357,6 @@ ParquetTarget(path="ds://profile-name/aws_bucket/path/to/parquet.pq")
 - `access_key_id` &mdash; A string representing the access key used for authentication to the S3 service. It's one of the credentials parts when you're not using anonymous access or IAM roles. For privacy reasons, it's tagged as a private attribute, and its default value is `None`. The equivalent to this parameter in environment authentication is env["AWS_ACCESS_KEY_ID"].
 - `secret_key` &mdash; A string representing the secret key, which pairs with the access key, used for authentication to the S3 service. It's the second part of the credentials when not using anonymous access or IAM roles. It's also tagged as private for privacy and security reasons. The default value is `None`. The equivalent to this parameter in environment authentication is env["AWS_SECRET_ACCESS_KEY"].
 - `bucket` &mdash; A string representing the bucket. When specified, it is automatically prepended to the object path, and thus, it should not be manually included in the target path by the user. 
-This parameter will become mandatory starting with version 1.9.
-
 
 ## V3IO 
 

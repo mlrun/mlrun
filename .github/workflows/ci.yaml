@@ -292,11 +292,17 @@ jobs:
 
   backward-compatibility-tests:
     name: Run Backward Compatibility Tests
-    # Skipped while targeting the pydantic-2 integration branch: base (pre-flip, pydantic 1 ->
-    # OpenAPI 3.0) and head (post-flip, pydantic 2 -> OpenAPI 3.1) emit specs in different formats,
-    # so the cross-version openapi-diff is not meaningful. Re-enabled automatically once the flip is
-    # in the base branch (ML-12891 / ML-12736).
-    if: github.event_name == 'pull_request' && github.base_ref != 'feature/api-w-pydanticv2'
+    # Skipped across the pydantic-1 -> pydantic-2 boundary. The job builds one image (fastapi >=0.128
+    # + pydantic 2) and generates the OpenAPI spec from BOTH base and head code inside it. A pre-flip
+    # side (pydantic.v1 response models) can't generate its spec at all - fastapi >=0.128 raises
+    # PydanticV1NotSupportedError - and even if it could the spec formats differ (OpenAPI 3.0 vs 3.1),
+    # so the cross-version openapi-diff is not meaningful. This covers both PRs INTO the integration
+    # branch (base_ref) and the final PR OUT of it into development (head_ref). Once the flip lands in
+    # development both sides are pydantic 2 again and the gate resumes automatically (ML-12891 / ML-12736).
+    if: >-
+      github.event_name == 'pull_request'
+      && github.base_ref != 'feature/api-w-pydanticv2'
+      && github.head_ref != 'feature/api-w-pydanticv2'
     runs-on: ubuntu-latest
     permissions:
       contents: read

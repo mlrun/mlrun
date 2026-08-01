@@ -84,6 +84,9 @@ def start_server(workdir, env_config: dict):
         f"sqlite:///{workdir}/mlrun.sqlite3?check_same_thread=false"
     )
     env["MLRUN_HTTPDB__LOGS_PATH"] = workdir
+    # this subprocess IS the api server, so it binds the native _v2 schema face (the client test
+    # process stays on _v1); the test image doesn't bake this in the way the mlrun-api image does.
+    env["MLRUN_IS_API_SERVER"] = "true"
     env.update(env_config or {})
     cmd = [
         executable,

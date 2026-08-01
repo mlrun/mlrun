@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import pydantic
 import pydantic.v1
 import pytest
 
@@ -74,8 +75,12 @@ def test_project_monitoring_spec_round_trip():
     [("stream_type", "not-a-real-stream"), ("tsdb_type", "not-a-real-tsdb")],
 )
 def test_project_monitoring_spec_rejects_invalid_enum(field, value):
-    """Invalid stream/tsdb type strings must fail validation."""
-    with pytest.raises(pydantic.v1.ValidationError):
+    """Invalid stream/tsdb type strings must fail validation.
+
+    The exception class differs by which schema face is dispatched (_v1 -> pydantic.v1
+    under a client install, _v2 -> pydantic under the API server), so both are accepted.
+    """
+    with pytest.raises((pydantic.ValidationError, pydantic.v1.ValidationError)):
         mlrun.common.schemas.project.ProjectMonitoringSpec(**{field: value})
 
 

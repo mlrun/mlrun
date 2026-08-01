@@ -12,19 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pydantic.v1
 
-from .artifact import ArtifactIdentifier
+# Facade re-exporting the ``_shared`` layer and the active model face, preserving the
+# ``mlrun.common.schemas.tag`` import path.
+from ._dispatch import USE_V2_SCHEMAS as _USE_V2
 
-
-class Tag(pydantic.v1.BaseModel):
-    name: str
-    project: str
-
-
-class TagObjects(pydantic.v1.BaseModel):
-    """Tag object"""
-
-    kind: str
-    # TODO: Add more types to the list for new supported tagged objects
-    identifiers: list[ArtifactIdentifier]
+if _USE_V2:
+    from ._v2.tag import *  # noqa: F401,F403
+else:
+    from ._v1.tag import *  # noqa: F401,F403

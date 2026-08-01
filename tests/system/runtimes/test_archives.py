@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import os
 import tempfile
 
@@ -44,6 +45,22 @@ has_private_source = (
 )
 need_private_git = pytest.mark.skipif(
     not has_private_source, reason="env vars for private git repo not set"
+)
+
+# GCS archive tests need a bucket and service-account credentials.
+_test_env = tests.system.base.TestMLRunSystem._get_env_from_file()
+gcs_bucket = _test_env.get("GCS_BUCKET_NAME")
+gcs_credentials = _test_env.get("GOOGLE_APPLICATION_CREDENTIALS")
+need_gcs = pytest.mark.skipif(
+    not (gcs_bucket and gcs_credentials),
+    reason="GCS_BUCKET_NAME / GOOGLE_APPLICATION_CREDENTIALS env vars not set",
+)
+
+# Workload Identity and signBlob access cannot be inferred from GCS configuration.
+gcs_workload_identity_enabled = _test_env.get("GCS_WORKLOAD_IDENTITY_TEST_ENABLED")
+need_gcs_workload_identity = pytest.mark.skipif(
+    not (gcs_bucket and gcs_workload_identity_enabled),
+    reason="GCS_BUCKET_NAME / GCS_WORKLOAD_IDENTITY_TEST_ENABLED env vars not set",
 )
 
 
@@ -216,6 +233,56 @@ class TestArchiveSources(tests.system.base.TestMLRunSystem):
         mlrun.deploy_function(fn)
         resp = fn.invoke("")
         assert "tag=" in resp.decode()
+
+    @need_gcs
+    def test_nuclio_gcs_archive(self):
+        try:
+            json.loads(gcs_credentials)
+            credentials_content = gcs_credentials
+        except (json.JSONDecodeError, TypeError):
+            with open(gcs_credentials) as credentials_file:
+                credentials_content = credentials_file.read()
+        secrets = {"GCP_CREDENTIALS": credentials_content}
+        self.project.set_secrets(secrets)
+
+        archive_url = f"gcs://{gcs_bucket}/{self.project_name}/source_archive.tar.gz"
+        mlrun.get_dataitem(archive_url, secrets=secrets).upload(
+            str(self.assets_path / "source_archive.tar.gz")
+        )
+
+        fn = self._new_function("nuclio", "gcs")
+        fn.metadata.project = self.project.name
+        fn.with_source_archive(archive_url, handler="rootfn:nuclio_handler")
+        mlrun.deploy_function(fn)
+        resp = fn.invoke("")
+        assert resp.decode() == "tag=main"
+
+    @need_gcs_workload_identity
+    def test_nuclio_gcs_archive_workload_identity(self):
+        """Deploy a GCS archive using the API pod's Workload Identity."""
+        # Do not allow project secrets to mask the Workload Identity path.
+        mlrun.get_run_db().delete_project_secrets(
+            project=self.project_name,
+            secrets=["GCP_CREDENTIALS", "GOOGLE_APPLICATION_CREDENTIALS"],
+        )
+
+        archive_url = f"gcs://{gcs_bucket}/{self.project_name}/source_archive_workload_identity.tar.gz"
+        # The upload may use runner credentials; server-side signing is under test.
+        upload_secrets = (
+            {"GOOGLE_APPLICATION_CREDENTIALS": gcs_credentials}
+            if gcs_credentials
+            else {}
+        )
+        mlrun.get_dataitem(archive_url, secrets=upload_secrets).upload(
+            str(self.assets_path / "source_archive.tar.gz")
+        )
+
+        fn = self._new_function("nuclio", "gcs-wi")
+        fn.metadata.project = self.project.name
+        fn.with_source_archive(archive_url, handler="rootfn:nuclio_handler")
+        mlrun.deploy_function(fn)
+        resp = fn.invoke("")
+        assert resp.decode() == "tag=main"
 
     def test_job_project(self):
         project = mlrun.new_project("git-proj-job1", user_project=True, overwrite=True)

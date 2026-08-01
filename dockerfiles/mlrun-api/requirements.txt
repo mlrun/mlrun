@@ -19,6 +19,6 @@ aiosmtplib~=5.1
 # ML-12891: API server runs on pydantic 2 (client/SDK stays on pydantic 1 via the pydantic.v1 layer).
 pydantic>=2,<3
 mlrun-pipelines-kfp-v1-8~=0.7.3
-iguazio~=0.0.1
+iguazio~=0.2.1
 opentelemetry-sdk~=1.42
 opentelemetry-exporter-otlp-proto-grpc~=1.42

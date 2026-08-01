@@ -34,7 +34,7 @@ class AuthorizationAction(mlrun.common.types.StrEnum):
 
 
 class AuthorizationResourceNamespace(mlrun.common.types.StrEnum):
-    resources = "resources"
+    mlrun = "mlrun"
     mgmt = "mgmt"
 
 

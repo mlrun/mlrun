@@ -668,9 +668,9 @@ fastjsonschema==2.22.1 \
     --hash=sha256:0b83d1ce8d7845b959dcb20e1a5c3c8883b6541d9c52ab02cce5166b75ec805f \
     --hash=sha256:cf377ff5c9a6f4f3125fb35f75a2c5767bd824ffbcf62c209a93cd48d1453999
     # via nbformat
-filelock==3.32.0 \
-    --hash=sha256:7be2ad23a14607ccc71808e68fe30848aeace7058ace17852f68e2a68e310402 \
-    --hash=sha256:d396bea984af47333ef05e50eae7eff88c84256de6112aea0ec48a233c064fe3
+filelock==3.32.2 \
+    --hash=sha256:87dd94cf281e586d135fa51132b8e3d9a598b316e90377a288663c9321036c82 \
+    --hash=sha256:c33351e1f49cae33414acbc6d56784e6ecee82514ec90795da1161fc4836b5b8
     # via snowflake-connector-python
 fire==0.7.1 \
     --hash=sha256:3b208f05c736de98fb343310d090dcc4d8c78b2a89ea4f32b837c586270a9cbf \
@@ -2906,9 +2906,9 @@ tornado==6.5.7 \
     #   distributed
     #   ipykernel
     #   jupyter-client
-traitlets==5.15.1 \
-    --hash=sha256:770a53705f84b81ac107e83a1b3328ff2dae16094d8fc3cfc004e4b22dfd8e92 \
-    --hash=sha256:7b1c07854fe25acb39e009bae49f11b79ff6cbb2f27999104e9110e7a6b53722
+traitlets==5.16.0 \
+    --hash=sha256:7de0a3fabaf5971ff15c8905545f9febfa850309fb8e86e1b42bdb5b46b293ed \
+    --hash=sha256:94a9967ba45e89e837cf9934029c8d019bea9149cfffa115ed8c1900f679beba
     # via
     #   ipykernel
     #   ipython

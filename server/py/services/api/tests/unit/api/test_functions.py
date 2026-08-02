@@ -762,10 +762,10 @@ def test_build_function_force_build(
     # Mock the functions responsible for the image building
     with (
         unittest.mock.patch(
-            "services.api.utils.builder.make_dockerfile", return_value=""
+            "services.api.utils.builder.base.make_dockerfile", return_value=""
         ),
         unittest.mock.patch(
-            "services.api.utils.builder.make_kaniko_pod",
+            "services.api.utils.builder.kaniko.make_kaniko_pod",
             return_value=framework.utils.singletons.k8s.BasePod(),
         ),
         unittest.mock.patch(
@@ -800,8 +800,8 @@ def test_build_function_force_build(
         )
         assert response.status_code == HTTPStatus.OK.value
 
-        assert services.api.utils.builder.make_kaniko_pod.call_count == expected
-        assert services.api.utils.builder.make_dockerfile.call_count == expected
+        assert services.api.utils.builder.kaniko.make_kaniko_pod.call_count == expected
+        assert services.api.utils.builder.base.make_dockerfile.call_count == expected
         assert (
             framework.utils.singletons.k8s.get_k8s_helper().create_pod.call_count
             == expected

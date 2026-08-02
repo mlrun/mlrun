@@ -29,7 +29,22 @@ from mlrun.utils import logger
 
 import framework.utils.auth.providers.base as auth
 import framework.utils.helpers
-import services.api.utils.events.events_factory as events_factory
+
+# Invoked on every enforced OPA permission denial. The services layer registers a listener
+# here (see register_permission_denied_listener) instead of this module importing services
+# directly, which the import-linter layering contract forbids.
+_permission_denied_listener: typing.Callable[[str, str, str | None], None] | None = None
+
+
+def register_permission_denied_listener(
+    listener: typing.Callable[[str, str, str | None], None],
+) -> None:
+    """
+    Registers a callback invoked as ``listener(resource, action, username)`` on every
+    enforced OPA permission denial. Safe to call multiple times.
+    """
+    global _permission_denied_listener
+    _permission_denied_listener = listener
 
 
 class Provider(
@@ -190,15 +205,13 @@ class Provider(
         auth_info: mlrun.common.schemas.AuthInfo,
     ):
         """Best-effort emit of a permission-denied audit event; never raises."""
+        if _permission_denied_listener is None:
+            return
         try:
             username = auth_info.username or next(
                 iter(auth_info.get_member_ids()), None
             )
-            events_client = events_factory.EventsFactory().get_events_client()
-            event = events_client.generate_permission_denied_event(
-                resource=resource, action=str(action), username=username
-            )
-            events_client.emit(event)
+            _permission_denied_listener(resource, str(action), username)
         except Exception as publish_exc:
             logger.warning(
                 "Failed to publish permission denied event",

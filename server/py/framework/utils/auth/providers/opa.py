@@ -29,6 +29,7 @@ from mlrun.utils import logger
 
 import framework.utils.auth.providers.base as auth
 import framework.utils.helpers
+import services.api.utils.events.events_factory as events_factory
 
 
 class Provider(
@@ -71,6 +72,7 @@ class Provider(
         action: mlrun.common.schemas.AuthorizationAction,
         auth_info: mlrun.common.schemas.AuthInfo,
         raise_on_forbidden: bool = True,
+        skip_logging_forbidden: bool = False,
     ) -> bool:
         # store is not really a verb in our OPA manifest, we map it to 2 query permissions requests (create & update)
         if action == mlrun.common.schemas.AuthorizationAction.store:
@@ -80,12 +82,14 @@ class Provider(
                     mlrun.common.schemas.AuthorizationAction.create,
                     auth_info,
                     raise_on_forbidden,
+                    skip_logging_forbidden,
                 ),
                 self.query_permissions(
                     resource,
                     mlrun.common.schemas.AuthorizationAction.update,
                     auth_info,
                     raise_on_forbidden,
+                    skip_logging_forbidden,
                 ),
             )
             create_allowed, update_allowed = results
@@ -107,6 +111,13 @@ class Provider(
             logger.debug("Received response from OPA", body=response_body)
         allowed = response_body["result"]
         if not allowed and raise_on_forbidden:
+            # skip_logging_forbidden is set by internal not-ready/retry checks (e.g.
+            # ensure_project_permissions), which deny repeatedly while waiting for permission
+            # propagation — those are not actor-initiated denials of a specific request.
+            if not skip_logging_forbidden:
+                await mlrun.utils.helpers.run_in_threadpool(
+                    self._publish_permission_denied_event, resource, action, auth_info
+                )
             raise mlrun.errors.MLRunAccessDeniedError(
                 f"Not allowed to {action} resource {resource}"
             )
@@ -171,6 +182,30 @@ class Provider(
         )
         allowed_projects[project_name] = ttl
         self._allowed_project_owners_cache[auth_info.user_id] = allowed_projects
+
+    def _publish_permission_denied_event(
+        self,
+        resource: str,
+        action: mlrun.common.schemas.AuthorizationAction,
+        auth_info: mlrun.common.schemas.AuthInfo,
+    ):
+        """Best-effort emit of a permission-denied audit event; never raises."""
+        try:
+            username = auth_info.username or next(
+                iter(auth_info.get_member_ids()), None
+            )
+            events_client = events_factory.EventsFactory().get_events_client()
+            event = events_client.generate_permission_denied_event(
+                resource=resource, action=str(action), username=username
+            )
+            events_client.emit(event)
+        except Exception as publish_exc:
+            logger.warning(
+                "Failed to publish permission denied event",
+                resource=resource,
+                action=action,
+                exc=mlrun.errors.err_to_str(publish_exc),
+            )
 
     def _check_allowed_project_owners_cache(
         self, resource: str, auth_info: mlrun.common.schemas.AuthInfo

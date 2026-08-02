@@ -129,6 +129,8 @@ PROJECT_SECRET_EVENTS: dict[
     ),
 }
 
+PERMISSION_DENIED = "UserAction.General.PermissionDenied"
+
 
 class Client(base_events.BaseEventClient):
     """
@@ -339,6 +341,32 @@ class Client(base_events.BaseEventClient):
             entity_name=project,
             description=description_template.format(project),
             initiator=initiator,
+        )
+
+    def generate_permission_denied_event(
+        self,
+        resource: str,
+        action: str,
+        username: str | None = None,
+    ) -> iguazio.schemas.EventActivationSpec:
+        """
+        Generate a permission-denied audit event.
+        :param resource: the OPA resource path the action was attempted on
+        :param action: the attempted action (e.g. read, create, update, delete)
+        :param username: username of the user who was denied, if known
+        :return: EventActivationSpec to emit
+        """
+        return iguazio.schemas.EventActivationSpec(
+            config_name=PERMISSION_DENIED,
+            kind="audit",
+            class_="user action",
+            entity_name=resource,
+            initiator=username,
+            description=(
+                f"Permission denied for user {username} to perform action "
+                f"{action} in resource {resource}"
+            ),
+            details={"username": username, "action": action, "resource": resource},
         )
 
     @staticmethod

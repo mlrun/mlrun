@@ -119,7 +119,10 @@ ENV JUPYTER_ENABLE_LAB=yes \
     MLRUN_HTTPDB__PORT=8080
 
 # backup home since it will be deleted when using pvc
-RUN mkdir data && tar -cvf /tmp/basehome.tar $HOME
+# exclude the conda package cache - it dominates the tarball size and is not user data,
+# so including it turns first-mount extraction on NFS-backed PVCs into a 30-60 min stall
+RUN conda clean -a -y || true && \
+    mkdir data && tar -cf /tmp/basehome.tar --exclude='.conda/pkgs' --exclude='.cache' $HOME
 
 ARG MLRUN_GIT_COMMIT
 LABEL org.opencontainers.image.revision=$MLRUN_GIT_COMMIT

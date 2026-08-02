@@ -257,7 +257,7 @@ update-version-file: install-automation-requirements ## Update the version file
 	python ./automation/version/version_file.py ensure --mlrun-version $(MLRUN_VERSION)
 
 .PHONY: generate-dockerignore
-generate-dockerignore: ## Copies the root .dockerignore and removes test exclusions for test-system
+generate-dockerignore: ## Copies the root .dockerignore and removes test exclusions
 	$(eval TARGET := dockerfiles/${DEST}/Dockerfile.dockerignore)
 	@if [ -z "${DEST}" ]; then \
 		echo "Error: DEST variable must be set"; \
@@ -265,11 +265,7 @@ generate-dockerignore: ## Copies the root .dockerignore and removes test exclusi
 	fi; \
 	echo "Generating $(TARGET)..."; \
 	temp_file=$$(mktemp); \
-	if [ "$(DEST)" = "test-system" ]; then \
-		grep -vE '(\*\*/tests|\*\*/env\.yml|\*\*/test-[^/]*\.yml|\*\*/model_monitoring/assets)' .dockerignore > $$temp_file; \
-	else \
-		sed '/\*\*\/tests/d' .dockerignore > $$temp_file; \
-	fi; \
+	sed '/\*\*\/tests/d' .dockerignore > $$temp_file; \
 	if [ -f "$(TARGET)" ]; then \
 		if cmp -s $$temp_file "$(TARGET)"; then \
 			echo "File $(TARGET) already exists and content is identical"; \
@@ -621,20 +617,6 @@ push-test: build-test ## Push test docker image
 	docker push $(MLRUN_TEST_IMAGE_NAME_TAGGED)
 	$(MLRUN_TEST_CACHE_IMAGE_PUSH_COMMAND)
 
-MLRUN_SYSTEM_TEST_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/test-system:$(MLRUN_DOCKER_TAG)
-
-.PHONY: build-test-system
-build-test-system: common-image compile-schemas update-version-file ## Build system tests docker image
-	$(MAKE) generate-dockerignore DEST=test-system
-	docker build \
-		--file dockerfiles/test-system/Dockerfile \
-		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \
-		--build-arg MLRUN_UV_VERSION=$(MLRUN_UV_VERSION) \
-		--build-arg DOCKER_DEFAULT_PLATFORM=$(DOCKER_DEFAULT_PLATFORM) \
-		--platform $(DOCKER_DEFAULT_PLATFORM) \
-		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
-		--tag $(MLRUN_SYSTEM_TEST_IMAGE_NAME) .
-
 .PHONY: package-wheel
 package-wheel: clean update-version-file ## Build python package wheel
 	uv build
@@ -801,16 +783,6 @@ test-migrations: clean ## Run mlrun db migrations tests
 	$(COMBINE_COVERAGE) && \
 	$(PRINT_COVERAGE_REPORT) ; \
 	exit $$exit_code
-
-.PHONY: test-system-dockerized
-test-system-dockerized: build-test-system ## Run mlrun system tests in docker container
-	docker run \
-		--env MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES=$(MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES) \
-		--env MLRUN_SYSTEM_TESTS_COMPONENT=$(MLRUN_SYSTEM_TESTS_COMPONENT) \
-		--env MLRUN_VERSION=$(MLRUN_VERSION) \
-		-t \
-		--rm \
-		$(MLRUN_SYSTEM_TEST_IMAGE_NAME)
 
 .PHONY: test-system
 test-system: ## Run mlrun system tests
@@ -1176,18 +1148,6 @@ upgrade-mlrun-test-server-deps-lock: ## Upgrade mlrun server (api) test locked r
 		$(MLRUN_UV_UPGRADE_FLAG) \
 		--output-file dockerfiles/test/locked-requirements-server.txt
 
-.PHONY: upgrade-mlrun-system-test-deps-lock
-upgrade-mlrun-system-test-deps-lock: ## Upgrade mlrun system test locked requirements file
-	uv pip compile \
-		requirements.txt \
-		extras-requirements.txt \
-		dockerfiles/mlrun-kfp/requirements.txt \
-		dockerfiles/mlrun-api/requirements.txt \
-		dev-requirements.txt \
-		$(MLRUN_UV_UPGRADE_FLAG) \
-		--output-file dockerfiles/test-system/locked-requirements.txt
-
-
 upgrade-mlrun-kfp-deps-lock: ## Upgrade mlrun-kfp locked requirements file
 	uv pip compile \
 		requirements.txt \
@@ -1205,8 +1165,7 @@ upgrade-mlrun-deps-lock: ## Upgrade mlrun-* locked requirements file
 		upgrade-mlrun-gpu-deps-lock \
 		upgrade-mlrun-kfp-deps-lock \
 		upgrade-mlrun-test-client-deps-lock \
-		upgrade-mlrun-test-server-deps-lock \
-		upgrade-mlrun-system-test-deps-lock
+		upgrade-mlrun-test-server-deps-lock
 
 
 coverage-combine:

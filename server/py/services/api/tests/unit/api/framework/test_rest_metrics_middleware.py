@@ -30,7 +30,6 @@ import framework.middlewares
 import framework.middlewares.base
 import framework.middlewares.rest_metrics
 import framework.utils.telemetry.rest_metrics
-import framework.utils.telemetry.rest_records
 import services.api.main
 
 
@@ -151,18 +150,15 @@ def _reset_telemetry_config() -> collections.abc.Iterator[None]:
     original_enabled = mlrun.mlconf.telemetry.enabled
     original_rest_metrics_enabled = mlrun.mlconf.telemetry.rest_metrics.enabled
     original_otlp_endpoint = mlrun.mlconf.telemetry.otlp_endpoint
-    original_sample_rate = mlrun.mlconf.telemetry.rest_metrics.sample_rate
     yield
     mlrun.mlconf.telemetry.enabled = original_enabled
     mlrun.mlconf.telemetry.rest_metrics.enabled = original_rest_metrics_enabled
     mlrun.mlconf.telemetry.otlp_endpoint = original_otlp_endpoint
-    mlrun.mlconf.telemetry.rest_metrics.sample_rate = original_sample_rate
 
 
 def test_rest_metrics_config_defaults() -> None:
     assert mlrun.mlconf.telemetry.enabled is False
     assert mlrun.mlconf.telemetry.rest_metrics.enabled is True
-    assert mlrun.mlconf.telemetry.rest_metrics.sample_rate == 1.0
 
 
 def test_rest_metrics_middleware_absent_by_default(
@@ -465,8 +461,7 @@ def test_service_lifecycle_wires_rest_metrics_init_and_shutdown(
     """The shared service startup/teardown must call the telemetry lifecycle hooks.
 
     Guards the wiring in framework.service._setup_service / _teardown_service so
-    both the histogram provider and the log-records provider are stood up (and
-    flushed) on every replica.
+    the histogram provider is stood up (and flushed) on every replica.
     """
     mlrun.mlconf.telemetry.enabled = True
     mlrun.mlconf.telemetry.rest_metrics.enabled = True
@@ -474,19 +469,11 @@ def test_service_lifecycle_wires_rest_metrics_init_and_shutdown(
 
     metrics_init_mock = unittest.mock.MagicMock()
     metrics_shutdown_mock = unittest.mock.MagicMock()
-    records_init_mock = unittest.mock.MagicMock()
-    records_shutdown_mock = unittest.mock.MagicMock()
     monkeypatch.setattr(
         framework.utils.telemetry.rest_metrics, "init", metrics_init_mock
     )
     monkeypatch.setattr(
         framework.utils.telemetry.rest_metrics, "shutdown", metrics_shutdown_mock
-    )
-    monkeypatch.setattr(
-        framework.utils.telemetry.rest_records, "init", records_init_mock
-    )
-    monkeypatch.setattr(
-        framework.utils.telemetry.rest_records, "shutdown", records_shutdown_mock
     )
 
     with fastapi.testclient.TestClient(app):
@@ -494,5 +481,3 @@ def test_service_lifecycle_wires_rest_metrics_init_and_shutdown(
 
     metrics_init_mock.assert_called()
     metrics_shutdown_mock.assert_called()
-    records_init_mock.assert_called()
-    records_shutdown_mock.assert_called()

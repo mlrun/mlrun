@@ -69,16 +69,10 @@ The four per-call metrics are all histograms — including items-returned, delib
 |mlrun_rest_request_size_kibibytes|Histogram|Size of the REST request body, in kibibytes.|
 |mlrun_rest_response_size_kibibytes|Histogram|Size of the REST response body, in kibibytes.|
 |mlrun_rest_response_num_items|Histogram|Number of objects returned by list calls (`method="LIST"` only).|
-|mlrun_rest_metrics_sample_rate_ratio|Gauge|Currently configured `sample_rate` (see [Sampling](#sampling) below) — only carries `system_id`, no other attributes.|
 
 The size histograms carry the OTel unit `KiBy` (kibibytes, 2^10 bytes), and their metric name already ends in `_kibibytes` to agree with it. See the [OTel<->Prometheus metric-metadata docs](https://opentelemetry.io/docs/specs/otel/compatibility/prometheus_and_openmetrics/#metric-metadata).
 
-### Sampling
-Not every call needs to be recorded to keep the metrics useful, so routine calls can be sampled:
-```
-MLRUN_TELEMETRY__REST_METRICS__SAMPLE_RATE=0.1
-```
-`sample_rate` (default `1.0`, i.e. no sampling) is the probability that a routine call's metrics are recorded. Failed calls (status >= 300), slow calls (processing time > 10 seconds), and calls with a large response (> 100 KiB) are always recorded regardless of the rate — those thresholds are fixed in code, not configurable. When sampling is enabled, compensate by dividing any count-based query by `sample_rate` to estimate the true call volume — or by `mlrun_rest_metrics_sample_rate_ratio` directly, to avoid hard-coding the current config value into every query.
+Every call is recorded — there is no sampling for these metrics.
 
 ### Example output
 ```

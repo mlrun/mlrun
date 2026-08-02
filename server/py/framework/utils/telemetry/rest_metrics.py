@@ -21,8 +21,7 @@ Collection-returning GETs report method="LIST" (see parse_method).
 Gated behind telemetry.enabled + telemetry.rest_metrics.enabled; init() is a
 no-op and record_*() short-circuits when either is off.
 
-Histograms are always emitted for every call — no sampling. Sampling applies
-only to the OTel log records in rest_records.py.
+Histograms are always emitted for every call — no sampling.
 """
 
 import collections.abc

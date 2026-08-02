@@ -23,12 +23,7 @@ them so each feature only owns its own enable gate and instrument registration.
 import os
 import socket
 
-from opentelemetry.exporter.otlp.proto.grpc._log_exporter import (
-    OTLPLogExporter,
-)
 from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
-from opentelemetry.sdk._logs import LoggerProvider
-from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
 from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
 from opentelemetry.sdk.resources import Resource
@@ -76,31 +71,3 @@ def build_metric_provider(
         }
     )
     return MeterProvider(metric_readers=[reader], resource=resource)
-
-
-def build_log_provider(service_name: str) -> LoggerProvider:
-    """Build an OTLP-exporting ``LoggerProvider`` from the telemetry config.
-
-    Mirrors ``build_metric_provider`` — same endpoint, insecure flag, and
-    ``Resource`` carrying service identity. The caller owns the enable gate
-    and which loggers to acquire from the provider.
-
-    :param service_name: OTel ``service.name`` for this provider.
-    :returns: A configured ``LoggerProvider`` (not registered as the global one).
-    """
-    cfg = mlrun.mlconf.telemetry
-    exporter = OTLPLogExporter(
-        endpoint=cfg.otlp_endpoint,
-        insecure=cfg.insecure,
-        headers=mlrun.utils.telemetry.resolve_otlp_headers(),
-    )
-    pod_name = os.getenv("MLRUN_POD_NAME") or socket.gethostname()
-    resource = Resource.create(
-        {
-            "service.name": service_name,
-            "service.instance.id": pod_name,
-        }
-    )
-    provider = LoggerProvider(resource=resource)
-    provider.add_log_record_processor(BatchLogRecordProcessor(exporter))
-    return provider

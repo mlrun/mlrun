@@ -28,7 +28,6 @@ import mlrun.errors
 import mlrun.utils
 
 import framework.utils.telemetry.rest_metrics
-import framework.utils.telemetry.rest_records
 from .base import BaseHTTPMiddleware, is_response_start
 
 # Noise endpoints excluded from metrics (mirrors RequestLoggerMiddleware). K8s
@@ -135,11 +134,10 @@ def parse_item_count(body: bytes) -> int | None:
 
 class RestMetricsMiddleware(BaseHTTPMiddleware):
     """
-    Records per-REST-call OTel signals: histogram metrics (always) and
-    log records (sampled). Both are recorded at the final
-    ``http.response.body`` message, once every value is available —
-    request/response size, item count, and duration covering the full
-    time to deliver the response.
+    Records per-REST-call histogram metrics, always-on regardless of any
+    sampling configuration. Recorded at the final ``http.response.body``
+    message, once every value is available — request/response size, item
+    count, and duration covering the full time to deliver the response.
     """
 
     async def _handle_http(
@@ -150,17 +148,6 @@ class RestMetricsMiddleware(BaseHTTPMiddleware):
         should_record = not any(
             substring in path for substring in _SILENT_PATH_SUBSTRINGS
         )
-
-        query_string = scope.get("query_string", b"").decode("utf-8", errors="replace")
-        _headers = {
-            k.decode("latin-1"): v.decode("latin-1")
-            for k, v in scope.get("headers", [])
-        }
-        _fwd = _headers.get("x-forwarded-for", "")
-        client_ip = (
-            _fwd.split(",")[0].strip() if _fwd else (scope.get("client") or ("",))[0]
-        )
-        request_id = _headers.get("x-request-id", "")
 
         request_size_bytes = 0
 
@@ -212,30 +199,6 @@ class RestMetricsMiddleware(BaseHTTPMiddleware):
                     response_state=response_state,
                     item_count=item_count,
                 )
-                status_code = response_state["status_code"]
-                response_size_kib = (
-                    response_state["response_size_bytes"] / _BYTES_PER_KIBIBYTE
-                )
-                if framework.utils.telemetry.rest_records.should_sample_record(
-                    status_code=status_code,
-                    elapsed_seconds=duration_ms / 1000,
-                    response_size_kib=response_size_kib,
-                ):
-                    resource, project = parse_resource_and_project(path)
-                    framework.utils.telemetry.rest_records.emit_record(
-                        path=path,
-                        query_string=query_string,
-                        method=method,
-                        status_code=status_code,
-                        duration_ms=duration_ms,
-                        request_size_bytes=request_size_bytes,
-                        response_size_bytes=response_state["response_size_bytes"],
-                        resource=resource,
-                        project=project,
-                        client_ip=client_ip,
-                        request_id=request_id,
-                        item_count=item_count,
-                    )
             except Exception as exc:
                 mlrun.utils.logger.warning(
                     "REST metrics recording failed",

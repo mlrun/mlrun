@@ -30,6 +30,7 @@ class Provider(
         action: mlrun.common.schemas.AuthorizationAction,
         auth_info: mlrun.common.schemas.AuthInfo,
         raise_on_forbidden: bool = True,
+        skip_logging_forbidden: bool = False,
     ) -> bool:
         return True
 

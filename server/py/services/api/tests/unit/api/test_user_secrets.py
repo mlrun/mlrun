@@ -51,7 +51,7 @@ def mock_query_global_resource_permissions(monkeypatch):
             action,
             auth_info,
             raise_on_forbidden=True,
-            resource_namespace=mlrun.common.schemas.AuthorizationResourceNamespace.resources,
+            resource_namespace=mlrun.common.schemas.AuthorizationResourceNamespace.mlrun,
         ) -> bool:
             assert auth_info.username == _AUTH_USERNAME
             assert action == expected_action

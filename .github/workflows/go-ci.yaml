@@ -46,18 +46,29 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-go@v6
+      - name: Determine Go minor version
+        id: go-version
+        run: |
+          echo "version=$(grep -m1 '^go ' server/go/go.mod | awk '{split($2,a,"."); print a[1]"."a[2]}')" >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-go@v7
         with:
-          go-version-file: "server/go/go.mod"
+          # use the major.minor from go.mod but let setup-go resolve the latest patch,
+          # so lint/test always run on the same patch used to build the log-collector image
+          go-version: ${{ steps.go-version.outputs.version }}
           cache-dependency-path: "server/go/go.sum"
           cache: true
       - name: Install protobuf compiler
         run: |
           sudo apt-get update && sudo apt install -y protobuf-compiler
-          
-          # version is coupled to `go/cmd/schemas_compiler/docker/Dockerfile`
-          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.28
-          go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.2
+
+          # versions are coupled to `server/common/builder/schemas_compiler/docker/Dockerfile`
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
+          go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.6.1
+      - name: Verify generated proto sources are up to date
+        run: |
+          rm -rf server/go/proto/build
+          make -C server/go compile-schemas-go
+          git diff --exit-code -- server/go/proto/build
       - name: Lint
         run: make lint-go security-go
 

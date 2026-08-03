@@ -12,57 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import datetime
 
-import pydantic.v1
+# Facade re-exporting the ``_shared`` layer and the active model face, preserving the
+# ``mlrun.common.schemas.background_task`` import path.
+from ._dispatch import USE_V2_SCHEMAS as _USE_V2
+from ._shared.background_task import *  # noqa: F401,F403
 
-import mlrun.common.types
-
-from .object import ObjectKind
-
-
-class BackGroundTaskLabel(mlrun.common.types.StrEnum):
-    pipeline = "pipeline"
-
-
-class BackgroundTaskState(mlrun.common.types.StrEnum):
-    succeeded = "succeeded"
-    failed = "failed"
-    running = "running"
-
-    @staticmethod
-    def terminal_states():
-        return [
-            BackgroundTaskState.succeeded,
-            BackgroundTaskState.failed,
-        ]
-
-
-class BackgroundTaskMetadata(pydantic.v1.BaseModel):
-    name: str
-    id: int | None
-    kind: str | None
-    project: str | None
-    created: datetime.datetime | None
-    updated: datetime.datetime | None
-    timeout: int | None
-
-
-class BackgroundTaskSpec(pydantic.v1.BaseModel):
-    pass
-
-
-class BackgroundTaskStatus(pydantic.v1.BaseModel):
-    state: BackgroundTaskState
-    error: str | None
-
-
-class BackgroundTask(pydantic.v1.BaseModel):
-    kind: ObjectKind = pydantic.v1.Field(ObjectKind.background_task, const=True)
-    metadata: BackgroundTaskMetadata
-    spec: BackgroundTaskSpec
-    status: BackgroundTaskStatus
-
-
-class BackgroundTaskList(pydantic.v1.BaseModel):
-    background_tasks: list[BackgroundTask]
+if _USE_V2:
+    from ._v2.background_task import *  # noqa: F401,F403
+else:
+    from ._v1.background_task import *  # noqa: F401,F403

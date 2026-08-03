@@ -136,11 +136,9 @@ class RestMetricsMiddleware(BaseHTTPMiddleware):
     """
     Records per-REST-call histogram metrics, always-on regardless of any
     sampling configuration. Duration is captured at ``http.response.start``
-    (time-to-first-byte, matching phase 1) so it reflects server processing
-    time only — not client download speed. Request/response size and item
+    (time-to-first-byte) so it excludes client download time; size and item
     count need the full body, so those are captured at the final
-    ``http.response.body`` message; all four histograms are recorded together
-    at that point, once every value is available.
+    ``http.response.body`` message, where all four histograms are recorded.
     """
 
     async def _handle_http(
@@ -179,8 +177,7 @@ class RestMetricsMiddleware(BaseHTTPMiddleware):
                 if is_response_start(message):
                     response_state["status_code"] = message["status"]
                     response_state["method"] = parse_method(scope["method"], scope)
-                    # TTFB: processing is complete once headers are sent — matches
-                    # phase 1 and excludes client download time from the histogram.
+                    # TTFB: excludes client download time from the histogram.
                     response_state["duration_ms"] = self._elapsed_time_ms(start_time)
                     return
                 if message.get("type") != "http.response.body":

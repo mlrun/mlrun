@@ -57,6 +57,11 @@ Set up an effective model monitoring system that leverages LLMs to maintain high
 :link: ./genai-03-vector-db.html
 How to track experiments for document-based models using the LangChain API to integrate directly with vector databases.
 ```
+```{grid-item-card} Using LLM prompt templates and artifacts
+:link: ./genai-04-llm-prompt-artifact.html
+How to use use LLMs and prompt templates inside a complete workflow using the llm-prompt artifact.
+```
+
 
 ````
 `````

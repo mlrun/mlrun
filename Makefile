@@ -257,7 +257,7 @@ update-version-file: install-automation-requirements ## Update the version file
 	python ./automation/version/version_file.py ensure --mlrun-version $(MLRUN_VERSION)
 
 .PHONY: generate-dockerignore
-generate-dockerignore: ## Copies the root .dockerignore and removes test exclusions for test-system
+generate-dockerignore: ## Copies the root .dockerignore and removes test exclusions
 	$(eval TARGET := dockerfiles/${DEST}/Dockerfile.dockerignore)
 	@if [ -z "${DEST}" ]; then \
 		echo "Error: DEST variable must be set"; \
@@ -265,11 +265,7 @@ generate-dockerignore: ## Copies the root .dockerignore and removes test exclusi
 	fi; \
 	echo "Generating $(TARGET)..."; \
 	temp_file=$$(mktemp); \
-	if [ "$(DEST)" = "test-system" ]; then \
-		grep -vE '(\*\*/tests|\*\*/env\.yml|\*\*/test-[^/]*\.yml|\*\*/model_monitoring/assets)' .dockerignore > $$temp_file; \
-	else \
-		sed '/\*\*\/tests/d' .dockerignore > $$temp_file; \
-	fi; \
+	sed '/\*\*\/tests/d' .dockerignore > $$temp_file; \
 	if [ -f "$(TARGET)" ]; then \
 		if cmp -s $$temp_file "$(TARGET)"; then \
 			echo "File $(TARGET) already exists and content is identical"; \
@@ -584,13 +580,21 @@ push-api: api ## Push api docker image
 pull-api: ## Pull api docker image
 	docker pull $(MLRUN_API_IMAGE_NAME_TAGGED)
 
+# Test image flavor: "client" (default, rest/SDK suite - full KFP 1.8, no api-server deps) or "server"
+# (api suite - api-server deps, no full KFP). The flavor selects which lock is synced and whether the
+# kfp adapter is installed with the [kfp] extra; it is also appended to the image/cache tags so flavors
+# never collide. There is deliberately no combined flavor: every dockerized-test job runs on exactly one
+# of these so the two locks can diverge independently (e.g. server -> Pydantic 2 while client stays 1).
+# The tagged-image variables are recursively expanded (=) so a target-specific MLRUN_TEST_FLAVOR (see
+# test-migrations-dockerized / test-backward-compatibility-dockerized) re-expands them per invocation.
+MLRUN_TEST_FLAVOR ?= client
 MLRUN_TEST_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/test
 MLRUN_TEST_CACHE_IMAGE_NAME := $(MLRUN_CACHE_DOCKER_IMAGE_PREFIX)/test
-MLRUN_TEST_IMAGE_NAME_TAGGED := $(MLRUN_TEST_IMAGE_NAME):$(MLRUN_DOCKER_TAG)$(MLRUN_PYTHON_VERSION_SUFFIX)
-MLRUN_TEST_CACHE_IMAGE_NAME_TAGGED := $(MLRUN_TEST_CACHE_IMAGE_NAME):$(MLRUN_DOCKER_CACHE_FROM_TAG)$(MLRUN_PYTHON_VERSION_SUFFIX)
-MLRUN_TEST_IMAGE_DOCKER_CACHE_FROM_FLAG := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_USE_CACHE)),--cache-from $(strip $(MLRUN_TEST_CACHE_IMAGE_NAME_TAGGED)),)
-MLRUN_TEST_CACHE_IMAGE_PULL_COMMAND := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_USE_CACHE)),docker pull $(MLRUN_TEST_CACHE_IMAGE_NAME_TAGGED) || true,)
-MLRUN_TEST_CACHE_IMAGE_PUSH_COMMAND := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_PUSH_DOCKER_CACHE_IMAGE)),docker tag $(MLRUN_TEST_IMAGE_NAME_TAGGED) $(MLRUN_TEST_CACHE_IMAGE_NAME_TAGGED) && docker push $(MLRUN_TEST_CACHE_IMAGE_NAME_TAGGED),)
+MLRUN_TEST_IMAGE_NAME_TAGGED = $(MLRUN_TEST_IMAGE_NAME):$(MLRUN_DOCKER_TAG)$(MLRUN_PYTHON_VERSION_SUFFIX)-$(MLRUN_TEST_FLAVOR)
+MLRUN_TEST_CACHE_IMAGE_NAME_TAGGED = $(MLRUN_TEST_CACHE_IMAGE_NAME):$(MLRUN_DOCKER_CACHE_FROM_TAG)$(MLRUN_PYTHON_VERSION_SUFFIX)-$(MLRUN_TEST_FLAVOR)
+MLRUN_TEST_IMAGE_DOCKER_CACHE_FROM_FLAG = $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_USE_CACHE)),--cache-from $(strip $(MLRUN_TEST_CACHE_IMAGE_NAME_TAGGED)),)
+MLRUN_TEST_CACHE_IMAGE_PULL_COMMAND = $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_USE_CACHE)),docker pull $(MLRUN_TEST_CACHE_IMAGE_NAME_TAGGED) || true,)
+MLRUN_TEST_CACHE_IMAGE_PUSH_COMMAND = $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_PUSH_DOCKER_CACHE_IMAGE)),docker tag $(MLRUN_TEST_IMAGE_NAME_TAGGED) $(MLRUN_TEST_CACHE_IMAGE_NAME_TAGGED) && docker push $(MLRUN_TEST_CACHE_IMAGE_NAME_TAGGED),)
 
 .PHONY: build-test
 build-test: common-image compile-schemas update-version-file ## Build test docker image
@@ -602,6 +606,7 @@ build-test: common-image compile-schemas update-version-file ## Build test docke
 		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \
 		--build-arg MLRUN_UV_VERSION=$(MLRUN_UV_VERSION) \
 		--build-arg DOCKER_DEFAULT_PLATFORM=$(DOCKER_DEFAULT_PLATFORM) \
+		--build-arg MLRUN_TEST_FLAVOR=$(MLRUN_TEST_FLAVOR) \
 		--platform $(DOCKER_DEFAULT_PLATFORM) \
 		$(MLRUN_TEST_IMAGE_DOCKER_CACHE_FROM_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
@@ -611,20 +616,6 @@ build-test: common-image compile-schemas update-version-file ## Build test docke
 push-test: build-test ## Push test docker image
 	docker push $(MLRUN_TEST_IMAGE_NAME_TAGGED)
 	$(MLRUN_TEST_CACHE_IMAGE_PUSH_COMMAND)
-
-MLRUN_SYSTEM_TEST_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/test-system:$(MLRUN_DOCKER_TAG)
-
-.PHONY: build-test-system
-build-test-system: common-image compile-schemas update-version-file ## Build system tests docker image
-	$(MAKE) generate-dockerignore DEST=test-system
-	docker build \
-		--file dockerfiles/test-system/Dockerfile \
-		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \
-		--build-arg MLRUN_UV_VERSION=$(MLRUN_UV_VERSION) \
-		--build-arg DOCKER_DEFAULT_PLATFORM=$(DOCKER_DEFAULT_PLATFORM) \
-		--platform $(DOCKER_DEFAULT_PLATFORM) \
-		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
-		--tag $(MLRUN_SYSTEM_TEST_IMAGE_NAME) .
 
 .PHONY: package-wheel
 package-wheel: clean update-version-file ## Build python package wheel
@@ -656,6 +647,7 @@ test-dockerized: build-test ## Run mlrun tests in docker container
 		-e MLRUN_DOCKER_REGISTRY=$(MLRUN_DOCKER_REGISTRY) \
 		-e MLRUN_MYSQL_IMAGE=$(MLRUN_MYSQL_IMAGE) \
 		-e MLRUN_POSTGRES_IMAGE=$(MLRUN_POSTGRES_IMAGE) \
+		-e MLRUN_IS_API_SERVER=$(MLRUN_IS_API_SERVER) \
 		-v /tmp:/tmp \
 		-v $$COVERAGE_MOUNT_PATH:/mlrun/tests/coverage_reports \
 		-v /var/run/docker.sock:/var/run/docker.sock \
@@ -723,8 +715,9 @@ test-integration-dockerized: build-test api ## Run mlrun integration tests in do
 		-e MLRUN_DOCKER_REGISTRY=$(MLRUN_DOCKER_REGISTRY) \
 		-e MLRUN_MYSQL_IMAGE=$(MLRUN_MYSQL_IMAGE) \
 		-e MLRUN_POSTGRES_IMAGE=$(MLRUN_POSTGRES_IMAGE) \
+		-e MLRUN_IS_API_SERVER=$(MLRUN_IS_API_SERVER) \
 		--add-host=host.docker.internal:host-gateway \
-		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make test-integration
+		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make test-integration MLRUN_TEST_FLAVOR=$(MLRUN_TEST_FLAVOR)
 
 .PHONY: test-integration
 test-integration: clean ## Run mlrun integration tests
@@ -733,6 +726,11 @@ test-integration: clean ## Run mlrun integration tests
 	COVERAGE_FILE=$${COVERAGE_FILE:-"tests/coverage_reports/integration_tests.coverage"} && \
 	$(SETUP_COVERAGE) && \
 	unset COVERAGE_PROCESS_START && \
+	if [ "$(MLRUN_TEST_FLAVOR)" = "server" ]; then \
+		INTEGRATION_TESTS_PATHS="server/py/services/api/tests/integration tests/rundb/test_httpdb.py tests/integration/sdk_api/alerts"; \
+	else \
+		INTEGRATION_TESTS_PATHS="tests/integration --ignore=tests/integration/sdk_api/alerts"; \
+	fi && \
 	MLRUN_MYSQL_IMAGE=$(MLRUN_MYSQL_IMAGE) \
 	MLRUN_POSTGRES_IMAGE=$(MLRUN_POSTGRES_IMAGE) \
 	COVERAGE_FILE=$$COVERAGE_FILE \
@@ -742,13 +740,13 @@ test-integration: clean ## Run mlrun integration tests
 		--disable-warnings \
 		--durations=100 \
 		-rf \
-		tests/integration \
-		server/py/services/api/tests/integration \
-		tests/rundb/test_httpdb.py && \
+		$$INTEGRATION_TESTS_PATHS && \
 	$(COMBINE_COVERAGE) && \
 	$(PRINT_COVERAGE_REPORT);
 
 .PHONY: test-migrations-dockerized
+# Migrations test the api server's DB layer -> server flavor (propagates to the build-test prerequisite).
+test-migrations-dockerized: MLRUN_TEST_FLAVOR := server
 test-migrations-dockerized: build-test ## Run mlrun db migrations tests in docker container
 	COVERAGE_MOUNT_PATH="$(ROOT_DIR)coverage_reports/migration_tests" ;\
 	$(SETUP_COVERAGE_MOUNTING) && \
@@ -764,6 +762,7 @@ test-migrations-dockerized: build-test ## Run mlrun db migrations tests in docke
 		-e MLRUN_DOCKER_REGISTRY=$(MLRUN_DOCKER_REGISTRY) \
 		-e MLRUN_MYSQL_IMAGE=$(MLRUN_MYSQL_IMAGE) \
 		-e MLRUN_POSTGRES_IMAGE=$(MLRUN_POSTGRES_IMAGE) \
+		-e MLRUN_IS_API_SERVER=$(MLRUN_IS_API_SERVER) \
 		-v $$COVERAGE_MOUNT_PATH:/mlrun/tests/coverage_reports \
 		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make RUN_COVERAGE=true test-migrations
 
@@ -784,16 +783,6 @@ test-migrations: clean ## Run mlrun db migrations tests
 	$(COMBINE_COVERAGE) && \
 	$(PRINT_COVERAGE_REPORT) ; \
 	exit $$exit_code
-
-.PHONY: test-system-dockerized
-test-system-dockerized: build-test-system ## Run mlrun system tests in docker container
-	docker run \
-		--env MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES=$(MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES) \
-		--env MLRUN_SYSTEM_TESTS_COMPONENT=$(MLRUN_SYSTEM_TESTS_COMPONENT) \
-		--env MLRUN_VERSION=$(MLRUN_VERSION) \
-		-t \
-		--rm \
-		$(MLRUN_SYSTEM_TEST_IMAGE_NAME)
 
 .PHONY: test-system
 test-system: ## Run mlrun system tests
@@ -1014,6 +1003,10 @@ endif
 	git push origin $$BRANCH_NAME
 
 .PHONY: test-backward-compatibility-dockerized
+# Backward-compat instantiates the FastAPI app -> server flavor (propagates to the build-test prerequisite).
+test-backward-compatibility-dockerized: MLRUN_TEST_FLAVOR := server
+# server flavor runs on pydantic 2 and must bind the native _v2 schema face
+test-backward-compatibility-dockerized: MLRUN_IS_API_SERVER := true
 test-backward-compatibility-dockerized: build-test ## Run backward compatibility tests in docker container
 ifndef MLRUN_BC_TESTS_BASE_CODE_PATH
 	$(error MLRUN_BC_TESTS_BASE_CODE_PATH is undefined)
@@ -1030,6 +1023,7 @@ endif
 	    --env MLRUN_BC_TESTS_OPENAPI_OUTPUT_PATH=$(shell pwd) \
 		--env MLRUN_VERSION=$(MLRUN_VERSION) \
 		--env MLRUN_DOCKER_REGISTRY=$(MLRUN_DOCKER_REGISTRY) \
+		--env MLRUN_IS_API_SERVER=$(MLRUN_IS_API_SERVER) \
 	    --workdir=$(shell pwd) \
 	    $(MLRUN_TEST_IMAGE_NAME_TAGGED) make test-backward-compatibility
 
@@ -1128,28 +1122,31 @@ upgrade-mlrun-jupyter-deps-lock: ## Upgrade mlrun-jupyter locked requirements fi
 		$(MLRUN_UV_UPGRADE_FLAG) \
 		--output-file dockerfiles/jupyter/locked-requirements.txt
 
-.PHONY: upgrade-mlrun-test-deps-lock
-upgrade-mlrun-test-deps-lock: ## Upgrade mlrun test locked requirements file
+.PHONY: upgrade-mlrun-test-client-deps-lock
+upgrade-mlrun-test-client-deps-lock: ## Upgrade mlrun client (rest/SDK) test locked requirements file
+	# Client/rest suite: SDK + extras + client test extras (kfp adapter WITH the [kfp] extra,
+	# i.e. full KFP 1.8) + dev requirements. Deliberately excludes the api-server requirements
+	# (client code must not import server code - enforced by import-linter).
 	uv pip compile \
 		requirements.txt \
 		extras-requirements.txt \
-		dockerfiles/mlrun-api/requirements.txt \
 		dockerfiles/test/requirements.txt \
 		dev-requirements.txt \
 		$(MLRUN_UV_UPGRADE_FLAG) \
-		--output-file dockerfiles/test/locked-requirements.txt
+		--output-file dockerfiles/test/locked-requirements-client.txt
 
-.PHONY: upgrade-mlrun-system-test-deps-lock
-upgrade-mlrun-system-test-deps-lock: ## Upgrade mlrun system test locked requirements file
+.PHONY: upgrade-mlrun-test-server-deps-lock
+upgrade-mlrun-test-server-deps-lock: ## Upgrade mlrun server (api) test locked requirements file
+	# Server/api suite: SDK + extras + api-server requirements + server test extras (kfp adapter
+	# WITHOUT the [kfp] extra, i.e. kfp-server-api only) + dev requirements.
 	uv pip compile \
 		requirements.txt \
 		extras-requirements.txt \
-		dockerfiles/mlrun-kfp/requirements.txt \
 		dockerfiles/mlrun-api/requirements.txt \
+		dockerfiles/test/server-requirements.txt \
 		dev-requirements.txt \
 		$(MLRUN_UV_UPGRADE_FLAG) \
-		--output-file dockerfiles/test-system/locked-requirements.txt
-
+		--output-file dockerfiles/test/locked-requirements-server.txt
 
 upgrade-mlrun-kfp-deps-lock: ## Upgrade mlrun-kfp locked requirements file
 	uv pip compile \
@@ -1167,8 +1164,8 @@ upgrade-mlrun-deps-lock: ## Upgrade mlrun-* locked requirements file
 		upgrade-mlrun-jupyter-deps-lock \
 		upgrade-mlrun-gpu-deps-lock \
 		upgrade-mlrun-kfp-deps-lock \
-		upgrade-mlrun-test-deps-lock \
-		upgrade-mlrun-system-test-deps-lock
+		upgrade-mlrun-test-client-deps-lock \
+		upgrade-mlrun-test-server-deps-lock
 
 
 coverage-combine:

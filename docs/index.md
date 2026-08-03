@@ -351,7 +351,7 @@ MLRun includes the following major components:
 
 **{ref}`Serverless functions <Functions>`:** An automatically deployed software package with one or more methods and runtime-specific attributes (such as image, libraries, command, arguments, resources, etc.).
 
-**{ref}`Data & artifacts <data-feature-store>`:** Glueless connectivity to various data sources, metadata management, catalog, and versioning for structured/unstructured artifacts.
+**{ref}`Data & artifacts <data-artifacts>`:** Glueless connectivity to various data sources, metadata management, catalog, and versioning for structured/unstructured artifacts.
 
 **{ref}`Batch Runs & workflows <workflows>`:** Execute one or more functions with specific parameters and collect, track, and compare all their results and artifacts.
 

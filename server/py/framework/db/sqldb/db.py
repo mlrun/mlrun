@@ -4824,7 +4824,7 @@ class SQLDB(DBInterface):
                     feature_set, feature_set_digest_id_to_index, feature_set_digests_v2
                 )
                 features_with_feature_set_index.append(
-                    feature.copy(update=dict(feature_set_index=feature_set_index))
+                    feature.model_copy(update=dict(feature_set_index=feature_set_index))
                 )
 
         return mlrun.common.schemas.FeaturesOutputV2(
@@ -4886,7 +4886,7 @@ class SQLDB(DBInterface):
                     feature_set, feature_set_digest_id_to_index, feature_set_digests_v2
                 )
                 entities_with_feature_set_index.append(
-                    entity.copy(update=dict(feature_set_index=feature_set_index))
+                    entity.model_copy(update=dict(feature_set_index=feature_set_index))
                 )
 
         return mlrun.common.schemas.EntitiesOutputV2(

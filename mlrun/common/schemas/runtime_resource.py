@@ -13,41 +13,12 @@
 # limitations under the License.
 
 
-import pydantic.v1
+# Facade re-exporting the ``_shared`` layer and the active model face, preserving the
+# ``mlrun.common.schemas.runtime_resource`` import path.
+from ._dispatch import USE_V2_SCHEMAS as _USE_V2
+from ._shared.runtime_resource import *  # noqa: F401,F403
 
-import mlrun.common.types
-
-
-class ListRuntimeResourcesGroupByField(mlrun.common.types.StrEnum):
-    job = "job"
-    project = "project"
-
-
-class RuntimeResource(pydantic.v1.BaseModel):
-    name: str
-    labels: dict[str, str] = {}
-    status: dict | None
-
-
-class RuntimeResources(pydantic.v1.BaseModel):
-    crd_resources: list[RuntimeResource] = []
-    pod_resources: list[RuntimeResource] = []
-    # only for dask runtime
-    service_resources: list[RuntimeResource] | None = None
-
-    class Config:
-        extra = pydantic.v1.Extra.allow
-
-
-class KindRuntimeResources(pydantic.v1.BaseModel):
-    kind: str
-    resources: RuntimeResources
-
-
-RuntimeResourcesOutput = list[KindRuntimeResources]
-
-
-# project name -> job uid -> runtime resources
-GroupedByJobRuntimeResourcesOutput = dict[str, dict[str, RuntimeResources]]
-# project name -> kind -> runtime resources
-GroupedByProjectRuntimeResourcesOutput = dict[str, dict[str, RuntimeResources]]
+if _USE_V2:
+    from ._v2.runtime_resource import *  # noqa: F401,F403
+else:
+    from ._v1.runtime_resource import *  # noqa: F401,F403

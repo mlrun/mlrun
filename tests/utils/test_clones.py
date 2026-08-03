@@ -195,9 +195,9 @@ def test_extract_source_store_uri_forwards_secrets():
             "s3://path",
             "target_dir is required",
         ),
-        # Unsupported source type (not store://, git://, .zip, or .tar.gz)
+        # Unsupported source type (not store://, git://, .zip/.tar.gz, or bare s3/http(s))
         (
-            "http://not-a-store/file.py",
+            "ftp://not-a-store/file.py",
             "/tmp/target",
             False,
             "s3://path",
@@ -296,6 +296,135 @@ def test_load_source_code_tgz(tmp_path):
     assert returned_dir == target_dir
     assert returned_file_path is None
     mock_clone_tgz.assert_called_once_with(source_uri, target_dir)
+
+
+@pytest.mark.parametrize(
+    "source_uri",
+    [
+        "s3://bucket/path/main.py",
+        "http://example.com/path/main.py",
+        "https://example.com/path/main.py",
+    ],
+)
+def test_load_source_code_single_file(tmp_path, source_uri):
+    target_dir = str(tmp_path / "target")
+
+    with unittest.mock.patch.object(mlrun, "get_dataitem") as mock_get_dataitem:
+        mock_download = mock_get_dataitem.return_value.download
+        returned_dir, returned_file_path = mlrun.utils.clones.load_source_code(
+            source_uri=source_uri,
+            target_dir=target_dir,
+        )
+
+    expected_file_path = os.path.join(target_dir, "main.py")
+    assert returned_dir == target_dir
+    assert returned_file_path == expected_file_path
+    mock_get_dataitem.assert_called_once_with(source_uri, secrets=None)
+    mock_download.assert_called_once_with(expected_file_path)
+    assert os.path.isdir(target_dir)
+
+
+def test_load_source_code_single_file_download_failure_does_not_leak_uri(tmp_path):
+    # a download failure must surface only the scheme in the error, never the full URI - it
+    # can embed credentials (e.g. a presigned URL's query string, or a token in the path).
+    source_uri = "https://example.com/main.py?token=super-secret"
+    target_dir = str(tmp_path / "target")
+
+    with unittest.mock.patch.object(mlrun, "get_dataitem") as mock_get_dataitem:
+        mock_get_dataitem.return_value.download.side_effect = Exception("boom")
+        with pytest.raises(mlrun.errors.MLRunRuntimeError) as exc_info:
+            mlrun.utils.clones.load_source_code(
+                source_uri=source_uri,
+                target_dir=target_dir,
+            )
+
+    assert "super-secret" not in str(exc_info.value)
+    assert "'https'" in str(exc_info.value)
+
+
+def test_load_source_code_s3_archive_still_uses_archive_handler(tmp_path):
+    # archive detection must run before the new bare-scheme single-file check, so an archive
+    # under s3:// still extracts rather than downloading as one opaque file.
+    source_uri = "s3://bucket/path/project.tar.gz"
+    target_dir = str(tmp_path / "target")
+
+    with unittest.mock.patch.object(mlrun.utils.clones, "clone_tgz") as mock_clone_tgz:
+        returned_dir, returned_file_path = mlrun.utils.clones.load_source_code(
+            source_uri=source_uri,
+            target_dir=target_dir,
+        )
+
+    assert returned_dir == target_dir
+    assert returned_file_path is None
+    mock_clone_tgz.assert_called_once_with(source_uri, target_dir)
+
+
+def test_load_source_code_single_file_no_filename_raises(tmp_path):
+    # a trailing slash resolves to an empty basename - nothing to name the downloaded file.
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError, match="no resolvable filename"
+    ):
+        mlrun.utils.clones.load_source_code(
+            source_uri="s3://bucket/path/",
+            target_dir=str(tmp_path / "target"),
+        )
+
+
+def test_load_source_code_single_file_no_filename_does_not_leak_uri(tmp_path):
+    # the error must name only the scheme, never the full URI - it can embed credentials
+    # (e.g. a presigned URL's query string).
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as exc_info:
+        mlrun.utils.clones.load_source_code(
+            source_uri="s3://bucket/path/?token=super-secret",
+            target_dir=str(tmp_path / "target"),
+        )
+    assert "super-secret" not in str(exc_info.value)
+
+
+def test_load_source_code_archive_with_query_string_still_uses_archive_handler(
+    tmp_path,
+):
+    # a presigned-URL query string must not hide the .tar.gz extension from detection and
+    # cause it to fall through to the single-file branch instead of extracting.
+    source_uri = "https://example.com/path/project.tar.gz?token=abc123"
+    target_dir = str(tmp_path / "target")
+
+    with unittest.mock.patch.object(mlrun.utils.clones, "clone_tgz") as mock_clone_tgz:
+        returned_dir, returned_file_path = mlrun.utils.clones.load_source_code(
+            source_uri=source_uri,
+            target_dir=target_dir,
+        )
+
+    assert returned_dir == target_dir
+    assert returned_file_path is None
+    mock_clone_tgz.assert_called_once_with(source_uri, target_dir)
+
+
+@pytest.mark.parametrize(
+    "source_uri,expected",
+    [
+        ("", False),
+        ("store://artifacts/project/handler.py", True),
+        ("git://github.com/org/repo.git#main", True),
+        ("s3://bucket/path/project.tar.gz", True),
+        ("s3://bucket/path/project.zip", True),
+        ("s3://bucket/path/project.tar.gz?token=abc", True),
+        # bare (non-archive) single-file schemes
+        ("s3://bucket/path/main.py", True),
+        ("http://example.com/main.py", True),
+        ("https://example.com/main.py", True),
+        # an archive extension under a scheme mlrun.datastore doesn't register at all - must
+        # not be reported loadable, or a caller that fails fast on this signal (e.g. Buildah's
+        # source routing) would schedule a pod that's guaranteed to fail.
+        ("ftp://host/source.zip", False),
+        ("ftp://host/source.tar.gz", False),
+        # unsupported bare-file scheme
+        ("ftp://host/file.py", False),
+        ("relative/path", False),
+    ],
+)
+def test_is_source_loadable(source_uri, expected):
+    assert mlrun.utils.clones.is_source_loadable(source_uri) is expected
 
 
 def test_extract_source_store_uri_delegates_to_load_source_code():

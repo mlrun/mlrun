@@ -65,7 +65,7 @@ The four per-call metrics are all histograms — including items-returned, delib
 
 |Metric name |Kind |Meaning       |
 |---------------------|------|--------------------------------------------------------------------------------|
-|mlrun_rest_request_duration_milliseconds|Histogram|Processing time (in milliseconds) of each REST call, from receipt to the full response being sent (excludes any background-task processing after the response completes).|
+|mlrun_rest_request_duration_milliseconds|Histogram|Server processing time (in milliseconds) of each REST call, from receipt to the response headers being sent (time-to-first-byte; excludes client download time and any background-task processing after headers are sent).|
 |mlrun_rest_request_size_kibibytes|Histogram|Size of the REST request body, in kibibytes.|
 |mlrun_rest_response_size_kibibytes|Histogram|Size of the REST response body, in kibibytes.|
 |mlrun_rest_response_num_items|Histogram|Number of objects returned by list calls (`method="LIST"` only).|

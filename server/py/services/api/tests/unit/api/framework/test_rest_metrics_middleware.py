@@ -268,6 +268,26 @@ def test_rest_metrics_middleware_records_after_response_completes() -> None:
     assert kwargs["project"] == "proj"
 
 
+def test_rest_metrics_middleware_records_duration_at_response_start() -> None:
+    """Duration must reflect time-to-first-byte, not full body delivery.
+
+    A slow client/large body shouldn't inflate the server-latency histogram —
+    the delay here happens entirely after ``http.response.start``.
+    """
+
+    async def downstream_app(scope, receive, send):
+        scope["route"] = _route("get_function")
+        await send({"type": "http.response.start", "status": 200, "headers": []})
+        await asyncio.sleep(0.05)
+        await send({"type": "http.response.body", "body": b"ok"})
+
+    with _patch_all_record_fns() as mocks:
+        asyncio.run(_run_middleware(downstream_app, _http_scope()))
+
+    duration_ms = mocks["record_duration"].call_args.kwargs["duration_ms"]
+    assert duration_ms < 20
+
+
 def test_rest_metrics_middleware_excludes_healthz() -> None:
     async def downstream_app(scope, receive, send):
         await send({"type": "http.response.start", "status": 200, "headers": []})

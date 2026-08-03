@@ -135,9 +135,12 @@ def parse_item_count(body: bytes) -> int | None:
 class RestMetricsMiddleware(BaseHTTPMiddleware):
     """
     Records per-REST-call histogram metrics, always-on regardless of any
-    sampling configuration. Recorded at the final ``http.response.body``
-    message, once every value is available — request/response size, item
-    count, and duration covering the full time to deliver the response.
+    sampling configuration. Duration is captured at ``http.response.start``
+    (time-to-first-byte, matching phase 1) so it reflects server processing
+    time only — not client download speed. Request/response size and item
+    count need the full body, so those are captured at the final
+    ``http.response.body`` message; all four histograms are recorded together
+    at that point, once every value is available.
     """
 
     async def _handle_http(
@@ -163,6 +166,7 @@ class RestMetricsMiddleware(BaseHTTPMiddleware):
         response_state = {
             "status_code": None,
             "method": "",
+            "duration_ms": 0.0,
             "response_size_bytes": 0,
             "response_body": bytearray(),
         }
@@ -175,6 +179,9 @@ class RestMetricsMiddleware(BaseHTTPMiddleware):
                 if is_response_start(message):
                     response_state["status_code"] = message["status"]
                     response_state["method"] = parse_method(scope["method"], scope)
+                    # TTFB: processing is complete once headers are sent — matches
+                    # phase 1 and excludes client download time from the histogram.
+                    response_state["duration_ms"] = self._elapsed_time_ms(start_time)
                     return
                 if message.get("type") != "http.response.body":
                     return
@@ -185,7 +192,7 @@ class RestMetricsMiddleware(BaseHTTPMiddleware):
                 if message.get("more_body", False):
                     # Streamed body still in flight — nothing to record yet.
                     return
-                duration_ms = self._elapsed_time_ms(start_time)
+                duration_ms = response_state["duration_ms"]
                 method = response_state["method"]
                 item_count = (
                     parse_item_count(bytes(response_state["response_body"]))

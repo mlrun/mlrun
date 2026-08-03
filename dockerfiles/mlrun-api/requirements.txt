@@ -5,7 +5,9 @@ apscheduler>=3.11,<4
 objgraph~=3.6
 igz-mgmt~=0.4.2
 humanfriendly~=10.0
-fastapi~=0.125.0
+# starlette>=1.0.1 pinned directly (not just left to fastapi's transitive floor): CVE-2026-48710 BadHost fix.
+fastapi>=0.128,<1
+starlette>=1.0.1,<2
 sqlalchemy~=2.0
 sqlalchemy-utils~=0.41.2
 pymysql~=1.1
@@ -14,8 +16,8 @@ alembic~=1.18
 timelength~=1.1
 memray~=1.12; sys_platform != 'win32'
 aiosmtplib~=5.1
-# until https://github.com/fastapi/fastapi/issues/10360 is solved
-pydantic>=1,<2
+# ML-12891: API server runs on pydantic 2 (client/SDK stays on pydantic 1 via the pydantic.v1 layer).
+pydantic>=2,<3
 mlrun-pipelines-kfp-v1-8~=0.7.3
 iguazio~=0.2.1
 opentelemetry-sdk~=1.42

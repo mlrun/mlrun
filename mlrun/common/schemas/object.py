@@ -12,72 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from datetime import datetime
 
-from pydantic.v1 import BaseModel, Extra
+# Facade re-exporting the ``_shared`` layer and the active model face, preserving the
+# ``mlrun.common.schemas.object`` import path.
+from ._dispatch import USE_V2_SCHEMAS as _USE_V2
+from ._shared.object import *  # noqa: F401,F403
 
-import mlrun.common.types
-
-
-class ObjectMetadata(BaseModel):
-    name: str
-    project: str | None
-    tag: str | None
-    labels: dict | None = {}
-    updated: datetime | None
-    created: datetime | None
-    uid: str | None
-
-    class Config:
-        extra = Extra.allow
-
-
-class ObjectStatus(BaseModel):
-    state: str | None
-
-    class Config:
-        extra = Extra.allow
-
-
-class ObjectSpec(BaseModel):
-    class Config:
-        extra = Extra.allow
-
-
-class LabelRecord(BaseModel):
-    id: int
-    name: str
-    value: str
-
-    class Config:
-        orm_mode = True
-
-
-class ObjectRecord(BaseModel):
-    id: int
-    name: str
-    project: str
-    uid: str
-    updated: datetime | None = None
-    labels: list[LabelRecord]
-    # state is extracted from the full status dict to enable queries
-    state: str | None = None
-    full_object: dict | None = None
-
-    class Config:
-        orm_mode = True
-
-
-class ObjectKind(mlrun.common.types.StrEnum):
-    project = "project"
-    feature_set = "FeatureSet"
-    background_task = "BackgroundTask"
-    feature_vector = "FeatureVector"
-    model_endpoint = "model-endpoint"
-    hub_source = "HubSource"
-    hub_item = "HubItem"
-    hub_catalog = "HubCatalog"
-
-
-class ObjectStatusState(mlrun.common.types.StrEnum):
-    CREATED = "created"
+if _USE_V2:
+    from ._v2.object import *  # noqa: F401,F403
+else:
+    from ._v1.object import *  # noqa: F401,F403

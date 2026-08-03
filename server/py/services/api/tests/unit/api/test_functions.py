@@ -762,10 +762,10 @@ def test_build_function_force_build(
     # Mock the functions responsible for the image building
     with (
         unittest.mock.patch(
-            "services.api.utils.builder.make_dockerfile", return_value=""
+            "services.api.utils.builder.base.make_dockerfile", return_value=""
         ),
         unittest.mock.patch(
-            "services.api.utils.builder.make_kaniko_pod",
+            "services.api.utils.builder.kaniko.make_kaniko_pod",
             return_value=framework.utils.singletons.k8s.BasePod(),
         ),
         unittest.mock.patch(
@@ -784,6 +784,10 @@ def test_build_function_force_build(
             "pod-name",
             "namespace",
         )
+        # service-account resolution reads project secrets from k8s; return a real dict
+        # (as a live cluster would) so SecretsData validation succeeds - pydantic 2 rejects
+        # the default MagicMock, whereas pydantic 1 silently coerced it to {}.
+        mock_get_k8s_helper.return_value.get_project_secret_data.return_value = {}
 
         # call build/function and assert the function was called or not called as expected,
         # based on the force_build flag
@@ -796,8 +800,8 @@ def test_build_function_force_build(
         )
         assert response.status_code == HTTPStatus.OK.value
 
-        assert services.api.utils.builder.make_kaniko_pod.call_count == expected
-        assert services.api.utils.builder.make_dockerfile.call_count == expected
+        assert services.api.utils.builder.kaniko.make_kaniko_pod.call_count == expected
+        assert services.api.utils.builder.base.make_dockerfile.call_count == expected
         assert (
             framework.utils.singletons.k8s.get_k8s_helper().create_pod.call_count
             == expected

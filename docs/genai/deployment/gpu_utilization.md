@@ -3,6 +3,11 @@
 
 This page described techniques you can use to improve GPU utilization during inference and how to optimize the utilization, thereby preventing GPU bottlenecks. The strategies provide some important considerations, but this is not an exhaustive list.
 
+**In this section**
+
+- [Optimization techniques](#optimization-techniques)
+- [Inference optimization](#inference-optimization)
+
 ## Optimization techniques
 
 ### Reduce model size

@@ -60,10 +60,15 @@ jobs:
       - name: Install protobuf compiler
         run: |
           sudo apt-get update && sudo apt install -y protobuf-compiler
-          
-          # version is coupled to `go/cmd/schemas_compiler/docker/Dockerfile`
-          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.28
-          go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.2
+
+          # versions are coupled to `server/common/builder/schemas_compiler/docker/Dockerfile`
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
+          go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.6.1
+      - name: Verify generated proto sources are up to date
+        run: |
+          rm -rf server/go/proto/build
+          make -C server/go compile-schemas-go
+          git diff --exit-code -- server/go/proto/build
       - name: Lint
         run: make lint-go security-go
 

@@ -475,6 +475,12 @@ def _build_script(
     lines += gar_credential_exchange
 
     bud = global_opts + ["bud"]
+    # unlike Kaniko - whose RUN steps execute directly on the build pod's own filesystem - Buildah's
+    # RUN steps run inside a real, isolated build sandbox that only sees the image layers being
+    # built. Bind-mount the context dir back in at the same path so RUN instructions that reference
+    # a staged file (e.g. `pip install -r {requirements_path}`) can see it, same as COPY/ADD already
+    # can via the positional context arg below.
+    bud += ["--volume", f"{_CONTEXT_DIR}:{_CONTEXT_DIR}"]
     # pull auth is intentionally scoped to secret_name, not cloud_provider: it's about arbitrary
     # base-image registries, unrelated to the *destination*'s cloud classification.
     bud += _tls_verify_flag(

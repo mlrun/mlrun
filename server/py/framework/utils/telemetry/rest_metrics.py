@@ -26,10 +26,7 @@ Histograms are always emitted for every call — no sampling.
 
 import collections.abc
 
-from opentelemetry.metrics import (
-    Histogram,
-    Meter,
-)
+from opentelemetry.metrics import Histogram, Meter
 from opentelemetry.sdk.metrics import MeterProvider
 
 import mlrun

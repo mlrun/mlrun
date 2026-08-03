@@ -235,9 +235,9 @@ class Service(ABC):
         await mlrun.utils.run_in_threadpool(framework.utils.singletons.db.initialize_db)
 
         if self._rest_metrics_configured():
-            framework.utils.telemetry.rest_metrics.init(
-                service_name=self.service_name,
-            )
+            # Per-REST-call metrics run on every replica (chief + workers + alerts),
+            # so init lives in the shared setup path (no-op when telemetry is off).
+            framework.utils.telemetry.rest_metrics.init(service_name=self.service_name)
 
         await self._custom_setup_service()
 

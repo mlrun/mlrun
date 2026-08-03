@@ -46,7 +46,7 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 ### Runtimes
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-12045|You can now [Run model monitoring on an app runtime](../runtimes/application.ipynb#application-and-model-monitoring-integration). New APIs: {py:meth}`~mlrun.projects.MlrunProject.create_user_model_endpoint`, {py:meth}`~mlrun.runtimes.RemoteRuntime.setup_model_monitoring`.|
+|ML-12045|You can now [Run model monitoring on an app runtime](../runtimes/application.ipynb#run-model-monitoring-on-a-runtime-application). New APIs: {py:meth}`~mlrun.projects.MlrunProject.create_user_model_endpoint`, {py:meth}`~mlrun.runtimes.RemoteRuntime.setup_model_monitoring`.|
 
 ### Metrics
 | ID    |Description                                                                 |

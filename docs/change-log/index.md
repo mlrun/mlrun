@@ -28,7 +28,7 @@ Upgrading these three MLRun dependencies spans several releases.  The upgrades a
 See a full description of KFP, Python, and the workflow engines in {ref}`local-remote`. Specific changes are listed under the relevant versions.
 
 (v1-12-0)=
-## v1.12.0 (July 2026)
+## v1.12.0 (August 2026)
 
 ### Model Monitoring
 | ID    |Description                                                                 |
@@ -77,6 +77,12 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 |-------|----------------------------------------------------------------------------|
 |NA|The updated {ref}`guardrails-data` page now showcases a guardrail step from the MLRun hub, and a ModelRunnerStep that runs  theLLMModel.|
 |NA|Updated {ref}`git-repo-as-hub`.|
+
+### Closed issues
+
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-
 
 (v1110)=
 ## v1.11.0 (May 2026)

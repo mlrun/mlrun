@@ -24,6 +24,7 @@ import tests.system.base
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured
 class TestNotifications(tests.system.base.TestMLRunSystem):
     project_name = "notifications-test"
+    reuse_project_across_tests = True
 
     @pytest.mark.smoke
     def test_run_notifications(self):
@@ -33,6 +34,7 @@ class TestNotifications(tests.system.base.TestMLRunSystem):
         def _assert_notifications():
             runs = self._run_db.list_runs(
                 project=self.project_name,
+                uid=run.uid(),
                 with_notifications=True,
             )
             assert len(runs) == 1
@@ -104,6 +106,7 @@ class TestNotifications(tests.system.base.TestMLRunSystem):
         def _assert_notification_was_sent():
             runs = self._run_db.list_runs(
                 project=self.project_name,
+                uid=run.uid(),
                 with_notifications=True,
             )
             assert len(runs) == 1
@@ -235,7 +238,7 @@ class TestNotifications(tests.system.base.TestMLRunSystem):
             )
 
         # Validate that the run in pending retry state
-        runs = self._run_db.list_runs(project=self.project_name)
+        runs = self._run_db.list_runs(project=self.project_name, name="test-func")
         assert len(runs) == 1
         run = mlrun.RunObject.from_dict(runs[0])
         assert run.status.retry_count is None
@@ -246,6 +249,7 @@ class TestNotifications(tests.system.base.TestMLRunSystem):
         def _assert_notification_received():
             runs = self._run_db.list_runs(
                 project=self.project_name,
+                name="test-func",
                 with_notifications=True,
             )
             assert len(runs) == 1

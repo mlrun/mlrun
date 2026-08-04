@@ -44,6 +44,7 @@ def exec_cli(args, action="run"):
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured
 class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
     project_name = "kubejob-system-test"
+    reuse_project_across_tests = True
 
     image: str = "mlrun/mlrun"
 
@@ -404,14 +405,18 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
 
         # validate that the end_time is not set before the run is finished
         assert not run.status.end_time
-        runs = mlrun.get_run_db().list_runs(project=self.project_name)
-        assert not runs[0]["status"].get("end_time")
+        fetched_run = mlrun.get_run_db().read_run(
+            uid=run.uid(), project=self.project_name
+        )
+        assert not fetched_run["status"].get("end_time")
 
         # wait for the run to finish
         run.wait_for_completion()
 
-        runs = mlrun.get_run_db().list_runs(project=self.project_name)
-        run = mlrun.RunObject.from_dict(runs[0])
+        fetched_run = mlrun.get_run_db().read_run(
+            uid=run.uid(), project=self.project_name
+        )
+        run = mlrun.RunObject.from_dict(fetched_run)
 
         assert run.status.end_time > run.status.start_time
 
@@ -960,7 +965,7 @@ def print_df(df):
         with pytest.raises(mlrun.runtimes.utils.RunError):
             function.run(verbose=True, retry=retry)
 
-        runs = self._run_db.list_runs(project=self.project_name)
+        runs = self._run_db.list_runs(project=self.project_name, name="raise-func")
         assert len(runs) == 1
         run = mlrun.RunObject.from_dict(runs[0])
         assert run.status.retry_count is None
@@ -971,7 +976,7 @@ def print_df(df):
         assert f"Run failed attempt 1 of {max_attempts}" in run.status.status_text
 
         def _assert_retry_info():
-            runs = self._run_db.list_runs(project=self.project_name)
+            runs = self._run_db.list_runs(project=self.project_name, name="raise-func")
             assert len(runs) == 1
             run = mlrun.RunObject.from_dict(runs[0])
             assert run.status.retry_count == 3, (

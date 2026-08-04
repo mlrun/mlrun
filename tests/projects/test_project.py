@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import concurrent.futures
 import os
 import os.path
 import pathlib
@@ -2557,6 +2558,54 @@ def test_get_or_create_project_no_db(monkeypatch):
     project_name = "project-name"
     project = mlrun.get_or_create_project(project_name, allow_cross_project=True)
     assert project.name == project_name
+
+
+def test_get_or_create_project_concurrent_context_creation(rundb_mock, context):
+    # concurrent get_or_create_project calls sharing one not-yet-existing context dir
+    # must not race on directory creation.
+    project_name = "concurrent-context-project"
+    rundb_mock.create_project({"metadata": {"name": project_name}})
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as pool:
+        futures = [
+            pool.submit(mlrun.get_or_create_project, project_name, context=str(context))
+            for _ in range(10)
+        ]
+        for future in concurrent.futures.as_completed(futures):
+            future.result()
+
+    assert os.path.isdir(context)
+
+
+def test_get_or_create_project_context_dir_race_guard(rundb_mock, context, monkeypatch):
+    # deterministically simulate the TOCTOU window: another thread/process creates the
+    # context dir the instant this call's makedirs executes. A bare check-then-act
+    # makedirs would raise FileExistsError here; the exist_ok=True fix must not.
+    project_name = "existing-context-project"
+    rundb_mock.create_project({"metadata": {"name": project_name}})
+    real_makedirs = os.makedirs
+
+    def racy_makedirs(name, *args, **kwargs):
+        real_makedirs(name, exist_ok=True)
+        return real_makedirs(name, *args, **kwargs)
+
+    monkeypatch.setattr(mlrun.projects.project, "makedirs", racy_makedirs)
+
+    project = mlrun.get_or_create_project(project_name, context=str(context))
+
+    assert project.name == project_name
+
+
+def test_get_or_create_project_context_path_is_file(rundb_mock, context):
+    # a context path that collides with an existing plain file (not a directory) must
+    # still fail loudly, not be silently accepted.
+    project_name = "file-collision-project"
+    rundb_mock.create_project({"metadata": {"name": project_name}})
+    os.makedirs(context.parent, exist_ok=True)
+    context.touch()
+
+    with pytest.raises(FileExistsError):
+        mlrun.get_or_create_project(project_name, context=str(context))
 
 
 @pytest.mark.parametrize(

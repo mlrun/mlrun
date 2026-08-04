@@ -44,6 +44,7 @@ from tests.system.runtimes.assets.function_with_model import DummyModel, MyModel
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured
 class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
     project_name = "test-nuclio-runtime"
+    reuse_project_across_tests = True
 
     image: str = "mlrun/mlrun"
 
@@ -363,7 +364,14 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
         self._logger.debug("Deploying nuclio function")
         function.deploy()
 
-        assert len(self.project.list_model_endpoints().endpoints) == 1
+        assert (
+            len(
+                self.project.list_model_endpoints(
+                    names="my-model", function_name=function.metadata.name
+                ).endpoints
+            )
+            >= 1
+        )
 
     @pytest.mark.parametrize("raise_exception", [True, False])
     def test_deploy_model_runner_error_handler(self, raise_exception: bool):
@@ -1021,6 +1029,7 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
 @pytest.mark.enterprise
 class TestNuclioRuntimeWithStream(tests.system.base.TestMLRunSystem):
     project_name = "stream-project"
+    reuse_project_across_tests = True
     stream_container = "bigdata"
     path_uuid_part = uuid.uuid4()
     stream_path = f"/test_nuclio/test_serving_with_child_function-{path_uuid_part}/"
@@ -1170,6 +1179,7 @@ class MyMap(MapClass):
 @pytest.mark.enterprise
 class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
     project_name = "kafka-project"
+    reuse_project_across_tests = True
     topic_uuid_part = uuid.uuid4()
     topic = f"TestNuclioRuntimeWithKafka-{topic_uuid_part}"
     topic_out = f"TestNuclioRuntimeWithKafka-out-{topic_uuid_part}"
@@ -1410,6 +1420,7 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured
 class TestNuclioMLRunJobs(tests.system.base.TestMLRunSystem):
     project_name = "nuclio-mlrun-jobs"
+    reuse_project_across_tests = True
 
     image: str = "mlrun/mlrun"
 
@@ -1489,6 +1500,7 @@ class TestNuclioMLRunJobs(tests.system.base.TestMLRunSystem):
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured
 class TestNuclioAPIGateways(tests.system.base.TestMLRunSystem):
     project_name = "nuclio-mlrun-gateways"
+    reuse_project_across_tests = True
     gw_name = "test-gateway"
 
     def custom_setup(self):
@@ -1581,6 +1593,7 @@ class TestNuclioRuntimeWithRabbitMQ(tests.system.base.TestMLRunSystem):
     """
 
     project_name = "rabbitmq-project"
+    reuse_project_across_tests = True
     exchange_uuid_part = uuid.uuid4()
     exchange_name = f"test-exchange-{exchange_uuid_part}"
     queue_name = f"test-queue-{exchange_uuid_part}"

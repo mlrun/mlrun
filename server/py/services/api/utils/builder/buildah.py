@@ -475,6 +475,10 @@ def _build_script(
     lines += gar_credential_exchange
 
     bud = global_opts + ["bud"]
+    # unlike Kaniko - whose RUN steps execute directly on the build pod's own filesystem - Buildah's
+    # RUN steps run in a real, isolated build sandbox that can't see files staged into the context
+    # dir (e.g. requirements.txt) unless it's bind-mounted back in.
+    bud += ["--volume", f"{_CONTEXT_DIR}:{_CONTEXT_DIR}"]
     # pull auth is intentionally scoped to secret_name, not cloud_provider: it's about arbitrary
     # base-image registries, unrelated to the *destination*'s cloud classification.
     bud += _tls_verify_flag(

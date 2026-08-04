@@ -75,14 +75,27 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 ### Documentation
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|NA|The updated {ref}`guardrails-data` page now showcases a guardrail step from the MLRun hub, and a ModelRunnerStep that runs  theLLMModel.|
+|ML-12383|The updated {ref}`guardrails-data` page now showcases a guardrail step from the MLRun hub, and a ModelRunnerStep that runs  theLLMModel.|
 |NA|Updated {ref}`git-repo-as-hub`.|
+
+
 
 ### Closed issues
 
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-
+|ML-11824|When running a workflow from a Jupyter notebook, for example, the link `click here to view` now opens the workflow monitor view.|
+|ML-11829|You can now access an S3 public-like bucket from AWS. Previously, access was blocked with a ClientError.|
+|ML-12102|Remote workflow projects are now run from the MLRun DB, maintaining consistency between the project version before running the remote workflow and afterwards.|
+|ML-12319||
+|ML-12372||
+|ML-12391|In the Projects > Models page, the status of root functions no longer include the status of child functions.|
+|ML-12392|The predefined date picker time selections are now synchronized with the Start time in the message "No data matches the filter: Start time....".|
+|ML-12395|The deployment status in the Real-Time Pipelines > Serving Pipelines table is now consistent with the Details pane.|
+|ML-12458|  |
+|ML-12573|   |
+|ML-12590|The Monitor Jobs page no onger time out when requestion runs older then 24 hours and filter on state. |
+|ML-12755|Resolved slow per-project pipeline listings and project deletion timeouts on tenants with KFP v2. |
 
 (v1110)=
 ## v1.11.0 (May 2026)
@@ -146,6 +159,12 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 |-------|----------------------------------------------------------------------------|
 |10357|You can now import steps from the MLRun hub or your own private hub. See [Load steps from the hub](../runtimes/load-from-hub.md#steps) and {py:class}`~mlrun.hub.step.get_hub_step`.|
 
+### CE MLRun
+
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|CEML-642|New OpenTelemetry (OTel) observability feature for Kubernetes installations. See [Configure OTel](../install-mlrun-ce/mlrun-ce-development-notes.md#configure-otel)
+
 ### Documentation
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
@@ -173,6 +192,7 @@ ML-11820|Improved the time to access the monitoring page (V3IO).|
 |ML-12311|Resolved issue of failure to return project workflows by changing the defaults: counter refresh time is 1 mninute (was 30 seconds); and "in progress workflow counters" count only the last 2 days.|
 |ML-12328|Fixed KFP experiments pagination.|
 |ML-12372|Fixed workflows pagination.|
+
 
 ## v1.1.0.x
 (#v1103)=
@@ -1435,7 +1455,7 @@ capabilities of Iguazio, and provide quick access to common tasks.
 - [MLRun change log in GitHub](https://github.com/mlrun/mlrun/releases/tag/v1.1.0)
 - [UI change log in GitHub](https://github.com/mlrun/ui/releases/tag/v1.1.0)
 
-## 1.0.x
+## v1.0.x
 
 ### v1.0.6 (16 August 2022)
 
@@ -1608,7 +1628,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-12078|When Model-monitoring is enabled with V3io configured as default artifact storage, each model-endpoint creates 25 directories per day. |Run a daily cron job to delete parquet partition directories older than a week.|v1.11.0|
 |ML-12185|A split graph with a collector as a merge step does not fail deployment nor invoke and produce a false response. |Do not use the collector step as the merge step.|v1.11.0|
 |ML-12378|When using HTTP streaming, async does not work but works in the same manner as sync.|NA|v1.11.0|
-|ML-12458|Schedules only work with UTC timezone.|Use UTC instead of other timezones.|V1.11.0|
+
 
 ## Limitations
 

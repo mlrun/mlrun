@@ -136,3 +136,18 @@ class BaseEventClient:
         :return: event object to emit, or None if the client doesn't support this event
         """
         return None
+
+    def generate_permission_denied_event(
+        self,
+        resource: str,
+        action: str,
+        username: str | None = None,
+    ) -> typing.Any | None:
+        """
+        Generate a permission-denied audit event
+        :param resource: the OPA resource path the action was attempted on
+        :param action: the attempted action (e.g. read, create, update, delete)
+        :param username: username of the user who was denied, if known
+        :return: event object to emit, or None if the client doesn't support this event
+        """
+        return None

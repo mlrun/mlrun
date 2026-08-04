@@ -11,21 +11,27 @@ Before using this Makefile, ensure you have the following installed:
 
 ## Getting Started
 
-1. **Build Packages**: Run the following command to build your Python packages:
+1. **Bump Versions**: Before building, bump the version of each package in `PACKAGES`:
+    ```bash
+    make bump-version                # bumps the patch version (default), e.g. 0.1.1 -> 0.1.2
+    make bump-version BUMP=minor     # bumps the minor version and resets patch, e.g. 0.1.1 -> 0.2.0
+    ```
+
+2. **Build Packages**: Run the following command to build your Python packages:
     ```bash
     make build
     ```
     
     This command will build each package listed in PACKAGES.
 
-2. **Release Packages**: After building, you can release the packages to PyPI by running:
+3. **Release Packages**: After building, you can release the packages to PyPI by running:
     ```bash
     make release
     ```
 
     This command will upload the built distribution files to PyPI using twine.
 
-3. **Cleaning Up**: If needed, you can clean up the build artifacts by running:
+4. **Cleaning Up**: If needed, you can clean up the build artifacts by running:
 
     ```bash
     make clean

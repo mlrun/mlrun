@@ -32,6 +32,7 @@ import tests.system.base
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured
 class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
     project_name = "application-system-test"
+    reuse_project_across_tests = True
 
     def custom_setup(self):
         super().custom_setup()

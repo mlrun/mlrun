@@ -208,9 +208,7 @@ class Provider(
         if _permission_denied_listener is None:
             return
         try:
-            username = auth_info.username or next(
-                iter(auth_info.get_member_ids()), None
-            )
+            username = auth_info.username or auth_info.user_id
             _permission_denied_listener(resource, str(action), username)
         except Exception as publish_exc:
             logger.warning(

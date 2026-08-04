@@ -431,8 +431,9 @@ def load_project(
         elif url.startswith("db://") or "://" not in url:
             project = _load_project_from_db(url, secrets, user_project)
             project.spec.context = context
-            if not path.isdir(context):
-                makedirs(context)
+            # exist_ok=True avoids a TOCTOU race between concurrent get_or_create_project
+            # calls targeting the same new context dir.
+            makedirs(context, exist_ok=True)
             project.spec.subpath = subpath or project.spec.subpath
             from_db = True
         else:

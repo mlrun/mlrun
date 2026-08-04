@@ -170,7 +170,7 @@ class TestMLRunSystem:
 
         self._logger.debug("Removing test data from database")
         if self._should_clean_resources():
-            fsets = self._run_db.list_feature_sets()
+            fsets = self._run_db.list_feature_sets(project=self.project_name)
             if fsets:
                 for fset in fsets:
                     fset.purge_targets()

@@ -229,10 +229,10 @@ def _create_model_monitoring_function_base(
     Note: this is an internal API only.
     This function does not set the labels or mounts v3io.
     """
-    if name in mm_constants._RESERVED_FUNCTION_NAMES:
+    if name in mm_constants.RESERVED_FUNCTION_NAMES:
         raise mlrun.errors.MLRunValueError(
             "An application cannot have the following names: "
-            f"{mm_constants._RESERVED_FUNCTION_NAMES}"
+            f"{mm_constants.RESERVED_FUNCTION_NAMES}"
         )
     _, has_valid_suffix, suffix = mlrun.utils.helpers.ensure_batch_job_suffix(name)
     if name and not has_valid_suffix:

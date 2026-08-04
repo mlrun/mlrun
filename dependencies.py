@@ -84,9 +84,9 @@ def extra_requirements() -> dict[str, list[str]]:
     extras_require.update(
         {
             "dev-postgres": ["pytest-mock-resources[postgres]~=2.12"],
-            "kfp18": ["mlrun_pipelines_kfp_v1_8[kfp]~=0.7.0"],
+            "kfp18": ["mlrun_pipelines_kfp_v1_8[kfp]~=0.8.0"],
             "mlflow": ["mlflow~=3.0"],
-            "ig4": ["iguazio~=0.0.1"],
+            "ig4": ["iguazio~=0.2.1"],
             # TODO uncomment when KFP 1.8 support is removed
             # "kfp2": ["mlrun_pipelines_kfp_v2[kfp]>=0.5.0 ; python_version >= '3.11'"],
             "api": api_deps,

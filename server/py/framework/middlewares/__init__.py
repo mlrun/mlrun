@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from .ensure_be_version import EnsureBackendVersionMiddleware
+from .ensure_json_content_type import EnsureJSONContentTypeMiddleware
 from .request_logger import RequestLoggerMiddleware
 from .rest_metrics import RestMetricsMiddleware
 from .ui_clear_cache import UiClearCacheMiddleware

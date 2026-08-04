@@ -12,24 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Per-REST-call processing-time OTel telemetry for MLRun API-bearing services.
+"""Per-REST-call OTel telemetry for MLRun API-bearing services.
 
-Runs on every replica (API chief + workers and the alerts service) — unlike the
-chief-only inventory telemetry. Request durations are recorded to a single
-Histogram instrument tagged with ``system_id`` plus bounded ``method`` and
-``status_code`` attributes, exported over OTLP and aggregatable in Grafana.
+Records duration, request/response size, and items-returned histograms per
+REST call, tagged with system_id/method/status_code/resource/project.
+Collection-returning GETs report method="LIST" (see parse_method).
 
-The whole feature sits behind the master ``telemetry.enabled`` kill-switch and
-the ``telemetry.rest_metrics.enabled`` sub-flag: when either is off (or no OTLP
-endpoint is set) ``init()`` is a no-op, no provider is created, and
-``record_duration()`` short-circuits — true zero-cost off.
+Gated behind telemetry.enabled + telemetry.rest_metrics.enabled; init() is a
+no-op and record_*() short-circuits when either is off.
 
-Call sites:
-  - ``init()`` from the shared service startup path (all replicas).
-  - ``shutdown()`` from the shared service teardown path — flushes pending
-    samples before pod termination.
-  - ``record_duration(...)`` from ``RestMetricsMiddleware`` per REST call.
+Histograms are always emitted for every call — no sampling.
 """
+
+import collections.abc
 
 from opentelemetry.metrics import Histogram, Meter
 from opentelemetry.sdk.metrics import MeterProvider
@@ -40,42 +35,45 @@ import mlrun.utils
 
 import framework.utils.telemetry.otel
 
-# Milliseconds (not the Prometheus/OTel base unit of seconds) on purpose: the
-# SDK's default histogram buckets (5, 10, 25, ... 10000) map onto real request
-# latencies in ms, giving useful resolution out of the box. Seconds would put
-# almost every request in the first bucket unless we also defined a custom View
-# with sub-second boundaries. The ``_milliseconds`` suffix + ``ms`` unit signal
-# the non-base unit to consumers.
-_INSTRUMENT_NAME = "mlrun_rest_request_duration_milliseconds"
+# ms, not seconds: the SDK's default buckets (5–10000) map onto real latencies
+# in ms. Seconds would pack nearly all requests into the first bucket.
+_DURATION_INSTRUMENT_NAME = "mlrun_rest_request_duration_milliseconds"
+# "_kibibytes" matches unit="KiBy"'s Prometheus expansion — the exporter only
+# skips appending the unit suffix when the name already ends with that word.
+# "_kilobytes" would not match "kibibytes", causing a double-suffix.
+_REQUEST_SIZE_INSTRUMENT_NAME = "mlrun_rest_request_size_kibibytes"
+_RESPONSE_SIZE_INSTRUMENT_NAME = "mlrun_rest_response_size_kibibytes"
+_ITEMS_RETURNED_INSTRUMENT_NAME = "mlrun_rest_response_num_items"
 
 _provider: MeterProvider | None = None
 _meter: Meter | None = None
-_histogram: Histogram | None = None
+_duration_histogram: Histogram | None = None
+_request_size_histogram: Histogram | None = None
+_response_size_histogram: Histogram | None = None
+_items_returned_histogram: Histogram | None = None
 
 
 def is_enabled() -> bool:
-    """Whether the OTel SDK was successfully initialized.
-
-    ``init()`` is the only place that flips this true; it stays true until
-    ``shutdown()`` resets state.
-    """
+    """True once init() succeeds; False before init or after shutdown()."""
     return _provider is not None
 
 
 def init(service_name: str) -> None:
-    """Wire up the REST-metrics MeterProvider and Histogram instrument.
+    """Wire up the REST-metrics MeterProvider and instruments.
 
-    No-op when already initialized — a stray re-init (hot reload, double
-    startup hook) won't orphan the previous export thread + gRPC channel.
-
-    Does NOT call ``metrics.set_meter_provider`` — the meter is taken from
-    this module's own provider reference so it never clobbers the global
-    provider that the chief-only inventory telemetry claims.
+    No-op when already initialized. Does not set the global meter provider —
+    uses its own reference to avoid clobbering the chief-only inventory
+    telemetry provider.
 
     :param service_name: Bare service name (e.g. ``"api"``); ``"mlrun-"`` is
-                         prepended internally to form the OTel resource name.
+                         prepended for the OTel resource name.
     """
-    global _provider, _meter, _histogram
+    global _provider, _meter
+    global \
+        _duration_histogram, \
+        _request_size_histogram, \
+        _response_size_histogram, \
+        _items_returned_histogram
 
     if _provider is not None:
         mlrun.utils.logger.warning(
@@ -87,35 +85,54 @@ def init(service_name: str) -> None:
         service_name=f"mlrun-{service_name}"
     )
     _meter = _provider.get_meter("mlrun.rest_metrics")
-    # Default (explicit-bucket) histogram aggregation — universally supported on
-    # any Prometheus/Grafana. An exponential histogram would give auto-scaling,
-    # tuning-free resolution and is the better fit for latency, but it maps to
-    # Prometheus native histograms (feature-flagged + newer OTLP/Grafana support)
-    # and would degrade silently on stacks without it. Revisit via a View once
-    # native-histogram support is confirmed in the target deployment.
-    _histogram = _meter.create_histogram(
-        name=_INSTRUMENT_NAME,
+    # Explicit-bucket histograms: universally supported. Exponential histograms
+    # are a better fit for latency but require Prometheus native histogram
+    # support, which isn't confirmed in all target deployments yet.
+    _duration_histogram = _meter.create_histogram(
+        name=_DURATION_INSTRUMENT_NAME,
         unit="ms",
         description="Duration of REST API request processing, in milliseconds.",
     )
-
+    _request_size_histogram = _meter.create_histogram(
+        name=_REQUEST_SIZE_INSTRUMENT_NAME,
+        unit="KiBy",
+        description="Size of the REST request body, in kibibytes.",
+    )
+    _response_size_histogram = _meter.create_histogram(
+        name=_RESPONSE_SIZE_INSTRUMENT_NAME,
+        unit="KiBy",
+        description="Size of the REST response body, in kibibytes.",
+    )
+    _items_returned_histogram = _meter.create_histogram(
+        name=_ITEMS_RETURNED_INSTRUMENT_NAME,
+        unit="1",
+        description="Number of objects returned by list REST calls.",
+    )
     mlrun.utils.logger.info(
-        "REST metrics telemetry histogram registered",
+        "REST metrics telemetry instruments registered",
         service_name=service_name,
         otlp_endpoint=mlrun.mlconf.telemetry.otlp_endpoint,
-        instrument=_INSTRUMENT_NAME,
+        instruments=[
+            _DURATION_INSTRUMENT_NAME,
+            _REQUEST_SIZE_INSTRUMENT_NAME,
+            _RESPONSE_SIZE_INSTRUMENT_NAME,
+            _ITEMS_RETURNED_INSTRUMENT_NAME,
+        ],
     )
 
 
 def shutdown(timeout_millis: int = 2000) -> None:
-    """Flush any pending samples and tear down the MeterProvider.
+    """Flush pending samples and tear down the MeterProvider.
 
-    Called from the service teardown path so samples recorded between the last
-    exporter tick and pod termination are exported. No-op when telemetry was
-    never initialized. The short default ``timeout_millis`` bounds how long an
-    unreachable collector can stall pod termination.
+    No-op when telemetry was never initialized. The short default timeout
+    bounds how long an unreachable collector can stall pod termination.
     """
-    global _provider, _meter, _histogram
+    global _provider, _meter
+    global \
+        _duration_histogram, \
+        _request_size_histogram, \
+        _response_size_histogram, \
+        _items_returned_histogram
     if _provider is None:
         return
     try:
@@ -129,7 +146,10 @@ def shutdown(timeout_millis: int = 2000) -> None:
     finally:
         _provider = None
         _meter = None
-        _histogram = None
+        _duration_histogram = None
+        _request_size_histogram = None
+        _response_size_histogram = None
+        _items_returned_histogram = None
 
 
 def record_duration(
@@ -139,28 +159,117 @@ def record_duration(
     resource: str,
     project: str,
 ) -> None:
-    """Record a single request-processing duration to the histogram.
-
-    No-op when the SDK was not initialized (telemetry disabled). ``system_id``
-    is injected from ``mlrun.mlconf`` on every call so live config changes are
-    picked up.
+    """Record request-processing duration (ms). No-op when telemetry is off.
 
     :param duration_ms:  Processing time in milliseconds.
-    :param method:       HTTP method (e.g. ``GET``).
+    :param method:       HTTP method or ``"LIST"`` for collection GETs.
     :param status_code:  HTTP response status code.
-    :param resource:     Object type the route operates on (e.g. ``functions``),
-                         or "" when none applies.
-    :param project:      Project name for project-scoped routes, else "".
+    :param resource:     Object type (e.g. ``"functions"``), or ``""`` if none.
+    :param project:      Project name for project-scoped routes, else ``""``.
     """
-    if _histogram is None:
-        return
-    _histogram.record(
+    _record(
+        _duration_histogram.record if _duration_histogram is not None else None,
         duration_ms,
-        attributes={
-            "system_id": mlrun.mlconf.system_id or "",
-            "method": method,
-            "status_code": status_code,
-            "resource": resource,
-            "project": project,
-        },
+        method=method,
+        status_code=status_code,
+        resource=resource,
+        project=project,
     )
+
+
+def record_request_size(
+    size_kib: float,
+    method: str,
+    status_code: int,
+    resource: str,
+    project: str,
+) -> None:
+    """Record request body size (KiB). No-op when telemetry is off.
+
+    :param size_kib: Request body size in kibibytes.
+    """
+    _record(
+        _request_size_histogram.record if _request_size_histogram is not None else None,
+        size_kib,
+        method=method,
+        status_code=status_code,
+        resource=resource,
+        project=project,
+    )
+
+
+def record_response_size(
+    size_kib: float,
+    method: str,
+    status_code: int,
+    resource: str,
+    project: str,
+) -> None:
+    """Record response body size (KiB). No-op when telemetry is off.
+
+    :param size_kib: Response body size in kibibytes.
+    """
+    _record(
+        _response_size_histogram.record
+        if _response_size_histogram is not None
+        else None,
+        size_kib,
+        method=method,
+        status_code=status_code,
+        resource=resource,
+        project=project,
+    )
+
+
+def record_items_returned(
+    item_count: int,
+    status_code: int,
+    resource: str,
+    project: str,
+) -> None:
+    """Record item count for a list call. No-op when telemetry is off.
+
+    Only call this after a list-shaped response body was successfully parsed.
+    ``method`` is omitted from attributes — it's always ``"LIST"`` for this
+    instrument, so it adds no query value.
+
+    :param item_count: Number of objects returned by the call.
+    """
+    _record(
+        _items_returned_histogram.record
+        if _items_returned_histogram is not None
+        else None,
+        item_count,
+        method="",
+        status_code=status_code,
+        resource=resource,
+        project=project,
+    )
+
+
+def _record(
+    record_fn: collections.abc.Callable[..., None] | None,
+    value: float,
+    *,
+    method: str,
+    status_code: int,
+    resource: str,
+    project: str,
+) -> None:
+    """Build shared attributes and call record_fn; no-op when record_fn is None.
+
+    Callers pass ``method=""`` to omit it from attributes entirely — used by
+    ``record_items_returned`` where method is always ``"LIST"`` and adds no
+    query value.
+    """
+    if record_fn is None:
+        return
+    attributes = {
+        "system_id": mlrun.mlconf.system_id or "",
+        "status_code": status_code,
+        "resource": resource,
+        "project": project,
+    }
+    if method:
+        attributes["method"] = method
+    record_fn(value, attributes=attributes)

@@ -412,6 +412,26 @@ def test_make_buildah_pod_stages_inline_code_and_requirements():
     assert "/empty/requirements.txt" in container.args[0]
 
 
+def test_make_buildah_pod_bud_mounts_context_dir_for_run_steps():
+    # Buildah's RUN steps execute in an isolated build sandbox, unlike Kaniko's (which share the
+    # pod's own filesystem) - without this mount, a RUN referencing a context-staged file (e.g. the
+    # requirements.txt written to /empty by this same script) can't see it.
+    script = (
+        _make_buildah_pod(
+            requirements=["pandas==2.0.0"],
+            requirements_path="/empty/requirements.txt",
+        )
+        .pod.spec.containers[0]
+        .args[0]
+    )
+    bud_line = next(
+        line
+        for line in script.splitlines()
+        if line.startswith("buildah") and " bud " in line
+    )
+    assert "--volume /empty:/empty" in bud_line
+
+
 def test_make_buildah_pod_renders_build_args():
     container = _make_buildah_pod(
         builder_env=[client.V1EnvVar(name="ARG1", value="v1")],

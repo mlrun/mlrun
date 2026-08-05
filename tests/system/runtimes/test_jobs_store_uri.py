@@ -30,6 +30,7 @@ class TestJobStoreUri(tests.system.base.TestMLRunSystem):
     """
 
     project_name = "job-store-uri-system-test"
+    reuse_project_across_tests = True
 
     def custom_setup(self):
         super().custom_setup()

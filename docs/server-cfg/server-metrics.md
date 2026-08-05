@@ -1,11 +1,37 @@
-(server-metrics)=
-# Server metrics
+(otel-metrics)=
+# OTel metrics
 
-MLRun collects anonymized system-size statistics, for example, project counts, artifact counts, run activity, serving endpoints, etc., and exports them to Prometheus via OpenTelemetry. 
+MLRun collects anonymized system-wide statistics, for example, project counts, artifact counts, run activity, serving endpoints, etc., and exports them to Prometheus via OpenTelemetry. 
 
-## Metrics description
+When enabled, monitoring application results and metrics are also exported via OpenTelemetry to the same OTLP endpoint. See [Export results and metrics via OTel](../model-monitoring/running-applications.md#export-results-and-metrics-via-otel).
+
+## OTel configuration
+
+OpenTelemetry metrics are configured in `config.py`. Modify the configuration with a `configmap.yaml` that is applied on the mlrun service.
+
+### Set the shared OTLP endpoint
+The shared OTLP endpoint (gRPC or HTTP) is used by every OpenTelemetry feature. 
+To set the endpoint:
+```
+MLRUN_TELEMETRY__OTLP_ENDPOINT=http://<server-name>:<port>
+```
+
+### Disable/enable server metrics collection
+Server metrics are enabled by default. 
+To disable the metrics collection:
+```
+MLRUN_TELEMETRY__ENABLED=false
+```
+
+To enable the metrics collection:
+```
+MLRUN_TELEMETRY__ENABLED=true
+```
+
+## Server metrics description
 Every metric carries a system_id attribute (MLRun installation UUID). Project-scoped metrics additionally carry a project name. 
 
+### Metrics and their attributes
 |Metric name |Attributes       |Meaning       |
 |---------------------|--------------------------------|--------------------------------------------------------------------------------|
 |mlrun_projects|system_id|Current number of projects in the installation|
@@ -19,7 +45,7 @@ Every metric carries a system_id attribute (MLRun installation UUID). Project-sc
 |mlrun_model_endpoints|system_id, project, kind ∈ {realtime, batch}|Current number of registered model endpoints of a given kind. Consolidates the original separate realtime_endpoints / batch_endpoints metrics via the kind attribute.  |
 |mlrun_model_monitoring_applications|system_id, project|Current number of model-monitoring applications in the project.  |
 
-## Example output
+### Example output
 ```
 mlrun_projects{system_id="f3a2b1c4d5e6f7a8"} 5
 mlrun_artifacts{system_id="f3a2b1c4d5e6f7a8", project="name1", kind="model"}   8
@@ -28,7 +54,7 @@ mlrun_artifacts{system_id="f3a2b1c4d5e6f7a8", project="name3", kind="other"}   1
 mlrun_runs{system_id="f3a2b1c4d5e6f7a8", project="name4", state="completed"} 120
 mlrun_runs{system_id="f3a2b1c4d5e6f7a8", project="name5", state="failed"}     3
 ```
-## Example PromQL views
+### Example PromQL views
 PromQL (Prometheus Query Language) is the language used to select and aggregate time series data in real time.
 Typical output looks like:
 ```
@@ -42,25 +68,4 @@ mlrun_projects[7d:1h]
 delta(sum(mlrun_artifacts)[24h:])
 ```
 
-## Configure metrics
-OpenTelemetry metrics are configured in `config.py`. Modify the configuration with a `configmap.yaml` that is applied on the mlrun service.
-
-## Disable/enable OpenTelemetry 
-Metrics are enabled by default. 
-To disable the metrics collection:
-```
-MLRUN_TELEMETRY__ENABLED=false
-```
-
-To enable the metrics collection:
-```
-MLRUN_TELEMETRY__ENABLED=true
-```
-
-## Set the shared OTLP endpoint
-The shared OTLP endpoint (gRPC or HTTP) is used by every OpenTelemetry feature. 
-To set the endpoint:
-```
-MLRUN_TELEMETRY__OTLP_ENDPOINT=http://<server-name>:<port>
-```
 

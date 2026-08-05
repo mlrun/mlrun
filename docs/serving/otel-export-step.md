@@ -1,7 +1,7 @@
 (otel-export-step)=
 # Export metrics to OpenTelemetry
 
-You can export model monitoring metrics from a serving graph to an external system (Datadog, Grafana Cloud, a user-hosted OpenTelemetry
+You can export metrics from a serving graph to an external system (Datadog, Grafana Cloud, a user-hosted OpenTelemetry
 Collector, or any OTLP-compatible backend). When configured, the metrics
 are exported via OTLP to your configured endpoint. 
 

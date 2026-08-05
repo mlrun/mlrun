@@ -21,7 +21,7 @@ The change log lists updates per version, open issues, limitations, and deprecat
 - [Deprecations and removed code](#deprecations-and-removed-code)
 
 ## Upgrading KFP, Python, and Pydantic
-Upgrading these three MLRun dependencies spans several releases.  The upgrades are comprised of:
+Upgrading these MLRun dependencies spans several releases.  The upgrades are comprised of:
 - KFP: from 1.8 to 2.x. KFP has 2 components: the KFP service, and the KFP client package (which is used in both the MLRun service and some MLRun clients) and pipeline code (which is provided by the user). The client is not yet upgraded.
 - Pydantic: from version 1 to 2.
 
@@ -87,13 +87,13 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 |ML-11824|When running a workflow from a Jupyter notebook, for example, the link `click here to view` now opens the workflow monitor view.|
 |ML-11829|You can now access an S3 public-like bucket from AWS. Previously, access was blocked with a ClientError.|
 |ML-12102|Remote workflow projects are now run from the MLRun DB, maintaining consistency between the project version before running the remote workflow and afterwards.|
-|ML-12319||
-|ML-12372||
+|ML-12319|Default image values per function kind are now enriched from the MLRun server.|
+|ML-12372|UI: runs with a long name now display the run's logs in the Monitor Workflow tab.|
 |ML-12391|In the Projects > Models page, the status of root functions no longer include the status of child functions.|
 |ML-12392|The predefined date picker time selections are now synchronized with the Start time in the message "No data matches the filter: Start time....".|
 |ML-12395|The deployment status in the Real-Time Pipelines > Serving Pipelines table is now consistent with the Details pane.|
-|ML-12458|  |
-|ML-12573|   |
+|ML-12458|Submitting a scheduled job in MLRun with a specified timezone now does not fail. |
+|ML-12573|TSDB records are no longer lost On Kafka rebalance. |
 |ML-12590|The Monitor Jobs page no onger time out when requestion runs older then 24 hours and filter on state. |
 |ML-12755|Resolved slow per-project pipeline listings and project deletion timeouts on tenants with KFP v2. |
 

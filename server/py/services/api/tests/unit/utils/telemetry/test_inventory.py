@@ -19,6 +19,7 @@ import pytest
 
 import mlrun
 
+import framework.utils.telemetry.otel as telemetry_otel
 import services.api.utils.telemetry.inventory as telemetry_inventory
 
 
@@ -124,13 +125,13 @@ def _spy_meter_provider_resource(
     Lets tests assert on the resource via its public ``.attributes`` property
     instead of reaching into the SDK-private ``_sdk_config``.
     """
-    real_provider_cls = telemetry_inventory.MeterProvider
+    real_provider_cls = telemetry_otel.MeterProvider
 
     def _spy(*args, resource=None, **kwargs):
         captured["resource"] = resource
         return real_provider_cls(*args, resource=resource, **kwargs)
 
-    monkeypatch.setattr(telemetry_inventory, "MeterProvider", _spy)
+    monkeypatch.setattr(telemetry_otel, "MeterProvider", _spy)
 
 
 def test_init_sets_service_name_and_pod_name_on_resource(
@@ -161,9 +162,7 @@ def test_init_pod_name_falls_back_to_hostname(
 ) -> None:
     """Without MLRUN_POD_NAME, service.instance.id falls back to the hostname."""
     monkeypatch.delenv("MLRUN_POD_NAME", raising=False)
-    monkeypatch.setattr(
-        telemetry_inventory.socket, "gethostname", lambda: "host-fallback"
-    )
+    monkeypatch.setattr(telemetry_otel.socket, "gethostname", lambda: "host-fallback")
     captured: dict = {}
     _spy_meter_provider_resource(monkeypatch, captured)
 
@@ -186,7 +185,7 @@ def test_init_export_interval_is_cache_interval_times_multiplier(
     )
 
     captured: dict = {}
-    real_reader_cls = telemetry_inventory.PeriodicExportingMetricReader
+    real_reader_cls = telemetry_otel.PeriodicExportingMetricReader
 
     def _spy(exporter, export_interval_millis, **kwargs):
         captured["export_interval_millis"] = export_interval_millis
@@ -194,7 +193,7 @@ def test_init_export_interval_is_cache_interval_times_multiplier(
             exporter, export_interval_millis=export_interval_millis, **kwargs
         )
 
-    monkeypatch.setattr(telemetry_inventory, "PeriodicExportingMetricReader", _spy)
+    monkeypatch.setattr(telemetry_otel, "PeriodicExportingMetricReader", _spy)
 
     telemetry_inventory.init()
 
@@ -229,7 +228,7 @@ def test_init_clamps_invalid_interval_config(
     )
 
     captured: dict = {}
-    real_reader_cls = telemetry_inventory.PeriodicExportingMetricReader
+    real_reader_cls = telemetry_otel.PeriodicExportingMetricReader
 
     def _spy(exporter, export_interval_millis, **kwargs):
         captured["export_interval_millis"] = export_interval_millis
@@ -237,7 +236,7 @@ def test_init_clamps_invalid_interval_config(
             exporter, export_interval_millis=export_interval_millis, **kwargs
         )
 
-    monkeypatch.setattr(telemetry_inventory, "PeriodicExportingMetricReader", _spy)
+    monkeypatch.setattr(telemetry_otel, "PeriodicExportingMetricReader", _spy)
     warning_mock = unittest.mock.MagicMock()
     monkeypatch.setattr(mlrun.utils.logger, "warning", warning_mock)
 

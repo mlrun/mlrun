@@ -35,7 +35,7 @@ Every metric carries a system_id attribute (MLRun installation UUID). Project-sc
 |Metric name |Attributes       |Meaning       |
 |---------------------|--------------------------------|--------------------------------------------------------------------------------|
 |mlrun_projects|system_id|Current number of projects in the installation|
-|mlrun_functions||system_id, project, kind ∈ {job, serving, application, dask, mpijob, spark, nuclio, …}|Current number of functions of a given kind in a given project. Consolidates the original separate serving_functions / app_runtime_functions metrics via the kind attribute.
+|mlrun_functions|system_id, project, kind ∈ {job, serving, application, dask, mpijob, spark, nuclio, …}|Current number of functions of a given kind in a given project. Consolidates the original separate serving_functions / app_runtime_functions metrics via the kind attribute.|
 |mlrun_workflows|system_id, project|Current number of workflow definitions in the project  |
 |mlrun_artifacts|system_id, project, kind ∈ {model, dataset, document, llm_prompt, other}|Current number of artifacts of a given kind in the project  |
 |mlrun_runs|system_id, project, state ∈ {running, completed, failed, aborted}|Current number of runs in the project in each state (snapshot view)  |
@@ -68,4 +68,60 @@ mlrun_projects[7d:1h]
 delta(sum(mlrun_artifacts)[24h:])
 ```
 
+(rest-call-metrics)=
+## REST call metrics
+Beyond the system-size gauges above, MLRun records processing time, request/response body size, and (for list calls) the number of objects returned for every REST API call, as OpenTelemetry histograms, exported to Prometheus. These are emitted from every API-bearing replica (the API chief and workers, and the alerts service).
+
+This feature is enabled by default whenever the master switch is on. No extra flag is needed:
+```
+MLRUN_TELEMETRY__ENABLED=true
+```
+To disable REST metrics independently while keeping other telemetry on:
+```
+MLRUN_TELEMETRY__REST_METRICS__ENABLED=false
+```
+
+`system_id`, `status_code`, `resource`, and `project` are common to every instrument below. `resource` is the object type the route operates on (for example `functions`, `runs`, `artifacts`); `project` is set for project-scoped routes and empty otherwise. Health-check (`/healthz`) requests are excluded.
+
+`method` is the real HTTP method, except a collection-returning GET is reported as the synthetic `"LIST"` value instead of `"GET"` — so list calls are distinguishable without a separate label. It's omitted entirely (not just empty) wherever it wouldn't vary: absent from `mlrun_rest_response_num_items`, since that metric only ever records `method="LIST"` calls by construction — a label that never varies within a metric adds nothing to query it by.
+
+The four per-call metrics are all histograms — including items-returned, deliberately: it's a per-call value like duration or size, so a histogram preserves the per-call distribution (e.g. p95 list size) on top of the sum/count a plain counter would give.
+
+|Metric name |Kind |Meaning       |
+|---------------------|------|--------------------------------------------------------------------------------|
+|mlrun_rest_request_duration_milliseconds|Histogram|Server processing time (in milliseconds) of each REST call, from receipt to the response headers being sent (time-to-first-byte; excludes client download time and any background-task processing after headers are sent).|
+|mlrun_rest_request_size_kibibytes|Histogram|Size of the REST request body, in kibibytes.|
+|mlrun_rest_response_size_kibibytes|Histogram|Size of the REST response body, in kibibytes.|
+|mlrun_rest_response_num_items|Histogram|Number of objects returned by list calls (`method="LIST"` only).|
+
+The size histograms carry the OTel unit `KiBy` (kibibytes, 2^10 bytes), and their metric name already ends in `_kibibytes` to agree with it. See the [OTel<->Prometheus metric-metadata docs](https://opentelemetry.io/docs/specs/otel/compatibility/prometheus_and_openmetrics/#metric-metadata).
+
+Every call is recorded — there is no sampling for these metrics.
+
+### Example output
+```
+mlrun_rest_request_duration_milliseconds_count{system_id="f3a2b1c4d5e6", method="LIST", status_code="200", resource="functions", project="name1"} 134
+mlrun_rest_request_duration_milliseconds_count{system_id="f3a2b1c4d5e6", method="GET", status_code="404", resource="runs", project="name1"}        2
+mlrun_rest_request_duration_milliseconds_bucket{system_id="f3a2b1c4d5e6", method="LIST", status_code="200", resource="functions", project="name1", le="5"} 96
+mlrun_rest_response_num_items_count{system_id="f3a2b1c4d5e6", status_code="200", resource="functions", project="name1"} 76
+mlrun_rest_response_num_items_sum{system_id="f3a2b1c4d5e6", status_code="200", resource="functions", project="name1"} 812
+```
+
+### Example PromQL views
+```
+# Total REST calls recorded
+sum(mlrun_rest_request_duration_milliseconds_count)
+# Request rate (req/s) by object type
+sum by (resource) (rate(mlrun_rest_request_duration_milliseconds_count[5m]))
+# 95th-percentile latency (ms) across all calls
+histogram_quantile(0.95, sum by (le) (rate(mlrun_rest_request_duration_milliseconds_bucket[5m])))
+# Error rate (req/s) by status code
+sum by (status_code) (rate(mlrun_rest_request_duration_milliseconds_count{status_code=~"4..|5.."}[5m]))
+# Average objects returned per list call, by object type
+sum by (resource) (rate(mlrun_rest_response_num_items_sum[5m])) / sum by (resource) (rate(mlrun_rest_response_num_items_count[5m]))
+# 95th-percentile objects returned per list call, by object type
+histogram_quantile(0.95, sum by (resource, le) (rate(mlrun_rest_response_num_items_bucket[5m])))
+```
+
+See [OTel configuration](#otel-configuration) above to configure the shared OTLP endpoint and enable/disable metrics collection.
 

@@ -35,7 +35,7 @@ Every metric carries a system_id attribute (MLRun installation UUID). Project-sc
 |Metric name |Attributes       |Meaning       |
 |---------------------|--------------------------------|--------------------------------------------------------------------------------|
 |mlrun_projects|system_id|Current number of projects in the installation|
-|mlrun_functions||system_id, project, kind ∈ {job, serving, application, dask, mpijob, spark, nuclio, …}|Current number of functions of a given kind in a given project. Consolidates the original separate serving_functions / app_runtime_functions metrics via the kind attribute.
+|mlrun_functions|system_id, project, kind ∈ {job, serving, application, dask, mpijob, spark, nuclio, …}|Current number of functions of a given kind in a given project. Consolidates the original separate serving_functions / app_runtime_functions metrics via the kind attribute.|
 |mlrun_workflows|system_id, project|Current number of workflow definitions in the project  |
 |mlrun_artifacts|system_id, project, kind ∈ {model, dataset, document, llm_prompt, other}|Current number of artifacts of a given kind in the project  |
 |mlrun_runs|system_id, project, state ∈ {running, completed, failed, aborted}|Current number of runs in the project in each state (snapshot view)  |
@@ -123,25 +123,5 @@ sum by (resource) (rate(mlrun_rest_response_num_items_sum[5m])) / sum by (resour
 histogram_quantile(0.95, sum by (resource, le) (rate(mlrun_rest_response_num_items_bucket[5m])))
 ```
 
-## Configure metrics
-OpenTelemetry metrics are configured in `config.py`. Modify the configuration with a `configmap.yaml` that is applied on the mlrun service.
-
-## Disable/enable OpenTelemetry 
-Metrics are enabled by default. 
-To disable the metrics collection:
-```
-MLRUN_TELEMETRY__ENABLED=false
-```
-
-To enable the metrics collection:
-```
-MLRUN_TELEMETRY__ENABLED=true
-```
-
-## Set the shared OTLP endpoint
-The shared OTLP endpoint (gRPC or HTTP) is used by every OpenTelemetry feature. 
-To set the endpoint:
-```
-MLRUN_TELEMETRY__OTLP_ENDPOINT=http://<server-name>:<port>
-```
+See [OTel configuration](#otel-configuration) above to configure the shared OTLP endpoint and enable/disable metrics collection.
 

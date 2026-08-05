@@ -64,7 +64,6 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 |ML-1811|The Real-Time Pipelines page now displays: a table of serving graphs with a few parameters that can be filtered; the total number of graphs/pipelines, the status of the main function, and the total number of endpoints; icons and details of the graph steps according to the step category; a model endpoints tab.| 
 |ML-12045|New page for model monitoring of runtime applications. See [View the results in the UI](../runtimes/application.ipynb#view-the-results-in-the-ui).|
 
-
 (v1-12-0-breaking)=
 ### Breaking changes
 | ID    |Description                                                                 |
@@ -163,7 +162,7 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|CEML-642|New OpenTelemetry (OTel) observability feature for Kubernetes installations. See [Configure OTel](../install-mlrun-ce/mlrun-ce-development-notes.md#configure-otel)
+|CEML-642|New OpenTelemetry (OTel) observability feature for Kubernetes installations. See [Configure OTel](../install-mlrun-ce/mlrun-ce-installation-notes.md#configure-otel)
 
 ### Documentation
 | ID    |Description                                                                 |

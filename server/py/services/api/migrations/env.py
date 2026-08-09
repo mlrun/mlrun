@@ -50,6 +50,16 @@ target_metadata = framework.db.sqldb.models.Base.metadata
 # with the path given in the mlconf
 config.set_main_option("sqlalchemy.url", mlrun.mlconf.httpdb.dsn)
 
+# Alembic's "checkconstraint_byname" autogenerate plugin (added in 1.19.0) treats type-bound
+# check constraints (e.g. the one SQLAlchemy generates for Enum(..., create_constraint=True))
+# as regular named constraints on the reflected-DB side, but excludes them on the metadata
+# side, so it always sees them as removed and emits a spurious drop_constraint. Disable it
+# until upstream distinguishes type-bound constraints on both sides.
+_AUTOGENERATE_PLUGINS = [
+    "alembic.autogenerate.*",
+    "~alembic.autogenerate.checkconstraint_byname",
+]
+
 
 # This function was added as part of the migration to SQLAlchemy 2.0 and is intended
 # to suppress redundant alembic migrations
@@ -172,6 +182,7 @@ def run_migrations_offline():
         dialect_opts={"paramstyle": "named"},
         render_as_batch=True,
         compare_type=compare_type,
+        autogenerate_plugins=_AUTOGENERATE_PLUGINS,
     )
 
     with alembic.context.begin_transaction():
@@ -222,6 +233,7 @@ def run_migrations_online():
             connection=connection,
             target_metadata=target_metadata,
             compare_type=compare_type,
+            autogenerate_plugins=_AUTOGENERATE_PLUGINS,
         )
         with alembic.context.begin_transaction():
             alembic.context.run_migrations()

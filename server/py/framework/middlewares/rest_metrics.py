@@ -12,10 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import collections.abc
 import http
 import json
 import re
 import time
+import urllib.parse
 
 from starlette.types import Message
 from uvicorn._types import (
@@ -24,6 +26,7 @@ from uvicorn._types import (
     Scope,
 )
 
+import mlrun.common.helpers
 import mlrun.errors
 import mlrun.utils
 
@@ -43,6 +46,11 @@ _PATH_PREFIX = re.compile(r"^/api(?:/v\d+)?")
 _BYTES_PER_KIBIBYTE = 1024
 
 
+def _path_segments(path: str) -> tuple[str, ...]:
+    stripped = _PATH_PREFIX.sub("", path)
+    return tuple(segment for segment in stripped.split("/") if segment)
+
+
 def parse_resource_and_project(path: str) -> tuple[str, str]:
     """Extract the object type and (if any) project a route operates on.
 
@@ -55,10 +63,10 @@ def parse_resource_and_project(path: str) -> tuple[str, str]:
         /api/v1/projects/{project}/functions/{name} -> ("functions", "{project}")
         /api/v1/projects/{project}                   -> ("projects", "{project}")
         /api/v1/projects                             -> ("projects", "")
+        /api/v1/project-summaries/{name}             -> ("project-summaries", "{name}")
         /api/v1/runs                                 -> ("runs", "")
     """
-    stripped = _PATH_PREFIX.sub("", path)
-    segments = [segment for segment in stripped.split("/") if segment]
+    segments = _path_segments(path)
     if not segments:
         return "", ""
     if segments[0] == "projects":
@@ -67,6 +75,9 @@ def parse_resource_and_project(path: str) -> tuple[str, str]:
             return segments[2], segments[1]
         # /projects or /projects/{project}
         return "projects", (segments[1] if len(segments) == 2 else "")
+    if segments[0] == "project-summaries":
+        # /project-summaries or /project-summaries/{name}
+        return "project-summaries", (segments[1] if len(segments) == 2 else "")
     return segments[0], ""
 
 
@@ -132,6 +143,139 @@ def parse_item_count(body: bytes) -> int | None:
     return None
 
 
+def _parse_json_object(body: bytes) -> dict | None:
+    """Parse ``body`` as JSON, returning it only if it decodes to an object.
+
+    Shared by the per-route request-body project extractors below.
+    """
+    if not body:
+        return None
+    try:
+        parsed = json.loads(body)
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return None
+    return parsed if isinstance(parsed, dict) else None
+
+
+def parse_create_project_body(body: bytes) -> str:
+    """Extract the project name from a create-project request body.
+
+    Used only for ``POST /projects``, where the project name lives solely in
+    the body (``Project.metadata.name``) — unlike every other project-scoped
+    route, the URL has no project segment to parse it from.
+
+    :param body: The full, concatenated request body.
+    :return: The project name, or "" if not present.
+    """
+    parsed = _parse_json_object(body)
+    name = parsed.get("metadata", {}).get("name") if parsed else None
+    return name if isinstance(name, str) else ""
+
+
+def parse_build_function_body(body: bytes) -> str:
+    """Extract the project name from a build-function request body.
+
+    Used only for ``POST /build/function``: the function spec is nested
+    under a top-level ``function`` key.
+
+    :param body: The full, concatenated request body.
+    :return: The project name, or "" if not present.
+    """
+    parsed = _parse_json_object(body)
+    function = parsed.get("function") if parsed else None
+    if not isinstance(function, dict):
+        return ""
+    project = function.get("metadata", {}).get("project")
+    return project if isinstance(project, str) else ""
+
+
+def parse_start_function_body(body: bytes) -> str:
+    """Extract the project name from a start-function request body.
+
+    Used only for ``POST /start/function``: the project name is embedded in
+    the versioned ``functionUrl`` (``{project}/{name}[:{tag}][@{hash}]``)
+    rather than being its own field.
+
+    :param body: The full, concatenated request body.
+    :return: The project name, or "" if not present.
+    """
+    parsed = _parse_json_object(body)
+    function_url = parsed.get("functionUrl") if parsed else None
+    if not isinstance(function_url, str):
+        return ""
+    project, _, _, _ = mlrun.common.helpers.parse_versioned_object_uri(function_url)
+    return project
+
+
+def parse_status_function_body(body: bytes) -> str:
+    """Extract the project name from a function-status request body.
+
+    Used only for ``POST /status/function``, where ``project`` is a top-level
+    field.
+
+    :param body: The full, concatenated request body.
+    :return: The project name, or "" if not present.
+    """
+    parsed = _parse_json_object(body)
+    project = parsed.get("project") if parsed else None
+    return project if isinstance(project, str) else ""
+
+
+def parse_submit_body(body: bytes) -> str:
+    """Extract the project name from a submit-job request body.
+
+    Used only for ``POST /submit`` and ``POST /submit_job``: the project name
+    lives under the ``task`` key.
+
+    :param body: The full, concatenated request body.
+    :return: The project name, or "" if not present.
+    """
+    parsed = _parse_json_object(body)
+    task = parsed.get("task") if parsed else None
+    if not isinstance(task, dict):
+        return ""
+    project = task.get("metadata", {}).get("project")
+    return project if isinstance(project, str) else ""
+
+
+def parse_build_status_query(query_string: bytes) -> str:
+    """Extract the ``project`` query parameter's value.
+
+    Used only for ``GET /build/status``, which — unlike the other routes
+    handled by the extractors above — takes ``project`` as a query parameter
+    rather than a JSON body field.
+
+    :param query_string: The raw ASGI ``query_string`` bytes.
+    :return: The project name, or "" if absent.
+    """
+    if not query_string:
+        return ""
+    values = urllib.parse.parse_qs(query_string.decode()).get("project")
+    return values[0] if values else ""
+
+
+# Routes whose project name is a request-body field rather than a URL
+# segment — see parse_resource_and_project's docstring for the routes where
+# path parsing already works. Keyed by (method, path segments) so a fix here
+# can never affect any other route.
+_BODY_PROJECT_EXTRACTORS: dict[
+    tuple[str, tuple[str, ...]], collections.abc.Callable[[bytes], str]
+] = {
+    (http.HTTPMethod.POST, ("projects",)): parse_create_project_body,
+    (http.HTTPMethod.POST, ("build", "function")): parse_build_function_body,
+    (http.HTTPMethod.POST, ("start", "function")): parse_start_function_body,
+    (http.HTTPMethod.POST, ("status", "function")): parse_status_function_body,
+    (http.HTTPMethod.POST, ("submit",)): parse_submit_body,
+    (http.HTTPMethod.POST, ("submit_job",)): parse_submit_body,
+}
+
+# Routes whose project name is a query parameter rather than a URL segment or
+# body field.
+_QUERY_PROJECT_ROUTES: frozenset[tuple[str, tuple[str, ...]]] = frozenset(
+    {(http.HTTPMethod.GET, ("build", "status"))}
+)
+
+
 class RestMetricsMiddleware(BaseHTTPMiddleware):
     """
     Records per-REST-call histogram metrics, always-on regardless of any
@@ -146,17 +290,31 @@ class RestMetricsMiddleware(BaseHTTPMiddleware):
     ) -> None:
         start_time = time.perf_counter_ns()
         path = scope["path"]
+        method = scope["method"]
         should_record = not any(
             substring in path for substring in _SILENT_PATH_SUBSTRINGS
         )
+        segments = _path_segments(path)
+        body_project_extractor = (
+            _BODY_PROJECT_EXTRACTORS.get((method, segments)) if should_record else None
+        )
+        query_project = (
+            parse_build_status_query(scope.get("query_string") or b"")
+            if should_record and (method, segments) in _QUERY_PROJECT_ROUTES
+            else ""
+        )
 
         request_size_bytes = 0
+        request_body = bytearray()
 
         async def receive_wrapper() -> "Message":
             nonlocal request_size_bytes
             message = await receive()
             if should_record and message["type"] == "http.request":
-                request_size_bytes += len(message.get("body") or b"")
+                body = message.get("body") or b""
+                request_size_bytes += len(body)
+                if body_project_extractor is not None:
+                    request_body.extend(body)
             return message
 
         # Mutated by send_wrapper across calls; only meaningful once
@@ -190,16 +348,22 @@ class RestMetricsMiddleware(BaseHTTPMiddleware):
                     # Streamed body still in flight — nothing to record yet.
                     return
                 duration_ms = response_state["duration_ms"]
-                method = response_state["method"]
+                list_method = response_state["method"]
                 item_count = (
                     parse_item_count(bytes(response_state["response_body"]))
-                    if method == _LIST_METHOD
+                    if list_method == _LIST_METHOD
                     else None
+                )
+                project_override = query_project or (
+                    body_project_extractor(bytes(request_body))
+                    if body_project_extractor is not None
+                    else ""
                 )
                 self._record_call(
                     path=path,
                     duration_ms=duration_ms,
                     request_size_bytes=request_size_bytes,
+                    project_override=project_override,
                     response_state=response_state,
                     item_count=item_count,
                 )
@@ -218,11 +382,13 @@ class RestMetricsMiddleware(BaseHTTPMiddleware):
         path: str,
         duration_ms: float,
         request_size_bytes: int,
+        project_override: str,
         response_state: dict,
         item_count: int | None,
     ) -> None:
         """Record all metric instruments for one completed call."""
         resource, project = parse_resource_and_project(path)
+        project = project or project_override
         status_code = response_state["status_code"]
         method = response_state["method"]
         request_size_kib = request_size_bytes / _BYTES_PER_KIBIBYTE

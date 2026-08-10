@@ -175,6 +175,11 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
 
         page_size = page_size or mlconf.httpdb.pagination.default_page_size
 
+        # Only default page on a fresh request (no token): with a token, leaving page as None lets
+        # _create_or_update_pagination_cache_record derive it from current_page + 1 for continuation.
+        if not token:
+            page = page or 1
+
         (
             token,
             page,

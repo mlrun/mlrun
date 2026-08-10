@@ -733,6 +733,27 @@ async def test_ensure_project_populates_opa_owner_cache_across_replicas(
     await opa_provider._sessions.async_close()
 
 
+def test_enrich_project_converts_desired_state_to_project_state():
+    project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name="project-name"),
+        spec=mlrun.common.schemas.ProjectSpec(
+            desired_state=mlrun.common.schemas.ProjectDesiredState.online
+        ),
+    )
+    framework.utils.projects.leader.Member._enrich_project(project)
+    assert project.status.state == mlrun.common.schemas.ProjectState.online
+    assert type(project.status.state) is mlrun.common.schemas.ProjectState
+
+
+def test_enrich_project_desired_state_none():
+    project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name="project-name"),
+        spec=mlrun.common.schemas.ProjectSpec(desired_state=None),
+    )
+    framework.utils.projects.leader.Member._enrich_project(project)
+    assert project.status.state is None
+
+
 def _assert_project_not_in_followers(followers, name):
     for follower in followers:
         assert name not in follower._projects

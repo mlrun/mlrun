@@ -250,7 +250,7 @@ def parse_build_status_query(query_string: bytes) -> str:
     """
     if not query_string:
         return ""
-    values = urllib.parse.parse_qs(query_string.decode()).get("project")
+    values = urllib.parse.parse_qs(query_string.decode(errors="replace")).get("project")
     return values[0] if values else ""
 
 

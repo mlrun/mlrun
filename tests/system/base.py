@@ -140,10 +140,15 @@ class TestMLRunSystem:
         )
         self._files_to_upload = []
 
-        if not self._skip_set_environment() and not self.reuse_project_across_tests:
-            self.project = mlrun.get_or_create_project(
-                self.project_name, "./", allow_cross_project=True
-            )
+        if not self._skip_set_environment():
+            if self.reuse_project_across_tests:
+                # _setup_env's mlconf.reload() above wipes active_project; the
+                # class-level project already exists, so just restore it.
+                mlrun.mlconf.active_project = self.project_name
+            else:
+                self.project = mlrun.get_or_create_project(
+                    self.project_name, "./", allow_cross_project=True
+                )
 
         self.custom_setup()
 

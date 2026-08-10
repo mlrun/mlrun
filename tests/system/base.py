@@ -33,6 +33,7 @@ import yaml
 from deepdiff import DeepDiff
 
 import mlrun.common.schemas
+import mlrun.projects.project
 from mlrun import get_run_db, mlconf
 from mlrun.utils import create_test_logger
 
@@ -142,9 +143,12 @@ class TestMLRunSystem:
 
         if not self._skip_set_environment():
             if self.reuse_project_across_tests:
-                # _setup_env's mlconf.reload() above wipes active_project; the
-                # class-level project already exists, so just restore it.
-                mlrun.mlconf.active_project = self.project_name
+                # _setup_env's mlconf.reload() above, and the autouse
+                # config_test_base fixture (tests/common_fixtures.py), wipe
+                # active_project and pipeline_context.project on every test;
+                # the class-level project already exists, so just restore both,
+                # the same way new_project()/load_project() would.
+                mlrun.projects.project._set_as_current_active_project(self.project)
             else:
                 self.project = mlrun.get_or_create_project(
                     self.project_name, "./", allow_cross_project=True

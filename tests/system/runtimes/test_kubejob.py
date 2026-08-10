@@ -965,7 +965,10 @@ def print_df(df):
         with pytest.raises(mlrun.runtimes.utils.RunError):
             function.run(verbose=True, retry=retry)
 
-        runs = self._run_db.list_runs(project=self.project_name, name="raise-func")
+        # the run name defaults to "<function-name>-<handler>" when unset
+        runs = self._run_db.list_runs(
+            project=self.project_name, name="raise-func-handler"
+        )
         assert len(runs) == 1
         run = mlrun.RunObject.from_dict(runs[0])
         assert run.status.retry_count is None
@@ -976,7 +979,9 @@ def print_df(df):
         assert f"Run failed attempt 1 of {max_attempts}" in run.status.status_text
 
         def _assert_retry_info():
-            runs = self._run_db.list_runs(project=self.project_name, name="raise-func")
+            runs = self._run_db.list_runs(
+                project=self.project_name, name="raise-func-handler"
+            )
             assert len(runs) == 1
             run = mlrun.RunObject.from_dict(runs[0])
             assert run.status.retry_count == 3, (

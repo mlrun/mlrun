@@ -238,7 +238,10 @@ class TestNotifications(tests.system.base.TestMLRunSystem):
             )
 
         # Validate that the run in pending retry state
-        runs = self._run_db.list_runs(project=self.project_name, name="test-func")
+        # the run name defaults to "<function-name>-<handler>" when unset
+        runs = self._run_db.list_runs(
+            project=self.project_name, name="test-func-handler"
+        )
         assert len(runs) == 1
         run = mlrun.RunObject.from_dict(runs[0])
         assert run.status.retry_count is None
@@ -249,7 +252,7 @@ class TestNotifications(tests.system.base.TestMLRunSystem):
         def _assert_notification_received():
             runs = self._run_db.list_runs(
                 project=self.project_name,
-                name="test-func",
+                name="test-func-handler",
                 with_notifications=True,
             )
             assert len(runs) == 1

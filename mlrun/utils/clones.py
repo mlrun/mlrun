@@ -191,15 +191,33 @@ def clone_git(url: str, context: str, secrets=None, clone: bool = True):
             url = url.replace(f"#{refs}", f"#refs/heads/{refs}")
             branch = refs
 
+    # Kubernetes provisions `emptyDir` volumes as root-owned regardless of the
+    # container's securityContext, so a non-root init container (e.g. the
+    # Application runtime's source loader) cloning into one trips git's ownership
+    # check (CVE-2022-24765). `safe.directory` is only honored from git's "protected
+    # configuration" scopes (system/global/command) - not from a `clone -c ...`
+    # flag, which writes to the *new* repo's local config and is ignored for this
+    # setting. The GIT_CONFIG_COUNT/KEY/VALUE vars are the command scope, passed via
+    # GitPython's own per-call `env` (clone) and instance-scoped
+    # `custom_environment` (post-clone commands) so no process-wide state is touched.
+    safe_directory_env = {
+        "GIT_CONFIG_COUNT": "1",
+        "GIT_CONFIG_KEY_0": "safe.directory",
+        "GIT_CONFIG_VALUE_0": os.path.realpath(context),
+    }
+
     # when using the CLI and clone path was not enriched, username/password input will be requested via shell
-    repo = Repo.clone_from(final_clone_path, context, single_branch=True, b=branch)
+    repo = Repo.clone_from(
+        final_clone_path, context, single_branch=True, b=branch, env=safe_directory_env
+    )
 
-    if is_path_enriched:
-        # override enriched clone path for security reasons
-        repo.remotes[0].set_url(clone_path, final_clone_path)
+    with repo.git.custom_environment(**safe_directory_env):
+        if is_path_enriched:
+            # override enriched clone path for security reasons
+            repo.remotes[0].set_url(clone_path, final_clone_path)
 
-    if tag_or_commit := tag or commit:
-        repo.git.checkout(tag_or_commit)
+        if tag_or_commit := tag or commit:
+            repo.git.checkout(tag_or_commit)
 
     return url, repo
 

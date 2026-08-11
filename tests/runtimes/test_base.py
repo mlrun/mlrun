@@ -297,7 +297,7 @@ class TestAutoMount:
         mlconf.storage.auto_mount_params = ",".join(
             [f"{key}={value}" for key, value in expected_env.items()]
         )
-        print(f"Auto mount params: {mlconf.storage.auto_mount_params}")
+        print("Auto mount params configured")
         runtime = self._generate_runtime()
         self._execute_run(runtime)
         rundb_mock.assert_env_variables(expected_env)
@@ -305,7 +305,7 @@ class TestAutoMount:
         # Try with a base64 json dictionary
         pvc_params_str = base64.b64encode(json.dumps(expected_env).encode())
         mlconf.storage.auto_mount_params = pvc_params_str
-        print(f"Auto mount params: {mlconf.storage.auto_mount_params}")
+        print("Auto mount params configured")
         runtime = self._generate_runtime()
         rundb_mock.reset()
         self._execute_run(runtime)

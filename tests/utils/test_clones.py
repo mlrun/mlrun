@@ -46,10 +46,47 @@ def test_clone_git_refs(ref, ref_type):
     with unittest.mock.patch("git.Repo.clone_from") as clone_from:
         _, repo_obj = mlrun.utils.clones.clone_git(url, context)
         clone_from.assert_called_once_with(
-            f"https://{repo}", context, single_branch=True, b=branch
+            f"https://{repo}",
+            context,
+            single_branch=True,
+            b=branch,
+            env={
+                "GIT_CONFIG_COUNT": "1",
+                "GIT_CONFIG_KEY_0": "safe.directory",
+                "GIT_CONFIG_VALUE_0": os.path.realpath(context),
+            },
         )
         if tag:
             repo_obj.git.checkout.assert_called_once_with(tag)
+
+
+def test_clone_git_wraps_post_clone_operations_in_safe_directory_env(tmp_path):
+    # each of set_url and checkout is its own git subprocess, run after clone_from
+    # returns, so both need the same safe.directory override as the clone itself.
+    url = "git://github.com/some-git-project/some-git-repo.git#refs/tags/v1.0"
+    context = str(tmp_path / "clone-target")
+    expected_safe_directory_env = {
+        "GIT_CONFIG_COUNT": "1",
+        "GIT_CONFIG_KEY_0": "safe.directory",
+        "GIT_CONFIG_VALUE_0": os.path.realpath(context),
+    }
+
+    with unittest.mock.patch("git.Repo.clone_from") as clone_from:
+        repo_obj = clone_from.return_value
+        mlrun.utils.clones.clone_git(url, context, secrets={"GIT_TOKEN": "abc123"})
+
+        clone_from.assert_called_once_with(
+            "https://abc123:x-oauth-basic@github.com/some-git-project/some-git-repo.git",
+            context,
+            single_branch=True,
+            b=None,
+            env=expected_safe_directory_env,
+        )
+        repo_obj.git.custom_environment.assert_called_once_with(
+            **expected_safe_directory_env
+        )
+        repo_obj.remotes[0].set_url.assert_called_once()
+        repo_obj.git.checkout.assert_called_once_with("v1.0")
 
 
 @pytest.mark.parametrize(

@@ -41,11 +41,11 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 |-------|----------------------------------------------------------------------------|
 |ML-12439|API handler improvements: a new per-endpoint BodyMappings object attached directly to each EndpointConfig replaces the global body_map mechanism ; new exit-mapping configuration; `include_url_info` now also injects `mlrun_request_method`; handlers can return a custom HTTP status code. API handler is no longer TechPreview. See [Breaking changes](v1-12-0-breaking) and [API handler](../serving/api-handler.md).|
 |ML-10754|MLRun now supports an OpenAI REST interface to serving graphs. See {ref}`openai-frontend` andthe new API {py:meth}`~mlrun.runtimes.ServingRuntime.set_openai_frontend`.|
-|ML-11839|MLRun jobs now supports `async` function handlers (for batch execution). See [](../concepts/submitting-tasks-jobs-to-functions.md#async-handlers).|
 
 ### Runtimes
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
+|ML-11839|MLRun jobs now supports `async` function handlers (for batch execution). See [](../concepts/submitting-tasks-jobs-to-functions.md#async-handlers).|
 |ML-12045|You can now [Run model monitoring on an app runtime](../runtimes/application.ipynb#run-model-monitoring-on-a-runtime-application). New APIs: {py:meth}`~mlrun.projects.MlrunProject.create_user_model_endpoint`, {py:meth}`~mlrun.runtimes.RemoteRuntime.setup_model_monitoring`.|
 
 ### Metrics
@@ -88,11 +88,10 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 |ML-12102|Remote workflow projects are now run from the MLRun DB, maintaining consistency between the project version before running the remote workflow and afterwards.|
 |ML-12319|Default image values per function kind are now enriched from the MLRun server.|
 |ML-12372|UI: runs with a long name now display the run's logs in the Monitor Workflow tab.|
-|ML-12391|In the Projects > Models page, the status of root functions no longer include the status of child functions.|
+|ML-12391|In the Real-time pipelines page, the status of root functions no longer include the status of child functions.|
 |ML-12392|The predefined date picker time selections are now synchronized with the Start time in the message "No data matches the filter: Start time....".|
 |ML-12395|The deployment status in the Real-Time Pipelines > Serving Pipelines table is now consistent with the Details pane.|
-|ML-12458|Submitting a scheduled job in MLRun with a specified timezone now does not fail. |
-|ML-12573|TSDB records are no longer lost On Kafka rebalance. |
+|ML-12458|Submitting a scheduled job in MLRun with a specified timezone now succeeds. |
 |ML-12590|The Monitor Jobs page no onger time out when requestion runs older then 24 hours and filter on state. |
 |ML-12755|Resolved slow per-project pipeline listings and project deletion timeouts on tenants with KFP v2. |
 
@@ -193,7 +192,7 @@ ML-11820|Improved the time to access the monitoring page (V3IO).|
 |ML-12372|Fixed workflows pagination.|
 
 
-## v1.1.0.x
+## v1.10.x
 (#v1103)=
 ### v1.10.3
 #### Closed issues
@@ -1627,7 +1626,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-12078|When Model-monitoring is enabled with V3io configured as default artifact storage, each model-endpoint creates 25 directories per day. |Run a daily cron job to delete parquet partition directories older than a week.|v1.11.0|
 |ML-12185|A split graph with a collector as a merge step does not fail deployment nor invoke and produce a false response. |Do not use the collector step as the merge step.|v1.11.0|
 |ML-12378|When using HTTP streaming, async does not work but works in the same manner as sync.|NA|v1.11.0|
-
+|ML-12573|In rare, high-stress situations, TSDB records are lost on Kafka rebalance. |Set a constant number of stream pod replicas and document the Kafka rebalance handling.|v1.11.0|
 
 ## Limitations
 
@@ -1657,7 +1656,6 @@ with a drill-down to view the steps and their details. [Tech Preview]
 
 | In    |ID            |Description                                                   |
 |--------|-------------|-----------------------------------------|
-|\v1.12.0 |NA  |Feature store is deprecated.|
 | v1.12.0 |NA  |Docker image `mlrun/ml-base`. Use `mlrun/mlrun` instead.|
 | v1.11.0 |NA  |Python 3.9.|
 | v1.11.0 |NA  |Use of underscore '_' in function names. Use dashes '-' instead.|

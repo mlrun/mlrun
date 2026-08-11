@@ -1416,18 +1416,21 @@ def load_source(source_uri, project, target):
 @click.option(
     "--dest",
     default=None,
-    help="the destination image reference (ECR only, to derive the repository name)",
+    help="the destination image reference (ECR push only, to create the repository; omit for a "
+    "pull-only/base-image exchange, which skips repository creation)",
 )
 @click.option(
     "--authfile",
     required=True,
-    help="path to write the docker-config-shaped authfile",
+    help="path to merge the docker-config-shaped authfile entry into",
 )
 def mint_registry_credentials(provider, registry, dest, authfile):
-    """Mint short-lived cloud-registry push credentials into a docker-config authfile.
+    """Mint short-lived cloud-registry credentials into a docker-config authfile.
 
     This is an internal CLI command used by Buildah build init containers to exchange the pod's
-    workload identity for a registry push credential before the main container runs.
+    workload identity for a registry credential (push destination or base-image pull) before the
+    main container runs. Merges into ``--authfile`` rather than overwriting it, so a push-side and
+    a pull-side exchange (different registries) can share the same authfile.
 
     Examples:
 
@@ -1441,11 +1444,7 @@ def mint_registry_credentials(provider, registry, dest, authfile):
     """
     try:
         if provider == CloudRegistryProvider.ECR:
-            if not dest:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    "--dest is required for --provider ecr"
-                )
-            mint_ecr_authfile(registry, dest, authfile)
+            mint_ecr_authfile(registry, authfile, dest=dest)
         elif provider == CloudRegistryProvider.ACR:
             mint_acr_authfile(registry, authfile)
         else:

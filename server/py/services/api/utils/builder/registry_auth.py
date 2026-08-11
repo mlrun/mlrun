@@ -14,13 +14,16 @@
 """Cloud-registry credential exchange for :class:`~services.api.utils.builder.buildah.BuildahBackend`.
 
 Buildah's stock image has no built-in cloud-credential support the way Kaniko's Go binary does, so
-each provider mints its own push credential from the pod's existing workload identity:
+each provider mints its own credential from the pod's existing workload identity - for both the
+push destination and, when it lives on a different ACR/ECR host, the base image being pulled
+(ML-12961; GAR's base-image case isn't covered, see :mod:`services.api.utils.builder.buildah`):
 
 * **ECR** and **ACR** — an init container on the MLRun image (already carries boto3 /
   azure-identity, and mlrun itself) runs ``python -m mlrun mint-registry-credentials`` (see
-  :mod:`mlrun.utils.registry_auth` for the actual credential-exchange logic) and writes the result
-  to a shared authfile - the same ``python -m mlrun <subcommand>`` convention Kaniko's source-fetch
-  init container uses.
+  :mod:`mlrun.utils.registry_auth` for the actual credential-exchange logic) and merges the result
+  into a shared authfile - the same ``python -m mlrun <subcommand>`` convention Kaniko's
+  source-fetch init container uses. A push-side and a pull-side exchange (different registries) run
+  as two distinctly-named init containers against the same authfile.
 * **GAR / GCR** — no init container: GCP tokens are cached and reused by the metadata server across
   callers until fewer than 5 minutes remain before expiry, so *any* mint can hand back a token with
   as little as ~5 minutes of remaining life, regardless of its original TTL. Minting just-in-time,
@@ -40,6 +43,9 @@ from mlrun.config import config
 from mlrun.utils.registry_auth import CloudRegistryProvider
 
 _CREDENTIAL_EXCHANGE_INIT_CONTAINER_NAME = "registry-credential-exchange"
+# used when a base-image (pull) exchange runs alongside a push-side one in the same pod - container
+# names must be unique within a pod.
+PULL_CREDENTIAL_EXCHANGE_INIT_CONTAINER_NAME = "registry-credential-exchange-pull"
 
 _GCP_METADATA_TOKEN_URL = (
     "http://metadata.google.internal/computeMetadata/v1/"
@@ -66,58 +72,71 @@ def classify_cloud_registry(target: str) -> CloudRegistryProvider | None:
 
 
 def append_ecr_credential_exchange_init_container(
-    pod, registry: str, dest: str, authfile_path: str
+    pod,
+    registry: str,
+    authfile_path: str,
+    dest: str | None = None,
+    container_name: str = _CREDENTIAL_EXCHANGE_INIT_CONTAINER_NAME,
 ) -> None:
-    """Append the init container that mints ECR push credentials for ``pod``.
+    """Append the init container that mints ECR credentials for ``pod``.
 
     Runs ``python -m mlrun mint-registry-credentials --provider ecr`` (see
     :func:`mlrun.utils.registry_auth.mint_ecr_authfile`), which uses boto3 with the pod's own AWS
     credentials - IRSA or instance role, resolved via the build pod's service account, see
-    :func:`~services.api.utils.builder.base.resolve_build_pod_spec_attributes` - to create the
-    target ECR repository (idempotent) and mint a short-lived authorization token, writing it to
-    ``authfile_path`` for the main Buildah container to push with.
+    :func:`~services.api.utils.builder.base.resolve_build_pod_spec_attributes` - to mint a
+    short-lived authorization token, merging it into ``authfile_path``. When ``dest`` is given
+    (a push), the target ECR repository is also created (idempotent); omit it for a pull-only
+    (base-image) exchange, which skips repository creation.
 
     :param pod: The Buildah build pod being constructed.
     :param registry: The ECR registry host.
-    :param dest: The fully resolved destination image reference (for the repository name).
-    :param authfile_path: Where to write the docker-config-shaped authfile.
+    :param authfile_path: Where to merge the docker-config-shaped authfile entry.
+    :param dest: The fully resolved destination image reference (for the repository name). Omit
+        for a base-image pull exchange.
+    :param container_name: The init container's name - distinct names are required when both a
+        push-side and a pull-side exchange run in the same pod.
     """
+    args = [
+        "-m",
+        "mlrun",
+        "mint-registry-credentials",
+        "--provider",
+        CloudRegistryProvider.ECR.value,
+        "--registry",
+        registry,
+    ]
+    if dest:
+        args += ["--dest", dest]
+    args += ["--authfile", authfile_path]
     pod.append_init_container(
         _credential_exchange_image(),
         command=["python"],
-        args=[
-            "-m",
-            "mlrun",
-            "mint-registry-credentials",
-            "--provider",
-            CloudRegistryProvider.ECR.value,
-            "--registry",
-            registry,
-            "--dest",
-            dest,
-            "--authfile",
-            authfile_path,
-        ],
-        name=_CREDENTIAL_EXCHANGE_INIT_CONTAINER_NAME,
+        args=args,
+        name=container_name,
     )
 
 
 def append_acr_credential_exchange_init_container(
-    pod, registry: str, authfile_path: str
+    pod,
+    registry: str,
+    authfile_path: str,
+    container_name: str = _CREDENTIAL_EXCHANGE_INIT_CONTAINER_NAME,
 ) -> None:
-    """Append the init container that mints ACR push credentials for ``pod``.
+    """Append the init container that mints an ACR credential for ``pod``.
 
     Runs ``python -m mlrun mint-registry-credentials --provider acr`` (see
     :func:`mlrun.utils.registry_auth.mint_acr_authfile`), which exchanges the pod's Azure workload
     identity (federated JWT, injected by the ``azure.workload.identity/use`` label - see
     :func:`~services.api.utils.builder.base.resolve_builder_pod_labels`) for an AAD access token via
     azure-identity, then exchanges that AAD token for an ACR refresh token via ACR's
-    ``/oauth2/exchange`` endpoint (no SDK covers this ACR-specific endpoint), writing the result to
-    ``authfile_path``.
+    ``/oauth2/exchange`` endpoint (no SDK covers this ACR-specific endpoint), merging the result
+    into ``authfile_path``. Used for both push and base-image-pull credentials.
 
     :param pod: The Buildah build pod being constructed.
     :param registry: The ACR registry host.
-    :param authfile_path: Where to write the docker-config-shaped authfile.
+    :param authfile_path: Where to merge the docker-config-shaped authfile entry.
+    :param container_name: The init container's name - distinct names are required when both a
+        push-side and a pull-side exchange run in the same pod.
     """
     pod.append_init_container(
         _credential_exchange_image(),
@@ -133,7 +152,7 @@ def append_acr_credential_exchange_init_container(
             "--authfile",
             authfile_path,
         ],
-        name=_CREDENTIAL_EXCHANGE_INIT_CONTAINER_NAME,
+        name=container_name,
     )
 
 

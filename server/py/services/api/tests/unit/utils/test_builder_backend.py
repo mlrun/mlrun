@@ -16,10 +16,11 @@
 # gate and the BuildRequest contract. The behaviour of the Kaniko path itself is
 # the byte-identical regression anchor covered by test_builder.py; here we lock the
 # seam, and (ML-12885) the Buildah backend: config-flip selection, ECR/ACR/GAR
-# credential exchange (ML-12886), remote source acquisition (ML-12887), and the
-# rootless pod spec. It also locks Buildah's own source routing - every remote
-# source is fetched via `mlrun load-source` or, for v3io, FUSE-mounted, since
-# Buildah has no native remote-context resolution the way Kaniko does.
+# credential exchange (ML-12886) - including the base-image (pull-side) exchange
+# added in ML-12961 - remote source acquisition (ML-12887), and the rootless pod
+# spec. It also locks Buildah's own source routing - every remote source is
+# fetched via `mlrun load-source` or, for v3io, FUSE-mounted, since Buildah has no
+# native remote-context resolution the way Kaniko does.
 
 import base64
 import unittest.mock
@@ -397,6 +398,110 @@ def test_make_buildah_pod_gar_credential_exchange_is_jit_not_init_container():
     assert lines[bud_line - 1] == "python3 /tmp/mlrun-gar-credential-exchange.py"
     assert lines[push_line - 1] == "python3 /tmp/mlrun-gar-credential-exchange.py"
     assert "--authfile /auth/config.json" in lines[push_line]
+
+
+@pytest.mark.parametrize(
+    "base_registry,provider",
+    [
+        ("system.azurecr.io", "acr"),
+        ("111111111111.dkr.ecr.us-east-1.amazonaws.com", "ecr"),
+    ],
+)
+def test_make_buildah_pod_pull_side_credential_exchange_for_different_host_base_image(
+    base_registry, provider
+):
+    # ML-12961 regression: the base image's registry needs its own credential exchange when it's a
+    # different cloud host than the push destination - this is the reported "invalid
+    # username/password" pulling a private ACR base image while pushing elsewhere.
+    buildah_pod = _make_buildah_pod(
+        dest="docker-hub/some-image:tag",
+        base_image=f"{base_registry}/mlrun/mlrun:1.13.0-rc2",
+    )
+    pod = buildah_pod.pod
+
+    init_containers = pod.spec.init_containers
+    assert len(init_containers) == 1
+    assert init_containers[0].name == "registry-credential-exchange-pull"
+    assert "--provider" in init_containers[0].args
+    assert provider in init_containers[0].args
+    assert "--registry" in init_containers[0].args
+    assert base_registry in init_containers[0].args
+    assert "--dest" not in init_containers[0].args
+
+    empty_dir_volumes = {
+        volume.name for volume in pod.spec.volumes if volume.empty_dir is not None
+    }
+    assert "registry-auth" in empty_dir_volumes
+    env = {env_var.name: env_var.value for env_var in pod.spec.containers[0].env}
+    assert env["REGISTRY_AUTH_FILE"] == "/auth/config.json"
+
+
+def test_make_buildah_pod_push_and_pull_different_acr_hosts():
+    # push destination and base image are both ACR, but different registry instances - each needs
+    # its own credential-exchange init container, writing into the same shared authfile.
+    buildah_pod = _make_buildah_pod(
+        dest="push.azurecr.io/some-image:tag",
+        registry="push.azurecr.io",
+        base_image="system.azurecr.io/mlrun/mlrun:1.13.0-rc2",
+    )
+    init_containers = buildah_pod.pod.spec.init_containers
+    assert len(init_containers) == 2
+    names = {container.name for container in init_containers}
+    assert names == {
+        "registry-credential-exchange",
+        "registry-credential-exchange-pull",
+    }
+
+    by_name = {container.name: container for container in init_containers}
+    assert "push.azurecr.io" in by_name["registry-credential-exchange"].args
+    assert "system.azurecr.io" in by_name["registry-credential-exchange-pull"].args
+
+
+def test_make_buildah_pod_same_registry_skips_duplicate_exchange():
+    # base image on the *same* ACR host as the push destination - the push-side exchange already
+    # writes that host's authfile entry, so no second (redundant) init container is needed.
+    registry = "myregistry.azurecr.io"
+    buildah_pod = _make_buildah_pod(
+        dest=f"{registry}/some-image:tag",
+        registry=registry,
+        base_image=f"{registry}/mlrun/mlrun:1.13.0-rc2",
+    )
+    init_containers = buildah_pod.pod.spec.init_containers
+    assert len(init_containers) == 1
+    assert init_containers[0].name == "registry-credential-exchange"
+
+
+def test_make_buildah_pod_static_secret_skips_cloud_pull_exchange():
+    # an explicit secret_name always wins, even when the base image (not just the push
+    # destination) lives on a recognized cloud registry - no credential-exchange init container.
+    buildah_pod = _make_buildah_pod(
+        dest="docker-hub/some-image:tag",
+        base_image="system.azurecr.io/mlrun/mlrun:1.13.0-rc2",
+        secret_name="my-docker-secret",
+    )
+    assert buildah_pod.pod.spec.init_containers == []
+
+
+def test_make_buildah_pod_pull_tls_verify_unaffected_by_unrelated_gar_push():
+    # regression guard: a GAR push destination must not, on its own, mark the *pull* as
+    # credentialed when the base image is on an unrelated (here: non-cloud/self-signed) registry -
+    # doing so would wrongly disable --tls-verify=false for that pull in "auto" mode.
+    registry = "us-docker.pkg.dev"
+    script = (
+        _make_buildah_pod(
+            dest=f"{registry}/proj/repo/some-image:tag",
+            registry=registry,
+            base_image="self-signed.internal.example.com/base:latest",
+        )
+        .pod.spec.containers[0]
+        .args[0]
+    )
+    bud_line = next(
+        line
+        for line in script.splitlines()
+        if line.startswith("buildah") and " bud " in line
+    )
+    assert "--tls-verify=false" in bud_line
 
 
 def test_make_buildah_pod_stages_inline_code_and_requirements():

@@ -16,7 +16,9 @@
 # ECR/ACR init-container wiring (they invoke `python -m mlrun mint-registry-credentials` - see
 # tests/utils/test_registry_auth.py for the actual credential-exchange logic those calls run), and
 # the generated GAR/GCR script (no mlrun installed where it runs, so it stays a generated script
-# `exec()`'d directly here with the underlying stdlib call mocked).
+# `exec()`'d directly here with the underlying stdlib call mocked). Also covers the optional `dest`
+# and `container_name` (ML-12961) that let a pull-side (base-image) exchange run alongside a
+# push-side one in the same pod - see test_builder_backend.py for the make_buildah_pod-level wiring.
 
 import base64
 import json
@@ -57,7 +59,7 @@ def test_append_ecr_credential_exchange_init_container():
     registry = "123456789012.dkr.ecr.us-east-1.amazonaws.com"
     dest = f"{registry}/myrepo:latest"
     registry_auth.append_ecr_credential_exchange_init_container(
-        pod, registry, dest, "/auth/config.json"
+        pod, registry, "/auth/config.json", dest=dest
     )
 
     container = _init_container(pod)
@@ -75,6 +77,34 @@ def test_append_ecr_credential_exchange_init_container():
         registry,
         "--dest",
         dest,
+        "--authfile",
+        "/auth/config.json",
+    ]
+
+
+def test_append_ecr_credential_exchange_init_container_pull_only_omits_dest():
+    # a base-image (pull-only) exchange has no dest - no reason to create a repository, and the
+    # container name must differ so it can coexist with a push-side exchange in the same pod.
+    pod = framework.utils.singletons.k8s.BasePod(task_name="t", image="img")
+    registry = "123456789012.dkr.ecr.us-east-1.amazonaws.com"
+    registry_auth.append_ecr_credential_exchange_init_container(
+        pod,
+        registry,
+        "/auth/config.json",
+        container_name=registry_auth.PULL_CREDENTIAL_EXCHANGE_INIT_CONTAINER_NAME,
+    )
+
+    container = _init_container(pod)
+    assert container.name == "registry-credential-exchange-pull"
+    assert "--dest" not in container.args
+    assert container.args == [
+        "-m",
+        "mlrun",
+        "mint-registry-credentials",
+        "--provider",
+        "ecr",
+        "--registry",
+        registry,
         "--authfile",
         "/auth/config.json",
     ]
@@ -101,6 +131,21 @@ def test_append_acr_credential_exchange_init_container():
         "--authfile",
         "/auth/config.json",
     ]
+
+
+def test_append_acr_credential_exchange_init_container_custom_container_name():
+    # a pull-side (base-image) exchange running alongside a push-side one in the same pod needs a
+    # distinct container name - k8s requires unique container names within a pod.
+    pod = framework.utils.singletons.k8s.BasePod(task_name="t", image="img")
+    registry = "myregistry.azurecr.io"
+    registry_auth.append_acr_credential_exchange_init_container(
+        pod,
+        registry,
+        "/auth/config.json",
+        container_name=registry_auth.PULL_CREDENTIAL_EXCHANGE_INIT_CONTAINER_NAME,
+    )
+
+    assert _init_container(pod).name == "registry-credential-exchange-pull"
 
 
 def test_credential_exchange_image_defaults_to_default_base_image(monkeypatch):

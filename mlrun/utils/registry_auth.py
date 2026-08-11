@@ -124,10 +124,11 @@ def _merge_auth_entry(authfile_path: str, registry: str, auth: str) -> None:
     # a push-side and a pull-side credential exchange can both target this file (different
     # registries, e.g. the push destination and a differently-hosted base image) - init containers
     # run sequentially, never concurrently, so read-modify-write here is safe without locking.
-    auths = {}
     if os.path.exists(authfile_path):
         with open(authfile_path) as fh:
             auths = json.load(fh).get("auths", {})
+    else:
+        auths = {}
     auths[registry] = {"auth": auth}
     with open(authfile_path, "w") as fh:
         json.dump({"auths": auths}, fh)

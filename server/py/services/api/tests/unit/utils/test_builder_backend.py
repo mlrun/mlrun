@@ -400,6 +400,56 @@ def test_make_buildah_pod_gar_credential_exchange_is_jit_not_init_container():
     assert "--authfile /auth/config.json" in lines[push_line]
 
 
+def test_make_buildah_pod_gar_credential_exchange_same_registry_skips_pull_script():
+    # base image on the *same* GAR host as the push destination - the push-side JIT script (minted
+    # before bud too) already covers it, so no separate pull script/env var is generated.
+    registry = "us-docker.pkg.dev"
+    buildah_pod = _make_buildah_pod(
+        dest=f"{registry}/proj/repo/some-image:tag",
+        registry=registry,
+        base_image=f"{registry}/mlrun/mlrun:1.13.0-rc2",
+    )
+    env = {
+        env_var.name: env_var.value
+        for env_var in buildah_pod.pod.spec.containers[0].env
+    }
+    assert "MLRUN_GAR_CREDENTIAL_SCRIPT" in env
+    assert "MLRUN_GAR_PULL_CREDENTIAL_SCRIPT" not in env
+
+
+def test_make_buildah_pod_gar_pull_side_credential_exchange_for_different_host_base_image():
+    # ML-12961: base image on a *different* GAR host than the push destination - a separate JIT
+    # script mints its credentials, merged into the same authfile, run once right before `bud`
+    # (the only step that pulls the base image).
+    push_registry = "us-docker.pkg.dev"
+    base_registry = "europe-docker.pkg.dev"
+    buildah_pod = _make_buildah_pod(
+        dest=f"{push_registry}/proj/repo/some-image:tag",
+        registry=push_registry,
+        base_image=f"{base_registry}/mlrun/mlrun:1.13.0-rc2",
+    )
+    pod = buildah_pod.pod
+
+    assert pod.spec.init_containers == []
+    container = pod.spec.containers[0]
+    env = {env_var.name: env_var.value for env_var in container.env}
+    assert "MLRUN_GAR_CREDENTIAL_SCRIPT" in env
+    assert "MLRUN_GAR_PULL_CREDENTIAL_SCRIPT" in env
+
+    lines = container.args[0].splitlines()
+    bud_line = next(i for i, line in enumerate(lines) if "bud" in line.split())
+    pull_mint_line = next(
+        i for i, line in enumerate(lines) if "MLRUN_GAR_PULL_CREDENTIAL_SCRIPT" in line
+    )
+    assert pull_mint_line < bud_line
+    assert (
+        lines[pull_mint_line + 1]
+        == "python3 /tmp/mlrun-gar-credential-exchange-pull.py"
+    )
+    # runs exactly once - only needed before the base-image pull, not before push
+    assert sum(1 for line in lines if "MLRUN_GAR_PULL_CREDENTIAL_SCRIPT" in line) == 1
+
+
 @pytest.mark.parametrize(
     "base_registry,provider",
     [

@@ -50,8 +50,9 @@ _AUTHFILE_DIR = "/auth"
 _AUTHFILE_PATH = f"{_AUTHFILE_DIR}/config.json"
 
 # where the GAR/GCR JIT credential-exchange script (see registry_auth.gar_credential_exchange_script)
-# is decoded to before running it.
+# is decoded to before running it - push destination and, when it's a different GAR host, base image.
 _GAR_SCRIPT_PATH = "/tmp/mlrun-gar-credential-exchange.py"
+_GAR_PULL_SCRIPT_PATH = "/tmp/mlrun-gar-credential-exchange-pull.py"
 
 # the AppArmor profile is applied via a per-container annotation (the k8s client in the test image is
 # capped below the securityContext.appArmorProfile field by KFP v1, and the annotation is also honored
@@ -264,17 +265,12 @@ def make_buildah_pod(
     # the base image's registry needs its own credential exchange when it differs from the push
     # destination (ML-12961) - e.g. a "system" ACR hosting mlrun's own images vs. a per-project push
     # target. When the hosts match, the push-side exchange below already writes an authfile entry
-    # for it, so there's nothing extra to do. GAR is intentionally excluded here: its existing
-    # just-in-time re-mint before `bud` (see _build_script) already covers the common same-registry
-    # case, and a cross-registry GAR pull would need a second metadata-server call path - a larger,
-    # separate change.
+    # for it, so there's nothing extra to do.
     base_registry = base_image.partition("/")[0] if base_image else None
     base_shares_push_registry = bool(base_registry) and base_registry == registry
     pull_cloud_provider = None
     if secret_name is None and base_registry and not base_shares_push_registry:
-        candidate = registry_auth.classify_cloud_registry(base_registry)
-        if candidate in (CloudRegistryProvider.ACR, CloudRegistryProvider.ECR):
-            pull_cloud_provider = candidate
+        pull_cloud_provider = registry_auth.classify_cloud_registry(base_registry)
 
     # runtime-derived scheduling/identity pod-spec attributes (node selector, affinity, tolerations,
     # preemption, priority class, service account), resolved by the shared helper both backends call.
@@ -297,6 +293,7 @@ def make_buildah_pod(
         push_cloud_provider=push_cloud_provider,
         pull_cloud_provider=pull_cloud_provider,
         registry=registry,
+        base_registry=base_registry,
         builder_env=builder_env,
         project_secrets=project_secrets,
     )
@@ -369,7 +366,8 @@ def make_buildah_pod(
                 buildah_pod, registry, _AUTHFILE_PATH
             )
         # GAR/GCR gets no init container - the authfile is written just-in-time by this container's
-        # own push script (see _build_script), into the mount above rather than the root filesystem.
+        # own script (see _build_script), into the mount above rather than the root filesystem, for
+        # both the push destination and, when it differs, the base image's registry.
 
         # the base image's registry, when it needs its own exchange (see pull_cloud_provider above)
         # - a distinct container name, since both can run in the same pod.
@@ -423,6 +421,7 @@ def _build_env(
     push_cloud_provider: CloudRegistryProvider | None,
     pull_cloud_provider: CloudRegistryProvider | None,
     registry: str,
+    base_registry: str | None,
     builder_env: list | None,
     project_secrets: list | None,
 ) -> list[client.V1EnvVar]:
@@ -444,6 +443,19 @@ def _build_env(
                 value=_b64(
                     registry_auth.gar_credential_exchange_script(
                         registry, _AUTHFILE_PATH
+                    )
+                ),
+            )
+        )
+    if pull_cloud_provider == CloudRegistryProvider.GAR:
+        # the base image's own GAR host, minted separately from the push destination's script above
+        # (ML-12961) - same JIT convention, merged into the same authfile.
+        env.append(
+            client.V1EnvVar(
+                name="MLRUN_GAR_PULL_CREDENTIAL_SCRIPT",
+                value=_b64(
+                    registry_auth.gar_credential_exchange_script(
+                        base_registry, _AUTHFILE_PATH
                     )
                 ),
             )
@@ -521,16 +533,27 @@ def _build_script(
     # (in case the base image shares the same registry) and push minimizes the gap between mint and
     # use, rather than relying on a single early mint to outlast the whole build.
     if push_cloud_provider == CloudRegistryProvider.GAR:
-        gar_credential_exchange = [
+        push_gar_credential_exchange = [
             f"echo ${{MLRUN_GAR_CREDENTIAL_SCRIPT}} | base64 -d > {shlex.quote(_GAR_SCRIPT_PATH)}",
             shlex.join(["python3", _GAR_SCRIPT_PATH]),
         ]
     else:
-        gar_credential_exchange = []
+        push_gar_credential_exchange = []
+
+    # the base image's own GAR host (ML-12961), when it differs from the push destination's - only
+    # needed before `bud`, since that's the only step that pulls the base image.
+    if pull_cloud_provider == CloudRegistryProvider.GAR:
+        pull_gar_credential_exchange = [
+            f"echo ${{MLRUN_GAR_PULL_CREDENTIAL_SCRIPT}} | base64 -d > {shlex.quote(_GAR_PULL_SCRIPT_PATH)}",
+            shlex.join(["python3", _GAR_PULL_SCRIPT_PATH]),
+        ]
+    else:
+        pull_gar_credential_exchange = []
 
     # First we do a credential exchange to ensure we have credentials for the
     # build
-    lines += gar_credential_exchange
+    lines += pull_gar_credential_exchange
+    lines += push_gar_credential_exchange
 
     bud = global_opts + ["bud"]
     # unlike Kaniko - whose RUN steps execute directly on the build pod's own filesystem - Buildah's
@@ -546,8 +569,9 @@ def _build_script(
     lines.append(shlex.join(bud))
 
     # We do another credential exchange to ensure we have credentials for the
-    # push since it can be that the token expired during the build
-    lines += gar_credential_exchange
+    # push since it can be that the token expired during the build - only the push destination's
+    # script; the base image was already pulled by `bud` above, nothing left to credential for it.
+    lines += push_gar_credential_exchange
 
     push = global_opts + ["push"]
     push += _tls_verify_flag(

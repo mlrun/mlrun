@@ -21,6 +21,7 @@
 # push-side one in the same pod - see test_builder_backend.py for the make_buildah_pod-level wiring.
 
 import base64
+import io
 import json
 import unittest.mock
 
@@ -186,4 +187,28 @@ def test_gar_credential_exchange_script_uses_metadata_server_only(
 
     written = json.loads(authfile.read_text())
     decoded = base64.b64decode(written["auths"][registry]["auth"]).decode()
+    assert decoded == "oauth2accesstoken:gcp-token"
+
+
+def test_gar_credential_exchange_script_merges_existing_entry(tmp_path, monkeypatch):
+    # a push-side and a pull-side GAR script (different hosts, ML-12961), or an ACR/ECR init
+    # container that ran first, may already have written an entry - this must merge, not clobber it.
+    authfile = tmp_path / "config.json"
+    other_registry = "myregistry.azurecr.io"
+    authfile.write_text(json.dumps({"auths": {other_registry: {"auth": "existing"}}}))
+
+    monkeypatch.setattr(
+        "urllib.request.urlopen",
+        unittest.mock.Mock(
+            return_value=io.BytesIO(json.dumps({"access_token": "gcp-token"}).encode())
+        ),
+    )
+
+    registry = "us-docker.pkg.dev"
+    script = registry_auth.gar_credential_exchange_script(registry, str(authfile))
+    exec(script, {})  # noqa: S102 - exercising the generated script, not user input
+
+    auths = json.loads(authfile.read_text())["auths"]
+    assert auths[other_registry]["auth"] == "existing"
+    decoded = base64.b64decode(auths[registry]["auth"]).decode()
     assert decoded == "oauth2accesstoken:gcp-token"

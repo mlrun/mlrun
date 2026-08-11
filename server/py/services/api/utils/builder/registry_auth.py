@@ -15,8 +15,8 @@
 
 Buildah's stock image has no built-in cloud-credential support the way Kaniko's Go binary does, so
 each provider mints its own credential from the pod's existing workload identity - for both the
-push destination and, when it lives on a different ACR/ECR host, the base image being pulled
-(ML-12961; GAR's base-image case isn't covered, see :mod:`services.api.utils.builder.buildah`):
+push destination and, when it lives on a different ACR/ECR/GAR host, the base image being pulled
+(ML-12961):
 
 * **ECR** and **ACR** — an init container on the MLRun image (already carries boto3 /
   azure-identity, and mlrun itself) runs ``python -m mlrun mint-registry-credentials`` (see
@@ -30,7 +30,8 @@ push destination and, when it lives on a different ACR/ECR host, the base image 
   immediately before each Buildah step that needs it (see :mod:`services.api.utils.builder.buildah`),
   minimizes the gap between mint and use rather than trying to outlast a fixed TTL. This path can't
   use the same init-container convention as ECR/ACR: it runs inline in the Buildah main container,
-  which has no mlrun (or any cloud SDK) installed - only the stock image's python3/urllib.
+  which has no mlrun (or any cloud SDK) installed - only the stock image's python3/urllib. A
+  push-side and a pull-side (different GAR host) script both merge into the same authfile.
 
 None of the generated scripts or CLI args ever log the minted token.
 """
@@ -168,19 +169,26 @@ def gar_credential_exchange_script(registry: str, authfile_path: str) -> str:
     intercepting the metadata-server call for the build pod's service account - no federated-token
     plumbing is needed on mlrun's side.
 
+    Merges into ``authfile_path`` rather than overwriting it: a push-side and a pull-side script
+    (different GAR hosts, ML-12961), or an ACR/ECR init container that ran first, may already have
+    written an entry there.
+
     :param registry: The GAR/GCR registry host.
-    :param authfile_path: Where to write the docker-config-shaped authfile.
+    :param authfile_path: Where to merge the docker-config-shaped authfile entry.
     :return: The Python source to run (e.g. via ``python3 -c``).
     """
     # kept terse - this is base64-embedded into a pod env var, so every byte here is sent over the
     # wire. No `with` blocks: the process exits right after, so explicit close/flush isn't needed.
     lines = [
-        "import base64, json, urllib.request",
+        "import base64, json, os, urllib.request",
         f"req = urllib.request.Request({_GCP_METADATA_TOKEN_URL!r}, headers="
         "{'Metadata-Flavor': 'Google'})",
         "token = json.load(urllib.request.urlopen(req, timeout=10))['access_token']",
         "auth = base64.b64encode(b'oauth2accesstoken:' + token.encode()).decode()",
-        f"json.dump({{'auths': {{{registry!r}: {{'auth': auth}}}}}}, open({authfile_path!r}, 'w'))",
+        f"auths = json.load(open({authfile_path!r})).get('auths', {{}}) "
+        f"if os.path.exists({authfile_path!r}) else {{}}",
+        f"auths[{registry!r}] = {{'auth': auth}}",
+        f"json.dump({{'auths': auths}}, open({authfile_path!r}, 'w'))",
     ]
     return "\n".join(lines)
 

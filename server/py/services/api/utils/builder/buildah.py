@@ -101,6 +101,8 @@ class BuildahBackend:
             source=source_to_copy,
             requirements_path=request.requirements_path,
             extra=request.extra,
+            user_unix_id=request.user_unix_id,
+            enriched_group_id=request.enriched_group_id,
             target_dir=request.runtime_spec.build.source_code_target_dir,
             builder_env=request.builder_env_list,
             project_secrets=request.project_secrets,

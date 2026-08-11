@@ -584,6 +584,26 @@ def test_buildah_backend_local_abs_path_source_passthrough():
     assert "ADD /opt/baked-in-source /home/mlrun_code" in _decoded_dockerfile(pod)
 
 
+def test_buildah_backend_chowns_source_dir_when_security_context_enriched():
+    # ML-12960 regression: a source-baked build on a cluster with non-root security-context
+    # enrichment enabled must chown the baked source dir to the job pod's runtime uid/gid, or a
+    # non-root job pod can't write into it at runtime. Buildah was silently skipping this
+    # (unlike Kaniko, which already threads user_unix_id/enriched_group_id through).
+    pod = _make_buildah_backend_pod(
+        source="/opt/baked-in-source",
+        user_unix_id=1000,
+        enriched_group_id=1000,
+    )
+    assert "RUN chown -R 1000:1000 /home/mlrun_code" in _decoded_dockerfile(pod)
+
+
+def test_buildah_backend_no_chown_when_security_context_not_enriched():
+    # the shipped default (enrichment disabled): no uid/gid resolved, so no chown - matches
+    # Kaniko's own behaviour for this case.
+    pod = _make_buildah_backend_pod(source="/opt/baked-in-source")
+    assert "chown" not in _decoded_dockerfile(pod)
+
+
 def test_buildah_backend_relative_path_source_raises():
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentError, match="relative source"):
         _make_buildah_backend_pod(source="relative/path")

@@ -19,13 +19,13 @@ import pytest
 import sqlalchemy.orm
 
 import mlrun.errors
+import tests.conftest
 from mlrun import mlconf
 from mlrun.utils import logger
 
 import framework.utils.pagination_cache
 import framework.utils.singletons.db
 import services.api.crud
-import tests.conftest
 from framework.db.sqldb.db import MAX_INT_32
 
 
@@ -534,10 +534,8 @@ def test_store_paginated_query_cache_record_retries_on_fresh_insert_conflict(
         unittest.mock.Mock(side_effect=get_cache_record_mock)
     )
 
-    second_key = (
-        framework.utils.pagination_cache.PaginationCache().store_pagination_cache_record(
-            db, "user_name", method, 2, page_size, kwargs
-        )
+    second_key = framework.utils.pagination_cache.PaginationCache().store_pagination_cache_record(
+        db, "user_name", method, 2, page_size, kwargs
     )
 
     assert second_key == key

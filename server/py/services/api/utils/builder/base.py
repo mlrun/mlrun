@@ -78,6 +78,7 @@ class BuildRequest:
     :param extra_args:         Extra builder CLI arguments (validated, engine-rendered
                                inside the backend).
     :param secret_name:        The docker-config secret to authenticate the push.
+    :param namespace:          The k8s namespace ``secret_name`` lives in.
     :param registry:           The target registry, when given explicitly.
     :param runtime_spec:       The function's runtime spec (resources, scheduling,
                                security context, ``build`` config).
@@ -105,6 +106,7 @@ class BuildRequest:
     project_secrets: list[client.V1EnvVar]
     extra_args: str | dict
     secret_name: str | None
+    namespace: str | None
     registry: str | None
     runtime_spec: typing.Any
     project_default_function_node_selector: dict[str, str]

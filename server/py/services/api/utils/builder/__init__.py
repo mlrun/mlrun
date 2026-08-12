@@ -22,6 +22,7 @@ import mlrun.utils
 from mlrun.config import config
 
 import framework.utils.singletons.k8s
+from services.api.utils.builder import base_image_compat
 from services.api.utils.builder.base import (
     BuilderBackend,
     BuildRequest,
@@ -127,6 +128,7 @@ def build_image(
         project_secrets=project_secrets,
         extra_args=extra_args,
         secret_name=secret_name,
+        namespace=namespace,
         registry=registry,
         runtime_spec=runtime_spec,
         project_default_function_node_selector=project_default_function_node_selector,
@@ -164,6 +166,13 @@ def resolve_builder_backend(request: BuildRequest) -> BuilderBackend:
     The engine is the one named in ``httpdb.builder.builder_backend``. The whole ``request`` is
     accepted for symmetry with the backends themselves, which each take the same ``BuildRequest``.
 
+    Buildah is routed to Kaniko instead when the base image's manifest mixes OCI and Docker layer
+    media types - ``buildah bud`` deliberately refuses to build from such an image (ML-12990).
+    Unlike the ML-12886/87 fallback guards this codebase used to carry, this one is not temporary:
+    the upstream limitation it works around isn't expected to be fixed (see
+    :mod:`services.api.utils.builder.base_image_compat`), so don't delete it once some "obvious"
+    follow-up merges.
+
     :param request: The resolved build request.
     :return: The builder backend instance for this build.
     :raises mlrun.errors.MLRunInvalidArgumentError: If the configured backend is unknown.
@@ -181,6 +190,17 @@ def resolve_builder_backend(request: BuildRequest) -> BuilderBackend:
             f"Unsupported builder backend '{backend_name}'. "
             f"Supported backends: {', '.join(sorted(backends))}"
         )
+
+    if backend_class is BuildahBackend and request.base_image:
+        if base_image_compat.base_image_uses_mixed_media_types(
+            request.base_image, request.secret_name, request.namespace
+        ):
+            mlrun.utils.logger.info(
+                "Builder backend falling back to Kaniko: base image is incompatible with Buildah",
+                requested_backend=backend_name,
+                base_image=request.base_image,
+            )
+            return KanikoBackend()
 
     return backend_class()
 

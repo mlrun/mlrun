@@ -132,6 +132,7 @@ def _make_build_request(**overrides) -> services.api.utils.builder.BuildRequest:
         project_secrets=[],
         extra_args={},
         secret_name=None,
+        namespace=None,
         registry=None,
         runtime_spec=None,
         project_default_function_node_selector={},
@@ -149,9 +150,21 @@ def _make_build_request(**overrides) -> services.api.utils.builder.BuildRequest:
 # --- Buildah backend (ML-12885) ------------------------------------------------------------------
 
 
+def _patch_base_image_compat_inconclusive(monkeypatch):
+    # these tests exercise other selection gates (registry handling, source routing), not the
+    # base-image-compatibility check (ML-12990) - stub it "inconclusive" so they stay offline and
+    # deterministic instead of making a real registry call for every Buildah-selection test.
+    monkeypatch.setattr(
+        services.api.utils.builder.base_image_compat,
+        "base_image_uses_mixed_media_types",
+        lambda *args, **kwargs: None,
+    )
+
+
 def test_resolve_builder_backend_buildah_selected(monkeypatch):
     # a buildah-configured cluster with a plain-registry, no-source build routes to the Buildah adapter
     monkeypatch.setattr(config.httpdb.builder, "builder_backend", "buildah")
+    _patch_base_image_compat_inconclusive(monkeypatch)
     backend = services.api.utils.builder.resolve_builder_backend(
         _make_build_request(image_target="registry.example.com/some-image:tag")
     )
@@ -171,6 +184,7 @@ def test_resolve_builder_backend_buildah_handles_cloud_registry_directly(
 ):
     # ECR/ACR/GAR credential exchange is wired into Buildah itself (ML-12886) -> no Kaniko fallback
     monkeypatch.setattr(config.httpdb.builder, "builder_backend", "buildah")
+    _patch_base_image_compat_inconclusive(monkeypatch)
     backend = services.api.utils.builder.resolve_builder_backend(
         _make_build_request(image_target=target, registry=None)
     )
@@ -180,6 +194,7 @@ def test_resolve_builder_backend_buildah_handles_cloud_registry_directly(
 def test_resolve_builder_backend_buildah_handles_source(monkeypatch):
     # source acquisition is implemented -> Buildah is selected, no fallback
     monkeypatch.setattr(config.httpdb.builder, "builder_backend", "buildah")
+    _patch_base_image_compat_inconclusive(monkeypatch)
     backend = services.api.utils.builder.resolve_builder_backend(
         _make_build_request(source="git://github.com/some-org/some-repo.git#main")
     )
@@ -189,6 +204,7 @@ def test_resolve_builder_backend_buildah_handles_source(monkeypatch):
 def test_resolve_builder_backend_buildah_keeps_inline_code_with_source(monkeypatch):
     # inline_code doesn't stage a build-context source (Kaniko uses /empty too), so Buildah keeps it
     monkeypatch.setattr(config.httpdb.builder, "builder_backend", "buildah")
+    _patch_base_image_compat_inconclusive(monkeypatch)
     backend = services.api.utils.builder.resolve_builder_backend(
         _make_build_request(
             source="git://github.com/some-org/some-repo.git#main",
@@ -196,6 +212,54 @@ def test_resolve_builder_backend_buildah_keeps_inline_code_with_source(monkeypat
         )
     )
     assert isinstance(backend, services.api.utils.builder.BuildahBackend)
+
+
+# --- Base-image compatibility fallback (ML-12990) ------------------------------------------------
+
+
+def test_resolve_builder_backend_falls_back_to_kaniko_on_mixed_media_types(monkeypatch):
+    # buildah bud rejects a base image whose manifest mixes OCI/Docker layer media types - route
+    # to Kaniko instead of letting the build fail inside the pod.
+    monkeypatch.setattr(config.httpdb.builder, "builder_backend", "buildah")
+    monkeypatch.setattr(
+        services.api.utils.builder.base_image_compat,
+        "base_image_uses_mixed_media_types",
+        lambda *args, **kwargs: True,
+    )
+    backend = services.api.utils.builder.resolve_builder_backend(_make_build_request())
+    assert isinstance(backend, services.api.utils.builder.KanikoBackend)
+
+
+@pytest.mark.parametrize("verdict", [False, None])
+def test_resolve_builder_backend_stays_on_buildah_when_compatible_or_inconclusive(
+    monkeypatch, verdict
+):
+    # a compatible base image (False), or one this check couldn't evaluate (None, e.g. a
+    # transient registry error or a cloud-credential-only registry) - either way, no fallback.
+    monkeypatch.setattr(config.httpdb.builder, "builder_backend", "buildah")
+    monkeypatch.setattr(
+        services.api.utils.builder.base_image_compat,
+        "base_image_uses_mixed_media_types",
+        lambda *args, **kwargs: verdict,
+    )
+    backend = services.api.utils.builder.resolve_builder_backend(_make_build_request())
+    assert isinstance(backend, services.api.utils.builder.BuildahBackend)
+
+
+def test_resolve_builder_backend_skips_check_without_base_image(monkeypatch):
+    # no base_image -> nothing to inspect; the check must not even be called.
+    monkeypatch.setattr(config.httpdb.builder, "builder_backend", "buildah")
+    check = unittest.mock.Mock()
+    monkeypatch.setattr(
+        services.api.utils.builder.base_image_compat,
+        "base_image_uses_mixed_media_types",
+        check,
+    )
+    backend = services.api.utils.builder.resolve_builder_backend(
+        _make_build_request(base_image="")
+    )
+    assert isinstance(backend, services.api.utils.builder.BuildahBackend)
+    check.assert_not_called()
 
 
 def test_make_buildah_pod_security_context_is_caps_rootless():

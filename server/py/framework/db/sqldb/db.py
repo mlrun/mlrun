@@ -8108,6 +8108,7 @@ class SQLDB(DBInterface):
         )
 
     # --- Pagination ---
+    @retry_on_conflict
     def store_paginated_query_cache_record(
         self,
         session,
@@ -8131,7 +8132,12 @@ class SQLDB(DBInterface):
             f"{user}/{function}/{page_size}/{kwargs}".encode()
         ).hexdigest()
         if not pagination_cache_record:
-            # in this case, we just lock for update to make sure no one else is writing to it
+            # Lock for update in case a record for this key already exists, so a concurrent
+            # request updating it can't be lost. This does NOT protect the insert branch below:
+            # if two concurrent callers both see zero rows here, both build a fresh
+            # PaginationCache and one of the two inserts collides on the `key` primary key.
+            # @retry_on_conflict closes that gap by retrying this whole method on conflict, so
+            # the retry's SELECT sees the row the other caller just committed.
             pagination_cache_record = self.get_paginated_query_cache_record(
                 session, key=key, for_update=True
             )

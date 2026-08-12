@@ -471,6 +471,9 @@ default_config = {
         "nuclio": {
             # One of ClusterIP | NodePort
             "default_service_type": "NodePort",
+            # When True the platform has function-level (behind-Service) authentication enabled;
+            # set by mlefi via MLRUN_HTTPDB__NUCLIO__FUNCTION_AUTHENTICATION_ENABLED env var.
+            "function_authentication_enabled": False,
             # The following modes apply when user did not configure an ingress
             #
             #   name        |  description
@@ -1471,6 +1474,10 @@ class Config:
     def is_nuclio_detected(self):
         # determine is Nuclio service is detected, when the nuclio_version is not set
         return bool(mlrun.mlconf.nuclio_version)
+
+    def is_nuclio_function_authentication_enabled(self) -> bool:
+        """Return True when the platform has function-level (behind-Service) authentication enabled."""
+        return bool(mlrun.mlconf.httpdb.nuclio.function_authentication_enabled)
 
     def use_nuclio_mock(self, force_mock=None):
         # determine if to use Nuclio mock service

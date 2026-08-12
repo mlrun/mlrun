@@ -134,6 +134,125 @@ def test_parse_item_count(body: bytes, expected: int | None) -> None:
     assert framework.middlewares.rest_metrics.parse_item_count(body) == expected
 
 
+@pytest.mark.parametrize(
+    ("body", "expected"),
+    [
+        (b"", ""),
+        (b"not json", ""),
+        (json.dumps({"metadata": {"name": "proj-a"}}).encode(), "proj-a"),
+        (json.dumps({"metadata": {"name": 123}}).encode(), ""),
+        (json.dumps({"metadata": {}}).encode(), ""),
+        (json.dumps({}).encode(), ""),
+        (json.dumps([1, 2, 3]).encode(), ""),
+    ],
+)
+def test_parse_create_project_body(body: bytes, expected: str) -> None:
+    assert (
+        framework.middlewares.rest_metrics.parse_create_project_body(body) == expected
+    )
+
+
+@pytest.mark.parametrize(
+    ("body", "expected"),
+    [
+        (b"", ""),
+        (b"not json", ""),
+        (
+            json.dumps({"function": {"metadata": {"project": "proj-a"}}}).encode(),
+            "proj-a",
+        ),
+        (json.dumps({"function": {"metadata": {"project": 123}}}).encode(), ""),
+        (json.dumps({"function": {"metadata": {}}}).encode(), ""),
+        (json.dumps({"function": "not-a-dict"}).encode(), ""),
+        (json.dumps({}).encode(), ""),
+    ],
+)
+def test_parse_build_function_body(body: bytes, expected: str) -> None:
+    assert (
+        framework.middlewares.rest_metrics.parse_build_function_body(body) == expected
+    )
+
+
+@pytest.mark.parametrize(
+    ("body", "expected"),
+    [
+        (b"", ""),
+        (b"not json", ""),
+        (json.dumps({"functionUrl": "proj-a/fn-name"}).encode(), "proj-a"),
+        (json.dumps({"functionUrl": "proj-a/fn-name:tag@hash"}).encode(), "proj-a"),
+        (json.dumps({"functionUrl": "fn-name"}).encode(), ""),
+        (json.dumps({"functionUrl": 123}).encode(), ""),
+        (json.dumps({}).encode(), ""),
+    ],
+)
+def test_parse_start_function_body(body: bytes, expected: str) -> None:
+    assert (
+        framework.middlewares.rest_metrics.parse_start_function_body(body) == expected
+    )
+
+
+@pytest.mark.parametrize(
+    ("body", "expected"),
+    [
+        (b"", ""),
+        (b"not json", ""),
+        (json.dumps({"project": "proj-a"}).encode(), "proj-a"),
+        (json.dumps({"project": 123}).encode(), ""),
+        (json.dumps({}).encode(), ""),
+    ],
+)
+def test_parse_status_function_body(body: bytes, expected: str) -> None:
+    assert (
+        framework.middlewares.rest_metrics.parse_status_function_body(body) == expected
+    )
+
+
+@pytest.mark.parametrize(
+    ("body", "expected"),
+    [
+        (b"", ""),
+        (b"not json", ""),
+        (
+            json.dumps({"task": {"metadata": {"project": "proj-a"}}}).encode(),
+            "proj-a",
+        ),
+        (json.dumps({"task": {"metadata": {"project": 123}}}).encode(), ""),
+        (json.dumps({"task": {"metadata": {}}}).encode(), ""),
+        (json.dumps({"task": "not-a-dict"}).encode(), ""),
+        (json.dumps({}).encode(), ""),
+    ],
+)
+def test_parse_submit_body(body: bytes, expected: str) -> None:
+    assert framework.middlewares.rest_metrics.parse_submit_body(body) == expected
+
+
+@pytest.mark.parametrize(
+    ("query_string", "expected"),
+    [
+        (b"", ""),
+        (b"project=proj-a", "proj-a"),
+        (b"other=1&project=proj-b", "proj-b"),
+        (b"other=1", ""),
+        (b"project=proj-a&project=proj-b", "proj-a"),
+    ],
+)
+def test_parse_build_status_query(query_string: bytes, expected: str) -> None:
+    assert (
+        framework.middlewares.rest_metrics.parse_build_status_query(query_string)
+        == expected
+    )
+
+
+def test_parse_build_status_query_handles_invalid_utf8() -> None:
+    """Malformed bytes must not raise — this runs unguarded, ahead of the
+    middleware's try/except around per-call recording.
+    """
+    result = framework.middlewares.rest_metrics.parse_build_status_query(
+        b"project=\xff\xfe"
+    )
+    assert isinstance(result, str)
+
+
 def _middleware_class_names(app: fastapi.FastAPI) -> list[str]:
     return [middleware.cls.__name__ for middleware in app.user_middleware]
 
@@ -424,6 +543,38 @@ def test_rest_metrics_middleware_computes_response_size_across_chunks() -> None:
 
     response_size_kwargs = mocks["record_response_size"].call_args.kwargs
     assert response_size_kwargs["size_kib"] == pytest.approx(1024 / 1024)
+
+
+def test_rest_metrics_middleware_records_project_from_request_body() -> None:
+    """Body-derived project label (e.g. POST /submit) flows through end-to-end,
+    not just through the pure parser function.
+    """
+    body = json.dumps({"task": {"metadata": {"project": "proj-a"}}}).encode()
+
+    async def downstream_app(scope, receive, send):
+        while True:
+            message = await receive()
+            if not message.get("more_body", False):
+                break
+        await send({"type": "http.response.start", "status": 200, "headers": []})
+        await send({"type": "http.response.body", "body": b"ok"})
+
+    receive = _make_receive(
+        [{"type": "http.request", "body": body, "more_body": False}]
+    )
+
+    with _patch_all_record_fns() as mocks:
+        asyncio.run(
+            _run_middleware(
+                downstream_app,
+                _http_scope(path="/api/v1/submit", method=http.HTTPMethod.POST),
+                receive=receive,
+            )
+        )
+
+    kwargs = mocks["record_duration"].call_args.kwargs
+    assert kwargs["resource"] == "submit"
+    assert kwargs["project"] == "proj-a"
 
 
 def test_rest_metrics_middleware_records_item_count_for_list_calls() -> None:

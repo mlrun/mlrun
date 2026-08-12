@@ -81,7 +81,7 @@ To disable REST metrics independently while keeping other telemetry on:
 MLRUN_TELEMETRY__REST_METRICS__ENABLED=false
 ```
 
-`system_id`, `status_code`, `resource`, and `project` are common to every instrument below. `resource` is the object type the route operates on (for example `functions`, `runs`, `artifacts`); `project` is set for project-scoped routes and empty otherwise. Health-check (`/healthz`) requests are excluded.
+`system_id`, `status_code`, `resource`, and `project` are common to every instrument below. `resource` is the object type the route operates on (for example `functions`, `runs`, `artifacts`); `project` is set for project-scoped routes and empty otherwise. `project` is normally read straight from the URL path, but for a handful of routes where the project isn't part of the path — project creation, function build/start/status, job submission, and build-status polling — it's read from the request body or query string instead. Health-check (`/healthz`) requests are excluded.
 
 `method` is the real HTTP method, except a collection-returning GET is reported as the synthetic `"LIST"` value instead of `"GET"` — so list calls are distinguishable without a separate label. It's omitted entirely (not just empty) wherever it wouldn't vary: absent from `mlrun_rest_response_num_items`, since that metric only ever records `method="LIST"` calls by construction — a label that never varies within a metric adds nothing to query it by.
 

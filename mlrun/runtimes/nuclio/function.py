@@ -39,7 +39,7 @@ import mlrun.k8s_utils
 import mlrun.runtime_configuration_context
 import mlrun.utils
 import mlrun.utils.helpers
-from mlrun.common.schemas import AuthInfo, BatchingSpec
+from mlrun.common.schemas import AuthInfo, BatchingSpec, HTTPTriggerAuthenticationMode
 from mlrun.common.schemas.model_monitoring import ModelEndpointInstruction
 from mlrun.config import config as mlconf
 from mlrun.errors import err_to_str
@@ -68,6 +68,9 @@ SENSITIVE_PATHS_IN_TRIGGER_CONFIG = {
     "attributes/accesscertificate",
     "attributes/sasl/password",
     "attributes/sasl/oauth/clientsecret",
+    # function-level HTTP trigger basic-auth password
+    "attributes/authentication/basicAuth/password",
+    "basicauth/password",
 }
 
 
@@ -510,6 +513,42 @@ class RemoteRuntime(KubeResource):
         self.spec.config[f"spec.triggers.{name}"] = spec
         return self
 
+    def _validate_http_trigger_authentication(
+        self,
+        authentication_mode: HTTPTriggerAuthenticationMode,
+        authentication_creds: tuple[str, str] | None,
+    ):
+        """Validate ``authentication_mode`` and ``authentication_creds`` for the HTTP trigger.
+
+        Caller must ensure the function-level authentication feature flag is on before invoking.
+
+        :param authentication_mode: The requested authentication mode.
+        :param authentication_creds: ``(username, password)`` tuple; required for ``basicAuth``.
+        :raises MLRunInvalidArgumentError: when the mode value is invalid or the creds/mode
+            combination is inconsistent.
+        """
+        if authentication_mode.value not in HTTPTriggerAuthenticationMode.values():
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Invalid authentication_mode '{authentication_mode}'. "
+                f"Supported modes are: {sorted(HTTPTriggerAuthenticationMode.values())}."
+            )
+
+        if authentication_mode == HTTPTriggerAuthenticationMode.basic:
+            if not authentication_creds or len(authentication_creds) != 2:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "authentication_creds=(username, password) is required when "
+                    "authentication_mode is 'basicAuth'."
+                )
+            if not authentication_creds[0] or not authentication_creds[1]:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Both username and password must be non-empty in authentication_creds."
+                )
+        elif authentication_creds is not None:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"authentication_creds must not be provided when authentication_mode is "
+                f"'{authentication_mode.value}' (only valid for 'basicAuth')."
+            )
+
     def _validate_triggers(self, spec):
         # ML-7763 / NUC-233
         min_nuclio_version = "1.13.12"
@@ -632,6 +671,8 @@ class RemoteRuntime(KubeResource):
         extra_attributes: typing.Mapping[str, str] | None = None,
         batching_spec: BatchingSpec | None = None,
         async_spec: AsyncSpec | None = None,
+        authentication_mode: HTTPTriggerAuthenticationMode | None = None,
+        authentication_creds: tuple[str, str] | None = None,
     ):
         """update/add nuclio HTTP trigger settings
 
@@ -660,9 +701,27 @@ class RemoteRuntime(KubeResource):
         :param async_spec: AsyncSpec object defines async configuration. By default, mode will be sync.
             If number of max connections won't be set, the default value will be set to 1000 according to nuclio
             default.
+        :param authentication_mode: Function-level HTTP trigger authentication mode. Requires the platform
+            feature flag ``httpdb.nuclio.function_authentication_enabled`` to be on. Accepted values
+            defined in :py:class:`~mlrun.common.schemas.HTTPTriggerAuthenticationMode`:
+            ``none``, ``api``, ``browser``, or ``basicAuth``.
+            Set on ``spec.triggers.<name>.attributes.authenticationMode`` in the Nuclio function spec.
+        :param authentication_creds: ``(username, password)`` tuple — required when
+            ``authentication_mode`` is ``basicAuth``, must be omitted for all other modes.
 
         :return: function object (self)
         """
+        if authentication_mode is not None:
+            if not mlrun.mlconf.is_nuclio_function_authentication_enabled():
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Function-level HTTP trigger authentication is not supported on this platform. "
+                    "Configure authentication on the API Gateway instead."
+                )
+            self._validate_http_trigger_authentication(
+                authentication_mode=authentication_mode,
+                authentication_creds=authentication_creds,
+            )
+
         if self.disable_default_http_trigger:
             logger.warning(
                 "Adding HTTP trigger despite the default HTTP trigger creation being disabled"
@@ -723,6 +782,16 @@ class RemoteRuntime(KubeResource):
                 trigger._struct["async"] = {
                     "maxConnectionsNumber": async_spec.max_connections,
                     "connectionAvailabilityTimeout": async_spec.connection_availability_timeout,
+                }
+
+        if authentication_mode is not None:
+            trigger._struct["attributes"]["authenticationMode"] = (
+                authentication_mode.value
+            )
+            if authentication_mode == HTTPTriggerAuthenticationMode.basic:
+                username, password = authentication_creds
+                trigger._struct["attributes"]["authentication"] = {
+                    "basicAuth": {"username": username, "password": password}
                 }
 
         self.add_trigger(trigger_name or "http", trigger)

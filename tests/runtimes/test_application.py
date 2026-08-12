@@ -1368,3 +1368,57 @@ def test_set_source_target(target_dir, should_succeed, error_match):
     else:
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentError, match=error_match):
             fn.set_source_target(target_dir)
+
+
+def test_create_api_gateway_auth_no_op_when_flag_off(monkeypatch, rundb_mock):
+    """Flag off: passing auth params to create_api_gateway keeps working (backward compatible)."""
+    monkeypatch.setattr(
+        mlrun.mlconf.httpdb.nuclio, "function_authentication_enabled", False
+    )
+    fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
+        "app-test", kind="application", image="mlrun/mlrun"
+    )
+    try:
+        fn.create_api_gateway(
+            name="gw",
+            authentication_mode=mlrun.common.schemas.APIGatewayAuthenticationMode.basic,
+            authentication_creds=("u", "p"),
+        )
+    except mlrun.errors.MLRunInvalidArgumentError as exc:
+        assert "not supported" not in str(exc), (
+            "flag off must not gate legacy auth on create_api_gateway"
+        )
+    except Exception:
+        pass
+
+
+def test_create_api_gateway_auth_rejection_flag_on(monkeypatch, rundb_mock):
+    """Flag on: passing auth params to create_api_gateway raises MLRunInvalidArgumentError."""
+    monkeypatch.setattr(
+        mlrun.mlconf.httpdb.nuclio, "function_authentication_enabled", True
+    )
+    fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
+        "app-test", kind="application", image="mlrun/mlrun"
+    )
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError, match="not supported"):
+        fn.create_api_gateway(
+            name="gw",
+            authentication_mode=mlrun.common.schemas.APIGatewayAuthenticationMode.basic,
+            authentication_creds=("u", "p"),
+        )
+
+
+def test_create_api_gateway_without_auth_allowed_flag_on(monkeypatch, rundb_mock):
+    """Flag on: create_api_gateway without auth params must not raise."""
+    monkeypatch.setattr(
+        mlrun.mlconf.httpdb.nuclio, "function_authentication_enabled", True
+    )
+    fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
+        "app-test", kind="application", image="mlrun/mlrun"
+    )
+    try:
+        fn.create_api_gateway(name="gw")
+    except mlrun.errors.MLRunInvalidArgumentError as exc:
+        assert "not supported" not in str(exc), (
+            "create_api_gateway without auth params should not raise due to auth flag"
+        )

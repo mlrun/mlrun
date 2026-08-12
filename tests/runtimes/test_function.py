@@ -136,6 +136,77 @@ def test_http_trigger():
     )
 
 
+@pytest.mark.parametrize(
+    "mode, creds, expected_mode_value",
+    [
+        (mlrun.common.schemas.HTTPTriggerAuthenticationMode.api, None, "api"),
+        (mlrun.common.schemas.HTTPTriggerAuthenticationMode.browser, None, "browser"),
+        (mlrun.common.schemas.HTTPTriggerAuthenticationMode.none, None, "none"),
+        (
+            mlrun.common.schemas.HTTPTriggerAuthenticationMode.basic,
+            ("user", "pass"),
+            "basicAuth",
+        ),
+    ],
+)
+def test_with_http_authentication_mode(monkeypatch, mode, creds, expected_mode_value):
+    monkeypatch.setattr(
+        mlrun.mlconf.httpdb.nuclio, "function_authentication_enabled", True
+    )
+    function: mlrun.runtimes.RemoteRuntime = mlrun.new_function("test", kind="nuclio")
+    function.with_http(authentication_mode=mode, authentication_creds=creds)
+
+    trigger = function.spec.config["spec.triggers.http"]
+    assert trigger["attributes"]["authenticationMode"] == expected_mode_value
+    if mode == mlrun.common.schemas.HTTPTriggerAuthenticationMode.basic:
+        username, password = creds
+        assert trigger["attributes"]["authentication"] == {
+            "basicAuth": {"username": username, "password": password}
+        }
+    else:
+        assert "authentication" not in trigger["attributes"]
+
+
+def test_with_http_authentication_flag_off_raises(monkeypatch):
+    monkeypatch.setattr(
+        mlrun.mlconf.httpdb.nuclio, "function_authentication_enabled", False
+    )
+    function: mlrun.runtimes.RemoteRuntime = mlrun.new_function("test", kind="nuclio")
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError, match="not supported"):
+        function.with_http(
+            authentication_mode=mlrun.common.schemas.HTTPTriggerAuthenticationMode.api
+        )
+
+
+def test_with_http_authentication_basic_missing_creds(monkeypatch):
+    monkeypatch.setattr(
+        mlrun.mlconf.httpdb.nuclio, "function_authentication_enabled", True
+    )
+    function: mlrun.runtimes.RemoteRuntime = mlrun.new_function("test", kind="nuclio")
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match="authentication_creds",
+    ):
+        function.with_http(
+            authentication_mode=mlrun.common.schemas.HTTPTriggerAuthenticationMode.basic
+        )
+
+
+def test_with_http_authentication_creds_non_basic_rejected(monkeypatch):
+    monkeypatch.setattr(
+        mlrun.mlconf.httpdb.nuclio, "function_authentication_enabled", True
+    )
+    function: mlrun.runtimes.RemoteRuntime = mlrun.new_function("test", kind="nuclio")
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match="must not be provided",
+    ):
+        function.with_http(
+            authentication_mode=mlrun.common.schemas.HTTPTriggerAuthenticationMode.api,
+            authentication_creds=("user", "pass"),
+        )
+
+
 def test_nuclio_deploy_set_token_name():
     function: mlrun.runtimes.RemoteRuntime = mlrun.new_function("tst", kind="nuclio")
     db = mlrun.get_run_db()

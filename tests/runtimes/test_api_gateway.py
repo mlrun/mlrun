@@ -369,6 +369,61 @@ def test_invoke_basic_auth_requires_credentials():
     assert "credentials" in str(exc_info.value).lower()
 
 
+@pytest.mark.parametrize(
+    "mode, creds",
+    [
+        (mlrun.common.schemas.APIGatewayAuthenticationMode.basic, ("u", "p")),
+        (mlrun.common.schemas.APIGatewayAuthenticationMode.access_key, None),
+        (mlrun.common.schemas.APIGatewayAuthenticationMode.iguazio, None),
+    ],
+)
+def test_validate_authentication_rejects_legacy_auth_when_flag_on(
+    monkeypatch, mode, creds
+):
+    """Flag on: any non-``none`` AGW authentication_mode is rejected up front."""
+    monkeypatch.setattr(
+        mlrun.mlconf.httpdb.nuclio, "function_authentication_enabled", True
+    )
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError, match="not supported"):
+        mlrun.runtimes.nuclio.api_gateway.validate_authentication(
+            authentication_mode=mode, authentication_creds=creds
+        )
+
+
+@pytest.mark.parametrize(
+    "mode, creds",
+    [
+        (mlrun.common.schemas.APIGatewayAuthenticationMode.basic, ("u", "p")),
+        (mlrun.common.schemas.APIGatewayAuthenticationMode.access_key, None),
+        (mlrun.common.schemas.APIGatewayAuthenticationMode.iguazio, None),
+        (mlrun.common.schemas.APIGatewayAuthenticationMode.none, None),
+        (None, None),
+    ],
+)
+def test_validate_authentication_no_op_when_flag_off(monkeypatch, mode, creds):
+    """Flag off: validate_authentication does not reject legacy AGW auth (backward compatible)."""
+    monkeypatch.setattr(
+        mlrun.mlconf.httpdb.nuclio, "function_authentication_enabled", False
+    )
+    mlrun.runtimes.nuclio.api_gateway.validate_authentication(
+        authentication_mode=mode, authentication_creds=creds
+    )
+
+
+def test_validate_authentication_basic_requires_creds(monkeypatch):
+    """basicAuth without creds is rejected regardless of the feature flag."""
+    monkeypatch.setattr(
+        mlrun.mlconf.httpdb.nuclio, "function_authentication_enabled", False
+    )
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError, match="authentication_creds"
+    ):
+        mlrun.runtimes.nuclio.api_gateway.validate_authentication(
+            authentication_mode=mlrun.common.schemas.APIGatewayAuthenticationMode.basic,
+            authentication_creds=None,
+        )
+
+
 def _create_api_gateway(authentication_mode="none"):
     """Helper to create an API gateway with specified auth mode"""
     auth_map = {

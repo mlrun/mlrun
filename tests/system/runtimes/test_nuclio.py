@@ -1519,18 +1519,21 @@ class TestNuclioAPIGateways(tests.system.base.TestMLRunSystem):
         )
         self._cleanup_gateway()
 
-        api_gateway = self._get_basic_gateway()
-        api_gateway.with_basic_auth("test", "test")
-        api_gateway = self.project.store_api_gateway(api_gateway=api_gateway)
-        res = api_gateway.invoke(credentials=("test", "test"), verify=False)
-        assert res.status_code == 200
+        if not mlrun.mlconf.is_nuclio_function_authentication_enabled():
+            # API-Gateway-level basicAuth is only supported when function-level
+            # authentication is disabled on the platform.
+            api_gateway = self._get_basic_gateway()
+            api_gateway.with_basic_auth("test", "test")
+            api_gateway = self.project.store_api_gateway(api_gateway=api_gateway)
+            res = api_gateway.invoke(credentials=("test", "test"), verify=False)
+            assert res.status_code == 200
 
-        # check that api gateway url is in function's external_invocation_urls
-        self._check_functions_external_invocation_urls(
-            function_name=self.f1.metadata.name,
-            expected_url=api_gateway.invoke_url.replace("https://", ""),
-        )
-        self._cleanup_gateway()
+            # check that api gateway url is in function's external_invocation_urls
+            self._check_functions_external_invocation_urls(
+                function_name=self.f1.metadata.name,
+                expected_url=api_gateway.invoke_url.replace("https://", ""),
+            )
+            self._cleanup_gateway()
 
         api_gateway = self._get_basic_gateway()
         api_gateway.with_canary(functions=[self.f1, self.f2], canary=[50, 50])
@@ -1547,6 +1550,37 @@ class TestNuclioAPIGateways(tests.system.base.TestMLRunSystem):
             function_name=self.f2.metadata.name,
             expected_url=api_gateway.invoke_url.replace("https://", ""),
         )
+
+    def test_function_http_trigger_basic_auth(self):
+        """Function-level HTTP trigger basicAuth, enforced by the auth sidecar"""
+        if not mlrun.mlconf.is_nuclio_function_authentication_enabled():
+            pytest.skip(
+                "Function-level authentication is disabled on this platform "
+                "(httpdb.nuclio.function_authentication_enabled=False)"
+            )
+
+        filename = str(self.assets_path / "nuclio_function.py")
+        fn = mlrun.code_to_function(
+            filename=filename,
+            name="nuclio-mlrun-basic-auth",
+            kind="nuclio",
+            handler="handler",
+        )
+        fn.with_http(
+            workers=1,
+            authentication_mode=mlrun.common.schemas.HTTPTriggerAuthenticationMode.basic,
+            authentication_creds=("test-user", "test-pass"),
+        )
+        fn.deploy()
+
+        data = fn.invoke(path="/", auth=("test-user", "test-pass"), verify=False)
+        assert data is not None
+
+        with pytest.raises(RuntimeError, match="401"):
+            fn.invoke(path="/", auth=("wrong", "creds"), verify=False)
+
+        with pytest.raises(RuntimeError, match="401"):
+            fn.invoke(path="/", verify=False)
 
     def _get_basic_gateway(self):
         return mlrun.runtimes.nuclio.api_gateway.APIGateway(

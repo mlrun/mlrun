@@ -155,6 +155,13 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
 
     @pytest.mark.enterprise
     def test_deploy_application_with_custom_api_gateway(self):
+        if mlrun.mlconf.is_nuclio_function_authentication_enabled():
+            pytest.skip(
+                "API-Gateway-level authentication is not supported when function-level "
+                "authentication is enabled on this platform "
+                "(httpdb.nuclio.function_authentication_enabled=True)"
+            )
+
         self._upload_code_to_cluster()
 
         self._logger.debug("Creating application")

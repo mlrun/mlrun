@@ -538,13 +538,24 @@ class RemoteRuntime(KubeResource):
     ):
         """Validate ``authentication_mode`` and ``authentication_creds`` for the HTTP trigger.
 
-        Caller must ensure the function-level authentication feature flag is on before invoking.
-
         :param authentication_mode: The requested authentication mode.
         :param authentication_creds: ``(username, password)`` tuple; required for ``basicAuth``.
-        :raises MLRunInvalidArgumentError: when the mode value is invalid or the creds/mode
-            combination is inconsistent.
+        :raises MLRunInvalidArgumentError: when function-level authentication is disabled on the
+            platform, the mode value is invalid, or the creds/mode combination is inconsistent.
+        :raises MLRunIncompatibleVersionError: when Nuclio doesn't support function-level
+            authentication.
         """
+        if not mlrun.mlconf.is_nuclio_function_authentication_enabled():
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Function-level HTTP trigger authentication is not supported on this platform. "
+                "Configure authentication on the API Gateway instead."
+            )
+        if not validate_nuclio_version_compatibility("1.17.5"):
+            raise mlrun.errors.MLRunIncompatibleVersionError(
+                "Function-level HTTP trigger authentication is only supported on Nuclio "
+                "1.17.5 and higher"
+            )
+
         if authentication_mode.value not in HTTPTriggerAuthenticationMode.values():
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Invalid authentication_mode '{authentication_mode}'. "
@@ -555,8 +566,7 @@ class RemoteRuntime(KubeResource):
             validate_basic_auth_creds(authentication_creds)
         elif authentication_creds is not None:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"authentication_creds must not be provided when authentication_mode is "
-                f"'{authentication_mode.value}' (only valid for 'basicAuth')."
+                "authentication_creds must be provided only valid for 'basicAuth' mode"
             )
 
     def _validate_triggers(self, spec):
@@ -723,16 +733,6 @@ class RemoteRuntime(KubeResource):
         :return: function object (self)
         """
         if authentication_mode is not None:
-            if not mlrun.mlconf.is_nuclio_function_authentication_enabled():
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    "Function-level HTTP trigger authentication is not supported on this platform. "
-                    "Configure authentication on the API Gateway instead."
-                )
-            if not validate_nuclio_version_compatibility("1.17.5"):
-                raise mlrun.errors.MLRunValueError(
-                    "Function-level HTTP trigger authentication is only supported on Nuclio "
-                    "1.17.5 and higher"
-                )
             self._validate_http_trigger_authentication(
                 authentication_mode=authentication_mode,
                 authentication_creds=authentication_creds,

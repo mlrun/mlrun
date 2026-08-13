@@ -184,7 +184,7 @@ def test_with_http_authentication_requires_min_nuclio_version(monkeypatch):
     )
     monkeypatch.setattr(mlrun.mlconf, "nuclio_version", "1.17.3")
     function: mlrun.runtimes.RemoteRuntime = mlrun.new_function("test", kind="nuclio")
-    with pytest.raises(mlrun.errors.MLRunValueError, match="1.17.5"):
+    with pytest.raises(mlrun.errors.MLRunIncompatibleVersionError, match="1.17.5"):
         function.with_http(
             authentication_mode=mlrun.common.schemas.HTTPTriggerAuthenticationMode.api
         )
@@ -211,7 +211,7 @@ def test_with_http_authentication_creds_non_basic_rejected(monkeypatch):
     function: mlrun.runtimes.RemoteRuntime = mlrun.new_function("test", kind="nuclio")
     with pytest.raises(
         mlrun.errors.MLRunInvalidArgumentError,
-        match="must not be provided",
+        match="only valid for 'basicAuth'",
     ):
         function.with_http(
             authentication_mode=mlrun.common.schemas.HTTPTriggerAuthenticationMode.api,

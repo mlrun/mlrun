@@ -32,7 +32,10 @@ import tests.system.base
 from mlrun import feature_store as fstore
 from mlrun.datastore.sources import KafkaSource
 from mlrun.datastore.targets import ParquetTarget
-from mlrun.runtimes.nuclio.function import AsyncSpec
+from mlrun.runtimes.nuclio.function import (
+    AsyncSpec,
+    validate_nuclio_version_compatibility,
+)
 from mlrun.serving import ModelRunnerStep
 from mlrun.serving.remote import MLRunAPIRemoteStep, RemoteStep
 from tests.system.model_monitoring import TestMLRunSystemModelMonitoring
@@ -1557,6 +1560,10 @@ class TestNuclioAPIGateways(tests.system.base.TestMLRunSystem):
             pytest.skip(
                 "Function-level authentication is disabled on this platform "
                 "(httpdb.nuclio.function_authentication_enabled=False)"
+            )
+        if not validate_nuclio_version_compatibility("1.17.5"):
+            pytest.skip(
+                "Function-level HTTP trigger authentication requires Nuclio 1.17.5 or higher"
             )
 
         filename = str(self.assets_path / "nuclio_function.py")

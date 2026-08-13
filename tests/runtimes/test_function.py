@@ -178,6 +178,18 @@ def test_with_http_authentication_flag_off_raises(monkeypatch):
         )
 
 
+def test_with_http_authentication_requires_min_nuclio_version(monkeypatch):
+    monkeypatch.setattr(
+        mlrun.mlconf.httpdb.nuclio, "function_authentication_enabled", True
+    )
+    monkeypatch.setattr(mlrun.mlconf, "nuclio_version", "1.17.3")
+    function: mlrun.runtimes.RemoteRuntime = mlrun.new_function("test", kind="nuclio")
+    with pytest.raises(mlrun.errors.MLRunValueError, match="1.17.5"):
+        function.with_http(
+            authentication_mode=mlrun.common.schemas.HTTPTriggerAuthenticationMode.api
+        )
+
+
 def test_with_http_authentication_basic_missing_creds(monkeypatch):
     monkeypatch.setattr(
         mlrun.mlconf.httpdb.nuclio, "function_authentication_enabled", True

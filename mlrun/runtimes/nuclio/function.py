@@ -712,8 +712,9 @@ class RemoteRuntime(KubeResource):
             If number of max connections won't be set, the default value will be set to 1000 according to nuclio
             default.
         :param authentication_mode: Function-level HTTP trigger authentication mode. Requires the platform
-            feature flag ``httpdb.nuclio.function_authentication_enabled`` to be on. Accepted values
-            defined in :py:class:`~mlrun.common.schemas.HTTPTriggerAuthenticationMode`:
+            feature flag ``httpdb.nuclio.function_authentication_enabled`` to be on and Nuclio 1.17.5
+            or higher. Accepted values defined in
+            :py:class:`~mlrun.common.schemas.HTTPTriggerAuthenticationMode`:
             ``none``, ``api``, ``browser``, or ``basicAuth``.
             Set on ``spec.triggers.<name>.attributes.authenticationMode`` in the Nuclio function spec.
         :param authentication_creds: ``(username, password)`` tuple — required when
@@ -726,6 +727,11 @@ class RemoteRuntime(KubeResource):
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     "Function-level HTTP trigger authentication is not supported on this platform. "
                     "Configure authentication on the API Gateway instead."
+                )
+            if not validate_nuclio_version_compatibility("1.17.5"):
+                raise mlrun.errors.MLRunValueError(
+                    "Function-level HTTP trigger authentication is only supported on Nuclio "
+                    "1.17.5 and higher"
                 )
             self._validate_http_trigger_authentication(
                 authentication_mode=authentication_mode,

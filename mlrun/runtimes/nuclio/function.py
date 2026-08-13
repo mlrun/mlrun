@@ -104,6 +104,24 @@ def min_nuclio_versions(*versions):
     return decorator
 
 
+def validate_basic_auth_creds(authentication_creds: tuple[str, str] | None) -> None:
+    """Validate a ``(username, password)`` tuple for ``basicAuth`` authentication.
+
+    Shared by API-Gateway-level and function HTTP-trigger-level authentication validation.
+
+    :raises MLRunInvalidArgumentError: when creds are missing, malformed, or contain empty values.
+    """
+    if not authentication_creds or len(authentication_creds) != 2:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "authentication_creds=(username, password) is required when "
+            "authentication_mode is 'basicAuth'."
+        )
+    if not authentication_creds[0] or not authentication_creds[1]:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "Both username and password must be non-empty in authentication_creds."
+        )
+
+
 @dataclass
 class AsyncSpec:
     enabled: bool = True
@@ -534,15 +552,7 @@ class RemoteRuntime(KubeResource):
             )
 
         if authentication_mode == HTTPTriggerAuthenticationMode.basic:
-            if not authentication_creds or len(authentication_creds) != 2:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    "authentication_creds=(username, password) is required when "
-                    "authentication_mode is 'basicAuth'."
-                )
-            if not authentication_creds[0] or not authentication_creds[1]:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    "Both username and password must be non-empty in authentication_creds."
-                )
+            validate_basic_auth_creds(authentication_creds)
         elif authentication_creds is not None:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"authentication_creds must not be provided when authentication_mode is "

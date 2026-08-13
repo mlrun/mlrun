@@ -30,7 +30,7 @@ from mlrun.model import ModelObj
 from mlrun.platforms.iguazio import min_iguazio_versions
 from mlrun.utils import logger
 
-from .function import min_nuclio_versions
+from .function import min_nuclio_versions, validate_basic_auth_creds
 
 
 def validate_authentication(
@@ -60,14 +60,8 @@ def validate_authentication(
             f"HTTP trigger instead: fn.with_http(authentication_mode=..., authentication_creds=...)."
         )
 
-    if (
-        authentication_mode == schemas.APIGatewayAuthenticationMode.basic
-        and not authentication_creds
-    ):
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            "authentication_creds=(username, password) is required when "
-            "authentication_mode is 'basicAuth'."
-        )
+    if authentication_mode == schemas.APIGatewayAuthenticationMode.basic:
+        validate_basic_auth_creds(authentication_creds)
 
 
 class Authenticator(typing.Protocol):

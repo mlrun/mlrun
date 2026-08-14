@@ -15,15 +15,15 @@
 
 Buildah's stock image has no built-in cloud-credential support the way Kaniko's Go binary does, so
 each provider mints its own credential from the pod's existing workload identity - for both the
-push destination and, when it lives on a different ACR/ECR/GAR host, the base image being pulled
-(ML-12961):
+push destination and the base image being pulled (ML-12961):
 
 * **ECR** and **ACR** — an init container on the MLRun image (already carries boto3 /
   azure-identity, and mlrun itself) runs ``python -m mlrun mint-registry-credentials`` (see
   :mod:`mlrun.utils.registry_auth` for the actual credential-exchange logic) and merges the result
   into a shared authfile - the same ``python -m mlrun <subcommand>`` convention Kaniko's
-  source-fetch init container uses. A push-side and a pull-side exchange (different registries) run
-  as two distinctly-named init containers against the same authfile.
+  source-fetch init container uses. A push-side and a pull-side exchange run as two distinctly-named
+  init containers against the same authfile, unless they're the same host, in which case the
+  pull-side one is skipped as redundant.
 * **GAR / GCR** — no init container: GCP tokens are cached and reused by the metadata server across
   callers until fewer than 5 minutes remain before expiry, so *any* mint can hand back a token with
   as little as ~5 minutes of remaining life, regardless of its original TTL. Minting just-in-time,
@@ -31,7 +31,8 @@ push destination and, when it lives on a different ACR/ECR/GAR host, the base im
   minimizes the gap between mint and use rather than trying to outlast a fixed TTL. This path can't
   use the same init-container convention as ECR/ACR: it runs inline in the Buildah main container,
   which has no mlrun (or any cloud SDK) installed - only the stock image's python3/urllib. A
-  push-side and a pull-side (different GAR host) script both merge into the same authfile.
+  push-side and a pull-side script are minted independently - even when they're the same host -
+  and both merge into the same authfile.
 
 A static docker-config secret (``secret_name``) may authenticate a *different* host than the ones
 above - e.g. a private base-image registry alongside a cloud push destination (ML-12988). It's

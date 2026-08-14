@@ -411,41 +411,48 @@ def test_make_buildah_pod_gar_credential_exchange_is_jit_not_init_container():
     assert env["REGISTRY_AUTH_FILE"] == "/auth/config.json"
     assert "MLRUN_GAR_CREDENTIAL_SCRIPT" in env
     lines = container.args[0].splitlines()
-    bud_line = next(i for i, line in enumerate(lines) if "bud" in line.split())
     push_line = next(i for i, line in enumerate(lines) if "push" in line.split())
     mint_lines = [
         i for i, line in enumerate(lines) if "MLRUN_GAR_CREDENTIAL_SCRIPT" in line
     ]
-    # minted immediately before *both* bud and push - see buildah.py::_build_script for why.
-    assert len(mint_lines) == 2
-    assert mint_lines[0] < bud_line < mint_lines[1] < push_line
+    # minted once, immediately before push - no base image here, so bud needs no push credential.
+    assert len(mint_lines) == 1
+    assert mint_lines[0] < push_line
+    mint_script_line = lines[push_line - 1]
     # wrapped so a failed mint (ML-12988) logs a warning and continues rather than aborting the
     # build under `set -e` - see registry_auth.soft_fail_script.
-    for mint_script_line in (lines[bud_line - 1], lines[push_line - 1]):
-        assert mint_script_line.startswith(
-            "python3 /tmp/mlrun-gar-credential-exchange.py"
-        )
-        assert mint_script_line.endswith(
-            "|| echo 'WARNING: failed to mint GAR registry credentials' >&2"
-        )
+    assert mint_script_line.startswith("python3 /tmp/mlrun-gar-credential-exchange.py")
+    assert mint_script_line.endswith(
+        "|| echo 'WARNING: failed to mint GAR registry credentials' >&2"
+    )
     assert "--authfile /auth/config.json" in lines[push_line]
 
 
-def test_make_buildah_pod_gar_credential_exchange_same_registry_skips_pull_script():
-    # base image on the *same* GAR host as the push destination - the push-side JIT script (minted
-    # before bud too) already covers it, so no separate pull script/env var is generated.
+def test_make_buildah_pod_gar_credential_exchange_same_registry_mints_both():
+    # base image on the *same* GAR host as the push destination - pull and push are still minted
+    # independently (no same-host dedup for GAR, unlike ECR/ACR's init-container skip): pull right
+    # before `bud`, push right before `push`.
     registry = "us-docker.pkg.dev"
     buildah_pod = _make_buildah_pod(
         dest=f"{registry}/proj/repo/some-image:tag",
         registry=registry,
         base_image=f"{registry}/mlrun/mlrun:1.13.0-rc2",
     )
-    env = {
-        env_var.name: env_var.value
-        for env_var in buildah_pod.pod.spec.containers[0].env
-    }
+    pod = buildah_pod.pod
+    env = {env_var.name: env_var.value for env_var in pod.spec.containers[0].env}
     assert "MLRUN_GAR_CREDENTIAL_SCRIPT" in env
-    assert "MLRUN_GAR_PULL_CREDENTIAL_SCRIPT" not in env
+    assert "MLRUN_GAR_PULL_CREDENTIAL_SCRIPT" in env
+
+    lines = pod.spec.containers[0].args[0].splitlines()
+    bud_line = next(i for i, line in enumerate(lines) if "bud" in line.split())
+    push_line = next(i for i, line in enumerate(lines) if "push" in line.split())
+    pull_mint_line = next(
+        i for i, line in enumerate(lines) if "MLRUN_GAR_PULL_CREDENTIAL_SCRIPT" in line
+    )
+    push_mint_line = next(
+        i for i, line in enumerate(lines) if "MLRUN_GAR_CREDENTIAL_SCRIPT" in line
+    )
+    assert pull_mint_line < bud_line < push_mint_line < push_line
 
 
 def test_make_buildah_pod_gar_pull_side_credential_exchange_for_different_host_base_image():
@@ -552,6 +559,16 @@ def test_make_buildah_pod_same_registry_skips_duplicate_exchange():
     init_containers = buildah_pod.pod.spec.init_containers
     assert len(init_containers) == 1
     assert init_containers[0].name == "registry-credential-exchange"
+
+    # the pull *is* credentialed (via the init container above), even though it got no init
+    # container of its own - --tls-verify=false must not be added for it in "auto" mode.
+    script = buildah_pod.pod.spec.containers[0].args[0]
+    bud_line = next(
+        line
+        for line in script.splitlines()
+        if line.startswith("buildah") and " bud " in line
+    )
+    assert "--tls-verify=false" not in bud_line
 
 
 def test_make_buildah_pod_secret_and_cloud_pull_exchange_merge():

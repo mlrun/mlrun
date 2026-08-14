@@ -52,7 +52,7 @@ _AUTHFILE_DIR = "/auth"
 _AUTHFILE_PATH = f"{_AUTHFILE_DIR}/config.json"
 
 # where the GAR/GCR JIT credential-exchange script (see registry_auth.gar_credential_exchange_script)
-# is decoded to before running it - push destination and, when it's a different GAR host, base image.
+# is decoded to before running it - push destination and base image, minted independently.
 _GAR_SCRIPT_PATH = "/tmp/mlrun-gar-credential-exchange.py"
 _GAR_PULL_SCRIPT_PATH = "/tmp/mlrun-gar-credential-exchange-pull.py"
 
@@ -266,15 +266,16 @@ def make_buildah_pod(
     # (see the secret-copy init container below).
     push_cloud_provider = registry_auth.classify_cloud_registry(registry)
 
-    # the base image's registry needs its own credential exchange when it differs from the push
-    # destination (ML-12961) - e.g. a "system" ACR hosting mlrun's own images vs. a per-project push
-    # target. When the hosts match, the push-side exchange below already writes an authfile entry
-    # for it, so there's nothing extra to do.
+    # the base image's registry needs its own credential exchange too (ML-12961) - e.g. a "system"
+    # ACR hosting mlrun's own images vs. a per-project push target. Classified unconditionally, even
+    # when it's the same host as the push destination: GAR mints pull and push credentials
+    # independently either way (see _build_script), while ECR/ACR's pull-side init container is
+    # skipped below when the hosts match, since the push-side one already wrote that entry.
     base_registry = base_image.partition("/")[0] if base_image else None
     base_shares_push_registry = bool(base_registry) and base_registry == registry
-    pull_cloud_provider = None
-    if base_registry and not base_shares_push_registry:
-        pull_cloud_provider = registry_auth.classify_cloud_registry(base_registry)
+    pull_cloud_provider = (
+        registry_auth.classify_cloud_registry(base_registry) if base_registry else None
+    )
 
     # runtime-derived scheduling/identity pod-spec attributes (node selector, affinity, tolerations,
     # preemption, priority class, service account), resolved by the shared helper both backends call.
@@ -308,7 +309,6 @@ def make_buildah_pod(
         secret_name=secret_name,
         push_cloud_provider=push_cloud_provider,
         pull_cloud_provider=pull_cloud_provider,
-        base_shares_push_registry=base_shares_push_registry,
         inline_code=inline_code,
         inline_path=inline_path,
         requirements=requirements,
@@ -374,18 +374,25 @@ def make_buildah_pod(
             )
         # GAR/GCR gets no init container - the authfile is written just-in-time by this container's
         # own script (see _build_script), into the mount above rather than the root filesystem, for
-        # both the push destination and, when it differs, the base image's registry.
+        # both the push destination and the base image's registry.
 
         # the base image's registry, when it needs its own exchange (see pull_cloud_provider above)
-        # - a distinct container name, since both can run in the same pod.
-        if pull_cloud_provider == CloudRegistryProvider.ECR:
+        # - a distinct container name, since both can run in the same pod. Skipped when it's the same
+        # host as the push destination: the container above already wrote that host's authfile entry.
+        if (
+            pull_cloud_provider == CloudRegistryProvider.ECR
+            and not base_shares_push_registry
+        ):
             registry_auth.append_ecr_credential_exchange_init_container(
                 buildah_pod,
                 base_registry,
                 _AUTHFILE_PATH,
                 container_name=registry_auth.PULL_CREDENTIAL_EXCHANGE_INIT_CONTAINER_NAME,
             )
-        elif pull_cloud_provider == CloudRegistryProvider.ACR:
+        elif (
+            pull_cloud_provider == CloudRegistryProvider.ACR
+            and not base_shares_push_registry
+        ):
             registry_auth.append_acr_credential_exchange_init_container(
                 buildah_pod,
                 base_registry,
@@ -496,7 +503,6 @@ def _build_script(
     secret_name: str | None,
     push_cloud_provider: CloudRegistryProvider | None,
     pull_cloud_provider: CloudRegistryProvider | None,
-    base_shares_push_registry: bool,
     inline_code: str | None,
     inline_path: str | None,
     requirements: list | None,
@@ -525,27 +531,17 @@ def _build_script(
     global_opts += ["--storage-driver", storage_driver]
 
     has_push_auth = bool(secret_name or push_cloud_provider)
-    # pull auth: a static secret covers any host. Otherwise, either a dedicated pull-side exchange
-    # (ML-12961, different-host ACR/ECR base image) or - only when the base image actually shares
-    # the push destination's GAR host - the JIT re-mint below supplies credentials for the pull too.
-    # Unlike pull_cloud_provider, push_cloud_provider alone says nothing about the base image's own
-    # registry, so it must never assert pull auth on its own - that would wrongly disable
-    # --tls-verify=false for an unrelated (e.g. self-signed) base-image registry in "auto" mode.
-    has_pull_auth = bool(
-        secret_name
-        or pull_cloud_provider
-        or (
-            push_cloud_provider == CloudRegistryProvider.GAR
-            and base_shares_push_registry
-        )
-    )
+    # a static secret covers any host; otherwise a dedicated pull-side exchange (ML-12961) covers
+    # the base image's own registry - classified independently of push_cloud_provider (see
+    # make_buildah_pod), so an unrelated push-side provider never wrongly asserts pull auth for a
+    # self-signed/private base image and disables --tls-verify=false for it in "auto" mode.
+    has_pull_auth = bool(secret_name or pull_cloud_provider)
 
     # GAR/GCR credentials are minted JIT (see registry_auth.gar_credential_exchange_script) rather
     # than by an earlier init container: the metadata server caches and reuses a token across callers
     # until fewer than 5 minutes remain before its expiry, so any mint can hand back a token with as
-    # little as ~5 minutes left, regardless of when it's minted. Minting immediately before both bud
-    # (in case the base image shares the same registry) and push minimizes the gap between mint and
-    # use, rather than relying on a single early mint to outlast the whole build.
+    # little as ~5 minutes left, regardless of when it's minted. Pull and push are minted
+    # independently, each immediately before the one step that needs it, to minimize that gap.
     if push_cloud_provider == CloudRegistryProvider.GAR:
         push_gar_credential_exchange = [
             f"echo ${{MLRUN_GAR_CREDENTIAL_SCRIPT}} | base64 -d > {shlex.quote(_GAR_SCRIPT_PATH)}",
@@ -554,8 +550,8 @@ def _build_script(
     else:
         push_gar_credential_exchange = []
 
-    # the base image's own GAR host (ML-12961), when it differs from the push destination's - only
-    # needed before `bud`, since that's the only step that pulls the base image.
+    # the base image's own GAR host (ML-12961) - only needed before `bud`, since that's the only
+    # step that pulls the base image.
     if pull_cloud_provider == CloudRegistryProvider.GAR:
         pull_gar_credential_exchange = [
             f"echo ${{MLRUN_GAR_PULL_CREDENTIAL_SCRIPT}} | base64 -d > {shlex.quote(_GAR_PULL_SCRIPT_PATH)}",
@@ -565,7 +561,6 @@ def _build_script(
         pull_gar_credential_exchange = []
 
     lines += pull_gar_credential_exchange
-    lines += push_gar_credential_exchange
 
     bud = global_opts + ["bud"]
     # unlike Kaniko - whose RUN steps execute directly on the build pod's own filesystem - Buildah's
@@ -580,9 +575,6 @@ def _build_script(
     bud += ["--tag", dest, "--file", dockerfile_path, _CONTEXT_DIR]
     lines.append(shlex.join(bud))
 
-    # the token may have expired during the build - re-mint before push. Only the push
-    # destination's script; the base image was already pulled by `bud` above, nothing left to
-    # credential for it.
     lines += push_gar_credential_exchange
 
     push = global_opts + ["push"]

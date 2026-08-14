@@ -35,16 +35,12 @@ push destination and, when it lives on a different ACR/ECR/GAR host, the base im
 
 A static docker-config secret (``secret_name``) may authenticate a *different* host than the ones
 above - e.g. a private base-image registry alongside a cloud push destination (ML-12988). It's
-copied into the shared authfile by its own init container (:func:`append_secret_authfile_init_container`)
-rather than being mounted directly at the authfile path, so the credential-exchange steps above can
-still merge into that file afterward.
+copied into the shared authfile via its own init container rather than mounted there directly - see
+:func:`append_secret_authfile_init_container`.
 
-Every credential-exchange step - ECR/ACR's init containers and GAR's inline script alike - logs a
-warning and continues rather than failing the pod if the mint itself fails (ML-12988, matching
-nuclio's own Buildah registry-login containers, NUC-688). A cloud host's workload identity
-genuinely not being configured is not the exchange's problem to enforce: the build falls back to
-whatever a secret already provided for that host, or, if nothing covers it, buildah's own push/pull
-surfaces a clear auth error instead of an opaque credential-helper traceback.
+Every credential-exchange step - ECR/ACR's init containers and GAR's inline script alike - soft-fails
+(warns, doesn't fail the pod) on a mint failure rather than aborting the build, matching nuclio's own
+Buildah registry-login containers (NUC-688) - see :func:`soft_fail_script`.
 
 None of the generated scripts or CLI args ever log the minted token.
 """
@@ -64,10 +60,8 @@ PULL_CREDENTIAL_EXCHANGE_INIT_CONTAINER_NAME = "registry-credential-exchange-pul
 
 _COPY_SECRET_AUTHFILE_INIT_CONTAINER_NAME = "copy-registry-auth-secret"
 
-# where a configured docker-config secret is mounted read-only before being copied into the shared
-# authfile (ML-12988) - never mounted directly at the authfile path once a cloud provider is also
-# involved, since the credential-exchange init containers/scripts need to merge into that file,
-# which a secret-backed volume mount doesn't allow.
+# where a configured docker-config secret is mounted read-only before
+# append_secret_authfile_init_container copies it into the shared authfile.
 SECRET_AUTHFILE_DIR = "/auth-secret"
 SECRET_AUTHFILE_PATH = f"{SECRET_AUTHFILE_DIR}/config.json"
 

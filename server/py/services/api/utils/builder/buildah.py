@@ -354,11 +354,8 @@ def make_buildah_pod(
         # For ECR/ACR it's also how the init container(s) below hand the authfile to this container.
         buildah_pod.mount_empty(name="registry-auth", mount_path=_AUTHFILE_DIR)
         if secret_name:
-            # the secret may authenticate a different host than the ones needing cloud exchange
-            # (ML-12988, e.g. a private base-image registry alongside a cloud push destination).
-            # Mount it read-only elsewhere and copy it in as the first init container, rather than
-            # directly at _AUTHFILE_PATH, since the steps below need to merge into that file and
-            # can't write into a secret-backed volume mount.
+            # mounted read-only elsewhere, then copied in as the first init container (ML-12988) -
+            # see registry_auth.append_secret_authfile_init_container.
             buildah_pod.mount_secret(
                 secret_name,
                 registry_auth.SECRET_AUTHFILE_DIR,
@@ -567,8 +564,6 @@ def _build_script(
     else:
         pull_gar_credential_exchange = []
 
-    # First we do a credential exchange to ensure we have credentials for the
-    # build
     lines += pull_gar_credential_exchange
     lines += push_gar_credential_exchange
 
@@ -585,9 +580,9 @@ def _build_script(
     bud += ["--tag", dest, "--file", dockerfile_path, _CONTEXT_DIR]
     lines.append(shlex.join(bud))
 
-    # We do another credential exchange to ensure we have credentials for the
-    # push since it can be that the token expired during the build - only the push destination's
-    # script; the base image was already pulled by `bud` above, nothing left to credential for it.
+    # the token may have expired during the build - re-mint before push. Only the push
+    # destination's script; the base image was already pulled by `bud` above, nothing left to
+    # credential for it.
     lines += push_gar_credential_exchange
 
     push = global_opts + ["push"]

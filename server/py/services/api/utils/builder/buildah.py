@@ -42,10 +42,12 @@ _CONTAINERS_STORE = f"{_BUILD_HOME}/.local/share/containers"
 # where the Dockerfile (and any inline code / requirements) are staged and used as the build context.
 _CONTEXT_DIR = "/empty"
 
-# the push authfile: either the mounted static docker-config secret, or - for ECR/ACR - written by
-# the registry_auth init container onto this same (emptyDir) path; GAR writes it here too, but
-# just-in-time in this container's own push script (see registry_auth for why). See
-# services.api.utils.builder.registry_auth for the cloud-credential-exchange implementations.
+# the authfile: an emptyDir populated by any combination of a copied-in static docker-config
+# secret, ECR/ACR init containers, and GAR's JIT script in this container's own bud/push script -
+# merged per host (ML-12988), not mutually exclusive, so a secret authenticating one registry
+# (e.g. a private base image) coexists with cloud exchange for another (e.g. the push
+# destination). See services.api.utils.builder.registry_auth for the cloud-credential-exchange
+# implementations.
 _AUTHFILE_DIR = "/auth"
 _AUTHFILE_PATH = f"{_AUTHFILE_DIR}/config.json"
 
@@ -231,7 +233,9 @@ def make_buildah_pod(
     :param inline_path:        Destination filename for ``inline_code`` (default ``main.py``).
     :param requirements:       The resolved requirements list to stage, if any.
     :param requirements_path:  Path of the requirements file inside the build context.
-    :param secret_name:        The docker-config secret used as the push authfile, if any.
+    :param secret_name:        A docker-config secret to merge into the authfile, if any - covers
+                               whichever host(s) it has entries for; a cloud provider covering a
+                               *different* host still gets credential exchange (ML-12988).
     :param name:               The build pod's base name.
     :param verbose:            Whether to run Buildah with ``--log-level debug``.
     :param builder_env:        Build-time env vars, rendered as ``--build-arg`` (value read from env).
@@ -255,12 +259,12 @@ def make_buildah_pod(
         registry = dest.partition("/")[0]
 
     # ECR/ACR/GAR need credential-exchange auth (see registry_auth); anything else (Docker Hub,
-    # private, self-signed) sticks to the static docker-config secret path, unchanged. An explicit
-    # secret_name always wins - e.g. a self-hosted credential on an otherwise-cloud registry host -
-    # so it must never be overridden by an inferred cloud-provider exchange.
-    push_cloud_provider = (
-        None if secret_name else registry_auth.classify_cloud_registry(registry)
-    )
+    # private, self-signed) sticks to the static docker-config secret path. Resolved independently
+    # of secret_name (ML-12988): a secret may authenticate a *different* host than this one (e.g. a
+    # private base-image registry alongside a cloud push destination), so it must not disable cloud
+    # exchange for a host it was never meant to cover - the two are merged into the authfile instead
+    # (see the secret-copy init container below).
+    push_cloud_provider = registry_auth.classify_cloud_registry(registry)
 
     # the base image's registry needs its own credential exchange when it differs from the push
     # destination (ML-12961) - e.g. a "system" ACR hosting mlrun's own images vs. a per-project push
@@ -269,7 +273,7 @@ def make_buildah_pod(
     base_registry = base_image.partition("/")[0] if base_image else None
     base_shares_push_registry = bool(base_registry) and base_registry == registry
     pull_cloud_provider = None
-    if secret_name is None and base_registry and not base_shares_push_registry:
+    if base_registry and not base_shares_push_registry:
         pull_cloud_provider = registry_auth.classify_cloud_registry(base_registry)
 
     # runtime-derived scheduling/identity pod-spec attributes (node selector, affinity, tolerations,
@@ -343,20 +347,26 @@ def make_buildah_pod(
     if config.is_pip_ca_configured():
         _mount_pip_ca(buildah_pod)
 
-    if secret_name:
-        # mount the docker-config secret as the authfile (static-credential registries) - covers
-        # both push and pull, since a docker config can hold entries for multiple hosts.
-        buildah_pod.mount_secret(
-            secret_name,
-            _AUTHFILE_DIR,
-            items=[{"key": ".dockerconfigjson", "path": "config.json"}],
-        )
-    elif push_cloud_provider or pull_cloud_provider:
+    if push_cloud_provider or pull_cloud_provider:
         # an emptyDir, not the container's own root filesystem: confirmed on a live GKE cluster
         # that the rootless build user can't mkdir at the image's filesystem root ("/auth: Permission
         # denied") - the mount is what actually guarantees a writable path, regardless of provider.
         # For ECR/ACR it's also how the init container(s) below hand the authfile to this container.
         buildah_pod.mount_empty(name="registry-auth", mount_path=_AUTHFILE_DIR)
+        if secret_name:
+            # the secret may authenticate a different host than the ones needing cloud exchange
+            # (ML-12988, e.g. a private base-image registry alongside a cloud push destination).
+            # Mount it read-only elsewhere and copy it in as the first init container, rather than
+            # directly at _AUTHFILE_PATH, since the steps below need to merge into that file and
+            # can't write into a secret-backed volume mount.
+            buildah_pod.mount_secret(
+                secret_name,
+                registry_auth.SECRET_AUTHFILE_DIR,
+                items=[{"key": ".dockerconfigjson", "path": "config.json"}],
+            )
+            registry_auth.append_secret_authfile_init_container(
+                buildah_pod, _AUTHFILE_PATH
+            )
         if push_cloud_provider == CloudRegistryProvider.ECR:
             registry_auth.append_ecr_credential_exchange_init_container(
                 buildah_pod, registry, _AUTHFILE_PATH, dest=dest
@@ -385,6 +395,13 @@ def make_buildah_pod(
                 _AUTHFILE_PATH,
                 container_name=registry_auth.PULL_CREDENTIAL_EXCHANGE_INIT_CONTAINER_NAME,
             )
+    elif secret_name:
+        # no cloud provider involved - mount the secret directly as the authfile, unchanged.
+        buildah_pod.mount_secret(
+            secret_name,
+            _AUTHFILE_DIR,
+            items=[{"key": ".dockerconfigjson", "path": "config.json"}],
+        )
 
     mlrun.utils.logger.debug(
         "Resolved buildah build pod",
@@ -535,7 +552,7 @@ def _build_script(
     if push_cloud_provider == CloudRegistryProvider.GAR:
         push_gar_credential_exchange = [
             f"echo ${{MLRUN_GAR_CREDENTIAL_SCRIPT}} | base64 -d > {shlex.quote(_GAR_SCRIPT_PATH)}",
-            shlex.join(["python3", _GAR_SCRIPT_PATH]),
+            registry_auth.soft_fail_script(["python3", _GAR_SCRIPT_PATH], "GAR"),
         ]
     else:
         push_gar_credential_exchange = []
@@ -545,7 +562,7 @@ def _build_script(
     if pull_cloud_provider == CloudRegistryProvider.GAR:
         pull_gar_credential_exchange = [
             f"echo ${{MLRUN_GAR_PULL_CREDENTIAL_SCRIPT}} | base64 -d > {shlex.quote(_GAR_PULL_SCRIPT_PATH)}",
-            shlex.join(["python3", _GAR_PULL_SCRIPT_PATH]),
+            registry_auth.soft_fail_script(["python3", _GAR_PULL_SCRIPT_PATH], "GAR"),
         ]
     else:
         pull_gar_credential_exchange = []

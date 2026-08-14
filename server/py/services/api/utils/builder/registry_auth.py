@@ -33,9 +33,23 @@ push destination and, when it lives on a different ACR/ECR/GAR host, the base im
   which has no mlrun (or any cloud SDK) installed - only the stock image's python3/urllib. A
   push-side and a pull-side (different GAR host) script both merge into the same authfile.
 
+A static docker-config secret (``secret_name``) may authenticate a *different* host than the ones
+above - e.g. a private base-image registry alongside a cloud push destination (ML-12988). It's
+copied into the shared authfile by its own init container (:func:`append_secret_authfile_init_container`)
+rather than being mounted directly at the authfile path, so the credential-exchange steps above can
+still merge into that file afterward.
+
+Every credential-exchange step - ECR/ACR's init containers and GAR's inline script alike - logs a
+warning and continues rather than failing the pod if the mint itself fails (ML-12988, matching
+nuclio's own Buildah registry-login containers, NUC-688). A cloud host's workload identity
+genuinely not being configured is not the exchange's problem to enforce: the build falls back to
+whatever a secret already provided for that host, or, if nothing covers it, buildah's own push/pull
+surfaces a clear auth error instead of an opaque credential-helper traceback.
+
 None of the generated scripts or CLI args ever log the minted token.
 """
 
+import shlex
 from urllib.parse import urlparse
 
 import mlrun.utils
@@ -47,6 +61,15 @@ _CREDENTIAL_EXCHANGE_INIT_CONTAINER_NAME = "registry-credential-exchange"
 # used when a base-image (pull) exchange runs alongside a push-side one in the same pod - container
 # names must be unique within a pod.
 PULL_CREDENTIAL_EXCHANGE_INIT_CONTAINER_NAME = "registry-credential-exchange-pull"
+
+_COPY_SECRET_AUTHFILE_INIT_CONTAINER_NAME = "copy-registry-auth-secret"
+
+# where a configured docker-config secret is mounted read-only before being copied into the shared
+# authfile (ML-12988) - never mounted directly at the authfile path once a cloud provider is also
+# involved, since the credential-exchange init containers/scripts need to merge into that file,
+# which a secret-backed volume mount doesn't allow.
+SECRET_AUTHFILE_DIR = "/auth-secret"
+SECRET_AUTHFILE_PATH = f"{SECRET_AUTHFILE_DIR}/config.json"
 
 _GCP_METADATA_TOKEN_URL = (
     "http://metadata.google.internal/computeMetadata/v1/"
@@ -72,6 +95,51 @@ def classify_cloud_registry(target: str) -> CloudRegistryProvider | None:
     return None
 
 
+def soft_fail_script(command: list[str], kind: str) -> str:
+    """Wrap ``command`` so a failure logs a warning and exits 0 instead of failing the pod.
+
+    Mirrors nuclio's own Buildah registry-login containers (NUC-688): a cloud credential mint
+    failing - e.g. workload identity genuinely isn't configured for this host - must not abort the
+    build outright (ML-12988). The build falls back to whatever a secret already provided for that
+    host, or, if nothing covers it, buildah's own push/pull surfaces a clear auth error instead of
+    an opaque credential-helper traceback. Used by ECR/ACR's init containers below and, inline, by
+    :func:`gar_credential_exchange_script`'s callers in
+    :mod:`services.api.utils.builder.buildah`.
+
+    :param command: The command to run, as argv (shell-quoted here, never shell-interpreted itself).
+    :param kind: The provider name, for the warning message (e.g. ``"ECR"``).
+    :return: A ``/bin/sh -c`` script string.
+    """
+    return (
+        f"{shlex.join(command)} || "
+        f"echo 'WARNING: failed to mint {kind} registry credentials' >&2"
+    )
+
+
+def append_secret_authfile_init_container(pod, authfile_path: str) -> None:
+    """Append the init container that copies a mounted docker-config secret into ``authfile_path``.
+
+    Used when a static secret and cloud credential exchange are both configured (ML-12988): the
+    secret must already be mounted at :data:`SECRET_AUTHFILE_DIR` (read-only) rather than directly
+    at ``authfile_path``, since the credential-exchange init containers/scripts that run after this
+    one need to merge into that file, which a secret-backed volume mount doesn't allow. Runs first,
+    so those merges land on top of the secret's own entries.
+
+    :param pod: The Buildah build pod being constructed.
+    :param authfile_path: Where to copy the secret's docker-config content to.
+    """
+    # buildah_image, not _credential_exchange_image(): the main container always pulls it anyway,
+    # so this copy step never costs an extra image pull - unlike the credential-exchange image,
+    # which a GAR-only build (no ECR/ACR init container of its own) would otherwise never need. It
+    # already ships coreutils (see BuildahBackend's docstring), so `cp` is available.
+    pod.append_init_container(
+        config.httpdb.builder.buildah_image,
+        command=["cp"],
+        args=[SECRET_AUTHFILE_PATH, authfile_path],
+        name=_COPY_SECRET_AUTHFILE_INIT_CONTAINER_NAME,
+    )
+
+
 def append_ecr_credential_exchange_init_container(
     pod,
     registry: str,
@@ -87,7 +155,8 @@ def append_ecr_credential_exchange_init_container(
     :func:`~services.api.utils.builder.base.resolve_build_pod_spec_attributes` - to mint a
     short-lived authorization token, merging it into ``authfile_path``. When ``dest`` is given
     (a push), the target ECR repository is also created (idempotent); omit it for a pull-only
-    (base-image) exchange, which skips repository creation.
+    (base-image) exchange, which skips repository creation. A failed mint logs a warning and exits
+    0 rather than failing the pod (ML-12988) - see :func:`soft_fail_script`.
 
     :param pod: The Buildah build pod being constructed.
     :param registry: The ECR registry host.
@@ -97,7 +166,7 @@ def append_ecr_credential_exchange_init_container(
     :param container_name: The init container's name - distinct names are required when both a
         push-side and a pull-side exchange run in the same pod.
     """
-    args = [
+    mint_args = [
         "-m",
         "mlrun",
         "mint-registry-credentials",
@@ -107,12 +176,12 @@ def append_ecr_credential_exchange_init_container(
         registry,
     ]
     if dest:
-        args += ["--dest", dest]
-    args += ["--authfile", authfile_path]
+        mint_args += ["--dest", dest]
+    mint_args += ["--authfile", authfile_path]
     pod.append_init_container(
         _credential_exchange_image(),
-        command=["python"],
-        args=args,
+        command=["/bin/sh", "-c"],
+        args=[soft_fail_script(["python", *mint_args], "ECR")],
         name=container_name,
     )
 
@@ -131,7 +200,8 @@ def append_acr_credential_exchange_init_container(
     :func:`~services.api.utils.builder.base.resolve_builder_pod_labels`) for an AAD access token via
     azure-identity, then exchanges that AAD token for an ACR refresh token via ACR's
     ``/oauth2/exchange`` endpoint (no SDK covers this ACR-specific endpoint), merging the result
-    into ``authfile_path``. Used for both push and base-image-pull credentials.
+    into ``authfile_path``. Used for both push and base-image-pull credentials. A failed mint logs
+    a warning and exits 0 rather than failing the pod (ML-12988) - see :func:`soft_fail_script`.
 
     :param pod: The Buildah build pod being constructed.
     :param registry: The ACR registry host.
@@ -139,20 +209,21 @@ def append_acr_credential_exchange_init_container(
     :param container_name: The init container's name - distinct names are required when both a
         push-side and a pull-side exchange run in the same pod.
     """
+    mint_args = [
+        "-m",
+        "mlrun",
+        "mint-registry-credentials",
+        "--provider",
+        CloudRegistryProvider.ACR.value,
+        "--registry",
+        registry,
+        "--authfile",
+        authfile_path,
+    ]
     pod.append_init_container(
         _credential_exchange_image(),
-        command=["python"],
-        args=[
-            "-m",
-            "mlrun",
-            "mint-registry-credentials",
-            "--provider",
-            CloudRegistryProvider.ACR.value,
-            "--registry",
-            registry,
-            "--authfile",
-            authfile_path,
-        ],
+        command=["/bin/sh", "-c"],
+        args=[soft_fail_script(["python", *mint_args], "ACR")],
         name=container_name,
     )
 

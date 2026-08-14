@@ -55,6 +55,21 @@ def _init_container(pod) -> object:
     return pod.init_containers[0]
 
 
+def test_append_secret_authfile_init_container():
+    # ML-12988: copies the secret in via `cp` (no shell, no soft-fail - a misconfigured secret is a
+    # real error worth surfacing directly), using buildah_image since the main container always
+    # pulls it anyway - never the credential-exchange image, which a GAR-only build wouldn't
+    # otherwise need.
+    pod = framework.utils.singletons.k8s.BasePod(task_name="t", image="img")
+    registry_auth.append_secret_authfile_init_container(pod, "/auth/config.json")
+
+    container = _init_container(pod)
+    assert container.name == "copy-registry-auth-secret"
+    assert container.image == config.httpdb.builder.buildah_image
+    assert container.command == ["cp"]
+    assert container.args == ["/auth-secret/config.json", "/auth/config.json"]
+
+
 def test_append_ecr_credential_exchange_init_container():
     pod = framework.utils.singletons.k8s.BasePod(task_name="t", image="img")
     registry = "123456789012.dkr.ecr.us-east-1.amazonaws.com"
@@ -67,20 +82,19 @@ def test_append_ecr_credential_exchange_init_container():
     assert container.name == "registry-credential-exchange"
     # same python -m mlrun <subcommand> convention Kaniko's source-fetch init container uses -
     # mlrun is installed on the init container's image, so there's no need to inline a script.
-    assert container.command == ["python"]
-    assert container.args == [
-        "-m",
-        "mlrun",
-        "mint-registry-credentials",
-        "--provider",
-        "ecr",
-        "--registry",
-        registry,
-        "--dest",
-        dest,
-        "--authfile",
-        "/auth/config.json",
-    ]
+    # Wrapped in a shell so a failed mint (ML-12988) logs a warning and exits 0 rather than
+    # failing the pod - see registry_auth.soft_fail_script.
+    assert container.command == ["/bin/sh", "-c"]
+    assert len(container.args) == 1
+    script = container.args[0]
+    assert script.startswith("python -m mlrun mint-registry-credentials")
+    assert "--provider ecr" in script
+    assert f"--registry {registry}" in script
+    assert f"--dest {dest}" in script
+    assert "--authfile /auth/config.json" in script
+    assert script.endswith(
+        "|| echo 'WARNING: failed to mint ECR registry credentials' >&2"
+    )
 
 
 def test_append_ecr_credential_exchange_init_container_pull_only_omits_dest():
@@ -97,18 +111,11 @@ def test_append_ecr_credential_exchange_init_container_pull_only_omits_dest():
 
     container = _init_container(pod)
     assert container.name == "registry-credential-exchange-pull"
-    assert "--dest" not in container.args
-    assert container.args == [
-        "-m",
-        "mlrun",
-        "mint-registry-credentials",
-        "--provider",
-        "ecr",
-        "--registry",
-        registry,
-        "--authfile",
-        "/auth/config.json",
-    ]
+    script = container.args[0]
+    assert "--dest" not in script
+    assert "--provider ecr" in script
+    assert f"--registry {registry}" in script
+    assert "--authfile /auth/config.json" in script
 
 
 def test_append_acr_credential_exchange_init_container():
@@ -120,18 +127,15 @@ def test_append_acr_credential_exchange_init_container():
 
     container = _init_container(pod)
     assert container.name == "registry-credential-exchange"
-    assert container.command == ["python"]
-    assert container.args == [
-        "-m",
-        "mlrun",
-        "mint-registry-credentials",
-        "--provider",
-        "acr",
-        "--registry",
-        registry,
-        "--authfile",
-        "/auth/config.json",
-    ]
+    assert container.command == ["/bin/sh", "-c"]
+    script = container.args[0]
+    assert script.startswith("python -m mlrun mint-registry-credentials")
+    assert "--provider acr" in script
+    assert f"--registry {registry}" in script
+    assert "--authfile /auth/config.json" in script
+    assert script.endswith(
+        "|| echo 'WARNING: failed to mint ACR registry credentials' >&2"
+    )
 
 
 def test_append_acr_credential_exchange_init_container_custom_container_name():

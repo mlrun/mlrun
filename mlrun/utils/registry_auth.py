@@ -122,16 +122,19 @@ def mint_acr_authfile(registry: str, authfile_path: str) -> None:
 
 def _merge_auth_entry(authfile_path: str, registry: str, auth: str) -> None:
     # a push-side and a pull-side credential exchange can both target this file (different
-    # registries, e.g. the push destination and a differently-hosted base image) - init containers
-    # run sequentially, never concurrently, so read-modify-write here is safe without locking.
+    # registries, e.g. the push destination and a differently-hosted base image), and a copied-in
+    # static secret (ML-12988) may already be there too - init containers run sequentially, never
+    # concurrently, so read-modify-write here is safe without locking. Preserves any other
+    # top-level docker-config keys already in the file (credHelpers, credsStore, ...) - only the
+    # entry for this one registry is ever added or replaced.
     if os.path.exists(authfile_path):
         with open(authfile_path) as fh:
-            auths = json.load(fh).get("auths", {})
+            doc = json.load(fh)
     else:
-        auths = {}
-    auths[registry] = {"auth": auth}
+        doc = {}
+    doc.setdefault("auths", {})[registry] = {"auth": auth}
     with open(authfile_path, "w") as fh:
-        json.dump({"auths": auths}, fh)
+        json.dump(doc, fh)
 
 
 def _ecr_repo_name(dest: str) -> str:

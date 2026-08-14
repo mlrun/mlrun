@@ -89,10 +89,19 @@ def test_mint_ecr_authfile_skips_repo_creation_without_dest(tmp_path, monkeypatc
 
 def test_mint_ecr_authfile_merges_existing_entry(tmp_path, monkeypatch):
     # a push-side exchange (different registry) may have already written to this authfile - the
-    # pull-side exchange must add its entry, not clobber the existing one.
+    # pull-side exchange must add its entry, not clobber the existing one. A copied-in static
+    # secret (ML-12988) may also carry other top-level docker-config keys (credHelpers,
+    # credsStore, ...) - those must survive the merge too, not just the sibling auths entry.
     authfile = tmp_path / "config.json"
     other_registry = "myregistry.azurecr.io"
-    authfile.write_text(json.dumps({"auths": {other_registry: {"auth": "existing"}}}))
+    authfile.write_text(
+        json.dumps(
+            {
+                "auths": {other_registry: {"auth": "existing"}},
+                "credHelpers": {"some.other.registry": "docker-credential-helper"},
+            }
+        )
+    )
 
     fake_client = unittest.mock.MagicMock()
     fake_client.get_authorization_token.return_value = {
@@ -103,9 +112,11 @@ def test_mint_ecr_authfile_merges_existing_entry(tmp_path, monkeypatch):
     registry = "123456789012.dkr.ecr.us-east-1.amazonaws.com"
     mint_ecr_authfile(registry, str(authfile))
 
-    auths = json.loads(authfile.read_text())["auths"]
+    written = json.loads(authfile.read_text())
+    auths = written["auths"]
     assert auths[other_registry]["auth"] == "existing"
     assert auths[registry]["auth"] == "token"
+    assert written["credHelpers"] == {"some.other.registry": "docker-credential-helper"}
 
 
 def test_mint_acr_authfile_writes_authfile(tmp_path, monkeypatch):
@@ -153,10 +164,18 @@ def test_mint_acr_authfile_requires_azure_tenant_id(tmp_path, monkeypatch):
 
 def test_mint_acr_authfile_merges_existing_entry(tmp_path, monkeypatch):
     # a push-side exchange (different registry) may have already written to this authfile - the
-    # pull-side exchange must add its entry, not clobber the existing one.
+    # pull-side exchange must add its entry, not clobber the existing one. A copied-in static
+    # secret (ML-12988) may also carry other top-level docker-config keys - those must survive.
     authfile = tmp_path / "config.json"
     other_registry = "123456789012.dkr.ecr.us-east-1.amazonaws.com"
-    authfile.write_text(json.dumps({"auths": {other_registry: {"auth": "existing"}}}))
+    authfile.write_text(
+        json.dumps(
+            {
+                "auths": {other_registry: {"auth": "existing"}},
+                "credsStore": "desktop",
+            }
+        )
+    )
 
     fake_credential = unittest.mock.MagicMock()
     fake_credential.get_token.return_value = unittest.mock.Mock(token="aad-token")
@@ -174,7 +193,9 @@ def test_mint_acr_authfile_merges_existing_entry(tmp_path, monkeypatch):
     registry = "myregistry.azurecr.io"
     mint_acr_authfile(registry, str(authfile))
 
-    auths = json.loads(authfile.read_text())["auths"]
+    written = json.loads(authfile.read_text())
+    auths = written["auths"]
     assert auths[other_registry]["auth"] == "existing"
     decoded = base64.b64decode(auths[registry]["auth"]).decode()
     assert decoded == "00000000-0000-0000-0000-000000000000:my-refresh-token"
+    assert written["credsStore"] == "desktop"

@@ -195,11 +195,20 @@ def test_gar_credential_exchange_script_uses_metadata_server_only(
 
 
 def test_gar_credential_exchange_script_merges_existing_entry(tmp_path, monkeypatch):
-    # a push-side and a pull-side GAR script (different hosts, ML-12961), or an ACR/ECR init
-    # container that ran first, may already have written an entry - this must merge, not clobber it.
+    # a push-side and a pull-side GAR script (different hosts, ML-12961), an ACR/ECR init
+    # container, or a copied-in static secret (ML-12988) may already have written to this file -
+    # this must merge, not clobber it, and must preserve any other top-level docker-config keys
+    # (credHelpers, credsStore, ...) the secret may have carried, not just the sibling auths entry.
     authfile = tmp_path / "config.json"
     other_registry = "myregistry.azurecr.io"
-    authfile.write_text(json.dumps({"auths": {other_registry: {"auth": "existing"}}}))
+    authfile.write_text(
+        json.dumps(
+            {
+                "auths": {other_registry: {"auth": "existing"}},
+                "credHelpers": {"some.other.registry": "docker-credential-helper"},
+            }
+        )
+    )
 
     monkeypatch.setattr(
         "urllib.request.urlopen",
@@ -212,7 +221,9 @@ def test_gar_credential_exchange_script_merges_existing_entry(tmp_path, monkeypa
     script = registry_auth.gar_credential_exchange_script(registry, str(authfile))
     exec(script, {})  # noqa: S102 - exercising the generated script, not user input
 
-    auths = json.loads(authfile.read_text())["auths"]
+    written = json.loads(authfile.read_text())
+    auths = written["auths"]
     assert auths[other_registry]["auth"] == "existing"
     decoded = base64.b64decode(auths[registry]["auth"]).decode()
     assert decoded == "oauth2accesstoken:gcp-token"
+    assert written["credHelpers"] == {"some.other.registry": "docker-credential-helper"}

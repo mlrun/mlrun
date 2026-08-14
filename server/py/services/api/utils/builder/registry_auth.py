@@ -241,8 +241,10 @@ def gar_credential_exchange_script(registry: str, authfile_path: str) -> str:
     plumbing is needed on mlrun's side.
 
     Merges into ``authfile_path`` rather than overwriting it: a push-side and a pull-side script
-    (different GAR hosts, ML-12961), or an ACR/ECR init container that ran first, may already have
-    written an entry there.
+    (different GAR hosts, ML-12961), an ACR/ECR init container, or a copied-in static secret
+    (ML-12988) may already have written to it - and any other top-level docker-config keys already
+    there (``credHelpers``, ``credsStore``, ...) are preserved; only this one registry's entry is
+    ever added or replaced.
 
     :param registry: The GAR/GCR registry host.
     :param authfile_path: Where to merge the docker-config-shaped authfile entry.
@@ -256,10 +258,9 @@ def gar_credential_exchange_script(registry: str, authfile_path: str) -> str:
         "{'Metadata-Flavor': 'Google'})",
         "token = json.load(urllib.request.urlopen(req, timeout=10))['access_token']",
         "auth = base64.b64encode(b'oauth2accesstoken:' + token.encode()).decode()",
-        f"auths = json.load(open({authfile_path!r})).get('auths', {{}}) "
-        f"if os.path.exists({authfile_path!r}) else {{}}",
-        f"auths[{registry!r}] = {{'auth': auth}}",
-        f"json.dump({{'auths': auths}}, open({authfile_path!r}, 'w'))",
+        f"doc = json.load(open({authfile_path!r})) if os.path.exists({authfile_path!r}) else {{}}",
+        f"doc.setdefault('auths', {{}})[{registry!r}] = {{'auth': auth}}",
+        f"json.dump(doc, open({authfile_path!r}, 'w'))",
     ]
     return "\n".join(lines)
 

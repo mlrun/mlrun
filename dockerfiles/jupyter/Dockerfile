@@ -39,22 +39,39 @@ RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/s
     mv kubectl /usr/local/bin/
 
 # Create and activate mlrun conda environment
+# every conda step drops its package cache in the same layer it fills it - image scanners read
+# every layer, so a cache removed only at the end of the build is still reported from the earlier
+# ones. `conda clean` keeps extracted package directories that are linked into an env, hence the
+# explicit rm; env contents are hardlinks, so dropping the cache leaves the envs intact
 RUN conda create -y -n mlrun python=${MLRUN_PYTHON_VERSION} && \
     echo "source /opt/conda/etc/profile.d/conda.sh" >> ~/.bashrc && \
     echo "conda activate mlrun" >> ~/.bashrc && \
-    chown -R $NB_UID:$NB_GID /opt/conda/envs/mlrun
+    chown -R $NB_UID:$NB_GID /opt/conda/envs/mlrun && \
+    conda clean -a -y && rm -rf /opt/conda/pkgs ~/.conda/pkgs
 
 USER $NB_UID
 
 # Ensure uv uses mlrun conda env
 ENV PATH="/opt/conda/envs/mlrun/bin:$PATH"
 
+# the packages below carry known CVEs and live in the base env, where locked-requirements.txt has
+# no reach. `conda update --all` normally picks them up, but it silently holds packages back when
+# the solver cannot move them, so these floors act as a tripwire that fails the build instead of
+# shipping a vulnerable version. keep them lower bounds only - an upper bound here would downgrade
+# whatever `conda update --all` just resolved
 RUN python -m pip install --upgrade pip~=${MLRUN_PIP_VERSION} && \
-    conda update --all --yes
+    conda update -n base --all --yes && \
+    conda install -n base -y \
+      'pillow>=12.3.0' \
+      'jupyterlab>=4.5.10' \
+      'jupyterlab-git>=0.54.0' \
+      'nodejs>=24.19.0' && \
+    conda clean -a -y && rm -rf /opt/conda/pkgs ~/.conda/pkgs
 
 # Add Jupyter kernel for mlrun environment
 RUN conda install -n mlrun ipykernel -y && \
-    python -m ipykernel install --user --name=mlrun --display-name "mlrun"
+    python -m ipykernel install --user --name=mlrun --display-name "mlrun" && \
+    conda clean -a -y && rm -rf /opt/conda/pkgs ~/.conda/pkgs
 
 WORKDIR $HOME
 

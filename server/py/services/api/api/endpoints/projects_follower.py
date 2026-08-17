@@ -23,11 +23,9 @@ leader configured, but it stays always-registered rather than feature-gated.
 """
 
 import datetime
-import typing
 import uuid
 
 import fastapi
-import pydantic
 import sqlalchemy.orm
 from fastapi import status
 
@@ -40,48 +38,10 @@ import framework.api.deps
 import framework.utils.background_tasks
 import framework.utils.clients.chief
 import framework.utils.projects.follower_contract as follower_contract
+import framework.utils.projects.follower_schemas as follower_schemas
 import services.api.crud
 
 router = fastapi.APIRouter()
-
-
-class FollowerProjectState(pydantic.BaseModel):
-    name: str
-    op_id: uuid.UUID | None = None
-    state: mlrun.common.schemas.ProjectState | None = None
-
-
-class FollowerProjectStatesPage(pydantic.BaseModel):
-    projects: list[FollowerProjectState]
-    next_cursor: str | None = None
-
-
-class FollowerDeleteResult(pydantic.BaseModel):
-    name: str
-    op_id: uuid.UUID
-    result: typing.Literal["removed", "removal-scheduled"]
-
-
-class FollowerPrepareCreateRequest(pydantic.BaseModel):
-    project: mlrun.common.schemas.Project
-
-
-class FollowerCommitCreateRequest(pydantic.BaseModel):
-    op_id: uuid.UUID
-
-
-class FollowerUpdateRequest(pydantic.BaseModel):
-    project: mlrun.common.schemas.Project
-    prev_op_id: uuid.UUID
-
-
-class FollowerPrepareDeleteRequest(pydantic.BaseModel):
-    op_id: uuid.UUID
-    prev_op_id: uuid.UUID
-
-
-class FollowerCommitDeleteRequest(pydantic.BaseModel):
-    op_id: uuid.UUID
 
 
 def _project_op_id(project: mlrun.common.schemas.Project) -> uuid.UUID:
@@ -92,10 +52,10 @@ def _project_op_id(project: mlrun.common.schemas.Project) -> uuid.UUID:
 
 def _to_follower_state(
     name: str, snapshot: mlrun.common.schemas.Project | None
-) -> FollowerProjectState:
+) -> follower_schemas.FollowerProjectState:
     if snapshot is None:
-        return FollowerProjectState(name=name)
-    return FollowerProjectState(
+        return follower_schemas.FollowerProjectState(name=name)
+    return follower_schemas.FollowerProjectState(
         name=snapshot.metadata.name,
         op_id=snapshot.status.op_id,
         state=snapshot.status.state,
@@ -122,15 +82,15 @@ async def _reroute_to_chief_if_worker(
 
 @router.post(
     "/follower/projects/{name}/prepare-create",
-    response_model=FollowerProjectState,
+    response_model=follower_schemas.FollowerProjectState,
 )
 async def prepare_create_project(
     name: str,
-    body: FollowerPrepareCreateRequest,
+    body: follower_schemas.FollowerPrepareCreateRequest,
     db_session: sqlalchemy.orm.Session = fastapi.Depends(
         framework.api.deps.get_db_session
     ),
-) -> FollowerProjectState:
+) -> follower_schemas.FollowerProjectState:
     project = body.project
     if project.metadata.name != name:
         raise mlrun.errors.MLRunBadRequestError(
@@ -148,15 +108,15 @@ async def prepare_create_project(
 
 @router.post(
     "/follower/projects/{name}/commit-create",
-    response_model=FollowerProjectState,
+    response_model=follower_schemas.FollowerProjectState,
 )
 async def commit_create_project(
     name: str,
-    body: FollowerCommitCreateRequest,
+    body: follower_schemas.FollowerCommitCreateRequest,
     db_session: sqlalchemy.orm.Session = fastapi.Depends(
         framework.api.deps.get_db_session
     ),
-) -> FollowerProjectState:
+) -> follower_schemas.FollowerProjectState:
     await mlrun.utils.run_in_threadpool(
         services.api.crud.Projects().commit_create_project, name, body.op_id
     )
@@ -168,15 +128,15 @@ async def commit_create_project(
 
 @router.put(
     "/follower/projects/{name}",
-    response_model=FollowerProjectState,
+    response_model=follower_schemas.FollowerProjectState,
 )
 async def update_project(
     name: str,
-    body: FollowerUpdateRequest,
+    body: follower_schemas.FollowerUpdateRequest,
     db_session: sqlalchemy.orm.Session = fastapi.Depends(
         framework.api.deps.get_db_session
     ),
-) -> FollowerProjectState:
+) -> follower_schemas.FollowerProjectState:
     project = body.project
     if project.metadata.name != name:
         raise mlrun.errors.MLRunBadRequestError(
@@ -198,15 +158,15 @@ async def update_project(
 
 @router.post(
     "/follower/projects/{name}/prepare-delete",
-    response_model=FollowerProjectState,
+    response_model=follower_schemas.FollowerProjectState,
 )
 async def prepare_delete_project(
     name: str,
-    body: FollowerPrepareDeleteRequest,
+    body: follower_schemas.FollowerPrepareDeleteRequest,
     db_session: sqlalchemy.orm.Session = fastapi.Depends(
         framework.api.deps.get_db_session
     ),
-) -> FollowerProjectState:
+) -> follower_schemas.FollowerProjectState:
     await mlrun.utils.run_in_threadpool(
         services.api.crud.Projects().prepare_delete_project,
         name,
@@ -221,18 +181,18 @@ async def prepare_delete_project(
 
 @router.delete(
     "/follower/projects/{name}",
-    response_model=FollowerDeleteResult,
+    response_model=follower_schemas.FollowerDeleteResult,
 )
 async def commit_delete_project(
     name: str,
-    body: FollowerCommitDeleteRequest,
+    body: follower_schemas.FollowerCommitDeleteRequest,
     response: fastapi.Response,
     request: fastapi.Request,
     background_tasks: fastapi.BackgroundTasks,
     db_session: sqlalchemy.orm.Session = fastapi.Depends(
         framework.api.deps.get_db_session
     ),
-) -> FollowerDeleteResult:
+) -> follower_schemas.FollowerDeleteResult:
     # Only this endpoint reroutes to chief: it's the one call in this router that
     # touches InternalBackgroundTasksHandler, which is chief-only — the other 4 do
     # plain project DB writes, same as the legacy (non-rerouted) project CUD endpoints.
@@ -247,7 +207,9 @@ async def commit_delete_project(
     )
     if snapshot is None:
         # Already fully removed by a previous call — idempotent no-op per the contract.
-        return FollowerDeleteResult(name=name, op_id=op_id, result="removed")
+        return follower_schemas.FollowerDeleteResult(
+            name=name, op_id=op_id, result="removed"
+        )
 
     # Fail fast on an invalid call (stale/mismatched op_id, wrong state) before
     # scheduling anything — commit_delete_project() re-runs this same check when the
@@ -281,12 +243,14 @@ async def commit_delete_project(
         background_tasks.add_task(task)
     # else: an active task exists and is still running (a just-succeeded/failed task
     # would already have been cleared from the active slot, per the note above).
-    return FollowerDeleteResult(name=name, op_id=op_id, result="removal-scheduled")
+    return follower_schemas.FollowerDeleteResult(
+        name=name, op_id=op_id, result="removal-scheduled"
+    )
 
 
 @router.get(
     "/follower/projects/states",
-    response_model=FollowerProjectStatesPage,
+    response_model=follower_schemas.FollowerProjectStatesPage,
 )
 async def list_project_states(
     updated_after: datetime.datetime | None = None,
@@ -295,7 +259,7 @@ async def list_project_states(
     db_session: sqlalchemy.orm.Session = fastapi.Depends(
         framework.api.deps.get_db_session
     ),
-) -> FollowerProjectStatesPage:
+) -> follower_schemas.FollowerProjectStatesPage:
     projects, next_cursor = await mlrun.utils.run_in_threadpool(
         services.api.crud.Projects().list_project_states,
         db_session,
@@ -303,7 +267,7 @@ async def list_project_states(
         cursor,
         page_size,
     )
-    return FollowerProjectStatesPage(
+    return follower_schemas.FollowerProjectStatesPage(
         projects=[
             _to_follower_state(project.metadata.name, project) for project in projects
         ],

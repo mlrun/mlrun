@@ -470,16 +470,16 @@ class Projects(
     ) -> tuple[list[mlrun.common.schemas.Project], str | None]:
         """
         Slim (name, op_id, state, updated_at) projection for follower reconciliation —
-        the "list states" op of the ML-12901 follower contract. `updated_after` is pushed
-        down to the DB query (via the existing `list_projects`/`updated_after` support) so
-        a leader polling for drift never full-scans the projects table. Pagination on top
-        of that filtered set is a keyset cursor computed here rather than in the DB layer:
-        the filtered set this endpoint deals with (projects that changed since the last
-        poll) is small even at scale, so adding cursor/limit to the shared `list_projects`
-        interface — used by every follower implementer — isn't warranted for this one
-        reconciliation-only read.
+        the "list states" op of the ML-12901 follower contract. Both `updated_after` and
+        the keyset cursor/page-size are pushed down to the DB query (via `list_projects`'s
+        opt-in `keyset_after`/`limit` params — unused by every other caller, so this
+        doesn't change behavior anywhere else) rather than loading the full result set
+        into memory: a follower reconnecting after a long gap, or doing its very first
+        sync with no `updated_after` at all, is exactly the "1000+ projects" case ML-12472
+        exists to avoid full-scanning.
         """
-        projects_output = self.list_projects(
+        keyset_after = self._decode_project_states_cursor(cursor) if cursor else None
+        projects_output = framework.utils.singletons.db.get_db().list_projects(
             session,
             format_=framework.utils.project_formats.ProjectFormatCustomSelection(
                 [
@@ -490,25 +490,18 @@ class Projects(
                 ]
             ),
             updated_after=updated_after,
+            keyset_after=keyset_after,
+            # fetch one extra row to know whether a further page follows
+            limit=page_size + 1,
         )
-        projects = sorted(
-            projects_output.projects,
-            key=lambda project: self._project_states_sort_key(project),
-        )
-        if cursor:
-            cursor_key = self._decode_project_states_cursor(cursor)
-            projects = [
-                project
-                for project in projects
-                if self._project_states_sort_key(project) > cursor_key
-            ]
-        page = projects[:page_size]
+        projects = projects_output.projects
         next_cursor = None
         if len(projects) > page_size:
             next_cursor = self._encode_project_states_cursor(
-                self._project_states_sort_key(page[-1])
+                self._project_states_sort_key(projects[page_size - 1])
             )
-        return page, next_cursor
+            projects = projects[:page_size]
+        return projects, next_cursor
 
     def _emit_project_lifecycle_event(
         self,

@@ -223,6 +223,11 @@ def retry_on_conflict(function):
     return wrapper
 
 
+# Sort/filter floor for list_projects()'s keyset pagination when a project's
+# updated_at predates that column's existence and is still NULL.
+_KEYSET_PAGINATION_EPOCH = datetime.min.replace(tzinfo=UTC)
+
+
 class SQLDB(DBInterface):
     def __new__(cls, dsn: str | None = None):
         if dsn is None:
@@ -3534,8 +3539,16 @@ class SQLDB(DBInterface):
         state: mlrun.common.schemas.ProjectState = None,
         names: list[str] | None = None,
         updated_after: datetime | None = None,
+        keyset_after: tuple[datetime, str] | None = None,
+        limit: int | None = None,
     ) -> mlrun.common.schemas.ProjectsOutput:
-
+        """
+        :param keyset_after: opt-in keyset-pagination lower bound, exclusive, as
+            ``(updated_at, name)`` — used by the ML-12901 follower list-states read to
+            page through large result sets at the DB layer instead of loading
+            everything into memory. Unused by every other caller.
+        :param limit: paired with ``keyset_after``; caps rows returned by this query.
+        """
         # if format is a custom selection, query only the requested columns
         # bypassing the full ORM model load and pickle deserialization
         if isinstance(
@@ -3561,6 +3574,32 @@ class SQLDB(DBInterface):
             query = query.filter(Project.name.in_(names))
         if updated_after is not None:
             query = query.filter(Project.updated_at >= updated_after)
+        if keyset_after is not None or limit is not None:
+            # Coalesce NULL updated_at (pre-existing rows from before this column
+            # existed) to a fixed floor — NULL comparisons are always NULL/false in
+            # SQL, which would silently drop those rows from every keyset-paginated
+            # page and sort them inconsistently across SQLite/Postgres/MySQL's
+            # differing default NULL-ordering rules.
+            updated_at_col = func.coalesce(Project.updated_at, _KEYSET_PAGINATION_EPOCH)
+            if keyset_after is not None:
+                after_updated_at, after_name = keyset_after
+                # Portable keyset predicate (works identically on SQLite/Postgres/MySQL)
+                # — avoids row-value comparison syntax some dialects handle inconsistently.
+                query = query.filter(
+                    or_(
+                        updated_at_col > after_updated_at,
+                        and_(
+                            updated_at_col == after_updated_at,
+                            Project.name > after_name,
+                        ),
+                    )
+                )
+            # A stable order is required for keyset pagination to mean anything — the
+            # very first page (keyset_after=None) still needs it, so the boundary row
+            # a caller computes its next cursor from is consistent across pages.
+            query = query.order_by(updated_at_col, Project.name)
+        if limit is not None:
+            query = query.limit(limit)
 
         project_records = query.all()
         return mlrun.common.schemas.ProjectsOutput(

@@ -60,8 +60,11 @@ def test_check_ordering_rejects_stale_incoming_op():
 # ----- check_cas -------------------------------------------------------------
 
 
-def test_check_cas_requires_prev_op_id():
-    with pytest.raises(mlrun.errors.MLRunBadRequestError):
+def test_check_cas_rejects_missing_witness_against_a_known_op():
+    """A project MLRun already has an op_id for, but the caller sends no witness at
+    all, is a real CAS mismatch (409) — not a special "missing witness" 400. Only
+    `stored == prev_op_id` matters, and `None != _STORED`."""
+    with pytest.raises(mlrun.errors.MLRunConflictError):
         follower_contract.check_cas(_STORED, None)
 
 
@@ -72,6 +75,13 @@ def test_check_cas_rejects_mismatched_witness():
 
 def test_check_cas_accepts_matching_witness():
     follower_contract.check_cas(_STORED, _STORED)  # does not raise
+
+
+def test_check_cas_accepts_no_witness_against_a_project_with_no_prior_op():
+    """A project that existed before this follower interface has op_id=NULL — the
+    leader's first touch of it legitimately has no witness to offer either, and that
+    must be accepted, not rejected as a missing-witness error."""
+    follower_contract.check_cas(None, None)  # does not raise
 
 
 # ----- check_same_op (commit_create / commit_delete) ------------------------
@@ -237,6 +247,20 @@ def test_validate_call_commit_create_requires_provisioned():
             stored_op_id=None,
             incoming_op_id=_STORED,
         )
+
+
+def test_validate_call_update_first_touch_with_no_prior_op_id_applies():
+    """Migration scenario: a project that predates this follower interface has
+    op_id=None; the leader observes that and sends prev_op_id=None to match — this
+    must apply, not be rejected as a missing witness."""
+    outcome = follower_contract.validate_call(
+        follower_contract.FollowerOp.update,
+        current_state=_STATE.online,
+        stored_op_id=None,
+        incoming_op_id=_STORED,
+        prev_op_id=None,
+    )
+    assert outcome == follower_contract.ReplayOutcome.apply
 
 
 def test_validate_call_update_cas_mismatch_rejected():

@@ -640,6 +640,38 @@ def test_update_project_follower_cas_mismatch_is_rejected(
     patch_mock.assert_not_called()
 
 
+def test_update_project_follower_first_touch_with_no_prior_op_id_applies(
+    reset_projects_singleton: None,
+    patched_db_session: unittest.mock.MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """Migration scenario: a project that predates this follower interface has
+    op_id=None on its row. The leader observes that (e.g. via list-states) and sends
+    prev_op_id=None to match it — this must apply, not be rejected as a missing
+    witness (see follower_contract.check_cas)."""
+    existing = _make_follower_snapshot(None, mlrun.common.schemas.ProjectState.online)
+    monkeypatch.setattr(
+        projects_crud.Projects,
+        "get_follower_project_snapshot",
+        lambda *a, **k: existing,
+    )
+    patch_mock = unittest.mock.MagicMock()
+    monkeypatch.setattr(projects_crud.Projects, "patch_project", patch_mock)
+
+    new_op_id = uuid.UUID(int=1)
+    project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name="proj", labels={"a": "b"}),
+        spec=mlrun.common.schemas.ProjectSpec(owner="jsmith"),
+    )
+
+    projects_crud.Projects().update_project_follower(
+        "proj", project, new_op_id, prev_op_id=None
+    )
+
+    patched_dict = patch_mock.call_args.args[2]
+    assert patched_dict["status"] == {"op_id": new_op_id}
+
+
 def test_update_project_follower_applies_common_set_only(
     reset_projects_singleton: None,
     patched_db_session: unittest.mock.MagicMock,
@@ -790,6 +822,41 @@ def test_commit_delete_project_mismatched_op_is_rejected(
     delete_mock.assert_not_called()
 
 
+def _patch_db_list_projects(
+    monkeypatch: pytest.MonkeyPatch, projects: list[mlrun.common.schemas.Project]
+) -> None:
+    """
+    list_project_states() now pushes updated_after/keyset pagination down to
+    framework.utils.singletons.db.get_db().list_projects() (ML-12901) rather than
+    filtering/paginating in memory — this fakes that DB-layer behavior faithfully
+    enough to exercise the crud method's own cursor encode/decode and
+    "fetch page_size+1 to detect a next page" logic for real.
+    """
+
+    def _fake_list_projects(
+        session, format_=None, updated_after=None, keyset_after=None, limit=None, **_
+    ):
+        result = list(projects)
+        if updated_after is not None:
+            result = [p for p in result if p.status.updated_at >= updated_after]
+        result.sort(key=lambda p: (p.status.updated_at, p.metadata.name))
+        if keyset_after is not None:
+            after_updated_at, after_name = keyset_after
+            result = [
+                p
+                for p in result
+                if (p.status.updated_at, p.metadata.name)
+                > (after_updated_at, after_name)
+            ]
+        if limit is not None:
+            result = result[:limit]
+        return mlrun.common.schemas.ProjectsOutput(projects=result)
+
+    db_mock = unittest.mock.MagicMock()
+    db_mock.list_projects = _fake_list_projects
+    monkeypatch.setattr("framework.utils.singletons.db.get_db", lambda: db_mock)
+
+
 def test_list_project_states_filters_by_updated_after(
     reset_projects_singleton: None,
     monkeypatch: pytest.MonkeyPatch,
@@ -805,16 +872,7 @@ def test_list_project_states_filters_by_updated_after(
         metadata=mlrun.common.schemas.ProjectMetadata(name="fresh"),
         status=mlrun.common.schemas.ProjectStatus(updated_at=now),
     )
-
-    def _list_projects(self, session, format_=None, updated_after=None, **kwargs):
-        # Mimic the DB layer's own updated_after filtering (see db.py:list_projects)
-        # so this test exercises the same contract list_project_states relies on.
-        projects = [old_project, fresh_project]
-        if updated_after is not None:
-            projects = [p for p in projects if p.status.updated_at >= updated_after]
-        return mlrun.common.schemas.ProjectsOutput(projects=projects)
-
-    monkeypatch.setattr(projects_crud.Projects, "list_projects", _list_projects)
+    _patch_db_list_projects(monkeypatch, [old_project, fresh_project])
 
     page, next_cursor = projects_crud.Projects().list_project_states(
         unittest.mock.MagicMock(), updated_after=now - datetime.timedelta(hours=1)
@@ -838,11 +896,7 @@ def test_list_project_states_paginates_with_keyset_cursor(
         )
         for i, name in enumerate(["a", "b", "c"])
     ]
-
-    def _list_projects(self, session, **kwargs):
-        return mlrun.common.schemas.ProjectsOutput(projects=projects)
-
-    monkeypatch.setattr(projects_crud.Projects, "list_projects", _list_projects)
+    _patch_db_list_projects(monkeypatch, projects)
 
     crud = projects_crud.Projects()
     first_page, cursor = crud.list_project_states(

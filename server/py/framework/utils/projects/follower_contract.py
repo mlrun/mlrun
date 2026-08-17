@@ -53,7 +53,7 @@ _SAME_OP_OPS = frozenset({FollowerOp.commit_create, FollowerOp.commit_delete})
 
 # Valid current states per op, per the Follower Contract's request grid. `None` means "no
 # project row exists yet" and is listed explicitly where that's a valid starting point.
-_VALID_STATES: dict[FollowerOp, frozenset] = {
+_VALID_STATES: dict[FollowerOp, frozenset[mlrun.common.schemas.ProjectState | None]] = {
     FollowerOp.prepare_create: frozenset(
         {None, mlrun.common.schemas.ProjectState.creating}
     ),
@@ -88,11 +88,14 @@ def check_cas(stored_op_id: uuid.UUID | None, prev_op_id: uuid.UUID | None) -> N
     Enforce the CAS witness for `update` and `prepare_delete`: the caller's `prev_op_id`
     must match what's currently stored. `prepare_create`/`commit_create`/`commit_delete`
     don't call this — they have no separate witness (see `check_ordering`/`check_same_op`).
+
+    `None == None` is a valid match, not a missing-witness error: a project that existed
+    before this follower interface has `op_id = NULL` (nothing auto-fills it at migration
+    time), so the leader's *first* touch of such a project legitimately has no witness to
+    offer either — it observes `None` via `list_projects` and sends that back as
+    `prev_op_id`. (The "`prev_op_id` missing -> 400" rule in the Backend HLD applies only
+    to the client<->leader boundary, not leader<->follower — there is no such rule here.)
     """
-    if prev_op_id is None:
-        raise mlrun.errors.MLRunBadRequestError(
-            "prev_op_id is required for this operation"
-        )
     if stored_op_id != prev_op_id:
         raise mlrun.errors.MLRunConflictError(
             f"CAS mismatch: stored op_id {stored_op_id} does not match "
@@ -151,12 +154,15 @@ def check_transition(
     `check_same_op`'s job; this only rejects transitions that are never valid.
     """
     if current_state in _VALID_STATES[op]:
+        # Covers, among others, the absent-project (current_state=None) case for
+        # prepare_delete/commit_delete: that's a valid no-op starting point for both,
+        # not an error, per the contract's absent-project semantics.
         return
-    if (
-        op in (FollowerOp.prepare_delete, FollowerOp.commit_delete)
-        and current_state is None
-    ):
-        return  # absent project: caller treats this as a no-op, not an error
+    # The contract specifies a different status per op for "doesn't exist": update -> 404
+    # (explicit in its status table); everything else that reaches here (e.g. commit_create
+    # on an absent project) falls through to the generic 412 below, per its own status
+    # table (403/409/412, no 404). Don't generalize this to "state is None -> 404" — that
+    # would wrongly turn commit_create's 412 into a 404.
     if op == FollowerOp.update and current_state is None:
         raise mlrun.errors.MLRunNotFoundError("Project not found")
     raise mlrun.errors.MLRunPreconditionFailedError(

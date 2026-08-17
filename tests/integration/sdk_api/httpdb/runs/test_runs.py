@@ -273,13 +273,19 @@ class TestRuns(tests.integration.sdk_api.base.TestMLRunIntegration):
             expected_number_of_runs=5,
             project=project_name,
         )
-        # The elements are not ordered as they were originally stored because some of the elements
-        # have a start_time from the previous day, which affects their sorting order.
+        # No filter is given, so this goes through the "no filter" default
+        # (partition_by=project_and_name, partition_sort_by=updated,
+        # partition_order=desc - see crud.Runs().list_runs). Each run has a
+        # distinct name, so each is its own partition; the global order across
+        # partitions is by `updated` (real insertion wall-clock time, independent
+        # of the fake historical `start_time` values set above), most-recent
+        # first, with `id` descending as the tiebreaker for runs created within
+        # the same timestamp resolution - i.e. the reverse of creation order.
         expected_names = [
             "run-name-4",
             "run-name-3",
-            "run-name-1",
             "run-name-2",
+            "run-name-1",
             "run-name-0",
         ]
         for i, expected_name in enumerate(expected_names):

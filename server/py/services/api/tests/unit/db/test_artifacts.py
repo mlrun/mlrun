@@ -1965,14 +1965,14 @@ class TestArtifacts(TestDatabaseBase):
             )
 
     def test_list_artifacts_partition_by_with_limit_and_non_default_sort_field(self):
-        # Regression test for ML-13004: _create_partitioned_query now applies its own
-        # ORDER BY for determinism. _find_artifacts calls query.order_by(*order_criteria)
-        # on that same query object when `limit` is set - since SQLAlchemy's order_by()
-        # appends rather than replaces, a non-default partition_sort_by/partition_order
-        # could otherwise leak in as the *leading* sort key for the limit's row selection,
-        # picking a different artifact than _find_artifacts's own (updated desc, id desc)
-        # criteria intends. Two single-version artifacts, with `created` and `updated`
-        # deliberately disagreeing on which one is "first", make that leak observable.
+        # _create_partitioned_query applies its own ORDER BY, and _find_artifacts then
+        # calls query.order_by(*order_criteria) on that same query object when `limit`
+        # is set. Since SQLAlchemy's order_by() appends rather than replaces, a
+        # non-default partition_sort_by/partition_order could leak in as the *leading*
+        # sort key for the limit's row selection, picking a different artifact than
+        # _find_artifacts's own (updated desc, id desc) criteria intends. Two
+        # single-version artifacts, with `created` and `updated` deliberately
+        # disagreeing on which one is "first", make that leak observable.
         artifact_key_a = "artifact-a"
         artifact_key_b = "artifact-b"
         self._db.store_artifact(

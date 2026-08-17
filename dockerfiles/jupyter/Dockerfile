@@ -63,7 +63,7 @@ RUN python -m pip install --upgrade pip~=${MLRUN_PIP_VERSION} && \
     conda update -n base --all --yes && \
     conda install -n base -y \
       'pillow>=12.3.0' \
-      'jupyterlab>=4.5.10' \
+      'jupyterlab>=4.6.2' \
       'jupyterlab-git>=0.54.0' \
       'nodejs>=24.19.0' && \
     conda clean -a -y && rm -rf /opt/conda/pkgs ~/.conda/pkgs

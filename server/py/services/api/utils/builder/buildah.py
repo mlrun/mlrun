@@ -461,21 +461,13 @@ def _build_env(
     for registry, roles in roles_by_registry.items():
         if registry_auth.classify_cloud_registry(registry) != CloudRegistryProvider.GAR:
             continue
-        if "push" in roles:
-            env.append(
-                client.V1EnvVar(
-                    name="MLRUN_GAR_CREDENTIAL_SCRIPT",
-                    value=_b64(
-                        registry_auth.gar_credential_exchange_script(
-                            registry, _AUTHFILE_PATH
-                        )
-                    ),
-                )
+        for role in roles:
+            env_var_name = (
+                f"MLRUN_GAR{'_PULL' if role == 'pull' else ''}_CREDENTIAL_SCRIPT"
             )
-        if "pull" in roles:
             env.append(
                 client.V1EnvVar(
-                    name="MLRUN_GAR_PULL_CREDENTIAL_SCRIPT",
+                    name=env_var_name,
                     value=_b64(
                         registry_auth.gar_credential_exchange_script(
                             registry, _AUTHFILE_PATH

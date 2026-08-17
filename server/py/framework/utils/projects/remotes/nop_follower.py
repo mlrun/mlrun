@@ -167,6 +167,7 @@ class Member(project_follower.Member):
         self,
         name: str,
         op_id: uuid.UUID,
+        prev_op_id: uuid.UUID | None = None,
     ) -> None:
         raise NotImplementedError
 
@@ -182,5 +183,6 @@ class Member(project_follower.Member):
         name: str,
         project: mlrun.common.schemas.Project,
         op_id: uuid.UUID,
+        prev_op_id: uuid.UUID | None = None,
     ) -> None:
         raise NotImplementedError

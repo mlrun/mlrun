@@ -137,6 +137,7 @@ class Member(abc.ABC):
         self,
         name: str,
         op_id: uuid.UUID,
+        prev_op_id: uuid.UUID | None = None,
     ) -> None:
         pass
 
@@ -154,5 +155,6 @@ class Member(abc.ABC):
         name: str,
         project: mlrun.common.schemas.Project,
         op_id: uuid.UUID,
+        prev_op_id: uuid.UUID | None = None,
     ) -> None:
         pass

@@ -186,6 +186,16 @@ class Client(
             "DELETE", f"projects/{name}", request, timeout=120, version=api_version
         )
 
+    async def proxy_follower_project_request(
+        self, method: str, path: str, request: fastapi.Request
+    ) -> fastapi.Response:
+        """
+        The ML-12901 /follower/projects endpoints mutate project state via the
+        chief-only InternalBackgroundTasksHandler bookkeeping, same as project CUD —
+        re-route from a worker to chief rather than handling the call locally.
+        """
+        return await self._proxy_request_to_chief(method, path, request, timeout=120)
+
     async def get_clusterization_spec(
         self, return_fastapi_response: bool = True, raise_on_failure: bool = False
     ) -> typing.Union[fastapi.Response, mlrun.common.schemas.ClusterizationSpec]:

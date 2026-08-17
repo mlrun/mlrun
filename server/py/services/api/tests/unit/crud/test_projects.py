@@ -17,6 +17,7 @@ import collections.abc
 import datetime
 import types
 import unittest.mock
+import uuid
 
 import pytest
 
@@ -449,3 +450,409 @@ def test_wait_for_nuclio_project_deletion_keeps_user_auth_when_not_iguazio_v4(
 
     polled_auth_info = nuclio_client_mock.get_project.call_args.kwargs["auth_info"]
     assert polled_auth_info is user_auth_info
+
+
+# ----- 2PC follower hooks (ML-12901) ----------------------------------------
+
+
+def _make_follower_snapshot(
+    op_id: uuid.UUID, state: mlrun.common.schemas.ProjectState
+) -> mlrun.common.schemas.Project:
+    return mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name="proj"),
+        status=mlrun.common.schemas.ProjectStatus(op_id=op_id, state=state),
+    )
+
+
+@pytest.fixture
+def patched_db_session(monkeypatch: pytest.MonkeyPatch) -> unittest.mock.MagicMock:
+    """The 2PC hooks open/close their own DB session internally; stub both so
+    tests don't need a real database."""
+    session_mock = unittest.mock.MagicMock()
+    monkeypatch.setattr("framework.db.session.create_session", lambda: session_mock)
+    monkeypatch.setattr("framework.db.session.close_session", lambda session: None)
+    return session_mock
+
+
+def test_prepare_create_project_creates_new_row(
+    reset_projects_singleton: None,
+    patched_db_session: unittest.mock.MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setattr(
+        projects_crud.Projects, "get_follower_project_snapshot", lambda *a, **k: None
+    )
+    create_mock = unittest.mock.MagicMock()
+    monkeypatch.setattr(projects_crud.Projects, "create_project", create_mock)
+    store_mock = unittest.mock.MagicMock()
+    monkeypatch.setattr(projects_crud.Projects, "store_project", store_mock)
+
+    op_id = uuid.UUID(int=1)
+    project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name="proj")
+    )
+
+    projects_crud.Projects().prepare_create_project(project, op_id)
+
+    store_mock.assert_not_called()
+    created_project = create_mock.call_args.args[1]
+    assert created_project.status.state == mlrun.common.schemas.ProjectState.creating
+    assert created_project.status.op_id == op_id
+
+
+def test_prepare_create_project_idempotent_replay_does_not_mutate(
+    reset_projects_singleton: None,
+    patched_db_session: unittest.mock.MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    op_id = uuid.UUID(int=1)
+    existing = _make_follower_snapshot(
+        op_id, mlrun.common.schemas.ProjectState.creating
+    )
+    monkeypatch.setattr(
+        projects_crud.Projects,
+        "get_follower_project_snapshot",
+        lambda *a, **k: existing,
+    )
+    create_mock = unittest.mock.MagicMock()
+    monkeypatch.setattr(projects_crud.Projects, "create_project", create_mock)
+    store_mock = unittest.mock.MagicMock()
+    monkeypatch.setattr(projects_crud.Projects, "store_project", store_mock)
+
+    project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name="proj")
+    )
+    projects_crud.Projects().prepare_create_project(project, op_id)
+
+    create_mock.assert_not_called()
+    store_mock.assert_not_called()
+
+
+def test_prepare_create_project_stale_op_is_rejected(
+    reset_projects_singleton: None,
+    patched_db_session: unittest.mock.MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    newer_op_id = uuid.UUID(int=2)
+    existing = _make_follower_snapshot(
+        newer_op_id, mlrun.common.schemas.ProjectState.creating
+    )
+    monkeypatch.setattr(
+        projects_crud.Projects,
+        "get_follower_project_snapshot",
+        lambda *a, **k: existing,
+    )
+    store_mock = unittest.mock.MagicMock()
+    monkeypatch.setattr(projects_crud.Projects, "store_project", store_mock)
+
+    stale_op_id = uuid.UUID(int=1)
+    project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name="proj")
+    )
+
+    with pytest.raises(mlrun.errors.MLRunConflictError):
+        projects_crud.Projects().prepare_create_project(project, stale_op_id)
+
+    store_mock.assert_not_called()
+
+
+def test_commit_create_project_requires_provisioned_project(
+    reset_projects_singleton: None,
+    patched_db_session: unittest.mock.MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setattr(
+        projects_crud.Projects, "get_follower_project_snapshot", lambda *a, **k: None
+    )
+
+    with pytest.raises(mlrun.errors.MLRunPreconditionFailedError):
+        projects_crud.Projects().commit_create_project("proj", uuid.UUID(int=1))
+
+
+def test_commit_create_project_flips_to_online(
+    reset_projects_singleton: None,
+    patched_db_session: unittest.mock.MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    op_id = uuid.UUID(int=1)
+    existing = _make_follower_snapshot(
+        op_id, mlrun.common.schemas.ProjectState.creating
+    )
+    monkeypatch.setattr(
+        projects_crud.Projects,
+        "get_follower_project_snapshot",
+        lambda *a, **k: existing,
+    )
+    patch_mock = unittest.mock.MagicMock()
+    monkeypatch.setattr(projects_crud.Projects, "patch_project", patch_mock)
+
+    projects_crud.Projects().commit_create_project("proj", op_id)
+
+    patched_dict = patch_mock.call_args.args[2]
+    assert patched_dict["status"]["state"] == mlrun.common.schemas.ProjectState.online
+
+
+def test_update_project_follower_absent_project_is_not_found(
+    reset_projects_singleton: None,
+    patched_db_session: unittest.mock.MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setattr(
+        projects_crud.Projects, "get_follower_project_snapshot", lambda *a, **k: None
+    )
+    project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name="proj")
+    )
+
+    with pytest.raises(mlrun.errors.MLRunNotFoundError):
+        projects_crud.Projects().update_project_follower(
+            "proj", project, uuid.UUID(int=2), prev_op_id=uuid.UUID(int=1)
+        )
+
+
+def test_update_project_follower_cas_mismatch_is_rejected(
+    reset_projects_singleton: None,
+    patched_db_session: unittest.mock.MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    stored_op_id = uuid.UUID(int=1)
+    existing = _make_follower_snapshot(
+        stored_op_id, mlrun.common.schemas.ProjectState.online
+    )
+    monkeypatch.setattr(
+        projects_crud.Projects,
+        "get_follower_project_snapshot",
+        lambda *a, **k: existing,
+    )
+    patch_mock = unittest.mock.MagicMock()
+    monkeypatch.setattr(projects_crud.Projects, "patch_project", patch_mock)
+
+    project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name="proj")
+    )
+    wrong_prev_op_id = uuid.UUID(int=99)
+
+    with pytest.raises(mlrun.errors.MLRunConflictError):
+        projects_crud.Projects().update_project_follower(
+            "proj", project, uuid.UUID(int=2), prev_op_id=wrong_prev_op_id
+        )
+
+    patch_mock.assert_not_called()
+
+
+def test_update_project_follower_applies_common_set_only(
+    reset_projects_singleton: None,
+    patched_db_session: unittest.mock.MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    stored_op_id = uuid.UUID(int=1)
+    existing = _make_follower_snapshot(
+        stored_op_id, mlrun.common.schemas.ProjectState.online
+    )
+    monkeypatch.setattr(
+        projects_crud.Projects,
+        "get_follower_project_snapshot",
+        lambda *a, **k: existing,
+    )
+    patch_mock = unittest.mock.MagicMock()
+    monkeypatch.setattr(projects_crud.Projects, "patch_project", patch_mock)
+
+    new_op_id = uuid.UUID(int=2)
+    project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(
+            name="proj", labels={"team": "ml"}, annotations={"a": "b"}
+        ),
+        spec=mlrun.common.schemas.ProjectSpec(owner="jsmith", description="desc"),
+    )
+
+    projects_crud.Projects().update_project_follower(
+        "proj", project, new_op_id, prev_op_id=stored_op_id
+    )
+
+    patched_dict = patch_mock.call_args.args[2]
+    assert patched_dict == {
+        "metadata": {"labels": {"team": "ml"}, "annotations": {"a": "b"}},
+        "spec": {"owner": "jsmith", "description": "desc"},
+        "status": {"op_id": new_op_id},
+    }
+
+
+def test_prepare_delete_project_absent_project_is_noop(
+    reset_projects_singleton: None,
+    patched_db_session: unittest.mock.MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setattr(
+        projects_crud.Projects, "get_follower_project_snapshot", lambda *a, **k: None
+    )
+    patch_mock = unittest.mock.MagicMock()
+    monkeypatch.setattr(projects_crud.Projects, "patch_project", patch_mock)
+
+    projects_crud.Projects().prepare_delete_project(
+        "proj", uuid.UUID(int=1), prev_op_id=uuid.UUID(int=1)
+    )
+
+    patch_mock.assert_not_called()
+
+
+def test_prepare_delete_project_marks_deleting(
+    reset_projects_singleton: None,
+    patched_db_session: unittest.mock.MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    stored_op_id = uuid.UUID(int=1)
+    existing = _make_follower_snapshot(
+        stored_op_id, mlrun.common.schemas.ProjectState.online
+    )
+    monkeypatch.setattr(
+        projects_crud.Projects,
+        "get_follower_project_snapshot",
+        lambda *a, **k: existing,
+    )
+    patch_mock = unittest.mock.MagicMock()
+    monkeypatch.setattr(projects_crud.Projects, "patch_project", patch_mock)
+
+    new_op_id = uuid.UUID(int=2)
+    projects_crud.Projects().prepare_delete_project(
+        "proj", new_op_id, prev_op_id=stored_op_id
+    )
+
+    patched_dict = patch_mock.call_args.args[2]
+    assert patched_dict == {
+        "status": {
+            "state": mlrun.common.schemas.ProjectState.deleting,
+            "op_id": new_op_id,
+        }
+    }
+
+
+def test_commit_delete_project_absent_project_is_noop(
+    reset_projects_singleton: None,
+    patched_db_session: unittest.mock.MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setattr(
+        projects_crud.Projects, "get_follower_project_snapshot", lambda *a, **k: None
+    )
+    delete_mock = unittest.mock.MagicMock()
+    monkeypatch.setattr(projects_crud.Projects, "delete_project", delete_mock)
+
+    projects_crud.Projects().commit_delete_project("proj", uuid.UUID(int=1))
+
+    delete_mock.assert_not_called()
+
+
+def test_commit_delete_project_purges_with_cascading_strategy(
+    reset_projects_singleton: None,
+    patched_db_session: unittest.mock.MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    op_id = uuid.UUID(int=1)
+    existing = _make_follower_snapshot(
+        op_id, mlrun.common.schemas.ProjectState.deleting
+    )
+    monkeypatch.setattr(
+        projects_crud.Projects,
+        "get_follower_project_snapshot",
+        lambda *a, **k: existing,
+    )
+    delete_mock = unittest.mock.MagicMock()
+    monkeypatch.setattr(projects_crud.Projects, "delete_project", delete_mock)
+
+    projects_crud.Projects().commit_delete_project("proj", op_id)
+
+    assert (
+        delete_mock.call_args.kwargs["deletion_strategy"]
+        == mlrun.common.schemas.DeletionStrategy.cascading
+    )
+
+
+def test_commit_delete_project_mismatched_op_is_rejected(
+    reset_projects_singleton: None,
+    patched_db_session: unittest.mock.MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    stored_op_id = uuid.UUID(int=1)
+    existing = _make_follower_snapshot(
+        stored_op_id, mlrun.common.schemas.ProjectState.deleting
+    )
+    monkeypatch.setattr(
+        projects_crud.Projects,
+        "get_follower_project_snapshot",
+        lambda *a, **k: existing,
+    )
+    delete_mock = unittest.mock.MagicMock()
+    monkeypatch.setattr(projects_crud.Projects, "delete_project", delete_mock)
+
+    with pytest.raises(mlrun.errors.MLRunConflictError):
+        projects_crud.Projects().commit_delete_project("proj", uuid.UUID(int=99))
+
+    delete_mock.assert_not_called()
+
+
+def test_list_project_states_filters_by_updated_after(
+    reset_projects_singleton: None,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    now = datetime.datetime.now(tz=datetime.UTC)
+    old_project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name="old"),
+        status=mlrun.common.schemas.ProjectStatus(
+            updated_at=now - datetime.timedelta(days=1)
+        ),
+    )
+    fresh_project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name="fresh"),
+        status=mlrun.common.schemas.ProjectStatus(updated_at=now),
+    )
+
+    def _list_projects(self, session, format_=None, updated_after=None, **kwargs):
+        # Mimic the DB layer's own updated_after filtering (see db.py:list_projects)
+        # so this test exercises the same contract list_project_states relies on.
+        projects = [old_project, fresh_project]
+        if updated_after is not None:
+            projects = [p for p in projects if p.status.updated_at >= updated_after]
+        return mlrun.common.schemas.ProjectsOutput(projects=projects)
+
+    monkeypatch.setattr(projects_crud.Projects, "list_projects", _list_projects)
+
+    page, next_cursor = projects_crud.Projects().list_project_states(
+        unittest.mock.MagicMock(), updated_after=now - datetime.timedelta(hours=1)
+    )
+
+    assert [p.metadata.name for p in page] == ["fresh"]
+    assert next_cursor is None
+
+
+def test_list_project_states_paginates_with_keyset_cursor(
+    reset_projects_singleton: None,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    now = datetime.datetime.now(tz=datetime.UTC)
+    projects = [
+        mlrun.common.schemas.Project(
+            metadata=mlrun.common.schemas.ProjectMetadata(name=name),
+            status=mlrun.common.schemas.ProjectStatus(
+                updated_at=now + datetime.timedelta(seconds=i)
+            ),
+        )
+        for i, name in enumerate(["a", "b", "c"])
+    ]
+
+    def _list_projects(self, session, **kwargs):
+        return mlrun.common.schemas.ProjectsOutput(projects=projects)
+
+    monkeypatch.setattr(projects_crud.Projects, "list_projects", _list_projects)
+
+    crud = projects_crud.Projects()
+    first_page, cursor = crud.list_project_states(
+        unittest.mock.MagicMock(), page_size=2
+    )
+    assert [p.metadata.name for p in first_page] == ["a", "b"]
+    assert cursor is not None
+
+    second_page, next_cursor = crud.list_project_states(
+        unittest.mock.MagicMock(), cursor=cursor, page_size=2
+    )
+    assert [p.metadata.name for p in second_page] == ["c"]
+    assert next_cursor is None

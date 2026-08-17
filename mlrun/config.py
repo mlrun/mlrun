@@ -567,6 +567,14 @@ default_config = {
             "stale_resource_ttl_create": "2 minutes",
             "stale_resource_ttl_update": "2 minutes",
             "stale_resource_ttl_delete": "10 minutes",
+            # Enterprise project-sync (ML-12901): MLRun as a follower of the Orca leader.
+            # Unused unless something actually calls the /follower/projects surface.
+            "follower": {
+                # Expected service-account identity (AuthInfo.username) of the configured
+                # project leader. Inbound /follower/projects calls are rejected with 403
+                # unless the caller is a service account matching this identity.
+                "leader_identity": "",
+            },
         },
         # The API needs to know what is its k8s svc url so it could enrich it in the jobs it creates
         "api_url": "",

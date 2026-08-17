@@ -36,6 +36,8 @@ import framework.utils.auth.verifier
 import framework.utils.clients.messaging
 import framework.utils.clients.nuclio
 import framework.utils.clients.service_account_token as service_account_token
+import framework.utils.project_formats
+import framework.utils.projects.follower_contract as follower_contract
 import framework.utils.projects.remotes.follower as project_follower
 import framework.utils.singletons.db
 import services.alerts.crud
@@ -48,6 +50,9 @@ from framework.utils.singletons.k8s import get_k8s_helper
 
 # Persistable function kinds, zero-filled per project in ``mlrun_functions``.
 _FUNCTION_INVENTORY_KINDS = mlrun.runtimes.constants.RuntimeKinds.all()
+
+# Sort/cursor floor for list_project_states() when a project has no updated_at yet.
+_PROJECT_STATES_EPOCH = datetime.datetime.min.replace(tzinfo=datetime.UTC)
 
 
 class Projects(
@@ -455,6 +460,55 @@ class Projects(
             session,
             project=name,
         )
+
+    def list_project_states(
+        self,
+        session: sqlalchemy.orm.Session,
+        updated_after: datetime.datetime | None = None,
+        cursor: str | None = None,
+        page_size: int = 200,
+    ) -> tuple[list[mlrun.common.schemas.Project], str | None]:
+        """
+        Slim (name, op_id, state, updated_at) projection for follower reconciliation —
+        the "list states" op of the ML-12901 follower contract. `updated_after` is pushed
+        down to the DB query (via the existing `list_projects`/`updated_after` support) so
+        a leader polling for drift never full-scans the projects table. Pagination on top
+        of that filtered set is a keyset cursor computed here rather than in the DB layer:
+        the filtered set this endpoint deals with (projects that changed since the last
+        poll) is small even at scale, so adding cursor/limit to the shared `list_projects`
+        interface — used by every follower implementer — isn't warranted for this one
+        reconciliation-only read.
+        """
+        projects_output = self.list_projects(
+            session,
+            format_=framework.utils.project_formats.ProjectFormatCustomSelection(
+                [
+                    framework.utils.project_formats.ProjectFormatCustom.name,
+                    framework.utils.project_formats.ProjectFormatCustom.op_id,
+                    framework.utils.project_formats.ProjectFormatCustom.state,
+                    framework.utils.project_formats.ProjectFormatCustom.updated_at,
+                ]
+            ),
+            updated_after=updated_after,
+        )
+        projects = sorted(
+            projects_output.projects,
+            key=lambda project: self._project_states_sort_key(project),
+        )
+        if cursor:
+            cursor_key = self._decode_project_states_cursor(cursor)
+            projects = [
+                project
+                for project in projects
+                if self._project_states_sort_key(project) > cursor_key
+            ]
+        page = projects[:page_size]
+        next_cursor = None
+        if len(projects) > page_size:
+            next_cursor = self._encode_project_states_cursor(
+                self._project_states_sort_key(page[-1])
+            )
+        return page, next_cursor
 
     def _emit_project_lifecycle_event(
         self,
@@ -1079,59 +1133,209 @@ class Projects(
             session, name, project_patch
         )
 
-    # ----- 2PC follower-interface stubs ------------------------------------
-    # mlrun is the 2PC leader, so these per-follower hooks (called by the
-    # orchestrator on every remote follower) must never run on mlrun itself.
-    # They are present only to satisfy the abstract follower interface and
-    # to fail loudly if the orchestrator ever fans out incorrectly.
+    # ----- 2PC follower hooks (ML-12901) ------------------------------------
+    # Leader -> MLRun-as-follower calls, reachable only through the SA-gated
+    # /follower/projects surface (enterprise, leader=orca). In CE there is no Orca to
+    # call these, so this code path is unreached there. Each hook validates the call
+    # against follower_contract's CAS/ordering/state-machine rules before mutating.
 
     def prepare_create_project(
         self,
         project: mlrun.common.schemas.Project,
         op_id: uuid.UUID,
     ) -> None:
-        raise NotImplementedError(
-            "MLRun is the leader of the 2PC project sync flow, not a follower; "
-            "this hook must not be invoked on the mlrun follower"
-        )
+        session = framework.db.session.create_session()
+        try:
+            name = project.metadata.name
+            existing = self.get_follower_project_snapshot(session, name)
+            outcome = follower_contract.validate_call(
+                follower_contract.FollowerOp.prepare_create,
+                current_state=existing.status.state if existing else None,
+                stored_op_id=existing.status.op_id if existing else None,
+                incoming_op_id=op_id,
+            )
+            if outcome == follower_contract.ReplayOutcome.replay:
+                return
+            project = project.copy(deep=True)
+            project.status.state = mlrun.common.schemas.ProjectState.creating
+            project.status.op_id = op_id
+            if existing:
+                self.store_project(session, name, project)
+            else:
+                self.create_project(session, project)
+        finally:
+            framework.db.session.close_session(session)
 
     def commit_create_project(
         self,
         name: str,
         op_id: uuid.UUID,
     ) -> None:
-        raise NotImplementedError(
-            "MLRun is the leader of the 2PC project sync flow, not a follower; "
-            "this hook must not be invoked on the mlrun follower"
-        )
+        session = framework.db.session.create_session()
+        try:
+            existing = self.get_follower_project_snapshot(session, name)
+            outcome = follower_contract.validate_call(
+                follower_contract.FollowerOp.commit_create,
+                current_state=existing.status.state if existing else None,
+                stored_op_id=existing.status.op_id if existing else None,
+                incoming_op_id=op_id,
+            )
+            if outcome == follower_contract.ReplayOutcome.replay:
+                return
+            self.patch_project(
+                session,
+                name,
+                {"status": {"state": mlrun.common.schemas.ProjectState.online}},
+            )
+        finally:
+            framework.db.session.close_session(session)
 
     def prepare_delete_project(
         self,
         name: str,
         op_id: uuid.UUID,
+        prev_op_id: uuid.UUID | None = None,
     ) -> None:
-        raise NotImplementedError(
-            "MLRun is the leader of the 2PC project sync flow, not a follower; "
-            "this hook must not be invoked on the mlrun follower"
-        )
+        session = framework.db.session.create_session()
+        try:
+            existing = self.get_follower_project_snapshot(session, name)
+            if existing is None:
+                return  # absent project: no-op per the contract
+            outcome = follower_contract.validate_call(
+                follower_contract.FollowerOp.prepare_delete,
+                current_state=existing.status.state,
+                stored_op_id=existing.status.op_id,
+                incoming_op_id=op_id,
+                prev_op_id=prev_op_id,
+            )
+            if outcome == follower_contract.ReplayOutcome.replay:
+                return
+            self.patch_project(
+                session,
+                name,
+                {
+                    "status": {
+                        "state": mlrun.common.schemas.ProjectState.deleting,
+                        "op_id": op_id,
+                    }
+                },
+            )
+        finally:
+            framework.db.session.close_session(session)
 
     def commit_delete_project(
         self,
         name: str,
         op_id: uuid.UUID,
     ) -> None:
-        raise NotImplementedError(
-            "MLRun is the leader of the 2PC project sync flow, not a follower; "
-            "this hook must not be invoked on the mlrun follower"
-        )
+        """
+        Validates and, if valid, synchronously purges this project's resources and its
+        row (via the existing cascading `delete_project`). Blocking by design — the
+        endpoint layer (`projects_follower.py`) is the one that decides whether to run
+        this inline or hand it to a background task and reply 202, since only it has
+        the request/response lifecycle; this hook stays a plain, re-entrant, idempotent
+        unit of work either way.
+        """
+        session = framework.db.session.create_session()
+        try:
+            existing = self.get_follower_project_snapshot(session, name)
+            if existing is None:
+                return  # already fully removed: no-op per the contract
+            outcome = follower_contract.validate_call(
+                follower_contract.FollowerOp.commit_delete,
+                current_state=existing.status.state,
+                stored_op_id=existing.status.op_id,
+                incoming_op_id=op_id,
+            )
+            if outcome == follower_contract.ReplayOutcome.replay:
+                # A previous call already triggered (or finished) the purge; nothing new
+                # to do here — the endpoint layer checks the background task's own state.
+                return
+            self.delete_project(
+                session,
+                name,
+                deletion_strategy=mlrun.common.schemas.DeletionStrategy.cascading,
+            )
+        finally:
+            framework.db.session.close_session(session)
 
     def update_project_follower(
         self,
         name: str,
         project: mlrun.common.schemas.Project,
         op_id: uuid.UUID,
+        prev_op_id: uuid.UUID | None = None,
     ) -> None:
-        raise NotImplementedError(
-            "MLRun is the leader of the 2PC project sync flow, not a follower; "
-            "this hook must not be invoked on the mlrun follower"
+        session = framework.db.session.create_session()
+        try:
+            existing = self.get_follower_project_snapshot(session, name)
+            if existing is None:
+                # Unlike prepare_delete/commit_delete, "absent" isn't a no-op for update
+                # — there's nothing to CAS against, and the contract calls for 404 here.
+                raise mlrun.errors.MLRunNotFoundError(f"Project {name} not found")
+            outcome = follower_contract.validate_call(
+                follower_contract.FollowerOp.update,
+                current_state=existing.status.state,
+                stored_op_id=existing.status.op_id,
+                incoming_op_id=op_id,
+                prev_op_id=prev_op_id,
+            )
+            if outcome == follower_contract.ReplayOutcome.replay:
+                return
+            # The common set only — labels/annotations/owner/description. Everything else
+            # is MLRun-specific spec the leader never sends and never syncs (see the
+            # Backend HLD's "store labels/annotations/description?" decision).
+            common_set_patch = {
+                "metadata": {
+                    "labels": project.metadata.labels,
+                    "annotations": project.metadata.annotations,
+                },
+                "spec": {
+                    "owner": project.spec.owner,
+                    "description": project.spec.description,
+                },
+                "status": {"op_id": op_id},
+            }
+            self.patch_project(session, name, common_set_patch)
+        finally:
+            framework.db.session.close_session(session)
+
+    def get_follower_project_snapshot(
+        self, session: sqlalchemy.orm.Session, name: str
+    ) -> mlrun.common.schemas.Project | None:
+        """(name, op_id, state) snapshot used by the 2PC hooks' CAS/ordering checks."""
+        projects_output = self.list_projects(
+            session,
+            format_=framework.utils.project_formats.ProjectFormatCustomSelection(
+                [
+                    framework.utils.project_formats.ProjectFormatCustom.name,
+                    framework.utils.project_formats.ProjectFormatCustom.op_id,
+                    framework.utils.project_formats.ProjectFormatCustom.state,
+                ]
+            ),
+            names=[name],
         )
+        return projects_output.projects[0] if projects_output.projects else None
+
+    @staticmethod
+    def _project_states_sort_key(
+        project: mlrun.common.schemas.Project,
+    ) -> tuple[datetime.datetime, str]:
+        updated_at = project.status.updated_at or _PROJECT_STATES_EPOCH
+        return updated_at, project.metadata.name
+
+    @staticmethod
+    def _encode_project_states_cursor(key: tuple[datetime.datetime, str]) -> str:
+        updated_at, name = key
+        return f"{updated_at.isoformat()}|{name}"
+
+    @staticmethod
+    def _decode_project_states_cursor(cursor: str) -> tuple[datetime.datetime, str]:
+        updated_at_str, _, name = cursor.partition("|")
+        try:
+            updated_at = datetime.datetime.fromisoformat(updated_at_str)
+        except ValueError as exc:
+            raise mlrun.errors.MLRunBadRequestError(
+                f"Invalid list-states cursor: {cursor}"
+            ) from exc
+        return updated_at, name

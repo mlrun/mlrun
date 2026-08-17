@@ -641,10 +641,10 @@ class TestRuns(TestDatabaseBase):
             )
 
     def test_list_runs_partitioned_no_max_partitions_has_explicit_order_by(self):
-        # Regression test for ML-13004: _create_partitioned_query's max_partitions=0
-        # branch (the one every "no filter" list_runs call hits) joined the ranked
-        # subquery onto the runs table with no outer ORDER BY, leaving the result
-        # order up to the DB engine instead of following partition_sort_by/order.
+        # _create_partitioned_query's max_partitions=0 branch (the one every "no
+        # filter" list_runs call hits) joins the ranked subquery onto the runs table.
+        # Without an outer ORDER BY, the result order is left up to the DB engine
+        # instead of following partition_sort_by/order.
         #
         # SQLite happens to preserve the window function's internal sort into the
         # final join for this query shape regardless of whether the fix is present,
@@ -706,9 +706,8 @@ class TestRuns(TestDatabaseBase):
         )
 
     def test_list_runs_partitioned_with_max_partitions_has_explicit_order_by(self):
-        # Regression test for ML-13004: the max_partitions>0 branch of
-        # _create_partitioned_query has the same missing-ORDER-BY gap as the
-        # max_partitions=0 branch. See the comment in
+        # The max_partitions>0 branch of _create_partitioned_query has the same
+        # missing-ORDER-BY gap as the max_partitions=0 branch. See the comment in
         # test_list_runs_partitioned_no_max_partitions_has_explicit_order_by for why
         # the compiled-SQL assertion, not row order, is the real regression guard.
         project_name = "my-project"

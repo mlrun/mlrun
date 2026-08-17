@@ -35,6 +35,7 @@ import framework.db.session
 import framework.utils.auth.verifier
 import framework.utils.background_tasks
 import framework.utils.clients.iguazio.v3
+import framework.utils.clients.orca.client
 import framework.utils.helpers
 import framework.utils.periodic
 import framework.utils.projects.member as project_member
@@ -67,6 +68,12 @@ class Member(
             self._sync_session = mlrun.mlconf.httpdb.projects.iguazio_access_key
         elif self._leader_name == "nop":
             self._leader_client = framework.utils.projects.remotes.nop_leader.Member()
+        elif self._leader_name == "orca":
+            if not mlrun.mlconf.orca_api_url:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Orca API URL must be configured when the leader is Orca"
+                )
+            self._leader_client = framework.utils.clients.orca.client.Client()
         else:
             raise NotImplementedError("Unsupported project leader")
         self._periodic_sync_interval_seconds = humanfriendly.parse_timespan(

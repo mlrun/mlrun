@@ -97,6 +97,8 @@ default_config = {
     "iguazio_api_url": "",  # the url to iguazio api (internal / external access with priority to internal)
     "iguazio_api_url_ingress": "",  # the url to iguazio api ingress (for external access)
     "iguazio_api_ssl_verify": True,  # verify ssl certificate of iguazio api
+    "orca_api_url": "",  # the url to Orca's API, used when httpdb.projects.leader is "orca"
+    "orca_api_ssl_verify": True,  # verify ssl certificate of Orca's api
     "spark_app_image": "",  # image to use for spark operator app runtime
     "spark_app_image_tag": "",  # image tag to use for spark operator app runtime
     "spark_history_server_path": "",  # spark logs directory for spark history server
@@ -559,6 +561,10 @@ default_config = {
             "iguazio_client_job_cache_ttl": "20 minutes",
             "nuclio_project_deletion_verification_timeout": "300 seconds",
             "nuclio_project_deletion_verification_interval": "5 seconds",
+            # when the leader is orca, how often to poll GET /api/v1/project-states/{name} while waiting for an
+            # operation (create/update/delete) to reach a terminal state, and how long to wait before giving up
+            "orca_project_states_poll_interval": "2 seconds",
+            "orca_project_states_poll_timeout": "300 seconds",
             "summaries": {
                 # Number of days back to include when calculating the project pipeline summary.
                 "list_pipelines_time_period_in_days": 2,

@@ -1964,6 +1964,66 @@ class TestArtifacts(TestDatabaseBase):
                 f"Expected {expected_name}, got {artifact_name}"
             )
 
+    def test_list_artifacts_partition_by_with_limit_and_non_default_sort_field(self):
+        # Regression test for ML-13004: _create_partitioned_query now applies its own
+        # ORDER BY for determinism. _find_artifacts calls query.order_by(*order_criteria)
+        # on that same query object when `limit` is set - since SQLAlchemy's order_by()
+        # appends rather than replaces, a non-default partition_sort_by/partition_order
+        # could otherwise leak in as the *leading* sort key for the limit's row selection,
+        # picking a different artifact than _find_artifacts's own (updated desc, id desc)
+        # criteria intends. Two single-version artifacts, with `created` and `updated`
+        # deliberately disagreeing on which one is "first", make that leak observable.
+        artifact_key_a = "artifact-a"
+        artifact_key_b = "artifact-b"
+        self._db.store_artifact(
+            self._db_session,
+            artifact_key_a,
+            self._generate_artifact(artifact_key_a, project=self.project),
+            project=self.project,
+        )
+        self._db.store_artifact(
+            self._db_session,
+            artifact_key_b,
+            self._generate_artifact(artifact_key_b, project=self.project),
+            project=self.project,
+        )
+
+        # artifact-a: earliest `created`, oldest `updated`.
+        # artifact-b: latest `created`, newest `updated`.
+        # so "created asc" and "updated desc" pick *different* winners: "created asc"
+        # (the partitioning criterion below) would rank artifact-a first; the intended
+        # "updated desc" (_find_artifacts's own default) ranks artifact-b first.
+        self._db.update_db_object(
+            self._db_session,
+            framework.db.sqldb.models.ArtifactV2,
+            filters={"key": artifact_key_a},
+            created=datetime.datetime(2026, 1, 1),
+            updated=datetime.datetime(2026, 1, 1),
+        )
+        self._db.update_db_object(
+            self._db_session,
+            framework.db.sqldb.models.ArtifactV2,
+            filters={"key": artifact_key_b},
+            created=datetime.datetime(2026, 1, 2),
+            updated=datetime.datetime(2026, 1, 2),
+        )
+
+        artifacts = self._db.list_artifacts(
+            self._db_session,
+            project=self.project,
+            partition_by=mlrun.common.schemas.ArtifactPartitionByField.name,
+            partition_sort_by=mlrun.common.schemas.SortField.created,
+            partition_order=mlrun.common.schemas.OrderType.asc,
+            limit=1,
+        )
+
+        assert len(artifacts) == 1
+        assert artifacts[0]["metadata"]["key"] == artifact_key_b, (
+            "expected the most-recently-updated artifact under limit=1, "
+            f"got {artifacts[0]['metadata']['key']!r} - the partitioned query's "
+            "internal ORDER BY leaked into the limit's row selection"
+        )
+
     @pytest.mark.parametrize("limit", [None, 3])
     @pytest.mark.parametrize("tag", [None, "*"])
     def test_list_artifacts_orders_by_tag_id(self, limit, tag):

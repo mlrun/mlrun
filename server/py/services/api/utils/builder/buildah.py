@@ -255,8 +255,10 @@ def make_buildah_pod(
         )
 
     if not registry:
-        # if the registry was not given, infer it from the image destination
-        registry = dest.partition("/")[0]
+        # if the registry was not given, infer it from the image destination - dest can itself be
+        # bare (e.g. pushed straight to Docker Hub as "my-org/my-image:tag") with no explicit
+        # registry at all.
+        registry = registry_auth.registry_from_image(dest)
 
     # unlike dest, base_image is very often bare (e.g. "python:3.11-slim", or a Docker Hub
     # "some-org/some-image:tag") with no explicit registry at all.
@@ -268,7 +270,9 @@ def make_buildah_pod(
     # authenticate a *different* registry than either of these (e.g. a private base-image registry
     # alongside a cloud push destination, ML-12988), so it's resolved independently below and
     # merged into the authfile instead (see the secret-copy init container), never gated by this.
-    roles_by_registry: dict[str, set[str]] = {registry: {"push"}}
+    roles_by_registry: dict[str, set[str]] = {}
+    if registry:
+        roles_by_registry.setdefault(registry, set()).add("push")
     if base_registry:
         roles_by_registry.setdefault(base_registry, set()).add("pull")
 

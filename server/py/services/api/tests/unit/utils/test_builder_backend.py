@@ -442,6 +442,20 @@ def test_make_buildah_pod_bare_base_image_has_no_pull_side_exchange():
     assert pod.spec.init_containers[0].name == "registry-credential-exchange"
 
 
+def test_make_buildah_pod_bare_push_destination_has_no_push_side_exchange():
+    # a push destination with no explicit registry (e.g. pushed straight to Docker Hub as
+    # "my-org/my-image:tag") must not be treated as a registry needing credential exchange -
+    # inferring one from the whole "my-org" segment would be as wrong as the base_image case above.
+    base_registry = "myregistry.azurecr.io"
+    buildah_pod = _make_buildah_pod(
+        dest="my-org/my-image:tag",
+        base_image=f"{base_registry}/mlrun/mlrun:1.13.0-rc2",
+    )
+    pod = buildah_pod.pod
+    assert len(pod.spec.init_containers) == 1
+    assert pod.spec.init_containers[0].name == "registry-credential-exchange-pull"
+
+
 def test_make_buildah_pod_gar_credential_exchange_same_registry_mints_both():
     # base image on the *same* GAR host as the push destination - pull and push are still minted
     # independently (no same-host dedup for GAR, unlike ECR/ACR's init-container skip): pull right

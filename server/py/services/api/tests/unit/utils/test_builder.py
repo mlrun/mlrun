@@ -514,7 +514,7 @@ def test_build_runtime_ecr_with_ec2_iam_policy(monkeypatch):
     mlrun.mlconf.httpdb.builder.docker_registry = (
         "aws_account_id.dkr.ecr.region.amazonaws.com"
     )
-    project = mlrun.new_project("some-project")
+    project = mlrun.new_project("some-project", save=False)
     project.set_secrets(
         secrets={
             "AWS_ACCESS_KEY_ID": "test-a",

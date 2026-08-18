@@ -471,6 +471,9 @@ default_config = {
         "nuclio": {
             # One of ClusterIP | NodePort
             "default_service_type": "NodePort",
+            # When True the platform has function-level (behind-Service) authentication enabled;
+            # set by mlefi via MLRUN_HTTPDB__NUCLIO__FUNCTION_AUTHENTICATION_ENABLED env var.
+            "function_authentication_enabled": False,
             # The following modes apply when user did not configure an ingress
             #
             #   name        |  description
@@ -1049,6 +1052,11 @@ default_config = {
             # 0 = manual flush per do() (ManualMetricReader); >0 = PeriodicExportingMetricReader interval (seconds).
             "interval": 60,
         },
+        # Per-REST-call processing time middleware. Inherits the master `telemetry.enabled` kill-switch.
+        # Default true so that enabling telemetry (the master switch) is sufficient.
+        "rest_metrics": {
+            "enabled": True,
+        },
     },
     "system_id": "",
     "system_id_len": 12,
@@ -1466,6 +1474,10 @@ class Config:
     def is_nuclio_detected(self):
         # determine is Nuclio service is detected, when the nuclio_version is not set
         return bool(mlrun.mlconf.nuclio_version)
+
+    def is_nuclio_function_authentication_enabled(self) -> bool:
+        """Return True when the platform has function-level (behind-Service) authentication enabled."""
+        return bool(mlrun.mlconf.httpdb.nuclio.function_authentication_enabled)
 
     def use_nuclio_mock(self, force_mock=None):
         # determine if to use Nuclio mock service

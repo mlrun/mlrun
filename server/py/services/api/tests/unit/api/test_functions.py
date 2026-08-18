@@ -492,6 +492,57 @@ async def test_multiple_store_function_race_condition(
     )
 
 
+@pytest.mark.asyncio
+async def test_concurrent_fresh_pagination_requests_do_not_conflict(
+    db: sqlalchemy.orm.Session, async_client: httpx.AsyncClient
+):
+    """
+    Regression test for ML-13001: two concurrent, fresh (no page-token) paginated list requests
+    with identical parameters hash to the same pagination-cache key. Before @retry_on_conflict was
+    added to store_paginated_query_cache_record, the losing request's insert raised an uncaught
+    MLRunConflictError instead of retrying - see the decorator's docstring for the general case
+    this is testing.
+    """
+    await services.api.tests.unit.api.utils.create_project_async(async_client, PROJECT)
+    # Make the pagination cache lookup return None (not found) on the first two calls, forcing
+    # both concurrent requests to take the fresh-insert branch and race on the same cache key
+    get_cache_record_mock = tests.conftest.MockSpecificCalls(
+        framework.utils.singletons.db.get_db().get_paginated_query_cache_record,
+        [1, 2],
+        None,
+    ).mock_function
+    framework.utils.singletons.db.get_db().get_paginated_query_cache_record = (
+        unittest.mock.Mock(side_effect=get_cache_record_mock)
+    )
+
+    request1_task = asyncio.create_task(
+        async_client.get(
+            f"projects/{PROJECT}/functions",
+            params={"page": 1, "page-size": 10},
+        )
+    )
+    request2_task = asyncio.create_task(
+        async_client.get(
+            f"projects/{PROJECT}/functions",
+            params={"page": 1, "page-size": 10},
+        )
+    )
+    response1, response2 = await asyncio.gather(
+        request1_task,
+        request2_task,
+    )
+
+    assert response1.status_code == HTTPStatus.OK.value
+    assert response2.status_code == HTTPStatus.OK.value
+    # 2 times for the two concurrent lookups + at least 1 retry lookup for the loser, but no more
+    # than 5 times, as retry should not be that excessive
+    assert (
+        3
+        <= framework.utils.singletons.db.get_db().get_paginated_query_cache_record.call_count
+        < 5
+    )
+
+
 def test_redirection_from_worker_to_chief_only_if_serving_function_with_track_models(
     db: sqlalchemy.orm.Session,
     client: fastapi.testclient.TestClient,

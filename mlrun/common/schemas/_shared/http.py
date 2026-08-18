@@ -18,3 +18,23 @@ import mlrun.common.types
 class HTTPSessionRetryMode(mlrun.common.types.StrEnum):
     enabled = "enabled"
     disabled = "disabled"
+
+
+class HTTPTriggerAuthenticationMode(mlrun.common.types.StrEnum):
+    """Authentication modes for a Nuclio function HTTP trigger (function-level, behind-Service auth).
+
+    Set on the function's HTTP trigger ``attributes.authenticationMode`` and enforced by the auth
+    sidecar injected into the function pod when the platform feature flag
+    ``httpdb.nuclio.function_authentication_enabled`` is on. Different from
+    :py:class:`~mlrun.common.schemas.APIGatewayAuthenticationMode`, which applies to API Gateways.
+    """
+
+    none = "none"
+    api = "api"
+    browser = "browser"
+    basic = "basicAuth"
+
+    @classmethod
+    def values(cls) -> set[str]:
+        """Return the set of supported authentication-mode string values."""
+        return {m.value for m in cls}

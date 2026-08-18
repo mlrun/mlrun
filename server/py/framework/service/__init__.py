@@ -40,6 +40,7 @@ import framework.utils.clients.messaging
 import framework.utils.pagination
 import framework.utils.periodic
 import framework.utils.singletons.db
+import framework.utils.telemetry.rest_metrics
 
 
 class Service(ABC):
@@ -202,6 +203,14 @@ class Service(ABC):
 
         self.app.openapi = custom_openapi
 
+    @staticmethod
+    def _rest_metrics_configured() -> bool:
+        return (
+            mlrun.mlconf.telemetry.enabled
+            and mlrun.mlconf.telemetry.rest_metrics.enabled
+            and mlrun.mlconf.telemetry.otlp_endpoint
+        )
+
     async def _setup_service(self):
         """
         This method is called when the service is starting up.
@@ -224,6 +233,12 @@ class Service(ABC):
         )
 
         await mlrun.utils.run_in_threadpool(framework.utils.singletons.db.initialize_db)
+
+        if self._rest_metrics_configured():
+            # Per-REST-call metrics run on every replica (chief + workers + alerts),
+            # so init lives in the shared setup path (no-op when telemetry is off).
+            framework.utils.telemetry.rest_metrics.init(service_name=self.service_name)
+
         await self._custom_setup_service()
 
         if (
@@ -255,6 +270,11 @@ class Service(ABC):
         if not mounted:
             framework.utils.periodic.cancel_all_periodic_functions()
 
+        if self._rest_metrics_configured():
+            await mlrun.utils.run_in_threadpool(
+                framework.utils.telemetry.rest_metrics.shutdown
+            )
+
     async def _custom_teardown_service(self):
         pass
 
@@ -275,6 +295,8 @@ class Service(ABC):
         self.app.add_middleware(
             framework.middlewares.RequestLoggerMiddleware, logger=self._logger
         )
+        if self._rest_metrics_configured():
+            self.app.add_middleware(framework.middlewares.RestMetricsMiddleware)
 
     def _add_exception_handlers(self):
         self.app.add_exception_handler(Exception, self._generic_error_handler)

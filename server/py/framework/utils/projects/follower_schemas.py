@@ -45,7 +45,10 @@ class FollowerProjectStatesPage(pydantic.BaseModel):
 class FollowerDeleteResult(pydantic.BaseModel):
     name: str
     op_id: uuid.UUID
-    result: typing.Literal["removed", "removal-scheduled"]
+    # Always "removed": commit-delete blocks until the purge actually finishes (Orca
+    # requirement) — there is no async/scheduled outcome to represent. A call that
+    # can't complete raises an HTTP error instead of returning a soft in-progress state.
+    result: typing.Literal["removed"]
 
 
 class FollowerPrepareCreateRequest(pydantic.BaseModel):

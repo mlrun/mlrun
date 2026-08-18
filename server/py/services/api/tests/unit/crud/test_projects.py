@@ -799,6 +799,33 @@ def test_commit_delete_project_purges_with_cascading_strategy(
     )
 
 
+def test_commit_delete_project_retry_with_same_op_id_re_runs_the_purge(
+    reset_projects_singleton: None,
+    patched_db_session: unittest.mock.MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """Blocking commit-delete (Orca requirement) means a retry with the same op_id —
+    e.g. after a dropped connection — must re-attempt the purge, not silently skip
+    it: check_same_op never returns ReplayOutcome.replay for commit_delete, precisely
+    so this keeps retrying rather than falsely reporting success."""
+    op_id = uuid.UUID(int=1)
+    existing = _make_follower_snapshot(
+        op_id, mlrun.common.schemas.ProjectState.deleting
+    )
+    monkeypatch.setattr(
+        projects_crud.Projects,
+        "get_follower_project_snapshot",
+        lambda *a, **k: existing,
+    )
+    delete_mock = unittest.mock.MagicMock()
+    monkeypatch.setattr(projects_crud.Projects, "delete_project", delete_mock)
+
+    projects_crud.Projects().commit_delete_project("proj", op_id)
+    projects_crud.Projects().commit_delete_project("proj", op_id)
+
+    assert delete_mock.call_count == 2
+
+
 def test_commit_delete_project_mismatched_op_is_rejected(
     reset_projects_singleton: None,
     patched_db_session: unittest.mock.MagicMock,

@@ -1167,14 +1167,15 @@ class Projects(
         session = framework.db.session.create_session()
         try:
             existing = self.get_follower_project_snapshot(session, name)
-            outcome = follower_contract.validate_call(
+            # check_same_op (used for commit_create/commit_delete) never returns
+            # ReplayOutcome.replay — a matching op_id always means "apply", since
+            # re-running these two mutations on a retry is a safe no-op either way.
+            follower_contract.validate_call(
                 follower_contract.FollowerOp.commit_create,
                 current_state=existing.status.state if existing else None,
                 stored_op_id=existing.status.op_id if existing else None,
                 incoming_op_id=op_id,
             )
-            if outcome == follower_contract.ReplayOutcome.replay:
-                return
             self.patch_project(
                 session,
                 name,
@@ -1223,27 +1224,27 @@ class Projects(
     ) -> None:
         """
         Validates and, if valid, synchronously purges this project's resources and its
-        row (via the existing cascading `delete_project`). Blocking by design — the
-        endpoint layer (`projects_follower.py`) is the one that decides whether to run
-        this inline or hand it to a background task and reply 202, since only it has
-        the request/response lifecycle; this hook stays a plain, re-entrant, idempotent
-        unit of work either way.
+        row (via the existing cascading `delete_project`). Deliberately blocking, per
+        Orca's requirement: the endpoint (`projects_follower.py`) awaits this call and
+        only responds once cleanup has actually finished — no background task, no early
+        202. A retry with the same op_id (e.g. after a dropped connection) re-runs the
+        deletion rather than skipping it — see the note on `validate_call` below — which
+        is what makes blocking-and-retrying safe: `delete_project`/`delete_project_resources`
+        are themselves idempotent-safe to call again on partially-cleaned-up resources.
         """
         session = framework.db.session.create_session()
         try:
             existing = self.get_follower_project_snapshot(session, name)
             if existing is None:
                 return  # already fully removed: no-op per the contract
-            outcome = follower_contract.validate_call(
+            # check_same_op (used for commit_create/commit_delete) never returns
+            # ReplayOutcome.replay — a matching op_id always means "apply".
+            follower_contract.validate_call(
                 follower_contract.FollowerOp.commit_delete,
                 current_state=existing.status.state,
                 stored_op_id=existing.status.op_id,
                 incoming_op_id=op_id,
             )
-            if outcome == follower_contract.ReplayOutcome.replay:
-                # A previous call already triggered (or finished) the purge; nothing new
-                # to do here — the endpoint layer checks the background task's own state.
-                return
             self.delete_project(
                 session,
                 name,

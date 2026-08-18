@@ -27,7 +27,6 @@ import uuid
 
 import fastapi
 import sqlalchemy.orm
-from fastapi import status
 
 import mlrun
 import mlrun.common.schemas
@@ -35,9 +34,7 @@ import mlrun.errors
 import mlrun.utils
 
 import framework.api.deps
-import framework.utils.background_tasks
 import framework.utils.clients.chief
-import framework.utils.projects.follower_contract as follower_contract
 import framework.utils.projects.follower_schemas as follower_schemas
 import services.api.crud
 
@@ -66,9 +63,9 @@ async def _reroute_to_chief_if_worker(
     request: fastapi.Request, method: str, path: str
 ) -> fastapi.Response | None:
     """
-    Used only by `commit_delete_project` — the one route in this router that touches
-    `InternalBackgroundTasksHandler`, which is chief-only. A worker replica re-routes
-    that call to chief rather than handling it itself.
+    Used only by `commit_delete_project` — the one route in this router whose work
+    (`delete_project_resources`, via `delete_schedules`) is chief-only. A worker
+    replica re-routes that call to chief rather than handling it itself.
     """
     if (
         mlrun.mlconf.httpdb.clusterization.role
@@ -186,16 +183,15 @@ async def prepare_delete_project(
 async def commit_delete_project(
     name: str,
     body: follower_schemas.FollowerCommitDeleteRequest,
-    response: fastapi.Response,
     request: fastapi.Request,
-    background_tasks: fastapi.BackgroundTasks,
     db_session: sqlalchemy.orm.Session = fastapi.Depends(
         framework.api.deps.get_db_session
     ),
 ) -> follower_schemas.FollowerDeleteResult:
-    # Only this endpoint reroutes to chief: it's the one call in this router that
-    # touches InternalBackgroundTasksHandler, which is chief-only — the other 4 do
-    # plain project DB writes, same as the legacy (non-rerouted) project CUD endpoints.
+    # Deliberately blocking, per Orca's requirement: this call does not return until
+    # the purge has actually finished — no background task, no early 202. Still
+    # reroutes to chief: delete_project_resources() deletes schedules, which are
+    # chief-only, same reason the legacy (non-follower) delete endpoint reroutes.
     if proxied := await _reroute_to_chief_if_worker(
         request, "DELETE", f"follower/projects/{name}"
     ):
@@ -211,40 +207,14 @@ async def commit_delete_project(
             name=name, op_id=op_id, result="removed"
         )
 
-    # Fail fast on an invalid call (stale/mismatched op_id, wrong state) before
-    # scheduling anything — commit_delete_project() re-runs this same check when the
-    # background task actually executes, which is then a safe, cheap no-op.
-    follower_contract.validate_call(
-        follower_contract.FollowerOp.commit_delete,
-        current_state=snapshot.status.state,
-        stored_op_id=snapshot.status.op_id,
-        incoming_op_id=op_id,
+    # Validates internally (CAS/ordering/state) and, on success, purges the project's
+    # resources and its row before returning — a genuine retry with the same op_id
+    # (e.g. after a dropped connection) re-runs the purge rather than skipping it.
+    await mlrun.utils.run_in_threadpool(
+        services.api.crud.Projects().commit_delete_project, name, op_id
     )
-
-    kind = framework.utils.background_tasks.BackgroundTaskKinds.project_deletion.format(
-        name
-    )
-    handler = framework.utils.background_tasks.InternalBackgroundTasksHandler()
-    existing_task = handler.get_active_background_task_by_kind(kind)
-    response.status_code = status.HTTP_202_ACCEPTED
-    if existing_task is None:
-        # No active task for this project: either the first call, or the previous
-        # attempt already finished (`InternalBackgroundTasksHandler` clears the active
-        # slot on both success and failure) and `snapshot` above being non-None means
-        # that attempt failed — either way, kicking off a fresh one is the right retry.
-        task, _ = handler.create_background_task(
-            kind,
-            mlrun.mlconf.background_tasks.default_timeouts.operations.delete_project,
-            services.api.crud.Projects().commit_delete_project,
-            None,  # background task's own id — let it generate one
-            name,
-            op_id,
-        )
-        background_tasks.add_task(task)
-    # else: an active task exists and is still running (a just-succeeded/failed task
-    # would already have been cleared from the active slot, per the note above).
     return follower_schemas.FollowerDeleteResult(
-        name=name, op_id=op_id, result="removal-scheduled"
+        name=name, op_id=op_id, result="removed"
     )
 
 

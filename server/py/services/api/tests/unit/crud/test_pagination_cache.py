@@ -13,15 +13,18 @@
 # limitations under the License.
 
 import time
+import unittest.mock
 
 import pytest
 import sqlalchemy.orm
 
 import mlrun.errors
+import tests.conftest
 from mlrun import mlconf
 from mlrun.utils import logger
 
 import framework.utils.pagination_cache
+import framework.utils.singletons.db
 import services.api.crud
 from framework.db.sqldb.db import MAX_INT_32
 
@@ -497,3 +500,61 @@ def test_store_paginated_query_cache_record_out_of_range(
         framework.utils.pagination_cache.PaginationCache().store_pagination_cache_record(
             db, "user_name", method, page, page_size, kwargs
         )
+
+
+def test_store_paginated_query_cache_record_retries_on_fresh_insert_conflict(
+    db: sqlalchemy.orm.Session,
+):
+    """
+    Regression test for ML-13001. SELECT ... FOR UPDATE only locks rows that already exist, so it
+    cannot stop two concurrent callers that both see zero matching rows from both trying to insert
+    the same primary key. Simulate the losing side of that race deterministically: force the
+    internal "does a record already exist" lookup to report "not found" on a store call whose key
+    already has a persisted row, so the insert collides for real. @retry_on_conflict must retry
+    the whole call - on retry, the lookup finds the row and updates it instead of raising
+    MLRunConflictError.
+    """
+    method = services.api.crud.Projects().list_projects
+    page_size = 10
+    kwargs = {}
+
+    key = framework.utils.pagination_cache.PaginationCache().store_pagination_cache_record(
+        db, "user_name", method, 1, page_size, kwargs
+    )
+
+    # Force only the very next lookup (inside the second store call below) to report "not found",
+    # even though a record for this key already exists - this reproduces the exact collision a
+    # real concurrent request would hit.
+    get_cache_record_mock = tests.conftest.MockSpecificCalls(
+        framework.utils.singletons.db.get_db().get_paginated_query_cache_record,
+        [1],
+        None,
+    ).mock_function
+    framework.utils.singletons.db.get_db().get_paginated_query_cache_record = (
+        unittest.mock.Mock(side_effect=get_cache_record_mock)
+    )
+
+    second_key = framework.utils.pagination_cache.PaginationCache().store_pagination_cache_record(
+        db, "user_name", method, 2, page_size, kwargs
+    )
+
+    assert second_key == key
+    assert (
+        framework.utils.singletons.db.get_db().get_paginated_query_cache_record.call_count
+        == 2
+    )
+    stored_record = (
+        framework.utils.pagination_cache.PaginationCache().get_pagination_cache_record(
+            db, key
+        )
+    )
+    assert stored_record is not None
+    assert stored_record.current_page == 2
+    assert (
+        len(
+            framework.utils.pagination_cache.PaginationCache().list_pagination_cache_records(
+                db
+            )
+        )
+        == 1
+    )

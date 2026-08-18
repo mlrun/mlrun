@@ -97,8 +97,6 @@ default_config = {
     "iguazio_api_url": "",  # the url to iguazio api (internal / external access with priority to internal)
     "iguazio_api_url_ingress": "",  # the url to iguazio api ingress (for external access)
     "iguazio_api_ssl_verify": True,  # verify ssl certificate of iguazio api
-    "orca_api_url": "",  # the url to Orca's API, used when httpdb.projects.leader is "orca"
-    "orca_api_ssl_verify": True,  # verify ssl certificate of Orca's api
     "spark_app_image": "",  # image to use for spark operator app runtime
     "spark_app_image_tag": "",  # image tag to use for spark operator app runtime
     "spark_history_server_path": "",  # spark logs directory for spark history server

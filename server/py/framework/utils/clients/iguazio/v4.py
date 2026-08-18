@@ -14,34 +14,40 @@
 import datetime
 import tempfile
 import typing
-import uuid
 
 import httpx
+import humanfriendly
 import iguazio
-import sqlalchemy.orm
+import requests
 from iguazio.schemas import (
     RefreshAccessTokenOptionsV1,
     RefreshAccessTokensOptionsV1,
     RevokeOfflineTokenOptionsV1,
-    UpdateProjectOwnerOptionsV1,
 )
 
-import mlrun.common.formatters
 import mlrun.common.schemas
 import mlrun.common.types
 import mlrun.errors
+import mlrun.utils
+import mlrun.utils.helpers
 from mlrun.utils import get_in
 
 import framework.utils.clients.helpers as clients_helpers
 import framework.utils.clients.service_account_token as service_account_token
-import framework.utils.projects.remotes.follower as project_follower
+import framework.utils.projects.remotes.leader as project_leader
 from framework.utils.clients.iguazio.base import BaseAsyncClient, BaseClient
 
 _GROUP_TYPE_KEY = "@type"
 _GROUP_TYPE_VALUE = "type.googleapis.com/usergroup.Group"
 
+# Orca's project endpoints - Orca is the IG4/Oris API service, reached via the same iguazio_api_url
+# this client already uses for auth/token operations.
+PROJECTS_ENDPOINT = "v1/projects"
+PROJECT_ENDPOINT_TEMPLATE = "v1/projects/{name}"
+PROJECT_STATE_ENDPOINT_TEMPLATE = "v1/project-states/{name}"
 
-class Client(BaseClient, project_follower.Member):
+
+class Client(BaseClient, project_leader.Member):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self._service_account_token_client = service_account_token.Client()
@@ -51,6 +57,22 @@ class Client(BaseClient, project_follower.Member):
             use_token_file=False,
             verify_ssl=mlrun.mlconf.iguazio_api_ssl_verify,
             logger=clients_helpers.iguazio_sdk_logger(self._logger),
+        )
+        # Used by the Orca project-leader-proxy methods below (create/update/delete/get project), which go
+        # through requests/BaseClient._send_request_to_api rather than the iguazio SDK client, since Orca's
+        # project endpoints aren't modeled there.
+        self._session = mlrun.utils.HTTPSessionWithRetry(
+            retry_on_exception=(
+                mlrun.mlconf.httpdb.projects.retry_leader_request_on_exception
+                == mlrun.common.schemas.HTTPSessionRetryMode.enabled.value
+            ),
+            verbose=True,
+        )
+        self._poll_interval_seconds = humanfriendly.parse_timespan(
+            mlrun.mlconf.httpdb.projects.orca_project_states_poll_interval
+        )
+        self._poll_timeout_seconds = humanfriendly.parse_timespan(
+            mlrun.mlconf.httpdb.projects.orca_project_states_poll_timeout
         )
 
     def refresh_access_token(
@@ -251,225 +273,247 @@ class Client(BaseClient, project_follower.Member):
 
     def create_project(
         self,
-        session: sqlalchemy.orm.Session,
+        session: str,
         project: mlrun.common.schemas.Project,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
-    ):
-        self._logger.debug("Creating default project policies in Iguazio")
+        wait_for_completion: bool = True,
+    ) -> bool:
+        """
+        Leader-proxy to Orca: forward project creation to Orca (relaying the acting user's identity so
+        Orca's OPA authorizes it), then poll Orca's single-project state endpoint until the operation
+        reaches a terminal state, to preserve the legacy synchronous ``wait_for_completion`` contract.
 
-        def _create_default_project_policies():
-            # TODO: Currently, create_default_project_policies relies on the auth info of the incoming request to
-            #       determine the owner of the project. The iguazio api needs to be updated to accept an explicit owner
-            #       parameter so we can use the service account token here.
-            #       This isn't required now, but will be for the project sync functionality.
-            self._client.create_default_project_policies(project=project.metadata.name)
-            self._logger.info(
-                "Successfully created default project policies in Iguazio"
-            )
-
-        self._try_callback_with_httpx_exceptions(
-            _create_default_project_policies,
-            mlrun.errors.MLRunInternalServerError,
-            "Failed to create default project policies in Iguazio",
-            auth_headers=auth_info.request_headers,
+        :return: whether the operation is still running in the background (Orca is always async, so this
+            is ``True`` unless the caller asked to wait and the operation already reached a terminal state).
+        """
+        self._logger.debug("Creating project in Orca", project=project.metadata.name)
+        response = self._send_project_request(
+            mlrun.common.types.HTTPMethod.POST,
+            PROJECTS_ENDPOINT,
+            "Failed creating project in Orca",
+            auth_info,
+            json=self._project_to_wire(project),
+        )
+        op_id = response.json()["status"]["op_id"]
+        return self._wait_for_op_if_requested(
+            project.metadata.name, op_id, wait_for_completion, auth_info
         )
 
-    def store_project(
+    def update_project(
         self,
-        session: sqlalchemy.orm.Session,
+        session: str,
         name: str,
         project: mlrun.common.schemas.Project,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ):
+        # the CAS witness Orca requires for an update is the last op_id the caller observed; if the caller
+        # didn't supply one, read the current state from Orca first (matches the HLD's "client reads the
+        # project, then PUT/PATCH with prev_op_id" contract)
+        current_op_id = (
+            project.status.op_id
+            or self.get_project(session, name, auth_info).status.op_id
+        )
         self._logger.debug(
-            "Ensuring default project policies exist in Iguazio", project=name
+            "Updating project in Orca", name=name, current_op_id=current_op_id
         )
-
-        def _create_policies_if_not_exist():
-            try:
-                self._client.create_default_project_policies(project=name)
-                self._logger.info(
-                    "Successfully created default project policies in Iguazio",
-                    project=name,
-                )
-            except httpx.HTTPStatusError as exc:
-                if exc.response.status_code == httpx.codes.CONFLICT:
-                    # Conflict means policies already exist, which is expected when storing
-                    # an existing project (e.g., load_project, sync, or re-save).
-                    # We use "create and handle conflict" instead of "check then create"
-                    # because checking a non-existent project returns 401, not 404.
-                    self._logger.debug(
-                        "Project policies already exist, skipping", project=name
-                    )
-                else:
-                    # Unexpected error, re-raise
-                    raise
-
-        self._try_callback_with_httpx_exceptions(
-            _create_policies_if_not_exist,
-            mlrun.errors.MLRunInternalServerError,
-            "Failed to store project policies in Iguazio",
-            auth_headers=auth_info.request_headers,
+        body = self._project_to_wire(project)
+        body["current_op_id"] = str(current_op_id) if current_op_id else None
+        response = self._send_project_request(
+            mlrun.common.types.HTTPMethod.PUT,
+            PROJECT_ENDPOINT_TEMPLATE.format(name=name),
+            "Failed updating project in Orca",
+            auth_info,
+            json=body,
         )
-
-    def patch_project(
-        self,
-        session: sqlalchemy.orm.Session,
-        name: str,
-        project: dict,
-        patch_mode: mlrun.common.schemas.PatchMode = mlrun.common.schemas.PatchMode.replace,
-        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
-    ):
-        self._logger.debug("Updating project owner in Iguazio")
-
-        def _update_project_owner():
-            owner = project.get("spec", {}).get("owner")
-            if not owner:
-                # No owner to update, nothing to do
-                return
-
-            options = UpdateProjectOwnerOptionsV1(owner=owner)
-            self._client.update_project_owner(project=name, options=options)
-            self._logger.info("Successfully updated project owner in Iguazio")
-
-        self._try_callback_with_httpx_exceptions(
-            _update_project_owner,
-            mlrun.errors.MLRunInternalServerError,
-            "Failed to update project owner in Iguazio",
-            auth_headers=auth_info.request_headers,
-        )
+        op_id = response.json()["status"]["op_id"]
+        # the shared leader-client interface has no wait_for_completion for update, so always settle here to
+        # match the legacy synchronous contract the caller expects
+        self._wait_for_op_if_requested(name, op_id, True, auth_info)
 
     def delete_project(
         self,
-        session: sqlalchemy.orm.Session,
+        session: str,
         name: str,
-        deletion_strategy: mlrun.common.schemas.DeletionStrategy = mlrun.common.schemas.DeletionStrategy.default(),
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
-    ):
-        if deletion_strategy == mlrun.common.schemas.DeletionStrategy.check:
-            return
-
-        self._logger.debug("Deleting project policies in Iguazio")
-
-        def _delete_project_policies():
-            self._client.delete_project_policies(project=name)
-            self._logger.info("Successfully deleted project policies in Iguazio")
-
-        self._try_callback_with_httpx_exceptions(
-            _delete_project_policies,
-            mlrun.errors.MLRunInternalServerError,
-            "Failed to delete project policies in Iguazio",
+        deletion_strategy: mlrun.common.schemas.DeletionStrategy = mlrun.common.schemas.DeletionStrategy.default(),
+        wait_for_completion: bool = True,
+    ) -> bool:
+        self._logger.debug(
+            "Deleting project in Orca", name=name, deletion_strategy=deletion_strategy
+        )
+        # the HLD documents the deletion-strategy gate as leader-side logic but doesn't pin how a caller
+        # communicates the strategy to Orca; sending it in the body keeps this consistent with every other
+        # write on this client until Orca's real contract lands
+        response = self._send_project_request(
+            mlrun.common.types.HTTPMethod.DELETE,
+            PROJECT_ENDPOINT_TEMPLATE.format(name=name),
+            "Failed deleting project in Orca",
+            auth_info,
+            json={"deletion_strategy": deletion_strategy.value},
+        )
+        if response.status_code in (requests.codes.ok, requests.codes.no_content):
+            # deleted (or was already absent) synchronously - nothing to poll
+            return False
+        op_id = response.json()["status"]["op_id"]
+        # a delete's terminal signal is the project disappearing from project-states, not a status value
+        return self._wait_for_op_if_requested(
+            name, op_id, wait_for_completion, auth_info, absence_is_terminal=True
         )
 
     def get_project(
         self,
-        session: sqlalchemy.orm.Session,
+        session: str,
         name: str,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ) -> mlrun.common.schemas.Project:
-        raise NotImplementedError("Getting a project is not supported")
+        response = self._send_project_request(
+            mlrun.common.types.HTTPMethod.GET,
+            PROJECT_STATE_ENDPOINT_TEMPLATE.format(name=name),
+            "Failed getting project state from Orca",
+            auth_info,
+        )
+        return self._wire_to_project(response.json())
 
     def list_projects(
         self,
-        session: sqlalchemy.orm.Session,
+        session: str,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
-        owner: str | None = None,
-        format_: mlrun.common.formatters.ProjectFormat = mlrun.common.formatters.ProjectFormat.full,
-        labels: list[str] | None = None,
-        state: mlrun.common.schemas.ProjectState = None,
-        names: list[str] | None = None,
         updated_after: datetime.datetime | None = None,
-    ) -> mlrun.common.schemas.ProjectsOutput:
-        # TODO: This is a placeholder implementation, as it is used for project sync. Implement this method as needed
-        #       when we support the project sync functionality with Iguazio 4.
-        return mlrun.common.schemas.ProjectsOutput(projects=[])
+    ) -> tuple[list[mlrun.common.schemas.Project], datetime.datetime | None]:
+        # Orca-mode reconciliation is leader-driven push plus the MLRun follower's own one-time startup sync
+        # (the dedicated /follower/projects/* surface); this role-2 proxy never runs mlrun's legacy
+        # periodic/full project sync against Orca, so this must stay unreachable (project_sync feature gate
+        # must stay disabled when leader=orca).
+        raise NotImplementedError(
+            "Periodic project sync is not supported when the leader is Orca"
+        )
 
-    def list_project_summaries(
+    def get_project_owner(
         self,
-        session: sqlalchemy.orm.Session,
-        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
-        owner: str | None = None,
-        labels: list[str] | None = None,
-        state: mlrun.common.schemas.ProjectState = None,
-        names: list[str] | None = None,
-    ) -> mlrun.common.schemas.ProjectSummariesOutput:
-        raise NotImplementedError("Listing project summaries is not supported")
-
-    def get_project_summary(
-        self,
-        session: sqlalchemy.orm.Session,
+        session: str,
         name: str,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
-    ) -> mlrun.common.schemas.ProjectSummary:
-        raise NotImplementedError("Get project summary is not supported")
+    ) -> mlrun.common.schemas.ProjectOwner:
+        raise NotImplementedError(
+            "get_project_owner is not supported when the leader is Orca"
+        )
 
-    def prepare_create_project(
+    def format_as_leader_project(
+        self, project: mlrun.common.schemas.Project
+    ) -> mlrun.common.schemas.IguazioProject:
+        raise NotImplementedError(
+            "format_as_leader_project is not supported when the leader is Orca"
+        )
+
+    def _send_project_request(
         self,
-        project: mlrun.common.schemas.Project,
-        op_id: uuid.UUID,
-    ) -> None:
-        raise NotImplementedError
+        method: str,
+        path: str,
+        error_message: str,
+        auth_info: mlrun.common.schemas.AuthInfo,
+        **kwargs,
+    ) -> requests.Response:
+        # Orca's Enterprise auth is JWT-bearer: relay the acting user's original request headers so Orca's
+        # OPA authorizes on the user's own identity - mlrun never authorizes these calls itself. Deliberately
+        # not using the full enrich_headers(path=...) form: it injects x-projects-role: mlrun for any
+        # "projects" path, which would assert mlrun's own leader-role identity - the opposite of a pure
+        # user-identity relay - so strip it explicitly even if somehow already present.
+        headers = dict(auth_info.request_headers or {})
+        headers.pop("content-length", None)
+        headers.pop(mlrun.common.schemas.HeaderNames.projects_role, None)
+        headers.update(kwargs.pop("headers", None) or {})
+        kwargs["headers"] = clients_helpers.enrich_headers(headers=headers)
+        kwargs.setdefault("timeout", 20)
+        return self._send_request_to_api(method, path, error_message, **kwargs)
 
-    def commit_create_project(
+    def _wait_for_op_if_requested(
         self,
         name: str,
-        op_id: uuid.UUID,
-    ) -> None:
-        raise NotImplementedError
-
-    def prepare_delete_project(
-        self,
-        name: str,
-        op_id: uuid.UUID,
-    ) -> None:
-        raise NotImplementedError
-
-    def commit_delete_project(
-        self,
-        name: str,
-        op_id: uuid.UUID,
-    ) -> None:
-        raise NotImplementedError
-
-    def update_project_follower(
-        self,
-        name: str,
-        project: mlrun.common.schemas.Project,
-        op_id: uuid.UUID,
-    ) -> None:
-        raise NotImplementedError
-
-    def _project_policies_exist(
-        self, project: str, auth_info: mlrun.common.schemas.AuthInfo
+        op_id: str,
+        wait_for_completion: bool,
+        auth_info: mlrun.common.schemas.AuthInfo,
+        absence_is_terminal: bool = False,
     ) -> bool:
-        try:
-            with self._client.with_headers(
-                clients_helpers.enrich_headers(
-                    headers=self._service_account_token_client.auth_headers
-                )
-            ):
-                return self._client.get_project_policy_assignments(project=project)
-        except httpx.HTTPStatusError as exc:
-            error_message, ctx = self._extract_response_error(exc.response)
-            if exc.response.status_code == httpx.codes.NOT_FOUND:
-                self._logger.info(
-                    "Project policies do not exist in Iguazio",
-                    project=project,
-                    error_message=error_message,
-                    ctx=ctx,
-                )
-                return False
-        except Exception as exc:
-            self._logger.warning(
-                "Failed to check if project policies exist in Iguazio",
-                project=project,
-                exc=mlrun.errors.err_to_str(exc),
-            )
-            raise mlrun.errors.MLRunInternalServerError(
-                "Failed to check if project policies exist in Iguazio"
-            ) from exc
+        if not wait_for_completion:
+            return True
+        self._logger.debug(
+            "Waiting for Orca operation to reach a terminal state",
+            name=name,
+            op_id=op_id,
+        )
+        mlrun.utils.helpers.retry_until_successful(
+            self._poll_interval_seconds,
+            self._poll_timeout_seconds,
+            self._logger,
+            False,
+            self._verify_op_terminal,
+            name,
+            op_id,
+            auth_info,
+            absence_is_terminal,
+        )
+        return False
 
-        return True
+    def _verify_op_terminal(
+        self,
+        name: str,
+        op_id: str,
+        auth_info: mlrun.common.schemas.AuthInfo,
+        absence_is_terminal: bool,
+    ):
+        try:
+            project = self.get_project("", name, auth_info)
+        except mlrun.errors.MLRunNotFoundError:
+            if absence_is_terminal:
+                return
+            raise
+        if str(project.status.op_id) != str(op_id):
+            # a newer operation superseded ours (e.g. a concurrent update) - nothing more to wait for
+            return
+        if (
+            project.status.state
+            not in mlrun.common.schemas.ProjectState.terminal_states()
+        ):
+            raise mlrun.errors.MLRunRuntimeError(
+                f"Orca operation {op_id} for project {name} is still in progress "
+                f"(state={project.status.state})"
+            )
+
+    @staticmethod
+    def _project_to_wire(project: mlrun.common.schemas.Project) -> dict:
+        return {
+            "metadata": {
+                "name": project.metadata.name,
+                "labels": project.metadata.labels or {},
+                "annotations": project.metadata.annotations or {},
+            },
+            "spec": {
+                "owner": project.spec.owner,
+                "description": project.spec.description,
+            },
+        }
+
+    @staticmethod
+    def _wire_to_project(body: dict) -> mlrun.common.schemas.Project:
+        metadata = body.get("metadata", {})
+        spec = body.get("spec", {})
+        status = body.get("status", {})
+        return mlrun.common.schemas.Project(
+            metadata=mlrun.common.schemas.ProjectMetadata(
+                name=metadata["name"],
+                labels=metadata.get("labels") or {},
+                annotations=metadata.get("annotations") or {},
+            ),
+            spec=mlrun.common.schemas.ProjectSpec(
+                owner=spec.get("owner"),
+                description=spec.get("description"),
+            ),
+            status=mlrun.common.schemas.ProjectStatus(
+                state=status.get("state"),
+                op_id=status.get("op_id"),
+                updated_at=status.get("updated_at"),
+            ),
+        )
 
     def _extract_response_error(
         self, response: httpx.Response
@@ -570,6 +614,9 @@ class Client(BaseClient, project_follower.Member):
             raise exception_type(failure_message) from exc
 
     def _extract_ctx(self, response_body: dict) -> str | None:
+        # Also used for the Orca project calls via _send_project_request/_send_request_to_api. Orca is a
+        # separate Go service with an unverified error envelope (no live endpoints to check against yet) -
+        # this may not parse Orca's real error responses; revisit once Orca's contract is confirmed.
         return response_body.get("status", {}).get("ctx")
 
     def _extract_error_message(self, response_body: dict) -> str | None:

@@ -51,7 +51,7 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 ### Metrics
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-16|MLRun collects anonymized system-size statistics, for example, project counts, artifact counts, run activity, serving endpoints, etc., and exports them to Prometheus via OpenTelemetry. See {ref}`otel-metrics`.|
+|ML-16|MLRun collects anonymized system-size statistics, for example, project counts, artifact counts, run activity, serving endpoints, etc., and exports them to Prometheus on the cluster via OpenTelemetry. Metrics are not exported from the cluster. See {ref}`otel-metrics`.|
 
 ### Alerts
 | ID    |Description                                                                 |

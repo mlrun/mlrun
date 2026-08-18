@@ -1,7 +1,8 @@
 (otel-metrics)=
 # OTel metrics
 
-MLRun collects anonymized system-wide statistics, for example, project counts, artifact counts, run activity, serving endpoints, etc., and exports them to Prometheus via OpenTelemetry. 
+MLRun collects anonymized system-wide statistics, for example, project counts, artifact counts, run activity, serving endpoints,
+etc., and exports them to Prometheus on the cluster via OpenTelemetry. Metrics are not exported from the cluster. 
 
 When enabled, monitoring application results and metrics are also exported via OpenTelemetry to the same OTLP endpoint. See [Export results and metrics via OTel](../model-monitoring/running-applications.md#export-results-and-metrics-via-otel).
 

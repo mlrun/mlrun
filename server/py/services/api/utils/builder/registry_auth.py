@@ -90,6 +90,23 @@ def classify_cloud_registry(target: str) -> CloudRegistryProvider | None:
     return None
 
 
+def registry_from_image(image: str) -> str | None:
+    """Return the explicit registry host in ``image``, or ``None`` if it has none.
+
+    Mirrors Docker's own reference-parsing rule: the segment before the first ``/`` is a registry
+    host only if it contains a ``.`` or ``:``, or is exactly ``localhost`` - otherwise (e.g.
+    ``python:3.11-slim``, or a Docker Hub ``some-org/some-image:tag``) there's no explicit registry,
+    the image is implicitly on Docker Hub.
+
+    :param image: A full image reference (``[registry/]repository[:tag]``).
+    :return: The registry host, or ``None``.
+    """
+    host, sep, _ = image.partition("/")
+    if not sep or ("." not in host and ":" not in host and host != "localhost"):
+        return None
+    return host
+
+
 def soft_fail_script(command: list[str], kind: str) -> str:
     """Wrap ``command`` so a failure logs a warning and exits 0 instead of failing the pod.
 

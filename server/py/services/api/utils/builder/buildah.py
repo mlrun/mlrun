@@ -258,7 +258,11 @@ def make_buildah_pod(
         # if the registry was not given, infer it from the image destination
         registry = dest.partition("/")[0]
 
-    base_registry = base_image.partition("/")[0] if base_image else None
+    # unlike dest, base_image is very often bare (e.g. "python:3.11-slim", or a Docker Hub
+    # "some-org/some-image:tag") with no explicit registry at all.
+    base_registry = (
+        registry_auth.registry_from_image(base_image) if base_image else None
+    )
 
     # every distinct registry this build touches, and which role(s) it plays there - a secret may
     # authenticate a *different* registry than either of these (e.g. a private base-image registry

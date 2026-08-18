@@ -50,6 +50,23 @@ def test_classify_cloud_registry(target, expected):
     assert registry_auth.classify_cloud_registry(target) == expected
 
 
+@pytest.mark.parametrize(
+    "image,expected",
+    [
+        ("us-docker.pkg.dev/some-project/some-image:tag", "us-docker.pkg.dev"),
+        ("myregistry.azurecr.io/mlrun/mlrun:1.13.0-rc2", "myregistry.azurecr.io"),
+        ("localhost:5000/some-image:tag", "localhost:5000"),
+        ("localhost/some-image:tag", "localhost"),
+        # no explicit registry - implicitly Docker Hub, per Docker's own reference-parsing rule
+        ("python:3.11-slim", None),
+        ("some-org/some-image:tag", None),
+        ("mlrun/mlrun:1.13.0-rc2", None),
+    ],
+)
+def test_registry_from_image(image, expected):
+    assert registry_auth.registry_from_image(image) == expected
+
+
 def _init_container(pod) -> object:
     assert len(pod.init_containers) == 1
     return pod.init_containers[0]

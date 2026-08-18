@@ -428,6 +428,20 @@ def test_make_buildah_pod_gar_credential_exchange_is_jit_not_init_container():
     assert "--authfile /auth/config.json" in lines[push_line]
 
 
+def test_make_buildah_pod_bare_base_image_has_no_pull_side_exchange():
+    # a base image with no explicit registry (e.g. the default "mlrun/mlrun:<version>", a Docker
+    # Hub image) must not be treated as a pull-side registry needing credential exchange.
+    registry = "myregistry.azurecr.io"
+    buildah_pod = _make_buildah_pod(
+        dest=f"{registry}/some-image:tag",
+        registry=registry,
+        base_image="mlrun/mlrun:1.13.0-rc2",
+    )
+    pod = buildah_pod.pod
+    assert len(pod.spec.init_containers) == 1
+    assert pod.spec.init_containers[0].name == "registry-credential-exchange"
+
+
 def test_make_buildah_pod_gar_credential_exchange_same_registry_mints_both():
     # base image on the *same* GAR host as the push destination - pull and push are still minted
     # independently (no same-host dedup for GAR, unlike ECR/ACR's init-container skip): pull right

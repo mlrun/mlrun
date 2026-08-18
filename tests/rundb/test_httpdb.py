@@ -1358,13 +1358,18 @@ def test_paginated_list_runs(create_server):
     db, project_name = _store_runs(create_server, num_runs)
     page_size = 4
 
+    # No filter is given, so pagination goes through the "no filter" default
+    # (partition_by=project_and_name, partition_sort_by=updated,
+    # partition_order=desc - see crud.Runs().list_runs) - most-recently-updated
+    # run first, i.e. run-9 down to run-0.
+
     # First request (Page 1)
     runs, token = db.paginated_list_runs(project=project_name, page_size=page_size)
     _assert_list_response(
         runs,
         expected_results_count=page_size,
         identifier_name="name",
-        expected_first_result_name="run-0",
+        expected_first_result_name="run-9",
     )
     assert token is not None
 
@@ -1374,7 +1379,7 @@ def test_paginated_list_runs(create_server):
         runs,
         expected_results_count=page_size,
         identifier_name="name",
-        expected_first_result_name="run-4",
+        expected_first_result_name="run-5",
     )
     assert token is not None
 
@@ -1384,7 +1389,7 @@ def test_paginated_list_runs(create_server):
         runs,
         expected_results_count=2,
         identifier_name="name",
-        expected_first_result_name="run-8",
+        expected_first_result_name="run-1",
     )
     assert token is None
 
@@ -1396,7 +1401,7 @@ def test_paginated_list_runs(create_server):
         runs,
         expected_results_count=2,
         identifier_name="name",
-        expected_first_result_name="run-8",
+        expected_first_result_name="run-1",
     )
     assert token is None
 

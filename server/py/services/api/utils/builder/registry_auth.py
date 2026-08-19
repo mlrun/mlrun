@@ -72,10 +72,11 @@ _GCP_METADATA_TOKEN_URL = (
 )
 
 
-def classify_cloud_registry(target: str) -> CloudRegistryProvider | None:
+def classify_cloud_registry(target: str | None) -> CloudRegistryProvider | None:
     """Return which cloud provider's registry ``target`` belongs to, or ``None``.
 
-    :param target: A registry host, or a full image reference (only the host matters).
+    :param target: A registry host, a full image reference (only the host matters), or ``None``
+        (e.g. from :func:`registry_from_image` finding no explicit registry).
     :return: The registry's :class:`CloudRegistryProvider`, or ``None`` for anything else (Docker
         Hub, a private/self-signed registry, ...).
     """
@@ -137,17 +138,27 @@ def append_secret_authfile_init_container(pod, authfile_path: str) -> None:
     one need to merge into that file, which a secret-backed volume mount doesn't allow. Runs first,
     so those merges land on top of the secret's own entries.
 
+    Chmods the copy to be world-writable: init containers get no explicit security context (see
+    :class:`~framework.utils.singletons.k8s.BasePod`), so this container's own UID depends entirely
+    on ``buildah_image``'s default user, which needn't match the main container's (fixed to 1000 -
+    see ``_caps_security_context`` in buildah.py) or any other credential-exchange init container's.
+    Every subsequent writer merges into this same file, so it must stay writable regardless of which
+    UID wrote it last.
+
     :param pod: The Buildah build pod being constructed.
     :param authfile_path: Where to copy the secret's docker-config content to.
     """
     # buildah_image, not _credential_exchange_image(): the main container always pulls it anyway,
     # so this copy step never costs an extra image pull - unlike the credential-exchange image,
     # which a GAR-only build (no ECR/ACR init container of its own) would otherwise never need. It
-    # already ships coreutils (see BuildahBackend's docstring), so `cp` is available.
+    # already ships coreutils (see BuildahBackend's docstring), so `cp`/`chmod` are available.
     pod.append_init_container(
         config.httpdb.builder.buildah_image,
-        command=["cp"],
-        args=[SECRET_AUTHFILE_PATH, authfile_path],
+        command=["/bin/sh", "-c"],
+        args=[
+            f"cp {shlex.quote(SECRET_AUTHFILE_PATH)} {shlex.quote(authfile_path)} && "
+            f"chmod 0666 {shlex.quote(authfile_path)}"
+        ],
         name=_COPY_SECRET_AUTHFILE_INIT_CONTAINER_NAME,
     )
 
@@ -256,7 +267,11 @@ def gar_credential_exchange_script(registry: str, authfile_path: str) -> str:
     (different GAR hosts, ML-12961), an ACR/ECR init container, or a copied-in static secret
     (ML-12988) may already have written to it - and any other top-level docker-config keys already
     there (``credHelpers``, ``credsStore``, ...) are preserved; only this one registry's entry is
-    ever added or replaced.
+    ever added or replaced. Unlike those writers (see :func:`append_secret_authfile_init_container`),
+    this one never needs to chmod the file afterward: it always runs in the main container, after
+    every init container has already finished, so nothing with a different UID ever writes to it
+    again - only ``buildah bud``/``push`` read it via ``--authfile``, which the default file mode
+    already allows.
 
     :param registry: The GAR/GCR registry host.
     :param authfile_path: Where to merge the docker-config-shaped authfile entry.

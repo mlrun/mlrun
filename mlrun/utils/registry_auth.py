@@ -126,7 +126,11 @@ def _merge_auth_entry(authfile_path: str, registry: str, auth: str) -> None:
     # static secret (ML-12988) may already be there too - init containers run sequentially, never
     # concurrently, so read-modify-write here is safe without locking. Preserves any other
     # top-level docker-config keys already in the file (credHelpers, credsStore, ...) - only the
-    # entry for this one registry is ever added or replaced.
+    # entry for this one registry is ever added or replaced. If a secret (or an earlier exchange)
+    # already had an entry for this exact registry, this mint's result wins - mirroring nuclio's own
+    # merge_authfile.py, which applies cloud tokens after secrets for the same reason: a successful
+    # mint means workload identity is actually configured for that host, so it's the fresher
+    # credential; a stale/misconfigured secret entry for the same host shouldn't shadow it.
     if os.path.exists(authfile_path):
         with open(authfile_path) as fh:
             doc = json.load(fh)
@@ -135,6 +139,10 @@ def _merge_auth_entry(authfile_path: str, registry: str, auth: str) -> None:
     doc.setdefault("auths", {})[registry] = {"auth": auth}
     with open(authfile_path, "w") as fh:
         json.dump(doc, fh)
+    # the previous writer's UID is never guaranteed to match this process's (init containers get no
+    # explicit security context - see append_secret_authfile_init_container in the server-side
+    # registry_auth.py), so the file must stay writable for whoever merges into it next.
+    os.chmod(authfile_path, 0o666)
 
 
 def _ecr_repo_name(dest: str) -> str:

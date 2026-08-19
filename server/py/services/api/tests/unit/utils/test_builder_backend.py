@@ -319,8 +319,10 @@ def test_make_buildah_pod_secret_and_cloud_provider_merge(registry, provider):
 
     copy_container = _init_container_by_name(buildah_pod, "copy-registry-auth-secret")
     assert copy_container is not None
-    assert copy_container.command == ["cp"]
-    assert copy_container.args == ["/auth-secret/config.json", "/auth/config.json"]
+    assert copy_container.command == ["/bin/sh", "-c"]
+    script = copy_container.args[0]
+    assert "cp /auth-secret/config.json /auth/config.json" in script
+    assert "chmod 0666 /auth/config.json" in script
     # mounted read-only elsewhere - never directly at the shared authfile path (ML-12988)
     secret_mount = next(
         mount
@@ -575,10 +577,16 @@ def test_make_buildah_pod_push_and_pull_different_acr_hosts():
     assert "system.azurecr.io" in by_name["registry-credential-exchange-pull"].args[0]
 
 
-def test_make_buildah_pod_same_registry_skips_duplicate_exchange():
-    # base image on the *same* ACR host as the push destination - the push-side exchange already
-    # writes that host's authfile entry, so no second (redundant) init container is needed.
-    registry = "myregistry.azurecr.io"
+@pytest.mark.parametrize(
+    "registry",
+    [
+        "myregistry.azurecr.io",
+        "123456789012.dkr.ecr.us-east-1.amazonaws.com",
+    ],
+)
+def test_make_buildah_pod_same_registry_skips_duplicate_exchange(registry):
+    # base image on the *same* ACR/ECR host as the push destination - the push-side exchange
+    # already writes that host's authfile entry, so no second (redundant) init container is needed.
     buildah_pod = _make_buildah_pod(
         dest=f"{registry}/some-image:tag",
         registry=registry,

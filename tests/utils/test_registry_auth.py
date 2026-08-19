@@ -21,6 +21,7 @@
 
 import base64
 import json
+import stat
 import unittest.mock
 
 import boto3
@@ -118,6 +119,35 @@ def test_mint_ecr_authfile_merges_existing_entry(tmp_path, monkeypatch):
     assert auths[registry]["auth"] == "token"
     assert written["credHelpers"] == {"some.other.registry": "docker-credential-helper"}
 
+    # world-writable: the authfile may already have been written by a different init container
+    # (e.g. the secret-copy one) whose UID isn't guaranteed to match this process's, and a later
+    # writer (another init container, or the main container's GAR script) must still be able to
+    # merge into it.
+    assert stat.S_IMODE(authfile.stat().st_mode) == 0o666
+
+
+def test_mint_ecr_authfile_overwrites_same_registry_entry(tmp_path, monkeypatch):
+    # if a secret (or an earlier exchange) already has an entry for this *exact* registry - e.g. a
+    # secret meant to authenticate it, now coincidentally also cloud-classified - this mint's result
+    # wins. Documents the precedence explicitly: see _merge_auth_entry in mlrun/utils/registry_auth.py
+    # for why (mirrors nuclio's own merge_authfile.py, which applies cloud tokens after secrets).
+    authfile = tmp_path / "config.json"
+    registry = "123456789012.dkr.ecr.us-east-1.amazonaws.com"
+    authfile.write_text(
+        json.dumps({"auths": {registry: {"auth": "stale-secret-auth"}}})
+    )
+
+    fake_client = unittest.mock.MagicMock()
+    fake_client.get_authorization_token.return_value = {
+        "authorizationData": [{"authorizationToken": "fresh-token"}]
+    }
+    monkeypatch.setattr(boto3, "client", unittest.mock.Mock(return_value=fake_client))
+
+    mint_ecr_authfile(registry, str(authfile))
+
+    written = json.loads(authfile.read_text())
+    assert written["auths"][registry]["auth"] == "fresh-token"
+
 
 def test_mint_acr_authfile_writes_authfile(tmp_path, monkeypatch):
     fake_credential = unittest.mock.MagicMock()
@@ -199,3 +229,33 @@ def test_mint_acr_authfile_merges_existing_entry(tmp_path, monkeypatch):
     decoded = base64.b64decode(auths[registry]["auth"]).decode()
     assert decoded == "00000000-0000-0000-0000-000000000000:my-refresh-token"
     assert written["credsStore"] == "desktop"
+    assert stat.S_IMODE(authfile.stat().st_mode) == 0o666
+
+
+def test_mint_acr_authfile_overwrites_same_registry_entry(tmp_path, monkeypatch):
+    # same precedence as the ECR case above: an entry for this exact registry already present
+    # (e.g. from a secret) is overwritten by this mint's fresher result.
+    authfile = tmp_path / "config.json"
+    registry = "myregistry.azurecr.io"
+    authfile.write_text(
+        json.dumps({"auths": {registry: {"auth": "stale-secret-auth"}}})
+    )
+
+    fake_credential = unittest.mock.MagicMock()
+    fake_credential.get_token.return_value = unittest.mock.Mock(token="aad-token")
+    monkeypatch.setattr(
+        "azure.identity.DefaultAzureCredential",
+        unittest.mock.Mock(return_value=fake_credential),
+    )
+    fake_response = unittest.mock.MagicMock()
+    fake_response.json.return_value = {"refresh_token": "my-refresh-token"}
+    monkeypatch.setattr(
+        requests, "post", unittest.mock.Mock(return_value=fake_response)
+    )
+    monkeypatch.setenv("AZURE_TENANT_ID", "tenant-123")
+
+    mint_acr_authfile(registry, str(authfile))
+
+    written = json.loads(authfile.read_text())
+    decoded = base64.b64decode(written["auths"][registry]["auth"]).decode()
+    assert decoded == "00000000-0000-0000-0000-000000000000:my-refresh-token"

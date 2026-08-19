@@ -228,7 +228,10 @@ def make_buildah_pod(
     :param dest:               The fully resolved destination image reference.
     :param dockerfile:         The rendered Dockerfile content (from :func:`base.make_dockerfile`).
     :param base_image:         The image the Dockerfile builds ``FROM``, used to also credential
-                               the base-image pull when it's on a cloud registry (ML-12961).
+                               the base-image pull when it's on a cloud registry (ML-12961). Pull
+                               credentials are derived from this alone - the Dockerfile
+                               (base.make_dockerfile) has exactly one ``FROM``, no separate
+                               onbuild/cache-from image with its own registry to account for.
     :param inline_code:        Inline function code to stage into the build context, if any.
     :param inline_path:        Destination filename for ``inline_code`` (default ``main.py``).
     :param requirements:       The resolved requirements list to stage, if any.

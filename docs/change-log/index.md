@@ -33,7 +33,7 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 ### Metrics
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-10240|MLRun now records processing time, request/response body size, and (for list calls) the number of objects returned for every REST API call, as OpenTelemetry histograms, exported to Prometheus. See {REST call metrics](../server-cfg/server-metrics.md#rest-call-metrics).|
+|ML-10240|MLRun now records processing time, request/response body size, and (for list calls) the number of objects returned for every REST API call, as OpenTelemetry histograms, exported to Prometheus. See [REST call metrics](../server-cfg/server-metrics.md#rest-call-metrics).|
 
 ### Runtimes
 | ID    |Description                                                                 |
@@ -43,7 +43,7 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 ### Infrastructure
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-12736|
+|ML-12736|The MLRun API service was upgraded and now uses KFP 2 instead of 1.8.|
 
 ### Closed issues
 | ID    |Description                                                                 |

@@ -619,6 +619,17 @@ class SQLDB(DBInterface):
                 partition_order,
                 max_partitions,
             )
+            if sort:
+                # _create_partitioned_query() orders its result by partition_sort_by
+                # (e.g. "updated" for the "no filter" default) purely to make row
+                # selection/pagination deterministic - that field governs which row
+                # wins *within* a partition, not the contract of this function's own
+                # `sort` param (order by start_time). Query.order_by() appends rather
+                # than replaces, so reset before reapplying the same sort used for the
+                # non-partitioned path above.
+                query = query.order_by(None).order_by(
+                    Run.start_time.desc(), Run.id.desc()
+                )
 
         query = self._paginate_query(query, offset, limit)
 

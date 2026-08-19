@@ -4758,8 +4758,8 @@ statsmodels==0.14.6 \
     --hash=sha256:f4ff0649a2df674c7ffb6fa1a06bffdb82a6adf09a48e90e000a15a6aaa734b0 \
     --hash=sha256:fe76140ae7adc5ff0e60a3f0d56f4fffef484efa803c3efebf2fcd734d72ecb5
     # via evidently
-storey==1.12.5 \
-    --hash=sha256:adc2ea259e21ccd0b11dbfebab28554fd937b1d72102b1ef97f1136bf67c4aac
+storey==1.12.6 \
+    --hash=sha256:654bd0c5ecd3b5532600d4ee2cad97162331ac0a4d3abc575c89e4bb598eaf81
     # via
     #   -r extras-requirements.txt
     #   -r requirements.txt

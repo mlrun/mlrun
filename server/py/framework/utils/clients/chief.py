@@ -190,11 +190,25 @@ class Client(
         self, method: str, path: str, request: fastapi.Request
     ) -> fastapi.Response:
         """
-        The ML-12901 /follower/projects endpoints mutate project state via the
-        chief-only InternalBackgroundTasksHandler bookkeeping, same as project CUD —
-        re-route from a worker to chief rather than handling the call locally.
+        Re-routes a worker's ML-12901 /follower/projects call to chief. Only
+        commit-delete actually needs chief (delete_project_resources deletes
+        schedules, which are chief-only); the other 5 routes are cheap DB writes
+        that would work locally too, but proxying them all uniformly is simpler
+        than branching on method/path.
+
+        commit-delete blocks until the full project purge finishes (per Orca's
+        requirement — see projects_follower.commit_delete_project), so this hop's
+        timeout must cover the same worst case the deletion background task was
+        already sized for, not the legacy chief-proxy default: a purge that
+        finishes on chief after this times out would report a false failure to
+        Orca even though the deletion actually succeeds.
         """
-        return await self._proxy_request_to_chief(method, path, request, timeout=120)
+        return await self._proxy_request_to_chief(
+            method,
+            path,
+            request,
+            timeout=mlrun.mlconf.background_tasks.default_timeouts.operations.delete_project,
+        )
 
     async def get_clusterization_spec(
         self, return_fastapi_response: bool = True, raise_on_failure: bool = False

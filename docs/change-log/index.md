@@ -2,6 +2,7 @@
 # Change log
 
 The change log lists updates per version, open issues, limitations, and deprecations.
+- [v1.13.0](#v1-13-0)
 - [v1.12.0](#v1120)
 - [v1.11.0](#v1110)
 - [v1.10.3](#v1103) | [v1.10.2](#v1102) | [v1.10.1](#v1101) | [v1.10.0](#v1100)
@@ -25,6 +26,31 @@ Upgrading these three MLRun dependencies spans several releases.  The upgrades a
 - Pydantic: from version 1 to 2.
 
 See a full description of KFP, Python, and the workflow engines in {ref}`local-remote`. Specific changes are listed under the relevant versions.
+
+(v1-13-0)=
+## v1.13.0
+
+### Metrics
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-10240|MLRun now records processing time, request/response body size, and (for list calls) the number of objects returned for every REST API call, as OpenTelemetry histograms, exported to Prometheus. See {REST call metrics](../server-cfg/server-metrics.md#rest-call-metrics).|
+
+### Runtimes
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-12427|buildah replaced kaniko as the container image builder.|
+
+### Infrastructure
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-12736|
+
+### Closed issues
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-
+
+
 (v1120)=
 ## v1.12.0
 

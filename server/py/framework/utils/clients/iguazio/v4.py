@@ -69,10 +69,10 @@ class Client(BaseClient, project_leader.Member):
             verbose=True,
         )
         self._poll_interval_seconds = humanfriendly.parse_timespan(
-            mlrun.mlconf.httpdb.projects.orca_project_states_poll_interval
+            mlrun.mlconf.httpdb.projects.iguazio_project_states_poll_interval
         )
         self._poll_timeout_seconds = humanfriendly.parse_timespan(
-            mlrun.mlconf.httpdb.projects.orca_project_states_poll_timeout
+            mlrun.mlconf.httpdb.projects.iguazio_project_states_poll_timeout
         )
 
     def refresh_access_token(

@@ -107,6 +107,15 @@ def build_image(
         ensure_function_security_context(runtime, auth_info)
         user_unix_id = runtime.spec.security_context.run_as_user
         enriched_group_id = runtime.spec.security_context.run_as_group
+    else:
+        # enrichment is disabled, but the function may still carry a static non-root
+        # security context (e.g. a cluster-wide default) that will govern the job pod's
+        # actual runtime uid/gid - chown the baked source dir to match it, or the pod
+        # won't be able to write into its own working directory. security_context may
+        # be an unconverted (e.g. empty) dict rather than a V1SecurityContext instance,
+        # hence the attribute-safe getattr.
+        user_unix_id = getattr(runtime.spec.security_context, "run_as_user", None)
+        enriched_group_id = getattr(runtime.spec.security_context, "run_as_group", None)
 
     # everything above is engine-agnostic resolution. Package it into the seam DTO,
     # then let the resolved backend own source routing, the Dockerfile source COPY

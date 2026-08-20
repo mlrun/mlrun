@@ -97,6 +97,106 @@ def test_build_image_build_request_carries_raw_unrouted_source(monkeypatch):
     assert "refs/heads" not in request.source
 
 
+def test_build_image_falls_back_to_static_security_context_when_enrichment_disabled(
+    monkeypatch,
+):
+    # ML-12960: even with enrichment disabled, a function may already carry a static
+    # non-root security context (e.g. a cluster-wide default) that will govern the job
+    # pod's actual runtime uid/gid - the build must chown the baked source dir to match
+    # it, or the pod won't be able to write into its own working directory.
+    monkeypatch.setattr(
+        config.function.spec.security_context,
+        "enrichment_mode",
+        mlrun.common.schemas.SecurityContextEnrichmentModes.disabled.value,
+    )
+
+    captured = {}
+
+    def _capture_request(self, request):
+        captured["request"] = request
+        return unittest.mock.MagicMock()
+
+    monkeypatch.setattr(
+        services.api.utils.builder.KanikoBackend, "make_build_pod", _capture_request
+    )
+    monkeypatch.setattr(
+        config.httpdb.builder,
+        "docker_registry",
+        "default.docker.registry/default-repository",
+    )
+    _patch_k8s_helper(monkeypatch)
+
+    function = mlrun.new_function(
+        "some-function",
+        "some-project",
+        "some-tag",
+        image="mlrun/mlrun",
+        kind=RuntimeKinds.job,
+    )
+    function.spec.build.source = "/path/some-source.tar.gz"
+    function.spec.security_context = client.V1SecurityContext(
+        run_as_user=1000, run_as_group=1000, run_as_non_root=True
+    )
+    services.api.utils.builder.build_runtime(
+        mlrun.common.schemas.AuthInfo(),
+        function,
+    )
+
+    request = captured["request"]
+    assert request.user_unix_id == 1000
+    assert request.enriched_group_id == 1000
+
+
+def test_build_image_no_uid_fallback_when_no_static_security_context(monkeypatch):
+    # the common/default case: enrichment disabled and no static security context
+    # configured. An *unconfigured* cluster default decodes to "{}" (not None) via
+    # mlconf.get_default_function_security_context(), and stays an unconverted plain
+    # dict rather than a V1SecurityContext instance - the exact shape that motivated
+    # the attribute-safe getattr() in the fix. No chown target, matching today's
+    # shipped behaviour.
+    monkeypatch.setattr(
+        config.function.spec.security_context,
+        "enrichment_mode",
+        mlrun.common.schemas.SecurityContextEnrichmentModes.disabled.value,
+    )
+
+    captured = {}
+
+    def _capture_request(self, request):
+        captured["request"] = request
+        return unittest.mock.MagicMock()
+
+    monkeypatch.setattr(
+        services.api.utils.builder.KanikoBackend, "make_build_pod", _capture_request
+    )
+    monkeypatch.setattr(
+        config.httpdb.builder,
+        "docker_registry",
+        "default.docker.registry/default-repository",
+    )
+    _patch_k8s_helper(monkeypatch)
+
+    function = mlrun.new_function(
+        "some-function",
+        "some-project",
+        "some-tag",
+        image="mlrun/mlrun",
+        kind=RuntimeKinds.job,
+    )
+    function.spec.build.source = "/path/some-source.tar.gz"
+    function.spec.security_context = {}
+    assert not isinstance(function.spec.security_context, client.V1SecurityContext)
+
+    services.api.utils.builder.build_runtime(
+        mlrun.common.schemas.AuthInfo(),
+        function,
+    )
+
+    request = captured["request"]
+    assert request.user_unix_id is None
+    assert request.enriched_group_id is None
+
+
 def _patch_k8s_helper(monkeypatch):
     get_k8s_helper_mock = unittest.mock.Mock()
     get_k8s_helper_mock.create_pod = unittest.mock.Mock(

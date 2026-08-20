@@ -276,16 +276,21 @@ class TestRuns(tests.integration.sdk_api.base.TestMLRunIntegration):
         # No filter is given, so this goes through the "no filter" default
         # (partition_by=project_and_name, partition_sort_by=updated,
         # partition_order=desc - see crud.Runs().list_runs). Each run has a
-        # distinct name, so each is its own partition; the global order across
-        # partitions is by `updated` (real insertion wall-clock time, independent
-        # of the fake historical `start_time` values set above), most-recent
-        # first, with `id` descending as the tiebreaker for runs created within
-        # the same timestamp resolution - i.e. the reverse of creation order.
+        # distinct name, so each is its own partition (partition_sort_by only
+        # decides row *selection* within a partition, a no-op here). The global
+        # order across partitions follows list_runs's own `sort` contract
+        # (default True: order by start_time), not partition_sort_by - see
+        # ML-13004. run-name-4 has no explicit start_time, so it defaults to
+        # real now() at store time (stored last, so latest); run-name-1/3 share
+        # the fake "now()-5h" offset and run-name-0/2 share "now()-1day", with
+        # run-name-3/run-name-2 each a hair more recent than run-name-1/run-name-0
+        # respectively, since their now() calls were evaluated later while
+        # building the `statuses` list above.
         expected_names = [
             "run-name-4",
             "run-name-3",
-            "run-name-2",
             "run-name-1",
+            "run-name-2",
             "run-name-0",
         ]
         for i, expected_name in enumerate(expected_names):

@@ -295,9 +295,10 @@ class Client(BaseClient, project_leader.Member):
             json=self._project_to_wire(project),
         )
         op_id = response.json()["status"]["op_id"]
-        return self._wait_for_op_if_requested(
-            project.metadata.name, op_id, wait_for_completion, auth_info
-        )
+        if not wait_for_completion:
+            return True
+        self._wait_for_op(project.metadata.name, op_id, auth_info)
+        return False
 
     def update_project(
         self,
@@ -328,7 +329,7 @@ class Client(BaseClient, project_leader.Member):
         op_id = response.json()["status"]["op_id"]
         # the shared leader-client interface has no wait_for_completion for update, so always settle here to
         # match the legacy synchronous contract the caller expects
-        self._wait_for_op_if_requested(name, op_id, True, auth_info)
+        self._wait_for_op(name, op_id, auth_info)
 
     def delete_project(
         self,
@@ -355,10 +356,11 @@ class Client(BaseClient, project_leader.Member):
             # deleted (or was already absent) synchronously - nothing to poll
             return False
         op_id = response.json()["status"]["op_id"]
+        if not wait_for_completion:
+            return True
         # a delete's terminal signal is the project disappearing from project-states, not a status value
-        return self._wait_for_op_if_requested(
-            name, op_id, wait_for_completion, auth_info, absence_is_terminal=True
-        )
+        self._wait_for_op(name, op_id, auth_info, absence_is_terminal=True)
+        return False
 
     def get_project(
         self,
@@ -426,16 +428,13 @@ class Client(BaseClient, project_leader.Member):
         kwargs.setdefault("timeout", 20)
         return self._send_request_to_api(method, path, error_message, **kwargs)
 
-    def _wait_for_op_if_requested(
+    def _wait_for_op(
         self,
         name: str,
         op_id: str,
-        wait_for_completion: bool,
         auth_info: mlrun.common.schemas.AuthInfo,
         absence_is_terminal: bool = False,
-    ) -> bool:
-        if not wait_for_completion:
-            return True
+    ) -> None:
         self._logger.debug(
             "Waiting for Orca operation to reach a terminal state",
             name=name,
@@ -452,7 +451,6 @@ class Client(BaseClient, project_leader.Member):
             auth_info,
             absence_is_terminal,
         )
-        return False
 
     def _verify_op_terminal(
         self,
@@ -481,39 +479,21 @@ class Client(BaseClient, project_leader.Member):
 
     @staticmethod
     def _project_to_wire(project: mlrun.common.schemas.Project) -> dict:
-        return {
-            "metadata": {
-                "name": project.metadata.name,
-                "labels": project.metadata.labels or {},
-                "annotations": project.metadata.annotations or {},
-            },
-            "spec": {
-                "owner": project.spec.owner,
-                "description": project.spec.description,
-            },
-        }
+        # Orca's contract is the HLD's "common set" only - name/labels/annotations/owner/description -
+        # deliberately excluding mlrun-specific spec (functions, artifacts, params, ...). include= keeps
+        # the wire payload pinned to that set regardless of what ProjectSpec grows to contain.
+        return project.model_dump(
+            include={
+                "metadata": {"name", "labels", "annotations"},
+                "spec": {"owner", "description"},
+            }
+        )
 
     @staticmethod
     def _wire_to_project(body: dict) -> mlrun.common.schemas.Project:
-        metadata = body.get("metadata", {})
-        spec = body.get("spec", {})
-        status = body.get("status", {})
-        return mlrun.common.schemas.Project(
-            metadata=mlrun.common.schemas.ProjectMetadata(
-                name=metadata["name"],
-                labels=metadata.get("labels") or {},
-                annotations=metadata.get("annotations") or {},
-            ),
-            spec=mlrun.common.schemas.ProjectSpec(
-                owner=spec.get("owner"),
-                description=spec.get("description"),
-            ),
-            status=mlrun.common.schemas.ProjectStatus(
-                state=status.get("state"),
-                op_id=status.get("op_id"),
-                updated_at=status.get("updated_at"),
-            ),
-        )
+        # Orca's wire shape is a strict subset of Project's own metadata/spec/status nesting - every field
+        # Orca doesn't populate already has a default - so this can validate straight off the response body.
+        return mlrun.common.schemas.Project.model_validate(body)
 
     def _extract_response_error(
         self, response: httpx.Response

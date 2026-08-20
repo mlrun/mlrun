@@ -697,7 +697,7 @@ class HTTPRunDB(RunDBInterface):
                     # TODO: change to os.getenv("MLRUN_RUNTIME_KIND")
                     # when https://github.com/mlrun/mlrun/pull/9121 is done.
                     if (
-                        mlrun.k8s_utils.is_running_inside_kubernetes_cluster()
+                        mlrun.k8s_utils.is_running_in_kubernetes_pod()
                         and not os.environ.get("JPY_SESSION_NAME")
                     ):
                         user_token_file = os.path.join(
@@ -708,7 +708,7 @@ class HTTPRunDB(RunDBInterface):
                     config.auth_with_oauth_token.token_file = user_token_file
 
                 # if running inside kubernetes, use the internal endpoint, otherwise use the external endpoint
-                if mlrun.k8s_utils.is_running_inside_kubernetes_cluster():
+                if mlrun.k8s_utils.is_running_in_kubernetes_pod():
                     config.auth_token_endpoint = server_cfg.get(
                         "oauth_internal_token_endpoint"
                     )

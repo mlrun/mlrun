@@ -532,9 +532,7 @@ def test_iguazio_v4_oauth_config_is_applied_before_token_provider_init(
     }
 
     # Ensure deterministic endpoint selection (external) regardless of env/CI kubernetes detection
-    monkeypatch.setattr(
-        mlrun.k8s_utils, "is_running_inside_kubernetes_cluster", lambda: False
-    )
+    monkeypatch.setattr(mlrun.k8s_utils, "is_running_in_kubernetes_pod", lambda: False)
 
     with _mock_httpdb_connect(server_cfg):
         db = HTTPRunDB("http://some-server:1919")
@@ -572,9 +570,7 @@ def test_iguazio_v4_oauth_config_uses_internal_endpoint_in_cluster(
         "oauth_internal_token_endpoint": internal_token_endpoint,
     }
 
-    monkeypatch.setattr(
-        mlrun.k8s_utils, "is_running_inside_kubernetes_cluster", lambda: True
-    )
+    monkeypatch.setattr(mlrun.k8s_utils, "is_running_in_kubernetes_pod", lambda: True)
     monkeypatch.setattr(
         mlrun.auth.utils,
         "read_secret_tokens_file",
@@ -601,6 +597,56 @@ def test_iguazio_v4_oauth_config_uses_internal_endpoint_in_cluster(
             mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_FILE,
         )
         assert mlrun.mlconf.auth_with_oauth_token.token_file == expected_token_file
+
+
+def test_iguazio_v4_oauth_token_file_uses_secret_path_without_sa_token_automount(
+    requests_mock: requests_mock_package.Mocker, monkeypatch
+):
+    """
+    Regression test for ML-13003: a job pod with automountServiceAccountToken disabled has no SA
+    token file, so kubernetes.config.load_incluster_config() would raise even though the pod is
+    genuinely in-cluster. connect() must still pick the job's secret-volume token path, driven
+    only by the KUBERNETES_SERVICE_HOST/KUBERNETES_SERVICE_PORT env vars the kubelet injects
+    regardless of automount.
+    """
+    monkeypatch.setenv("KUBERNETES_SERVICE_HOST", "10.0.0.1")
+    monkeypatch.setenv("KUBERNETES_SERVICE_PORT", "443")
+    monkeypatch.delenv("JPY_SESSION_NAME", raising=False)
+
+    internal_token_endpoint = "https://dashboard.default-tenant.svc.cluster.local/api/v1/authentication/refresh-access-token"
+    iat = int(time.time())
+    exp = iat + 3600
+    jwt_token = _encode_jwt({"iat": iat, "exp": exp})
+    requests_mock.post(
+        internal_token_endpoint, json={"spec": {"accessToken": jwt_token}}
+    )
+
+    server_cfg = {
+        "version": mlrun.mlconf.version,
+        "authentication_mode": mlrun.common.types.AuthenticationMode.IGUAZIO_V4.value,
+        "oauth_enabled": True,
+        "oauth_external_token_endpoint": "https://dashboard.default-tenant.app.example.com/api/v1/authentication/refresh-access-token",
+        "oauth_internal_token_endpoint": internal_token_endpoint,
+    }
+
+    monkeypatch.setattr(
+        mlrun.auth.utils,
+        "read_secret_tokens_file",
+        lambda raise_on_error: {
+            "secretTokens": [{"name": "default", "token": "offline"}]
+        },
+    )
+
+    with _mock_httpdb_connect(server_cfg):
+        db = HTTPRunDB("http://some-server:1919")
+        db.connect()
+
+    expected_token_file = os.path.join(
+        mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_PATH,
+        mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_FILE,
+    )
+    assert mlrun.mlconf.auth_with_oauth_token.token_file == expected_token_file
+    assert mlrun.mlconf.auth_token_endpoint == internal_token_endpoint
 
 
 @pytest.mark.parametrize(
@@ -654,9 +700,7 @@ def test_iguazio_v4_oauth_token_file_auto_initialization(
     }
 
     # Mock kubernetes detection
-    monkeypatch.setattr(
-        mlrun.k8s_utils, "is_running_inside_kubernetes_cluster", lambda: is_k8s
-    )
+    monkeypatch.setattr(mlrun.k8s_utils, "is_running_in_kubernetes_pod", lambda: is_k8s)
 
     # Set or clear Jupyter environment variable
     if has_jupyter_env:
@@ -713,9 +757,7 @@ def test_connect_preserves_explicit_credentials_in_iguazio_v4(monkeypatch):
         "oauth_external_token_endpoint": "https://dashboard.example.com/refresh",
     }
     # deterministic endpoint selection
-    monkeypatch.setattr(
-        mlrun.k8s_utils, "is_running_inside_kubernetes_cluster", lambda: False
-    )
+    monkeypatch.setattr(mlrun.k8s_utils, "is_running_in_kubernetes_pod", lambda: False)
 
     token = "sa-bearer-token"
     credentials = mlrun.Credentials(token=token)

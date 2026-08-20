@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import copy
+import os
 import re
 import typing
 import warnings
@@ -31,7 +32,16 @@ SanitizedK8sObj = dict[str, typing.Any]
 K8sObjList = typing.Union[list[K8sObj], list[SanitizedK8sObj]]
 
 
-def is_running_inside_kubernetes_cluster():
+def has_incluster_kubernetes_client_config() -> bool:
+    """
+    Check whether a working, credentialed in-cluster Kubernetes client config can be loaded.
+
+    Depends on the service-account token being mounted; returns False even inside a real pod when
+    automountServiceAccountToken is disabled. Use is_running_in_kubernetes_pod() instead when the
+    caller only needs "am I in a pod" and does not need to talk to the k8s API.
+
+    :return: True if a working in-cluster k8s client config could be loaded, False otherwise.
+    """
     global _running_inside_kubernetes_cluster
     if _running_inside_kubernetes_cluster is None:
         try:
@@ -40,6 +50,24 @@ def is_running_inside_kubernetes_cluster():
         except kubernetes.config.ConfigException:
             _running_inside_kubernetes_cluster = False
     return _running_inside_kubernetes_cluster
+
+
+def is_running_in_kubernetes_pod() -> bool:
+    """
+    Check whether the current process is running inside a Kubernetes pod.
+
+    Checks only the KUBERNETES_SERVICE_HOST / KUBERNETES_SERVICE_PORT env vars the kubelet
+    injects into every pod via service links, regardless of automountServiceAccountToken — the
+    same first signal kubernetes.config.incluster_config and Go's client-go rest.InClusterConfig()
+    check before ever touching the service-account token. Use this instead of
+    has_incluster_kubernetes_client_config() when the caller only needs "am I in a pod" and does
+    not need a working k8s API client.
+
+    :return: True if running inside a Kubernetes pod, False otherwise.
+    """
+    return bool(os.environ.get("KUBERNETES_SERVICE_HOST")) and bool(
+        os.environ.get("KUBERNETES_SERVICE_PORT")
+    )
 
 
 def generate_preemptible_node_selector_requirements(

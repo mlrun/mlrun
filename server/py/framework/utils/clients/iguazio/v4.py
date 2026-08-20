@@ -294,9 +294,11 @@ class Client(BaseClient, project_leader.Member):
             auth_info,
             json=self._project_to_wire(project),
         )
-        op_id = response.json()["status"]["op_id"]
+
         if not wait_for_completion:
             return True
+
+        op_id = response.json()["status"]["op_id"]
         self._wait_for_op(project.metadata.name, op_id, auth_info)
         return False
 
@@ -319,6 +321,7 @@ class Client(BaseClient, project_leader.Member):
         )
         body = self._project_to_wire(project)
         body["current_op_id"] = str(current_op_id) if current_op_id else None
+
         response = self._send_project_request(
             mlrun.common.types.HTTPMethod.PUT,
             PROJECT_ENDPOINT_TEMPLATE.format(name=name),
@@ -326,9 +329,10 @@ class Client(BaseClient, project_leader.Member):
             auth_info,
             json=body,
         )
-        op_id = response.json()["status"]["op_id"]
+
         # the shared leader-client interface has no wait_for_completion for update, so always settle here to
         # match the legacy synchronous contract the caller expects
+        op_id = response.json()["status"]["op_id"]
         self._wait_for_op(name, op_id, auth_info)
 
     def delete_project(
@@ -352,14 +356,15 @@ class Client(BaseClient, project_leader.Member):
             auth_info,
             json={"deletion_strategy": deletion_strategy.value},
         )
-        if response.status_code in (requests.codes.ok, requests.codes.no_content):
-            # deleted (or was already absent) synchronously - nothing to poll
-            return False
-        op_id = response.json()["status"]["op_id"]
-        if not wait_for_completion:
-            return True
-        # a delete's terminal signal is the project disappearing from project-states, not a status value
-        self._wait_for_op(name, op_id, auth_info, absence_is_terminal=True)
+
+        if response.status_code == requests.codes.accepted:
+            # 202: accepted, still converging - poll for completion
+            if not wait_for_completion:
+                return True
+            # a delete's terminal signal is the project disappearing from project-states, not a status value
+            op_id = response.json()["status"]["op_id"]
+            self._wait_for_op(name, op_id, auth_info, absence_is_terminal=True)
+
         return False
 
     def get_project(

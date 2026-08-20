@@ -885,6 +885,32 @@ def test_orca_delete_project_polls_until_absent(
 
 
 @pytest.mark.parametrize("iguazio_client", [("v4", "sync")], indirect=True)
+def test_orca_delete_project_completes_synchronously(
+    api_url: str,
+    iguazio_client,
+    igv4_auth_info: mlrun.common.schemas.AuthInfo,
+    fast_orca_poll,
+    requests_mock: requests_mock_package.Mocker,
+):
+    project = _generate_igv4_project()
+    requests_mock.delete(
+        f"{api_url}/api/v1/projects/{project.metadata.name}",
+        status_code=http.HTTPStatus.NO_CONTENT,
+    )
+
+    is_running_in_background = iguazio_client.delete_project(
+        "unused-session",
+        project.metadata.name,
+        igv4_auth_info,
+        wait_for_completion=True,
+    )
+
+    assert is_running_in_background is False
+    # no op_id in the response - nothing to poll
+    assert len(requests_mock.request_history) == 1
+
+
+@pytest.mark.parametrize("iguazio_client", [("v4", "sync")], indirect=True)
 def test_orca_list_projects_not_implemented(
     iguazio_client, igv4_auth_info: mlrun.common.schemas.AuthInfo
 ):

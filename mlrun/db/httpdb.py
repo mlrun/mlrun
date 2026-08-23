@@ -694,12 +694,7 @@ class HTTPRunDB(RunDBInterface):
                     user_token_file = os.path.expanduser("~/.igz.yml")
 
                     # runtimes
-                    # TODO: change to os.getenv("MLRUN_RUNTIME_KIND")
-                    # when https://github.com/mlrun/mlrun/pull/9121 is done.
-                    if (
-                        mlrun.k8s_utils.is_running_in_kubernetes_pod()
-                        and not os.environ.get("JPY_SESSION_NAME")
-                    ):
+                    if mlrun.utils.helpers.is_running_in_runtime():
                         user_token_file = os.path.join(
                             mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_PATH,
                             mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_FILE,

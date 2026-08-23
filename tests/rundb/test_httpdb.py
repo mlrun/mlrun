@@ -47,6 +47,7 @@ import mlrun.common.types
 import mlrun.errors
 import mlrun.projects.project
 import mlrun.secrets
+import mlrun.utils.helpers
 from mlrun import RunObject
 from mlrun.auth.providers import IGTokenProvider, StaticTokenProvider
 from mlrun.db.httpdb import HTTPRunDB
@@ -571,6 +572,7 @@ def test_iguazio_v4_oauth_config_uses_internal_endpoint_in_cluster(
     }
 
     monkeypatch.setattr(mlrun.k8s_utils, "is_running_in_kubernetes_pod", lambda: True)
+    monkeypatch.setattr(mlrun.utils.helpers, "is_running_in_runtime", lambda: True)
     monkeypatch.setattr(
         mlrun.auth.utils,
         "read_secret_tokens_file",
@@ -605,13 +607,14 @@ def test_iguazio_v4_oauth_token_file_uses_secret_path_without_sa_token_automount
     """
     Regression test for ML-13003: a job pod with automountServiceAccountToken disabled has no SA
     token file, so kubernetes.config.load_incluster_config() would raise even though the pod is
-    genuinely in-cluster. connect() must still pick the job's secret-volume token path, driven
-    only by the KUBERNETES_SERVICE_HOST/KUBERNETES_SERVICE_PORT env vars the kubelet injects
-    regardless of automount.
+    genuinely in-cluster. connect() must still pick the internal endpoint and the job's
+    secret-volume token path, driven only by env vars the kubelet/mlrun inject regardless of
+    automount: KUBERNETES_SERVICE_HOST/KUBERNETES_SERVICE_PORT for the endpoint, MLRUN_RUNTIME_KIND
+    for the token file.
     """
     monkeypatch.setenv("KUBERNETES_SERVICE_HOST", "10.0.0.1")
     monkeypatch.setenv("KUBERNETES_SERVICE_PORT", "443")
-    monkeypatch.delenv("JPY_SESSION_NAME", raising=False)
+    monkeypatch.setenv("MLRUN_RUNTIME_KIND", "job")
 
     internal_token_endpoint = "https://dashboard.default-tenant.svc.cluster.local/api/v1/authentication/refresh-access-token"
     iat = int(time.time())
@@ -650,30 +653,30 @@ def test_iguazio_v4_oauth_token_file_uses_secret_path_without_sa_token_automount
 
 
 @pytest.mark.parametrize(
-    "is_k8s,has_jupyter_env,preconfigured_token_file,expected_token_file_suffix",
+    "is_k8s,is_runtime,preconfigured_token_file,expected_token_file_suffix",
     [
-        # Running in k8s (not Jupyter) - should use k8s secret path
-        (True, False, None, "/var/mlrun-secrets/auth/.igz.yml"),
-        # Running in k8s under Jupyter - should use user home token file
-        (True, True, None, "~/.igz.yml"),
-        # Running locally (not k8s) - should use user home token file
+        # Running in k8s as an mlrun runtime (job/dask/nuclio) - should use k8s secret path
+        (True, True, None, "/var/mlrun-secrets/auth/.igz.yml"),
+        # Running in k8s but not as an mlrun runtime (e.g. Jupyter) - should use user home token file
+        (True, False, None, "~/.igz.yml"),
+        # Running locally (not k8s, not a runtime) - should use user home token file
         (False, False, None, "~/.igz.yml"),
         # Token file already configured - should not change it
-        (True, False, "/custom/path/token.yml", "/custom/path/token.yml"),
+        (True, True, "/custom/path/token.yml", "/custom/path/token.yml"),
     ],
 )
 def test_iguazio_v4_oauth_token_file_auto_initialization(
     requests_mock: requests_mock_package.Mocker,
     monkeypatch,
     is_k8s,
-    has_jupyter_env,
+    is_runtime,
     preconfigured_token_file,
     expected_token_file_suffix,
 ):
     """
     Test that token_file is correctly auto-initialized based on environment:
-    - In k8s (not Jupyter): uses /var/mlrun-secrets/auth/.igz.yml
-    - In k8s under Jupyter: uses ~/.igz.yml
+    - In k8s, as an mlrun runtime: uses /var/mlrun-secrets/auth/.igz.yml
+    - In k8s, not an mlrun runtime (e.g. Jupyter): uses ~/.igz.yml
     - Locally: uses ~/.igz.yml
     - Pre-configured: preserves the existing value
     """
@@ -699,14 +702,11 @@ def test_iguazio_v4_oauth_token_file_auto_initialization(
         "oauth_internal_token_endpoint": internal_token_endpoint,
     }
 
-    # Mock kubernetes detection
+    # Mock kubernetes detection and mlrun-runtime detection independently
     monkeypatch.setattr(mlrun.k8s_utils, "is_running_in_kubernetes_pod", lambda: is_k8s)
-
-    # Set or clear Jupyter environment variable
-    if has_jupyter_env:
-        monkeypatch.setenv("JPY_SESSION_NAME", "jupyter-session")
-    else:
-        monkeypatch.delenv("JPY_SESSION_NAME", raising=False)
+    monkeypatch.setattr(
+        mlrun.utils.helpers, "is_running_in_runtime", lambda: is_runtime
+    )
 
     # Mock secret tokens reading for k8s environments
     monkeypatch.setattr(

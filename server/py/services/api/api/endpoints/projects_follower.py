@@ -32,6 +32,7 @@ import mlrun
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils
+from mlrun.utils import logger
 
 import framework.api.deps
 import framework.utils.clients.chief
@@ -56,24 +57,6 @@ def _to_follower_state(
         name=snapshot.metadata.name,
         op_id=snapshot.status.op_id,
         state=snapshot.status.state,
-    )
-
-
-async def _reroute_to_chief_if_worker(
-    request: fastapi.Request, method: str, path: str
-) -> fastapi.Response | None:
-    """
-    Used only by `commit_delete_project` — the one route in this router whose work
-    (`delete_project_resources`, via `delete_schedules`) is chief-only. A worker
-    replica re-routes that call to chief rather than handling it itself.
-    """
-    if (
-        mlrun.mlconf.httpdb.clusterization.role
-        == mlrun.common.schemas.ClusterizationRole.chief
-    ):
-        return None
-    return await framework.utils.clients.chief.Client().proxy_follower_project_request(
-        method, path, request
     )
 
 
@@ -188,14 +171,21 @@ async def commit_delete_project(
         framework.api.deps.get_db_session
     ),
 ) -> follower_schemas.FollowerDeleteResult:
-    # Deliberately blocking, per Orca's requirement: this call does not return until
-    # the purge has actually finished — no background task, no early 202. Still
-    # reroutes to chief: delete_project_resources() deletes schedules, which are
-    # chief-only, same reason the legacy (non-follower) delete endpoint reroutes.
-    if proxied := await _reroute_to_chief_if_worker(
-        request, "DELETE", f"follower/projects/{name}"
+    # delete_project_resources deletes schedules, which run only on chief, so we
+    # re-route to chief — same reason the legacy (non-follower) delete endpoint does.
+    if (
+        mlrun.mlconf.httpdb.clusterization.role
+        != mlrun.common.schemas.ClusterizationRole.chief
     ):
-        return proxied
+        logger.info(
+            "Requesting to commit-delete follower project, re-routing to chief",
+            project=name,
+        )
+        return (
+            await framework.utils.clients.chief.Client().commit_delete_follower_project(
+                name=name, request=request
+            )
+        )
 
     op_id = body.op_id
     snapshot = await mlrun.utils.run_in_threadpool(

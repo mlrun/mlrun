@@ -100,10 +100,10 @@ def test_build_image_build_request_carries_raw_unrouted_source(monkeypatch):
 def test_build_image_falls_back_to_static_security_context_when_enrichment_disabled(
     monkeypatch,
 ):
-    # ML-12960: even with enrichment disabled, a function may already carry a static
-    # non-root security context (e.g. a cluster-wide default) that will govern the job
-    # pod's actual runtime uid/gid - the build must chown the baked source dir to match
-    # it, or the pod won't be able to write into its own working directory.
+    # even with enrichment disabled, a function may already carry a static non-root
+    # security context (e.g. a cluster-wide default) that will govern the job pod's
+    # actual runtime uid/gid - the build must chown the baked source dir to match it,
+    # or the pod won't be able to write into its own working directory.
     monkeypatch.setattr(
         config.function.spec.security_context,
         "enrichment_mode",
@@ -137,6 +137,51 @@ def test_build_image_falls_back_to_static_security_context_when_enrichment_disab
     function.spec.security_context = client.V1SecurityContext(
         run_as_user=1000, run_as_group=1000, run_as_non_root=True
     )
+    services.api.utils.builder.build_runtime(
+        mlrun.common.schemas.AuthInfo(),
+        function,
+    )
+
+    request = captured["request"]
+    assert request.user_unix_id == 1000
+    assert request.enriched_group_id == 1000
+
+
+def test_build_image_static_security_context_uid_only_still_chowns(monkeypatch):
+    # a static security context may pin only the uid, leaving the group to the
+    # image's own default - the chown must still fire (using the uid as the group
+    # too), since POSIX owner permissions only need the uid to match.
+    monkeypatch.setattr(
+        config.function.spec.security_context,
+        "enrichment_mode",
+        mlrun.common.schemas.SecurityContextEnrichmentModes.disabled.value,
+    )
+
+    captured = {}
+
+    def _capture_request(self, request):
+        captured["request"] = request
+        return unittest.mock.MagicMock()
+
+    monkeypatch.setattr(
+        services.api.utils.builder.KanikoBackend, "make_build_pod", _capture_request
+    )
+    monkeypatch.setattr(
+        config.httpdb.builder,
+        "docker_registry",
+        "default.docker.registry/default-repository",
+    )
+    _patch_k8s_helper(monkeypatch)
+
+    function = mlrun.new_function(
+        "some-function",
+        "some-project",
+        "some-tag",
+        image="mlrun/mlrun",
+        kind=RuntimeKinds.job,
+    )
+    function.spec.build.source = "/path/some-source.tar.gz"
+    function.spec.security_context = client.V1SecurityContext(run_as_user=1000)
     services.api.utils.builder.build_runtime(
         mlrun.common.schemas.AuthInfo(),
         function,

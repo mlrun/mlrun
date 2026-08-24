@@ -14,6 +14,7 @@
 import datetime
 import tempfile
 import typing
+import uuid
 
 import httpx
 import humanfriendly
@@ -41,10 +42,21 @@ _GROUP_TYPE_KEY = "@type"
 _GROUP_TYPE_VALUE = "type.googleapis.com/usergroup.Group"
 
 # Orca's project endpoints - Orca is the IG4/Oris API service, reached via the same iguazio_api_url
-# this client already uses for auth/token operations.
-PROJECTS_ENDPOINT = "v1/projects"
-PROJECT_ENDPOINT_TEMPLATE = "v1/projects/{name}"
-PROJECT_STATE_ENDPOINT_TEMPLATE = "v1/project-states/{name}"
+# this client already uses for auth/token operations. The path is doubled ("projects/projects") because
+# the route registry combines the "projects" subdomain with that subdomain's own "/projects" resource path.
+PROJECTS_ENDPOINT = "v1/projects/projects"
+PROJECT_ENDPOINT_TEMPLATE = "v1/projects/projects/{name}"
+ACTION_EXECUTIONS_ENDPOINT = "v1/trackable-actions/executions"
+
+# The project-sync driver publishes a "sync-project" trackable action, keyed by op_id as its
+# correlation_id, on the "projects" subdomain's ActionRunner - see orca SDK PR #1059.
+PROJECT_SYNC_ACTION_TYPE = "sync-project"
+PROJECT_SYNC_SUBDOMAIN = "projects"
+
+
+class _OrcaActionFailedError(Exception):
+    """Internal marker so _wait_for_op can stop polling immediately instead of waiting out the full
+    timeout on an action that has already terminally failed."""
 
 
 class Client(BaseClient, project_leader.Member):
@@ -280,8 +292,9 @@ class Client(BaseClient, project_leader.Member):
     ) -> bool:
         """
         Leader-proxy to Orca: forward project creation to Orca (relaying the acting user's identity so
-        Orca's OPA authorizes it), then poll Orca's single-project state endpoint until the operation
-        reaches a terminal state, to preserve the legacy synchronous ``wait_for_completion`` contract.
+        Orca's OPA authorizes it), then poll the project-sync trackable action for the returned op_id
+        until it reaches a terminal state, to preserve the legacy synchronous ``wait_for_completion``
+        contract.
 
         :return: whether the operation is still running in the background (Orca is always async, so this
             is ``True`` unless the caller asked to wait and the operation already reached a terminal state).
@@ -292,13 +305,13 @@ class Client(BaseClient, project_leader.Member):
             PROJECTS_ENDPOINT,
             "Failed creating project in Orca",
             auth_info,
-            json=self._project_to_wire(project),
+            json=self._create_project_wire(project),
         )
 
         if not wait_for_completion:
             return True
 
-        op_id = response.json()["status"]["op_id"]
+        op_id = response.json()["status"]["opId"]
         self._wait_for_op(project.metadata.name, op_id, auth_info)
         return False
 
@@ -312,27 +325,22 @@ class Client(BaseClient, project_leader.Member):
         # the CAS witness Orca requires for an update is the last op_id the caller observed; if the caller
         # didn't supply one, read the current state from Orca first (matches the HLD's "client reads the
         # project, then PUT/PATCH with prev_op_id" contract)
-        current_op_id = (
+        prev_op_id = (
             project.status.op_id
             or self.get_project(session, name, auth_info).status.op_id
         )
-        self._logger.debug(
-            "Updating project in Orca", name=name, current_op_id=current_op_id
-        )
-        body = self._project_to_wire(project)
-        body["current_op_id"] = str(current_op_id) if current_op_id else None
-
+        self._logger.debug("Updating project in Orca", name=name, prev_op_id=prev_op_id)
         response = self._send_project_request(
             mlrun.common.types.HTTPMethod.PUT,
             PROJECT_ENDPOINT_TEMPLATE.format(name=name),
             "Failed updating project in Orca",
             auth_info,
-            json=body,
+            json=self._update_project_wire(project, prev_op_id),
         )
 
         # the shared leader-client interface has no wait_for_completion for update, so always settle here to
         # match the legacy synchronous contract the caller expects
-        op_id = response.json()["status"]["op_id"]
+        op_id = response.json()["status"]["opId"]
         self._wait_for_op(name, op_id, auth_info)
 
     def delete_project(
@@ -343,27 +351,26 @@ class Client(BaseClient, project_leader.Member):
         deletion_strategy: mlrun.common.schemas.DeletionStrategy = mlrun.common.schemas.DeletionStrategy.default(),
         wait_for_completion: bool = True,
     ) -> bool:
+        if deletion_strategy == mlrun.common.schemas.DeletionStrategy.check:
+            # Orca's DeleteProjectOptions has no strategy concept yet - a plain DELETE always deletes,
+            # so a "check-only" caller must not fall through to that below.
+            return False
         self._logger.debug(
             "Deleting project in Orca", name=name, deletion_strategy=deletion_strategy
         )
-        # the HLD documents the deletion-strategy gate as leader-side logic but doesn't pin how a caller
-        # communicates the strategy to Orca; sending it in the body keeps this consistent with every other
-        # write on this client until Orca's real contract lands
         response = self._send_project_request(
             mlrun.common.types.HTTPMethod.DELETE,
             PROJECT_ENDPOINT_TEMPLATE.format(name=name),
             "Failed deleting project in Orca",
             auth_info,
-            json={"deletion_strategy": deletion_strategy.value},
         )
 
         if response.status_code == requests.codes.accepted:
             # 202: accepted, still converging - poll for completion
             if not wait_for_completion:
                 return True
-            # a delete's terminal signal is the project disappearing from project-states, not a status value
-            op_id = response.json()["status"]["op_id"]
-            self._wait_for_op(name, op_id, auth_info, absence_is_terminal=True)
+            op_id = response.json()["status"]["opId"]
+            self._wait_for_op(name, op_id, auth_info)
 
         return False
 
@@ -375,8 +382,8 @@ class Client(BaseClient, project_leader.Member):
     ) -> mlrun.common.schemas.Project:
         response = self._send_project_request(
             mlrun.common.types.HTTPMethod.GET,
-            PROJECT_STATE_ENDPOINT_TEMPLATE.format(name=name),
-            "Failed getting project state from Orca",
+            PROJECT_ENDPOINT_TEMPLATE.format(name=name),
+            "Failed getting project from Orca",
             auth_info,
         )
         return self._wire_to_project(response.json())
@@ -438,67 +445,122 @@ class Client(BaseClient, project_leader.Member):
         name: str,
         op_id: str,
         auth_info: mlrun.common.schemas.AuthInfo,
-        absence_is_terminal: bool = False,
     ) -> None:
+        # The 2PC driver runs the whole operation (both phases, for create/delete) inside one dispatch of
+        # the "sync-project" trackable action, keyed by op_id as its correlation_id - so the action's own
+        # terminal state is a precise, direct done/failed signal. No need to re-fetch the project and infer
+        # completion from status.op_id/status.state (see orca SDK PR #1059's wait_for_completion).
         self._logger.debug(
-            "Waiting for Orca operation to reach a terminal state",
+            "Waiting for Orca sync-project action to reach a terminal state",
             name=name,
             op_id=op_id,
         )
-        mlrun.utils.helpers.retry_until_successful(
-            self._poll_interval_seconds,
-            self._poll_timeout_seconds,
-            self._logger,
-            False,
-            self._verify_op_terminal,
-            name,
-            op_id,
-            auth_info,
-            absence_is_terminal,
-        )
+        try:
+            mlrun.utils.helpers.retry_until_successful(
+                self._poll_interval_seconds,
+                self._poll_timeout_seconds,
+                self._logger,
+                False,
+                self._verify_op_terminal,
+                name,
+                op_id,
+                auth_info,
+                fatal_exceptions=(_OrcaActionFailedError,),
+            )
+        except _OrcaActionFailedError as exc:
+            raise mlrun.errors.MLRunRuntimeError(str(exc)) from exc
 
     def _verify_op_terminal(
         self,
         name: str,
         op_id: str,
         auth_info: mlrun.common.schemas.AuthInfo,
-        absence_is_terminal: bool,
-    ):
-        try:
-            project = self.get_project("", name, auth_info)
-        except mlrun.errors.MLRunNotFoundError:
-            if absence_is_terminal:
-                return
-            raise
-        if str(project.status.op_id) != str(op_id):
-            # a newer operation superseded ours (e.g. a concurrent update) - nothing more to wait for
-            return
-        if (
-            project.status.state
-            not in mlrun.common.schemas.ProjectState.terminal_states()
-        ):
+    ) -> None:
+        response = self._send_project_request(
+            mlrun.common.types.HTTPMethod.GET,
+            ACTION_EXECUTIONS_ENDPOINT,
+            "Failed getting Orca sync-project action execution",
+            auth_info,
+            params={
+                "correlationId": str(op_id),
+                "actionType": PROJECT_SYNC_ACTION_TYPE,
+                "subdomain": PROJECT_SYNC_SUBDOMAIN,
+                "limit": 1,
+            },
+        )
+        items = response.json().get("items", [])
+        if not items:
             raise mlrun.errors.MLRunRuntimeError(
-                f"Orca operation {op_id} for project {name} is still in progress "
-                f"(state={project.status.state})"
+                f"No Orca sync-project action observed yet for project {name} (op_id={op_id})"
+            )
+        state = items[0].get("status", {}).get("state")
+        if state == "failed":
+            raise _OrcaActionFailedError(
+                f"Orca sync-project action for project {name} (op_id={op_id}) failed"
+            )
+        if state != "succeeded":
+            raise mlrun.errors.MLRunRuntimeError(
+                f"Orca sync-project action for project {name} (op_id={op_id}) is still in "
+                f"progress (state={state})"
             )
 
     @staticmethod
-    def _project_to_wire(project: mlrun.common.schemas.Project) -> dict:
-        # Orca's contract is the HLD's "common set" only - name/labels/annotations/owner/description -
-        # deliberately excluding mlrun-specific spec (functions, artifacts, params, ...). include= keeps
-        # the wire payload pinned to that set regardless of what ProjectSpec grows to contain.
-        return project.model_dump(
-            include={
-                "metadata": {"name", "labels", "annotations"},
-                "spec": {"owner", "description"},
-            }
-        )
+    def _create_project_wire(project: mlrun.common.schemas.Project) -> dict:
+        # Matches Orca's flat CreateProjectOptions: name is required, everything else - owner included,
+        # the server derives it from the authenticated caller when omitted - is optional.
+        wire = {"name": project.metadata.name}
+        if project.spec.owner:
+            wire["owner"] = project.spec.owner
+        if project.spec.description:
+            wire["description"] = project.spec.description
+        if project.metadata.labels:
+            wire["labels"] = project.metadata.labels
+        if project.metadata.annotations:
+            wire["annotations"] = project.metadata.annotations
+        return wire
+
+    @staticmethod
+    def _update_project_wire(
+        project: mlrun.common.schemas.Project, prev_op_id: uuid.UUID | None
+    ) -> dict:
+        # Matches Orca's flat UpdateProjectOptions: prevOpId/owner are required by Orca's contract, so a
+        # missing value is sent through as-is and surfaces as a real validation error from Orca. The rest
+        # is optional.
+        wire = {
+            "prevOpId": str(prev_op_id) if prev_op_id else None,
+            "owner": project.spec.owner,
+        }
+        if project.spec.description:
+            wire["description"] = project.spec.description
+        if project.metadata.labels:
+            wire["labels"] = project.metadata.labels
+        if project.metadata.annotations:
+            wire["annotations"] = project.metadata.annotations
+        return wire
 
     @staticmethod
     def _wire_to_project(body: dict) -> mlrun.common.schemas.Project:
-        # Orca's wire shape is a strict subset of Project's own metadata/spec/status nesting - every field
-        # Orca doesn't populate already has a default - so this can validate straight off the response body.
-        return mlrun.common.schemas.Project.model_validate(body)
+        # Orca's wire format is camelCase (the SDK schemas camelize every field), so this can't just
+        # pydantic-validate the body directly - op_id/updated_at need explicit remapping.
+        metadata = body.get("metadata", {})
+        spec = body.get("spec", {})
+        status = body.get("status", {})
+        return mlrun.common.schemas.Project(
+            metadata=mlrun.common.schemas.ProjectMetadata(
+                name=metadata["name"],
+                labels=metadata.get("labels") or {},
+                annotations=metadata.get("annotations") or {},
+            ),
+            spec=mlrun.common.schemas.ProjectSpec(
+                owner=spec.get("owner"),
+                description=spec.get("description"),
+            ),
+            status=mlrun.common.schemas.ProjectStatus(
+                state=status.get("state"),
+                op_id=status.get("opId"),
+                updated_at=status.get("updatedAt"),
+            ),
+        )
 
     def _extract_response_error(
         self, response: httpx.Response

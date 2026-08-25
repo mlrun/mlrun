@@ -472,11 +472,9 @@ class Projects(
         Slim (name, op_id, state, updated_at) projection for follower reconciliation —
         the "list states" op of the ML-12901 follower contract. Both `updated_after` and
         the keyset cursor/page-size are pushed down to the DB query (via `list_projects`'s
-        opt-in `keyset_after`/`limit` params — unused by every other caller, so this
-        doesn't change behavior anywhere else) rather than loading the full result set
-        into memory: a follower reconnecting after a long gap, or doing its very first
-        sync with no `updated_after` at all, is exactly the "1000+ projects" case ML-12472
-        exists to avoid full-scanning.
+        opt-in `keyset_after`/`limit` params) rather than loading the full result set into
+        memory, since a follower reconnecting after a long gap, or doing its very first
+        sync with no `updated_after` at all, needs to page through every project.
         """
         keyset_after = self._decode_project_states_cursor(cursor) if cursor else None
         projects_output = framework.utils.singletons.db.get_db().list_projects(
@@ -1327,10 +1325,9 @@ class Projects(
 
         :param for_update: locks the row (``SELECT ... FOR UPDATE``) for the
             caller's transaction, so a concurrent read-decide-write for the same
-            project blocks instead of both sides racing on the same stale read —
-            pass this from every mutating hook's own pre-check, never from a plain
-            read (e.g. the endpoint's absent-project fast path has no write of its
-            own to protect and would just hold a pointless lock).
+            project blocks instead of both sides racing on the same stale read.
+            Pass this from a mutating hook's own pre-check; leave it off for a
+            plain read that has no write of its own to protect.
 
         Goes straight to the DB layer rather than through ``self.list_projects``
         (the abstract-interface-facing passthrough every follower implementer

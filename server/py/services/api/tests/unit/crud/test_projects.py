@@ -499,9 +499,8 @@ def test_get_follower_project_snapshot_defaults_to_no_lock(
     reset_projects_singleton: None,
     monkeypatch: pytest.MonkeyPatch,
 ):
-    """A plain read (e.g. the commit-delete endpoint's absent-project fast path,
-    which has no write of its own to protect) must not take a lock it doesn't
-    need."""
+    """A plain read with no write of its own to protect must not take a lock it
+    doesn't need."""
     db_mock = unittest.mock.MagicMock()
     db_mock.list_projects.return_value = mlrun.common.schemas.ProjectsOutput(
         projects=[]

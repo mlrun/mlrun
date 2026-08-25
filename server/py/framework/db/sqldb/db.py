@@ -3430,6 +3430,9 @@ class SQLDB(DBInterface):
             description=project.spec.description,
             source=project.spec.source,
             state=project.status.state,
+            op_id=project.status.op_id,
+            phase=project.status.phase,
+            updated_at=project.status.updated_at,
             created=created,
             owner=project.spec.owner,
             default_function_node_selector=project.spec.default_function_node_selector,
@@ -4395,6 +4398,9 @@ class SQLDB(DBInterface):
         project_record.source = project.spec.source
         project_record.owner = project.spec.owner
         project_record.state = project.status.state
+        project_record.op_id = project.status.op_id
+        project_record.phase = project.status.phase
+        project_record.updated_at = project.status.updated_at
         project_record.default_function_node_selector = (
             project.spec.default_function_node_selector
         )

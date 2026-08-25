@@ -23,6 +23,7 @@ shapes are as portable as the validation rules and could move into a shared
 cross-follower library alongside them.
 """
 
+import datetime
 import typing
 import uuid
 
@@ -57,6 +58,7 @@ class FollowerPrepareCreateRequest(pydantic.BaseModel):
 
 class FollowerCommitCreateRequest(pydantic.BaseModel):
     op_id: uuid.UUID
+    updated_at: datetime.datetime
 
 
 class FollowerUpdateRequest(pydantic.BaseModel):
@@ -69,6 +71,7 @@ class FollowerUpdateRequest(pydantic.BaseModel):
 
 class FollowerPrepareDeleteRequest(pydantic.BaseModel):
     op_id: uuid.UUID
+    updated_at: datetime.datetime
     prev_op_id: uuid.UUID | None = None
 
 

@@ -1134,6 +1134,7 @@ class Projects(
         self,
         project: mlrun.common.schemas.Project,
         op_id: uuid.UUID,
+        updated_at: datetime.datetime,
     ) -> mlrun.common.schemas.Project:
         session = framework.db.session.create_session()
         try:
@@ -1154,6 +1155,7 @@ class Projects(
             project = project.copy(deep=True)
             project.status.state = mlrun.common.schemas.ProjectState.creating
             project.status.op_id = op_id
+            project.status.updated_at = updated_at
             if existing:
                 self.store_project(session, name, project)
             else:
@@ -1166,6 +1168,7 @@ class Projects(
         self,
         name: str,
         op_id: uuid.UUID,
+        updated_at: datetime.datetime,
     ) -> mlrun.common.schemas.Project:
         session = framework.db.session.create_session()
         try:
@@ -1186,9 +1189,15 @@ class Projects(
             self.patch_project(
                 session,
                 name,
-                {"status": {"state": mlrun.common.schemas.ProjectState.online}},
+                {
+                    "status": {
+                        "state": mlrun.common.schemas.ProjectState.online,
+                        "updated_at": updated_at,
+                    }
+                },
             )
             existing.status.state = mlrun.common.schemas.ProjectState.online
+            existing.status.updated_at = updated_at
             return existing
         finally:
             framework.db.session.close_session(session)
@@ -1197,6 +1206,7 @@ class Projects(
         self,
         name: str,
         op_id: uuid.UUID,
+        updated_at: datetime.datetime,
         prev_op_id: uuid.UUID | None = None,
     ) -> mlrun.common.schemas.Project | None:
         session = framework.db.session.create_session()
@@ -1222,11 +1232,13 @@ class Projects(
                     "status": {
                         "state": mlrun.common.schemas.ProjectState.deleting,
                         "op_id": op_id,
+                        "updated_at": updated_at,
                     }
                 },
             )
             existing.status.state = mlrun.common.schemas.ProjectState.deleting
             existing.status.op_id = op_id
+            existing.status.updated_at = updated_at
             return existing
         finally:
             framework.db.session.close_session(session)
@@ -1274,6 +1286,7 @@ class Projects(
         name: str,
         project: mlrun.common.schemas.Project,
         op_id: uuid.UUID,
+        updated_at: datetime.datetime,
         prev_op_id: uuid.UUID | None = None,
     ) -> mlrun.common.schemas.Project:
         session = framework.db.session.create_session()
@@ -1306,10 +1319,11 @@ class Projects(
                     "owner": project.spec.owner,
                     "description": project.spec.description,
                 },
-                "status": {"op_id": op_id},
+                "status": {"op_id": op_id, "updated_at": updated_at},
             }
             self.patch_project(session, name, common_set_patch)
             existing.status.op_id = op_id
+            existing.status.updated_at = updated_at
             return existing
         finally:
             framework.db.session.close_session(session)

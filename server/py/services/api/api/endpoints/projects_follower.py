@@ -48,6 +48,14 @@ def _project_op_id(project: mlrun.common.schemas.Project) -> uuid.UUID:
     return project.status.op_id
 
 
+def _project_updated_at(
+    project: mlrun.common.schemas.Project,
+) -> datetime.datetime:
+    if project.status.updated_at is None:
+        raise mlrun.errors.MLRunBadRequestError("project.status.updated_at is required")
+    return project.status.updated_at
+
+
 def _to_follower_state(
     name: str, snapshot: mlrun.common.schemas.Project | None
 ) -> follower_schemas.FollowerProjectState:
@@ -74,8 +82,12 @@ async def prepare_create_project(
             "Path project name does not match project.metadata.name"
         )
     op_id = _project_op_id(project)
+    updated_at = _project_updated_at(project)
     result = await mlrun.utils.run_in_threadpool(
-        services.api.crud.Projects().prepare_create_project, project, op_id
+        services.api.crud.Projects().prepare_create_project,
+        project,
+        op_id,
+        updated_at,
     )
     return _to_follower_state(name, result)
 
@@ -89,7 +101,10 @@ async def commit_create_project(
     body: follower_schemas.FollowerCommitCreateRequest,
 ) -> follower_schemas.FollowerProjectState:
     result = await mlrun.utils.run_in_threadpool(
-        services.api.crud.Projects().commit_create_project, name, body.op_id
+        services.api.crud.Projects().commit_create_project,
+        name,
+        body.op_id,
+        body.updated_at,
     )
     return _to_follower_state(name, result)
 
@@ -108,11 +123,13 @@ async def update_project(
             "Path project name does not match project.metadata.name"
         )
     op_id = _project_op_id(project)
+    updated_at = _project_updated_at(project)
     result = await mlrun.utils.run_in_threadpool(
         services.api.crud.Projects().update_project_follower,
         name,
         project,
         op_id,
+        updated_at,
         body.prev_op_id,
     )
     return _to_follower_state(name, result)
@@ -130,6 +147,7 @@ async def prepare_delete_project(
         services.api.crud.Projects().prepare_delete_project,
         name,
         body.op_id,
+        body.updated_at,
         body.prev_op_id,
     )
     return _to_follower_state(name, result)

@@ -14,7 +14,6 @@
 import datetime
 import tempfile
 import typing
-import uuid
 
 import httpx
 import iguazio
@@ -402,42 +401,6 @@ class Client(BaseClient, project_follower.Member):
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ) -> mlrun.common.schemas.ProjectSummary:
         raise NotImplementedError("Get project summary is not supported")
-
-    def prepare_create_project(
-        self,
-        project: mlrun.common.schemas.Project,
-        op_id: uuid.UUID,
-    ) -> None:
-        raise NotImplementedError
-
-    def commit_create_project(
-        self,
-        name: str,
-        op_id: uuid.UUID,
-    ) -> None:
-        raise NotImplementedError
-
-    def prepare_delete_project(
-        self,
-        name: str,
-        op_id: uuid.UUID,
-    ) -> None:
-        raise NotImplementedError
-
-    def commit_delete_project(
-        self,
-        name: str,
-        op_id: uuid.UUID,
-    ) -> None:
-        raise NotImplementedError
-
-    def update_project_follower(
-        self,
-        name: str,
-        project: mlrun.common.schemas.Project,
-        op_id: uuid.UUID,
-    ) -> None:
-        raise NotImplementedError
 
     def _project_policies_exist(
         self, project: str, auth_info: mlrun.common.schemas.AuthInfo

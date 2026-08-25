@@ -110,11 +110,15 @@ class Member(abc.ABC):
         pass
 
     # ----- 2PC follower hooks ----------------------------------------------
-    # Invoked by the 2PC orchestrator on each remote follower as part of
-    # parallel fan-out. They take only data persisted on the project row, so
-    # request-driven and reconciliation-driven invocations are equivalent —
-    # no per-request session, no per-request auth_info. Concrete followers
-    # authenticate using their own service-account credentials.
+    # Invoked by the 2PC leader on a follower as part of its create/update/delete
+    # flow. They take only data persisted on the project row, so request-driven
+    # and reconciliation-driven invocations are equivalent — no per-request
+    # session, no per-request auth_info. Authenticating/authorizing the caller as
+    # leader-origin is the transport layer's job, done before a hook is ever
+    # invoked — not this interface's (see e.g. MLRun's SA-gated
+    # `/follower/projects` HTTP surface, which calls `crud.projects.Projects`'
+    # implementation of these hooks only after `authenticate_leader_request`
+    # passes).
     #
     # Each returns the project's resulting (name, op_id, state) — implementers
     # already have this in hand from the write they just did, so callers that need

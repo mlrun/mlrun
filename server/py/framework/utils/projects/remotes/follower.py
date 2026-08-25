@@ -115,13 +115,19 @@ class Member(abc.ABC):
     # request-driven and reconciliation-driven invocations are equivalent —
     # no per-request session, no per-request auth_info. Concrete followers
     # authenticate using their own service-account credentials.
+    #
+    # Each returns the project's resulting (name, op_id, state) — implementers
+    # already have this in hand from the write they just did, so callers that need
+    # to report it back (e.g. an HTTP response) don't have to re-query for it.
+    # commit_delete_project is the exception: on success there is no project left
+    # to describe.
 
     @abc.abstractmethod
     def prepare_create_project(
         self,
         project: mlrun.common.schemas.Project,
         op_id: uuid.UUID,
-    ) -> None:
+    ) -> mlrun.common.schemas.Project | None:
         pass
 
     @abc.abstractmethod
@@ -129,7 +135,7 @@ class Member(abc.ABC):
         self,
         name: str,
         op_id: uuid.UUID,
-    ) -> None:
+    ) -> mlrun.common.schemas.Project | None:
         pass
 
     @abc.abstractmethod
@@ -138,7 +144,7 @@ class Member(abc.ABC):
         name: str,
         op_id: uuid.UUID,
         prev_op_id: uuid.UUID | None = None,
-    ) -> None:
+    ) -> mlrun.common.schemas.Project | None:
         pass
 
     @abc.abstractmethod
@@ -156,5 +162,5 @@ class Member(abc.ABC):
         project: mlrun.common.schemas.Project,
         op_id: uuid.UUID,
         prev_op_id: uuid.UUID | None = None,
-    ) -> None:
+    ) -> mlrun.common.schemas.Project | None:
         pass

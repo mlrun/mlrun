@@ -67,9 +67,6 @@ def _to_follower_state(
 async def prepare_create_project(
     name: str,
     body: follower_schemas.FollowerPrepareCreateRequest,
-    db_session: sqlalchemy.orm.Session = fastapi.Depends(
-        framework.api.deps.get_db_session
-    ),
 ) -> follower_schemas.FollowerProjectState:
     project = body.project
     if project.metadata.name != name:
@@ -77,13 +74,10 @@ async def prepare_create_project(
             "Path project name does not match project.metadata.name"
         )
     op_id = _project_op_id(project)
-    await mlrun.utils.run_in_threadpool(
+    result = await mlrun.utils.run_in_threadpool(
         services.api.crud.Projects().prepare_create_project, project, op_id
     )
-    snapshot = await mlrun.utils.run_in_threadpool(
-        services.api.crud.Projects().get_follower_project_snapshot, db_session, name
-    )
-    return _to_follower_state(name, snapshot)
+    return _to_follower_state(name, result)
 
 
 @router.post(
@@ -93,17 +87,11 @@ async def prepare_create_project(
 async def commit_create_project(
     name: str,
     body: follower_schemas.FollowerCommitCreateRequest,
-    db_session: sqlalchemy.orm.Session = fastapi.Depends(
-        framework.api.deps.get_db_session
-    ),
 ) -> follower_schemas.FollowerProjectState:
-    await mlrun.utils.run_in_threadpool(
+    result = await mlrun.utils.run_in_threadpool(
         services.api.crud.Projects().commit_create_project, name, body.op_id
     )
-    snapshot = await mlrun.utils.run_in_threadpool(
-        services.api.crud.Projects().get_follower_project_snapshot, db_session, name
-    )
-    return _to_follower_state(name, snapshot)
+    return _to_follower_state(name, result)
 
 
 @router.put(
@@ -113,9 +101,6 @@ async def commit_create_project(
 async def update_project(
     name: str,
     body: follower_schemas.FollowerUpdateRequest,
-    db_session: sqlalchemy.orm.Session = fastapi.Depends(
-        framework.api.deps.get_db_session
-    ),
 ) -> follower_schemas.FollowerProjectState:
     project = body.project
     if project.metadata.name != name:
@@ -123,17 +108,14 @@ async def update_project(
             "Path project name does not match project.metadata.name"
         )
     op_id = _project_op_id(project)
-    await mlrun.utils.run_in_threadpool(
+    result = await mlrun.utils.run_in_threadpool(
         services.api.crud.Projects().update_project_follower,
         name,
         project,
         op_id,
         body.prev_op_id,
     )
-    snapshot = await mlrun.utils.run_in_threadpool(
-        services.api.crud.Projects().get_follower_project_snapshot, db_session, name
-    )
-    return _to_follower_state(name, snapshot)
+    return _to_follower_state(name, result)
 
 
 @router.post(
@@ -143,20 +125,14 @@ async def update_project(
 async def prepare_delete_project(
     name: str,
     body: follower_schemas.FollowerPrepareDeleteRequest,
-    db_session: sqlalchemy.orm.Session = fastapi.Depends(
-        framework.api.deps.get_db_session
-    ),
 ) -> follower_schemas.FollowerProjectState:
-    await mlrun.utils.run_in_threadpool(
+    result = await mlrun.utils.run_in_threadpool(
         services.api.crud.Projects().prepare_delete_project,
         name,
         body.op_id,
         body.prev_op_id,
     )
-    snapshot = await mlrun.utils.run_in_threadpool(
-        services.api.crud.Projects().get_follower_project_snapshot, db_session, name
-    )
-    return _to_follower_state(name, snapshot)
+    return _to_follower_state(name, result)
 
 
 @router.delete(

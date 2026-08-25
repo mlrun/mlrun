@@ -492,12 +492,15 @@ def test_prepare_create_project_creates_new_row(
         metadata=mlrun.common.schemas.ProjectMetadata(name="proj")
     )
 
-    projects_crud.Projects().prepare_create_project(project, op_id)
+    result = projects_crud.Projects().prepare_create_project(project, op_id)
 
     store_mock.assert_not_called()
     created_project = create_mock.call_args.args[1]
     assert created_project.status.state == mlrun.common.schemas.ProjectState.creating
     assert created_project.status.op_id == op_id
+    # The endpoint builds its response from this return value directly, with no
+    # follow-up query — it must reflect exactly what was just persisted.
+    assert result is created_project
 
 
 def test_prepare_create_project_idempotent_replay_does_not_mutate(
@@ -522,10 +525,13 @@ def test_prepare_create_project_idempotent_replay_does_not_mutate(
     project = mlrun.common.schemas.Project(
         metadata=mlrun.common.schemas.ProjectMetadata(name="proj")
     )
-    projects_crud.Projects().prepare_create_project(project, op_id)
+    result = projects_crud.Projects().prepare_create_project(project, op_id)
 
     create_mock.assert_not_called()
     store_mock.assert_not_called()
+    # A replay still needs to return the current state — the endpoint has no other
+    # way to build its response, since it no longer re-queries.
+    assert result is existing
 
 
 def test_prepare_create_project_stale_op_is_rejected(
@@ -586,10 +592,14 @@ def test_commit_create_project_flips_to_online(
     patch_mock = unittest.mock.MagicMock()
     monkeypatch.setattr(projects_crud.Projects, "patch_project", patch_mock)
 
-    projects_crud.Projects().commit_create_project("proj", op_id)
+    result = projects_crud.Projects().commit_create_project("proj", op_id)
 
     patched_dict = patch_mock.call_args.args[2]
     assert patched_dict["status"]["state"] == mlrun.common.schemas.ProjectState.online
+    # The endpoint builds its response from this return value with no follow-up
+    # query, so it must already reflect the new state.
+    assert result.status.state == mlrun.common.schemas.ProjectState.online
+    assert result.status.op_id == op_id
 
 
 def test_update_project_follower_absent_project_is_not_found(
@@ -697,7 +707,7 @@ def test_update_project_follower_applies_common_set_only(
         spec=mlrun.common.schemas.ProjectSpec(owner="jsmith", description="desc"),
     )
 
-    projects_crud.Projects().update_project_follower(
+    result = projects_crud.Projects().update_project_follower(
         "proj", project, new_op_id, prev_op_id=stored_op_id
     )
 
@@ -707,6 +717,10 @@ def test_update_project_follower_applies_common_set_only(
         "spec": {"owner": "jsmith", "description": "desc"},
         "status": {"op_id": new_op_id},
     }
+    # The endpoint builds its response from this return value with no follow-up
+    # query — state doesn't change on update, but op_id must reflect the new one.
+    assert result.status.op_id == new_op_id
+    assert result.status.state == mlrun.common.schemas.ProjectState.online
 
 
 def test_prepare_delete_project_absent_project_is_noop(
@@ -720,11 +734,12 @@ def test_prepare_delete_project_absent_project_is_noop(
     patch_mock = unittest.mock.MagicMock()
     monkeypatch.setattr(projects_crud.Projects, "patch_project", patch_mock)
 
-    projects_crud.Projects().prepare_delete_project(
+    result = projects_crud.Projects().prepare_delete_project(
         "proj", uuid.UUID(int=1), prev_op_id=uuid.UUID(int=1)
     )
 
     patch_mock.assert_not_called()
+    assert result is None
 
 
 def test_prepare_delete_project_marks_deleting(
@@ -745,7 +760,7 @@ def test_prepare_delete_project_marks_deleting(
     monkeypatch.setattr(projects_crud.Projects, "patch_project", patch_mock)
 
     new_op_id = uuid.UUID(int=2)
-    projects_crud.Projects().prepare_delete_project(
+    result = projects_crud.Projects().prepare_delete_project(
         "proj", new_op_id, prev_op_id=stored_op_id
     )
 
@@ -756,6 +771,10 @@ def test_prepare_delete_project_marks_deleting(
             "op_id": new_op_id,
         }
     }
+    # The endpoint builds its response from this return value with no follow-up
+    # query, so it must already reflect the new state.
+    assert result.status.state == mlrun.common.schemas.ProjectState.deleting
+    assert result.status.op_id == new_op_id
 
 
 def test_commit_delete_project_absent_project_is_noop(

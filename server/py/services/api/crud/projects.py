@@ -1136,7 +1136,7 @@ class Projects(
         self,
         project: mlrun.common.schemas.Project,
         op_id: uuid.UUID,
-    ) -> None:
+    ) -> mlrun.common.schemas.Project:
         session = framework.db.session.create_session()
         try:
             name = project.metadata.name
@@ -1148,7 +1148,9 @@ class Projects(
                 incoming_op_id=op_id,
             )
             if outcome == follower_contract.ReplayOutcome.replay:
-                return
+                # Ordering only replays against a stored op_id, so a project must
+                # already exist to reach this branch.
+                return existing
             project = project.copy(deep=True)
             project.status.state = mlrun.common.schemas.ProjectState.creating
             project.status.op_id = op_id
@@ -1156,6 +1158,7 @@ class Projects(
                 self.store_project(session, name, project)
             else:
                 self.create_project(session, project)
+            return project
         finally:
             framework.db.session.close_session(session)
 
@@ -1163,13 +1166,15 @@ class Projects(
         self,
         name: str,
         op_id: uuid.UUID,
-    ) -> None:
+    ) -> mlrun.common.schemas.Project:
         session = framework.db.session.create_session()
         try:
             existing = self.get_follower_project_snapshot(session, name)
             # check_same_op (used for commit_create/commit_delete) never returns
             # ReplayOutcome.replay — a matching op_id always means "apply", since
             # re-running these two mutations on a retry is a safe no-op either way.
+            # It also requires a stored op_id to match against, so existing is
+            # guaranteed non-None once validation passes.
             follower_contract.validate_call(
                 follower_contract.FollowerOp.commit_create,
                 current_state=existing.status.state if existing else None,
@@ -1181,6 +1186,8 @@ class Projects(
                 name,
                 {"status": {"state": mlrun.common.schemas.ProjectState.online}},
             )
+            existing.status.state = mlrun.common.schemas.ProjectState.online
+            return existing
         finally:
             framework.db.session.close_session(session)
 
@@ -1189,12 +1196,12 @@ class Projects(
         name: str,
         op_id: uuid.UUID,
         prev_op_id: uuid.UUID | None = None,
-    ) -> None:
+    ) -> mlrun.common.schemas.Project | None:
         session = framework.db.session.create_session()
         try:
             existing = self.get_follower_project_snapshot(session, name)
             if existing is None:
-                return  # absent project: no-op per the contract
+                return None  # absent project: no-op per the contract
             outcome = follower_contract.validate_call(
                 follower_contract.FollowerOp.prepare_delete,
                 current_state=existing.status.state,
@@ -1203,7 +1210,7 @@ class Projects(
                 prev_op_id=prev_op_id,
             )
             if outcome == follower_contract.ReplayOutcome.replay:
-                return
+                return existing
             self.patch_project(
                 session,
                 name,
@@ -1214,6 +1221,9 @@ class Projects(
                     }
                 },
             )
+            existing.status.state = mlrun.common.schemas.ProjectState.deleting
+            existing.status.op_id = op_id
+            return existing
         finally:
             framework.db.session.close_session(session)
 
@@ -1259,7 +1269,7 @@ class Projects(
         project: mlrun.common.schemas.Project,
         op_id: uuid.UUID,
         prev_op_id: uuid.UUID | None = None,
-    ) -> None:
+    ) -> mlrun.common.schemas.Project:
         session = framework.db.session.create_session()
         try:
             existing = self.get_follower_project_snapshot(session, name)
@@ -1275,7 +1285,7 @@ class Projects(
                 prev_op_id=prev_op_id,
             )
             if outcome == follower_contract.ReplayOutcome.replay:
-                return
+                return existing
             # The common set only — labels/annotations/owner/description. Everything else
             # is MLRun-specific spec the leader never sends and never syncs (see the
             # Backend HLD's "store labels/annotations/description?" decision).
@@ -1291,6 +1301,8 @@ class Projects(
                 "status": {"op_id": op_id},
             }
             self.patch_project(session, name, common_set_patch)
+            existing.status.op_id = op_id
+            return existing
         finally:
             framework.db.session.close_session(session)
 

@@ -153,14 +153,14 @@ class Member(project_follower.Member):
         self,
         project: mlrun.common.schemas.Project,
         op_id: uuid.UUID,
-    ) -> None:
+    ) -> mlrun.common.schemas.Project | None:
         raise NotImplementedError
 
     def commit_create_project(
         self,
         name: str,
         op_id: uuid.UUID,
-    ) -> None:
+    ) -> mlrun.common.schemas.Project | None:
         raise NotImplementedError
 
     def prepare_delete_project(
@@ -168,7 +168,7 @@ class Member(project_follower.Member):
         name: str,
         op_id: uuid.UUID,
         prev_op_id: uuid.UUID | None = None,
-    ) -> None:
+    ) -> mlrun.common.schemas.Project | None:
         raise NotImplementedError
 
     def commit_delete_project(
@@ -184,5 +184,5 @@ class Member(project_follower.Member):
         project: mlrun.common.schemas.Project,
         op_id: uuid.UUID,
         prev_op_id: uuid.UUID | None = None,
-    ) -> None:
+    ) -> mlrun.common.schemas.Project | None:
         raise NotImplementedError

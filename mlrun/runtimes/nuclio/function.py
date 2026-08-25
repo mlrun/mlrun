@@ -1748,7 +1748,7 @@ class RemoteRuntime(KubeResource):
         if (
             not force_external_address
             and self.status.internal_invocation_urls
-            and mlrun.k8s_utils.is_running_inside_kubernetes_cluster()
+            and mlrun.k8s_utils.is_running_in_kubernetes_pod()
         ):
             url = mlrun.utils.helpers.join_urls(
                 f"http://{self.status.internal_invocation_urls[0]}", path

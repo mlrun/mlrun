@@ -14,7 +14,6 @@
 
 import abc
 import datetime
-import uuid
 
 import sqlalchemy.orm
 
@@ -107,64 +106,4 @@ class Member(abc.ABC):
         name: str,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ) -> mlrun.common.schemas.ProjectSummary:
-        pass
-
-    # ----- 2PC follower hooks ----------------------------------------------
-    # Invoked by the 2PC leader on a follower as part of its create/update/delete
-    # flow. They take only data persisted on the project row, so request-driven
-    # and reconciliation-driven invocations are equivalent — no per-request
-    # session, no per-request auth_info. Authenticating/authorizing the caller as
-    # leader-origin is the transport layer's job, done before a hook is ever
-    # invoked — not this interface's (see e.g. MLRun's SA-gated
-    # `/follower/projects` HTTP surface, which calls `crud.projects.Projects`'
-    # implementation of these hooks only after `authenticate_leader_request`
-    # passes).
-    #
-    # Each returns the project's resulting (name, op_id, state) — implementers
-    # already have this in hand from the write they just did, so callers that need
-    # to report it back (e.g. an HTTP response) don't have to re-query for it.
-    # commit_delete_project is the exception: on success there is no project left
-    # to describe.
-
-    @abc.abstractmethod
-    def prepare_create_project(
-        self,
-        project: mlrun.common.schemas.Project,
-        op_id: uuid.UUID,
-    ) -> mlrun.common.schemas.Project | None:
-        pass
-
-    @abc.abstractmethod
-    def commit_create_project(
-        self,
-        name: str,
-        op_id: uuid.UUID,
-    ) -> mlrun.common.schemas.Project | None:
-        pass
-
-    @abc.abstractmethod
-    def prepare_delete_project(
-        self,
-        name: str,
-        op_id: uuid.UUID,
-        prev_op_id: uuid.UUID | None = None,
-    ) -> mlrun.common.schemas.Project | None:
-        pass
-
-    @abc.abstractmethod
-    def commit_delete_project(
-        self,
-        name: str,
-        op_id: uuid.UUID,
-    ) -> None:
-        pass
-
-    @abc.abstractmethod
-    def update_project_follower(
-        self,
-        name: str,
-        project: mlrun.common.schemas.Project,
-        op_id: uuid.UUID,
-        prev_op_id: uuid.UUID | None = None,
-    ) -> mlrun.common.schemas.Project | None:
         pass

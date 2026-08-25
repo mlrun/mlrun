@@ -143,9 +143,6 @@ async def commit_delete_project(
     name: str,
     body: follower_schemas.FollowerCommitDeleteRequest,
     request: fastapi.Request,
-    db_session: sqlalchemy.orm.Session = fastapi.Depends(
-        framework.api.deps.get_db_session
-    ),
 ) -> follower_schemas.FollowerDeleteResult:
     # delete_project_resources deletes schedules, which run only on chief, so we
     # re-route to chief — same reason the legacy (non-follower) delete endpoint does.
@@ -163,24 +160,15 @@ async def commit_delete_project(
             )
         )
 
-    op_id = body.op_id
-    snapshot = await mlrun.utils.run_in_threadpool(
-        services.api.crud.Projects().get_follower_project_snapshot, db_session, name
-    )
-    if snapshot is None:
-        # Already fully removed by a previous call — idempotent no-op per the contract.
-        return follower_schemas.FollowerDeleteResult(
-            name=name, op_id=op_id, result="removed"
-        )
-
     # Validates internally (CAS/ordering/state) and, on success, purges the project's
-    # resources and its row before returning — a genuine retry with the same op_id
-    # (e.g. after a dropped connection) re-runs the purge rather than skipping it.
+    # resources and its row — a no-op if it's already gone (a previous call already
+    # removed it) or a genuine retry with the same op_id (e.g. after a dropped
+    # connection re-runs the purge rather than skipping it).
     await mlrun.utils.run_in_threadpool(
-        services.api.crud.Projects().commit_delete_project, name, op_id
+        services.api.crud.Projects().commit_delete_project, name, body.op_id
     )
     return follower_schemas.FollowerDeleteResult(
-        name=name, op_id=op_id, result="removed"
+        name=name, op_id=body.op_id, result="removed"
     )
 
 

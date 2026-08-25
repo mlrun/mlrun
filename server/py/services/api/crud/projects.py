@@ -1140,7 +1140,9 @@ class Projects(
         session = framework.db.session.create_session()
         try:
             name = project.metadata.name
-            existing = self.get_follower_project_snapshot(session, name)
+            existing = self.get_follower_project_snapshot(
+                session, name, for_update=True
+            )
             outcome = follower_contract.validate_call(
                 follower_contract.FollowerOp.prepare_create,
                 current_state=existing.status.state if existing else None,
@@ -1169,7 +1171,9 @@ class Projects(
     ) -> mlrun.common.schemas.Project:
         session = framework.db.session.create_session()
         try:
-            existing = self.get_follower_project_snapshot(session, name)
+            existing = self.get_follower_project_snapshot(
+                session, name, for_update=True
+            )
             # check_same_op (used for commit_create/commit_delete) never returns
             # ReplayOutcome.replay — a matching op_id always means "apply", since
             # re-running these two mutations on a retry is a safe no-op either way.
@@ -1199,7 +1203,9 @@ class Projects(
     ) -> mlrun.common.schemas.Project | None:
         session = framework.db.session.create_session()
         try:
-            existing = self.get_follower_project_snapshot(session, name)
+            existing = self.get_follower_project_snapshot(
+                session, name, for_update=True
+            )
             if existing is None:
                 return None  # absent project: no-op per the contract
             outcome = follower_contract.validate_call(
@@ -1244,7 +1250,9 @@ class Projects(
         """
         session = framework.db.session.create_session()
         try:
-            existing = self.get_follower_project_snapshot(session, name)
+            existing = self.get_follower_project_snapshot(
+                session, name, for_update=True
+            )
             if existing is None:
                 return  # already fully removed: no-op per the contract
             # check_same_op (used for commit_create/commit_delete) never returns
@@ -1272,7 +1280,9 @@ class Projects(
     ) -> mlrun.common.schemas.Project:
         session = framework.db.session.create_session()
         try:
-            existing = self.get_follower_project_snapshot(session, name)
+            existing = self.get_follower_project_snapshot(
+                session, name, for_update=True
+            )
             if existing is None:
                 # Unlike prepare_delete/commit_delete, "absent" isn't a no-op for update
                 # — there's nothing to CAS against, and the contract calls for 404 here.
@@ -1307,10 +1317,27 @@ class Projects(
             framework.db.session.close_session(session)
 
     def get_follower_project_snapshot(
-        self, session: sqlalchemy.orm.Session, name: str
+        self,
+        session: sqlalchemy.orm.Session,
+        name: str,
+        for_update: bool = False,
     ) -> mlrun.common.schemas.Project | None:
-        """(name, op_id, state) snapshot used by the 2PC hooks' CAS/ordering checks."""
-        projects_output = self.list_projects(
+        """
+        (name, op_id, state) snapshot used by the 2PC hooks' CAS/ordering checks.
+
+        :param for_update: locks the row (``SELECT ... FOR UPDATE``) for the
+            caller's transaction, so a concurrent read-decide-write for the same
+            project blocks instead of both sides racing on the same stale read —
+            pass this from every mutating hook's own pre-check, never from a plain
+            read (e.g. the endpoint's absent-project fast path has no write of its
+            own to protect and would just hold a pointless lock).
+
+        Goes straight to the DB layer rather than through ``self.list_projects``
+        (the abstract-interface-facing passthrough every follower implementer
+        provides) since ``for_update`` is specific to this CAS pre-check, not a
+        general list_projects capability.
+        """
+        projects_output = framework.utils.singletons.db.get_db().list_projects(
             session,
             format_=framework.utils.project_formats.ProjectFormatCustomSelection(
                 [
@@ -1320,6 +1347,7 @@ class Projects(
                 ]
             ),
             names=[name],
+            for_update=for_update,
         )
         return projects_output.projects[0] if projects_output.projects else None
 

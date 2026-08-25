@@ -474,6 +474,47 @@ def patched_db_session(monkeypatch: pytest.MonkeyPatch) -> unittest.mock.MagicMo
     return session_mock
 
 
+def test_get_follower_project_snapshot_for_update_reaches_the_db_layer(
+    reset_projects_singleton: None,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """The CAS pre-check's `for_update=True` must actually reach
+    SQLDB.list_projects() as a `SELECT ... FOR UPDATE` — a race between two
+    concurrent read-decide-write calls for the same project is exactly what this
+    guards against, so a silently-dropped kwarg here would be a real regression."""
+    db_mock = unittest.mock.MagicMock()
+    db_mock.list_projects.return_value = mlrun.common.schemas.ProjectsOutput(
+        projects=[]
+    )
+    monkeypatch.setattr("framework.utils.singletons.db.get_db", lambda: db_mock)
+
+    projects_crud.Projects().get_follower_project_snapshot(
+        unittest.mock.MagicMock(), "proj", for_update=True
+    )
+
+    assert db_mock.list_projects.call_args.kwargs["for_update"] is True
+
+
+def test_get_follower_project_snapshot_defaults_to_no_lock(
+    reset_projects_singleton: None,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """A plain read (e.g. the commit-delete endpoint's absent-project fast path,
+    which has no write of its own to protect) must not take a lock it doesn't
+    need."""
+    db_mock = unittest.mock.MagicMock()
+    db_mock.list_projects.return_value = mlrun.common.schemas.ProjectsOutput(
+        projects=[]
+    )
+    monkeypatch.setattr("framework.utils.singletons.db.get_db", lambda: db_mock)
+
+    projects_crud.Projects().get_follower_project_snapshot(
+        unittest.mock.MagicMock(), "proj"
+    )
+
+    assert db_mock.list_projects.call_args.kwargs["for_update"] is False
+
+
 def test_prepare_create_project_creates_new_row(
     reset_projects_singleton: None,
     patched_db_session: unittest.mock.MagicMock,

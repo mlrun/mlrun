@@ -3541,6 +3541,7 @@ class SQLDB(DBInterface):
         updated_after: datetime | None = None,
         keyset_after: tuple[datetime, str] | None = None,
         limit: int | None = None,
+        for_update: bool = False,
     ) -> mlrun.common.schemas.ProjectsOutput:
         """
         :param keyset_after: opt-in keyset-pagination lower bound, exclusive, as
@@ -3548,6 +3549,13 @@ class SQLDB(DBInterface):
             page through large result sets at the DB layer instead of loading
             everything into memory. Unused by every other caller.
         :param limit: paired with ``keyset_after``; caps rows returned by this query.
+        :param for_update: same ``SELECT ... FOR UPDATE`` as `_get_project_record`'s
+            own `for_update` — used by the ML-12901 follower hooks' CAS pre-check
+            (`crud.projects.Projects.get_follower_project_snapshot`) so a concurrent
+            read-decide-write for the same project blocks instead of racing on stale
+            data. No-ops on SQLite (no row-level locking support there); effective on
+            Postgres/MySQL, which is what the enterprise-only Orca-leader deployments
+            this guards actually run.
         """
         # if format is a custom selection, query only the requested columns
         # bypassing the full ORM model load and pickle deserialization
@@ -3600,6 +3608,8 @@ class SQLDB(DBInterface):
             query = query.order_by(updated_at_col, Project.name)
         if limit is not None:
             query = query.limit(limit)
+        if for_update:
+            query = query.with_for_update()
 
         project_records = query.all()
         return mlrun.common.schemas.ProjectsOutput(

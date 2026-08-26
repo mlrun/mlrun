@@ -48,14 +48,6 @@ def _project_op_id(project: mlrun.common.schemas.Project) -> uuid.UUID:
     return project.status.op_id
 
 
-def _project_updated_at(
-    project: mlrun.common.schemas.Project,
-) -> datetime.datetime:
-    if project.status.updated_at is None:
-        raise mlrun.errors.MLRunBadRequestError("project.status.updated_at is required")
-    return project.status.updated_at
-
-
 def _to_follower_state(
     name: str, snapshot: mlrun.common.schemas.Project | None
 ) -> follower_schemas.FollowerProjectState:
@@ -64,7 +56,7 @@ def _to_follower_state(
     return follower_schemas.FollowerProjectState(
         name=snapshot.metadata.name,
         op_id=snapshot.status.op_id,
-        state=snapshot.status.state,
+        sync_status=snapshot.status.state,
     )
 
 
@@ -82,12 +74,8 @@ async def prepare_create_project(
             "Path project name does not match project.metadata.name"
         )
     op_id = _project_op_id(project)
-    updated_at = _project_updated_at(project)
     result = await mlrun.utils.run_in_threadpool(
-        services.api.crud.Projects().prepare_create_project,
-        project,
-        op_id,
-        updated_at,
+        services.api.crud.Projects().prepare_create_project, project, op_id
     )
     return _to_follower_state(name, result)
 
@@ -101,10 +89,7 @@ async def commit_create_project(
     body: follower_schemas.FollowerCommitCreateRequest,
 ) -> follower_schemas.FollowerProjectState:
     result = await mlrun.utils.run_in_threadpool(
-        services.api.crud.Projects().commit_create_project,
-        name,
-        body.op_id,
-        body.updated_at,
+        services.api.crud.Projects().commit_create_project, name, body.status.op_id
     )
     return _to_follower_state(name, result)
 
@@ -123,13 +108,11 @@ async def update_project(
             "Path project name does not match project.metadata.name"
         )
     op_id = _project_op_id(project)
-    updated_at = _project_updated_at(project)
     result = await mlrun.utils.run_in_threadpool(
         services.api.crud.Projects().update_project_follower,
         name,
         project,
         op_id,
-        updated_at,
         body.prev_op_id,
     )
     return _to_follower_state(name, result)
@@ -146,8 +129,7 @@ async def prepare_delete_project(
     result = await mlrun.utils.run_in_threadpool(
         services.api.crud.Projects().prepare_delete_project,
         name,
-        body.op_id,
-        body.updated_at,
+        body.status.op_id,
         body.prev_op_id,
     )
     return _to_follower_state(name, result)
@@ -178,15 +160,16 @@ async def commit_delete_project(
             )
         )
 
+    op_id = body.status.op_id
     # Validates internally (CAS/ordering/state) and, on success, purges the project's
     # resources and its row — a no-op if it's already gone (a previous call already
     # removed it) or a genuine retry with the same op_id (e.g. after a dropped
     # connection re-runs the purge rather than skipping it).
     await mlrun.utils.run_in_threadpool(
-        services.api.crud.Projects().commit_delete_project, name, body.op_id
+        services.api.crud.Projects().commit_delete_project, name, op_id
     )
     return follower_schemas.FollowerDeleteResult(
-        name=name, op_id=body.op_id, result="removed"
+        name=name, op_id=op_id, result="removed"
     )
 
 
@@ -197,7 +180,7 @@ async def commit_delete_project(
 async def list_project_states(
     updated_after: datetime.datetime | None = None,
     cursor: str | None = None,
-    page_size: int = 200,
+    page_size: int = fastapi.Query(200, alias="limit"),
     db_session: sqlalchemy.orm.Session = fastapi.Depends(
         framework.api.deps.get_db_session
     ),

@@ -23,6 +23,7 @@ shared cross-follower library later without rework. Callers translate their own 
 back again afterward.
 """
 
+import datetime
 import enum
 import uuid
 
@@ -81,6 +82,18 @@ _VALID_STATES: dict[FollowerOp, frozenset[mlrun.common.schemas.ProjectState | No
         {None, mlrun.common.schemas.ProjectState.deleting}
     ),
 }
+
+
+def op_id_timestamp(op_id: uuid.UUID) -> datetime.datetime:
+    """
+    Extract the millisecond-precision timestamp UUIDv7 embeds in its 48 high bits —
+    Orca's mint time for this operation. `updated_at` isn't on the wire for any of the
+    six follower ops (confirmed against Orca's actual follower client), so every hook
+    derives it from `op_id` instead of trusting a request field.
+    """
+    if op_id.version != 7:
+        raise ValueError("op_id must be a UUIDv7")
+    return datetime.datetime.fromtimestamp((op_id.int >> 80) / 1000, tz=datetime.UTC)
 
 
 def check_cas(stored_op_id: uuid.UUID | None, prev_op_id: uuid.UUID | None) -> None:

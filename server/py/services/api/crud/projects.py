@@ -1134,7 +1134,6 @@ class Projects(
         self,
         project: mlrun.common.schemas.Project,
         op_id: uuid.UUID,
-        updated_at: datetime.datetime,
     ) -> mlrun.common.schemas.Project:
         session = framework.db.session.create_session()
         try:
@@ -1155,7 +1154,9 @@ class Projects(
             project = project.copy(deep=True)
             project.status.state = mlrun.common.schemas.ProjectState.creating
             project.status.op_id = op_id
-            project.status.updated_at = updated_at
+            # Not on the wire for this op (Orca's request has no updated_at field at
+            # all) — derive it from op_id's own UUIDv7 mint time instead.
+            project.status.updated_at = follower_contract.op_id_timestamp(op_id)
             if existing:
                 self.store_project(session, name, project)
             else:
@@ -1168,7 +1169,6 @@ class Projects(
         self,
         name: str,
         op_id: uuid.UUID,
-        updated_at: datetime.datetime,
     ) -> mlrun.common.schemas.Project:
         session = framework.db.session.create_session()
         try:
@@ -1186,6 +1186,9 @@ class Projects(
                 stored_op_id=existing.status.op_id if existing else None,
                 incoming_op_id=op_id,
             )
+            # No project payload on this call, and updated_at isn't on the wire at
+            # all — derive it from op_id's own UUIDv7 mint time.
+            updated_at = follower_contract.op_id_timestamp(op_id)
             self.patch_project(
                 session,
                 name,
@@ -1206,7 +1209,6 @@ class Projects(
         self,
         name: str,
         op_id: uuid.UUID,
-        updated_at: datetime.datetime,
         prev_op_id: uuid.UUID | None = None,
     ) -> mlrun.common.schemas.Project | None:
         session = framework.db.session.create_session()
@@ -1225,6 +1227,9 @@ class Projects(
             )
             if outcome == follower_contract.ReplayOutcome.replay:
                 return existing
+            # No project payload on this call, and updated_at isn't on the wire at
+            # all — derive it from op_id's own UUIDv7 mint time.
+            updated_at = follower_contract.op_id_timestamp(op_id)
             self.patch_project(
                 session,
                 name,
@@ -1286,7 +1291,6 @@ class Projects(
         name: str,
         project: mlrun.common.schemas.Project,
         op_id: uuid.UUID,
-        updated_at: datetime.datetime,
         prev_op_id: uuid.UUID | None = None,
     ) -> mlrun.common.schemas.Project:
         session = framework.db.session.create_session()
@@ -1307,6 +1311,9 @@ class Projects(
             )
             if outcome == follower_contract.ReplayOutcome.replay:
                 return existing
+            # No updated_at on the wire for this op either — derive it from op_id's
+            # own UUIDv7 mint time.
+            updated_at = follower_contract.op_id_timestamp(op_id)
             # The common set only — labels/annotations/owner/description. Everything else
             # is MLRun-specific spec the leader never sends and never syncs (see the
             # Backend HLD's "store labels/annotations/description?" decision).

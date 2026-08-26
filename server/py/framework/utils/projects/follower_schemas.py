@@ -23,7 +23,6 @@ shapes are as portable as the validation rules and could move into a shared
 cross-follower library alongside them.
 """
 
-import datetime
 import typing
 import uuid
 
@@ -35,7 +34,8 @@ import mlrun.common.schemas
 class FollowerProjectState(pydantic.BaseModel):
     name: str
     op_id: uuid.UUID | None = None
-    state: mlrun.common.schemas.ProjectState | None = None
+    # Wire name is sync_status, not state, matching Orca's FollowerProjectState struct.
+    sync_status: mlrun.common.schemas.ProjectState | None = None
 
 
 class FollowerProjectStatesPage(pydantic.BaseModel):
@@ -52,28 +52,30 @@ class FollowerDeleteResult(pydantic.BaseModel):
     result: typing.Literal["removed"]
 
 
+class FollowerOpIdStatus(pydantic.BaseModel):
+    op_id: uuid.UUID
+
+
 class FollowerPrepareCreateRequest(pydantic.BaseModel):
     project: mlrun.common.schemas.Project
 
 
 class FollowerCommitCreateRequest(pydantic.BaseModel):
-    op_id: uuid.UUID
-    updated_at: datetime.datetime
+    status: FollowerOpIdStatus
 
 
 class FollowerUpdateRequest(pydantic.BaseModel):
     project: mlrun.common.schemas.Project
-    # Optional: None is a valid CAS witness for a project with no op_id yet (see
-    # follower_contract.check_cas). Required-but-nullable, not omittable — the leader
-    # always sends this field, its value is what can legitimately be None.
+    # None is a valid CAS witness for a project with no op_id yet (see
+    # follower_contract.check_cas) — the leader omits this field entirely rather than
+    # sending an explicit null when it has no witness to offer.
     prev_op_id: uuid.UUID | None = None
 
 
 class FollowerPrepareDeleteRequest(pydantic.BaseModel):
-    op_id: uuid.UUID
-    updated_at: datetime.datetime
+    status: FollowerOpIdStatus
     prev_op_id: uuid.UUID | None = None
 
 
 class FollowerCommitDeleteRequest(pydantic.BaseModel):
-    op_id: uuid.UUID
+    status: FollowerOpIdStatus

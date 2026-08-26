@@ -20,12 +20,14 @@ import unittest.mock
 import uuid
 
 import pytest
+from uuid_utils.compat import uuid7
 
 import mlrun
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils.singleton
 
+import framework.utils.projects.follower_contract as follower_contract
 import services.api.crud.projects as projects_crud
 
 
@@ -455,9 +457,6 @@ def test_wait_for_nuclio_project_deletion_keeps_user_auth_when_not_iguazio_v4(
 # ----- 2PC follower hooks (ML-12901) ----------------------------------------
 
 
-_UPDATED_AT = datetime.datetime(2024, 1, 1, tzinfo=datetime.UTC)
-
-
 def _make_follower_snapshot(
     op_id: uuid.UUID, state: mlrun.common.schemas.ProjectState
 ) -> mlrun.common.schemas.Project:
@@ -530,50 +529,22 @@ def test_prepare_create_project_creates_new_row(
     store_mock = unittest.mock.MagicMock()
     monkeypatch.setattr(projects_crud.Projects, "store_project", store_mock)
 
-    op_id = uuid.UUID(int=1)
+    op_id = uuid7()
     project = mlrun.common.schemas.Project(
         metadata=mlrun.common.schemas.ProjectMetadata(name="proj")
     )
 
-    result = projects_crud.Projects().prepare_create_project(
-        project, op_id, _UPDATED_AT
-    )
+    result = projects_crud.Projects().prepare_create_project(project, op_id)
 
     store_mock.assert_not_called()
     created_project = create_mock.call_args.args[1]
     assert created_project.status.state == mlrun.common.schemas.ProjectState.creating
     assert created_project.status.op_id == op_id
-    assert created_project.status.updated_at == _UPDATED_AT
+    # updated_at isn't on the wire for this op: derived from op_id's own timestamp.
+    assert created_project.status.updated_at == follower_contract.op_id_timestamp(op_id)
     # The endpoint builds its response from this return value directly, with no
     # follow-up query — it must reflect exactly what was just persisted.
     assert result is created_project
-
-
-def test_prepare_create_project_updated_at_comes_from_the_explicit_param(
-    reset_projects_singleton: None,
-    patched_db_session: unittest.mock.MagicMock,
-    monkeypatch: pytest.MonkeyPatch,
-):
-    """The endpoint validates project.status.updated_at is present and passes it
-    to the hook explicitly, the same way it already does for op_id — the hook must
-    use that argument, not re-read the (possibly stale) field off `project`."""
-    monkeypatch.setattr(
-        projects_crud.Projects, "get_follower_project_snapshot", lambda *a, **k: None
-    )
-    create_mock = unittest.mock.MagicMock()
-    monkeypatch.setattr(projects_crud.Projects, "create_project", create_mock)
-
-    op_id = uuid.UUID(int=1)
-    decoy_updated_at = _UPDATED_AT + datetime.timedelta(days=1)
-    project = mlrun.common.schemas.Project(
-        metadata=mlrun.common.schemas.ProjectMetadata(name="proj"),
-        status=mlrun.common.schemas.ProjectStatus(updated_at=decoy_updated_at),
-    )
-
-    projects_crud.Projects().prepare_create_project(project, op_id, _UPDATED_AT)
-
-    created_project = create_mock.call_args.args[1]
-    assert created_project.status.updated_at == _UPDATED_AT
 
 
 def test_prepare_create_project_idempotent_replay_does_not_mutate(
@@ -598,9 +569,7 @@ def test_prepare_create_project_idempotent_replay_does_not_mutate(
     project = mlrun.common.schemas.Project(
         metadata=mlrun.common.schemas.ProjectMetadata(name="proj")
     )
-    result = projects_crud.Projects().prepare_create_project(
-        project, op_id, _UPDATED_AT
-    )
+    result = projects_crud.Projects().prepare_create_project(project, op_id)
 
     create_mock.assert_not_called()
     store_mock.assert_not_called()
@@ -632,9 +601,7 @@ def test_prepare_create_project_stale_op_is_rejected(
     )
 
     with pytest.raises(mlrun.errors.MLRunConflictError):
-        projects_crud.Projects().prepare_create_project(
-            project, stale_op_id, _UPDATED_AT
-        )
+        projects_crud.Projects().prepare_create_project(project, stale_op_id)
 
     store_mock.assert_not_called()
 
@@ -649,9 +616,7 @@ def test_commit_create_project_requires_provisioned_project(
     )
 
     with pytest.raises(mlrun.errors.MLRunPreconditionFailedError):
-        projects_crud.Projects().commit_create_project(
-            "proj", uuid.UUID(int=1), _UPDATED_AT
-        )
+        projects_crud.Projects().commit_create_project("proj", uuid.UUID(int=1))
 
 
 def test_commit_create_project_flips_to_online(
@@ -659,7 +624,7 @@ def test_commit_create_project_flips_to_online(
     patched_db_session: unittest.mock.MagicMock,
     monkeypatch: pytest.MonkeyPatch,
 ):
-    op_id = uuid.UUID(int=1)
+    op_id = uuid7()
     existing = _make_follower_snapshot(
         op_id, mlrun.common.schemas.ProjectState.creating
     )
@@ -671,17 +636,18 @@ def test_commit_create_project_flips_to_online(
     patch_mock = unittest.mock.MagicMock()
     monkeypatch.setattr(projects_crud.Projects, "patch_project", patch_mock)
 
-    result = projects_crud.Projects().commit_create_project("proj", op_id, _UPDATED_AT)
+    result = projects_crud.Projects().commit_create_project("proj", op_id)
 
     patched_dict = patch_mock.call_args.args[2]
     assert patched_dict["status"]["state"] == mlrun.common.schemas.ProjectState.online
-    # No project payload on this call: updated_at comes from the explicit param.
-    assert patched_dict["status"]["updated_at"] == _UPDATED_AT
+    # No project payload on this call: updated_at comes from op_id's own timestamp.
+    expected_updated_at = follower_contract.op_id_timestamp(op_id)
+    assert patched_dict["status"]["updated_at"] == expected_updated_at
     # The endpoint builds its response from this return value with no follow-up
     # query, so it must already reflect the new state.
     assert result.status.state == mlrun.common.schemas.ProjectState.online
     assert result.status.op_id == op_id
-    assert result.status.updated_at == _UPDATED_AT
+    assert result.status.updated_at == expected_updated_at
 
 
 def test_update_project_follower_absent_project_is_not_found(
@@ -701,7 +667,6 @@ def test_update_project_follower_absent_project_is_not_found(
             "proj",
             project,
             uuid.UUID(int=2),
-            _UPDATED_AT,
             prev_op_id=uuid.UUID(int=1),
         )
 
@@ -733,7 +698,6 @@ def test_update_project_follower_cas_mismatch_is_rejected(
             "proj",
             project,
             uuid.UUID(int=2),
-            _UPDATED_AT,
             prev_op_id=wrong_prev_op_id,
         )
 
@@ -758,18 +722,21 @@ def test_update_project_follower_first_touch_with_no_prior_op_id_applies(
     patch_mock = unittest.mock.MagicMock()
     monkeypatch.setattr(projects_crud.Projects, "patch_project", patch_mock)
 
-    new_op_id = uuid.UUID(int=1)
+    new_op_id = uuid7()
     project = mlrun.common.schemas.Project(
         metadata=mlrun.common.schemas.ProjectMetadata(name="proj", labels={"a": "b"}),
         spec=mlrun.common.schemas.ProjectSpec(owner="jsmith"),
     )
 
     projects_crud.Projects().update_project_follower(
-        "proj", project, new_op_id, _UPDATED_AT, prev_op_id=None
+        "proj", project, new_op_id, prev_op_id=None
     )
 
     patched_dict = patch_mock.call_args.args[2]
-    assert patched_dict["status"] == {"op_id": new_op_id, "updated_at": _UPDATED_AT}
+    assert patched_dict["status"] == {
+        "op_id": new_op_id,
+        "updated_at": follower_contract.op_id_timestamp(new_op_id),
+    }
 
 
 def test_update_project_follower_applies_common_set_only(
@@ -789,7 +756,7 @@ def test_update_project_follower_applies_common_set_only(
     patch_mock = unittest.mock.MagicMock()
     monkeypatch.setattr(projects_crud.Projects, "patch_project", patch_mock)
 
-    new_op_id = uuid.UUID(int=2)
+    new_op_id = uuid7()
     project = mlrun.common.schemas.Project(
         metadata=mlrun.common.schemas.ProjectMetadata(
             name="proj", labels={"team": "ml"}, annotations={"a": "b"}
@@ -798,55 +765,21 @@ def test_update_project_follower_applies_common_set_only(
     )
 
     result = projects_crud.Projects().update_project_follower(
-        "proj", project, new_op_id, _UPDATED_AT, prev_op_id=stored_op_id
+        "proj", project, new_op_id, prev_op_id=stored_op_id
     )
 
+    expected_updated_at = follower_contract.op_id_timestamp(new_op_id)
     patched_dict = patch_mock.call_args.args[2]
     assert patched_dict == {
         "metadata": {"labels": {"team": "ml"}, "annotations": {"a": "b"}},
         "spec": {"owner": "jsmith", "description": "desc"},
-        "status": {"op_id": new_op_id, "updated_at": _UPDATED_AT},
+        "status": {"op_id": new_op_id, "updated_at": expected_updated_at},
     }
     # The endpoint builds its response from this return value with no follow-up
     # query — state doesn't change on update, but op_id must reflect the new one.
     assert result.status.op_id == new_op_id
-    assert result.status.updated_at == _UPDATED_AT
+    assert result.status.updated_at == expected_updated_at
     assert result.status.state == mlrun.common.schemas.ProjectState.online
-
-
-def test_update_project_follower_updated_at_comes_from_the_explicit_param(
-    reset_projects_singleton: None,
-    patched_db_session: unittest.mock.MagicMock,
-    monkeypatch: pytest.MonkeyPatch,
-):
-    """Same guarantee as prepare_create's: the hook must use the explicitly passed
-    updated_at, not re-read the (possibly stale) field off `project`."""
-    stored_op_id = uuid.UUID(int=1)
-    existing = _make_follower_snapshot(
-        stored_op_id, mlrun.common.schemas.ProjectState.online
-    )
-    monkeypatch.setattr(
-        projects_crud.Projects,
-        "get_follower_project_snapshot",
-        lambda *a, **k: existing,
-    )
-    patch_mock = unittest.mock.MagicMock()
-    monkeypatch.setattr(projects_crud.Projects, "patch_project", patch_mock)
-
-    new_op_id = uuid.UUID(int=2)
-    decoy_updated_at = _UPDATED_AT + datetime.timedelta(days=1)
-    project = mlrun.common.schemas.Project(
-        metadata=mlrun.common.schemas.ProjectMetadata(name="proj"),
-        status=mlrun.common.schemas.ProjectStatus(updated_at=decoy_updated_at),
-    )
-
-    result = projects_crud.Projects().update_project_follower(
-        "proj", project, new_op_id, _UPDATED_AT, prev_op_id=stored_op_id
-    )
-
-    patched_dict = patch_mock.call_args.args[2]
-    assert patched_dict["status"]["updated_at"] == _UPDATED_AT
-    assert result.status.updated_at == _UPDATED_AT
 
 
 def test_prepare_delete_project_absent_project_is_noop(
@@ -861,7 +794,7 @@ def test_prepare_delete_project_absent_project_is_noop(
     monkeypatch.setattr(projects_crud.Projects, "patch_project", patch_mock)
 
     result = projects_crud.Projects().prepare_delete_project(
-        "proj", uuid.UUID(int=1), _UPDATED_AT, prev_op_id=uuid.UUID(int=1)
+        "proj", uuid.UUID(int=1), prev_op_id=uuid.UUID(int=1)
     )
 
     patch_mock.assert_not_called()
@@ -885,25 +818,26 @@ def test_prepare_delete_project_marks_deleting(
     patch_mock = unittest.mock.MagicMock()
     monkeypatch.setattr(projects_crud.Projects, "patch_project", patch_mock)
 
-    new_op_id = uuid.UUID(int=2)
+    new_op_id = uuid7()
     result = projects_crud.Projects().prepare_delete_project(
-        "proj", new_op_id, _UPDATED_AT, prev_op_id=stored_op_id
+        "proj", new_op_id, prev_op_id=stored_op_id
     )
 
+    expected_updated_at = follower_contract.op_id_timestamp(new_op_id)
     patched_dict = patch_mock.call_args.args[2]
-    # No project payload on this call: updated_at comes from the explicit param.
+    # No project payload on this call: updated_at comes from op_id's own timestamp.
     assert patched_dict == {
         "status": {
             "state": mlrun.common.schemas.ProjectState.deleting,
             "op_id": new_op_id,
-            "updated_at": _UPDATED_AT,
+            "updated_at": expected_updated_at,
         }
     }
     # The endpoint builds its response from this return value with no follow-up
     # query, so it must already reflect the new state.
     assert result.status.state == mlrun.common.schemas.ProjectState.deleting
     assert result.status.op_id == new_op_id
-    assert result.status.updated_at == _UPDATED_AT
+    assert result.status.updated_at == expected_updated_at
 
 
 def test_commit_delete_project_absent_project_is_noop(

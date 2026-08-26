@@ -107,6 +107,16 @@ def build_image(
         ensure_function_security_context(runtime, auth_info)
         user_unix_id = runtime.spec.security_context.run_as_user
         enriched_group_id = runtime.spec.security_context.run_as_group
+    else:
+        # a static (non-enriched) security context still needs its uid/gid chowned;
+        # security_context may be an unconverted dict, hence the safe getattr.
+        user_unix_id = getattr(runtime.spec.security_context, "run_as_user", None)
+        enriched_group_id = getattr(runtime.spec.security_context, "run_as_group", None)
+        if user_unix_id is not None and enriched_group_id is None:
+            # only the uid matters for the chown to grant write access (POSIX owner
+            # permissions apply once the uid matches, regardless of group), so don't
+            # skip the chown just because the group wasn't pinned.
+            enriched_group_id = user_unix_id
 
     # everything above is engine-agnostic resolution. Package it into the seam DTO,
     # then let the resolved backend own source routing, the Dockerfile source COPY

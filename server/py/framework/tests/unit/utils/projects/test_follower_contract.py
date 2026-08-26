@@ -12,11 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import datetime
 import uuid
 
 import pytest
-from uuid_utils.compat import uuid7
 
 import mlrun.common.schemas
 import mlrun.errors
@@ -28,24 +26,6 @@ _STORED = uuid.UUID(int=100)
 _NEW = uuid.UUID(int=200)
 
 _STATE = mlrun.common.schemas.ProjectState
-
-
-# ----- op_id_timestamp -------------------------------------------------------
-
-
-def test_op_id_timestamp_extracts_the_embedded_mint_time():
-    before = datetime.datetime.now(tz=datetime.UTC)
-    op_id = uuid7()
-    after = datetime.datetime.now(tz=datetime.UTC)
-
-    timestamp = follower_contract.op_id_timestamp(op_id)
-
-    assert before - datetime.timedelta(milliseconds=1) <= timestamp <= after
-
-
-def test_op_id_timestamp_rejects_a_non_v7_uuid():
-    with pytest.raises(ValueError, match="UUIDv7"):
-        follower_contract.op_id_timestamp(_STORED)
 
 
 # ----- check_ordering -------------------------------------------------------

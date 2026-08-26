@@ -20,14 +20,12 @@ import unittest.mock
 import uuid
 
 import pytest
-from uuid_utils.compat import uuid7
 
 import mlrun
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils.singleton
 
-import framework.utils.projects.follower_contract as follower_contract
 import services.api.crud.projects as projects_crud
 
 
@@ -529,19 +527,21 @@ def test_prepare_create_project_creates_new_row(
     store_mock = unittest.mock.MagicMock()
     monkeypatch.setattr(projects_crud.Projects, "store_project", store_mock)
 
-    op_id = uuid7()
+    op_id = uuid.UUID(int=1)
     project = mlrun.common.schemas.Project(
         metadata=mlrun.common.schemas.ProjectMetadata(name="proj")
     )
 
+    before = datetime.datetime.now(tz=datetime.UTC)
     result = projects_crud.Projects().prepare_create_project(project, op_id)
+    after = datetime.datetime.now(tz=datetime.UTC)
 
     store_mock.assert_not_called()
     created_project = create_mock.call_args.args[1]
     assert created_project.status.state == mlrun.common.schemas.ProjectState.creating
     assert created_project.status.op_id == op_id
-    # updated_at isn't on the wire for this op: derived from op_id's own timestamp.
-    assert created_project.status.updated_at == follower_contract.op_id_timestamp(op_id)
+    # updated_at isn't on the wire for this op: MLRun stamps its own local time.
+    assert before <= created_project.status.updated_at <= after
     # The endpoint builds its response from this return value directly, with no
     # follow-up query — it must reflect exactly what was just persisted.
     assert result is created_project
@@ -624,7 +624,7 @@ def test_commit_create_project_flips_to_online(
     patched_db_session: unittest.mock.MagicMock,
     monkeypatch: pytest.MonkeyPatch,
 ):
-    op_id = uuid7()
+    op_id = uuid.UUID(int=1)
     existing = _make_follower_snapshot(
         op_id, mlrun.common.schemas.ProjectState.creating
     )
@@ -636,18 +636,19 @@ def test_commit_create_project_flips_to_online(
     patch_mock = unittest.mock.MagicMock()
     monkeypatch.setattr(projects_crud.Projects, "patch_project", patch_mock)
 
+    before = datetime.datetime.now(tz=datetime.UTC)
     result = projects_crud.Projects().commit_create_project("proj", op_id)
+    after = datetime.datetime.now(tz=datetime.UTC)
 
     patched_dict = patch_mock.call_args.args[2]
     assert patched_dict["status"]["state"] == mlrun.common.schemas.ProjectState.online
-    # No project payload on this call: updated_at comes from op_id's own timestamp.
-    expected_updated_at = follower_contract.op_id_timestamp(op_id)
-    assert patched_dict["status"]["updated_at"] == expected_updated_at
+    # No project payload on this call: MLRun stamps its own local time.
+    assert before <= patched_dict["status"]["updated_at"] <= after
     # The endpoint builds its response from this return value with no follow-up
     # query, so it must already reflect the new state.
     assert result.status.state == mlrun.common.schemas.ProjectState.online
     assert result.status.op_id == op_id
-    assert result.status.updated_at == expected_updated_at
+    assert before <= result.status.updated_at <= after
 
 
 def test_update_project_follower_absent_project_is_not_found(
@@ -722,21 +723,22 @@ def test_update_project_follower_first_touch_with_no_prior_op_id_applies(
     patch_mock = unittest.mock.MagicMock()
     monkeypatch.setattr(projects_crud.Projects, "patch_project", patch_mock)
 
-    new_op_id = uuid7()
+    new_op_id = uuid.UUID(int=1)
     project = mlrun.common.schemas.Project(
         metadata=mlrun.common.schemas.ProjectMetadata(name="proj", labels={"a": "b"}),
         spec=mlrun.common.schemas.ProjectSpec(owner="jsmith"),
     )
 
+    before = datetime.datetime.now(tz=datetime.UTC)
     projects_crud.Projects().update_project_follower(
         "proj", project, new_op_id, prev_op_id=None
     )
+    after = datetime.datetime.now(tz=datetime.UTC)
 
     patched_dict = patch_mock.call_args.args[2]
-    assert patched_dict["status"] == {
-        "op_id": new_op_id,
-        "updated_at": follower_contract.op_id_timestamp(new_op_id),
-    }
+    assert patched_dict["status"]["op_id"] == new_op_id
+    # No updated_at on the wire for this op: MLRun stamps its own local time.
+    assert before <= patched_dict["status"]["updated_at"] <= after
 
 
 def test_update_project_follower_applies_common_set_only(
@@ -756,7 +758,7 @@ def test_update_project_follower_applies_common_set_only(
     patch_mock = unittest.mock.MagicMock()
     monkeypatch.setattr(projects_crud.Projects, "patch_project", patch_mock)
 
-    new_op_id = uuid7()
+    new_op_id = uuid.UUID(int=2)
     project = mlrun.common.schemas.Project(
         metadata=mlrun.common.schemas.ProjectMetadata(
             name="proj", labels={"team": "ml"}, annotations={"a": "b"}
@@ -764,21 +766,25 @@ def test_update_project_follower_applies_common_set_only(
         spec=mlrun.common.schemas.ProjectSpec(owner="jsmith", description="desc"),
     )
 
+    before = datetime.datetime.now(tz=datetime.UTC)
     result = projects_crud.Projects().update_project_follower(
         "proj", project, new_op_id, prev_op_id=stored_op_id
     )
+    after = datetime.datetime.now(tz=datetime.UTC)
 
-    expected_updated_at = follower_contract.op_id_timestamp(new_op_id)
     patched_dict = patch_mock.call_args.args[2]
-    assert patched_dict == {
-        "metadata": {"labels": {"team": "ml"}, "annotations": {"a": "b"}},
-        "spec": {"owner": "jsmith", "description": "desc"},
-        "status": {"op_id": new_op_id, "updated_at": expected_updated_at},
+    assert patched_dict["metadata"] == {
+        "labels": {"team": "ml"},
+        "annotations": {"a": "b"},
     }
+    assert patched_dict["spec"] == {"owner": "jsmith", "description": "desc"}
+    assert patched_dict["status"]["op_id"] == new_op_id
+    # No updated_at on the wire for this op: MLRun stamps its own local time.
+    assert before <= patched_dict["status"]["updated_at"] <= after
     # The endpoint builds its response from this return value with no follow-up
     # query — state doesn't change on update, but op_id must reflect the new one.
     assert result.status.op_id == new_op_id
-    assert result.status.updated_at == expected_updated_at
+    assert before <= result.status.updated_at <= after
     assert result.status.state == mlrun.common.schemas.ProjectState.online
 
 
@@ -818,26 +824,23 @@ def test_prepare_delete_project_marks_deleting(
     patch_mock = unittest.mock.MagicMock()
     monkeypatch.setattr(projects_crud.Projects, "patch_project", patch_mock)
 
-    new_op_id = uuid7()
+    new_op_id = uuid.UUID(int=2)
+    before = datetime.datetime.now(tz=datetime.UTC)
     result = projects_crud.Projects().prepare_delete_project(
         "proj", new_op_id, prev_op_id=stored_op_id
     )
+    after = datetime.datetime.now(tz=datetime.UTC)
 
-    expected_updated_at = follower_contract.op_id_timestamp(new_op_id)
     patched_dict = patch_mock.call_args.args[2]
-    # No project payload on this call: updated_at comes from op_id's own timestamp.
-    assert patched_dict == {
-        "status": {
-            "state": mlrun.common.schemas.ProjectState.deleting,
-            "op_id": new_op_id,
-            "updated_at": expected_updated_at,
-        }
-    }
+    # No project payload on this call: MLRun stamps its own local time.
+    assert patched_dict["status"]["state"] == mlrun.common.schemas.ProjectState.deleting
+    assert patched_dict["status"]["op_id"] == new_op_id
+    assert before <= patched_dict["status"]["updated_at"] <= after
     # The endpoint builds its response from this return value with no follow-up
     # query, so it must already reflect the new state.
     assert result.status.state == mlrun.common.schemas.ProjectState.deleting
     assert result.status.op_id == new_op_id
-    assert result.status.updated_at == expected_updated_at
+    assert before <= result.status.updated_at <= after
 
 
 def test_commit_delete_project_absent_project_is_noop(

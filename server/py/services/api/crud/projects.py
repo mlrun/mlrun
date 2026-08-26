@@ -1155,8 +1155,8 @@ class Projects(
             project.status.state = mlrun.common.schemas.ProjectState.creating
             project.status.op_id = op_id
             # Not on the wire for this op (Orca's request has no updated_at field at
-            # all) — derive it from op_id's own UUIDv7 mint time instead.
-            project.status.updated_at = follower_contract.op_id_timestamp(op_id)
+            # all) — MLRun stamps its own local time for when it applied the change.
+            project.status.updated_at = datetime.datetime.now(datetime.UTC)
             if existing:
                 self.store_project(session, name, project)
             else:
@@ -1187,8 +1187,8 @@ class Projects(
                 incoming_op_id=op_id,
             )
             # No project payload on this call, and updated_at isn't on the wire at
-            # all — derive it from op_id's own UUIDv7 mint time.
-            updated_at = follower_contract.op_id_timestamp(op_id)
+            # all — MLRun stamps its own local time for when it applied the change.
+            updated_at = datetime.datetime.now(datetime.UTC)
             self.patch_project(
                 session,
                 name,
@@ -1228,8 +1228,8 @@ class Projects(
             if outcome == follower_contract.ReplayOutcome.replay:
                 return existing
             # No project payload on this call, and updated_at isn't on the wire at
-            # all — derive it from op_id's own UUIDv7 mint time.
-            updated_at = follower_contract.op_id_timestamp(op_id)
+            # all — MLRun stamps its own local time for when it applied the change.
+            updated_at = datetime.datetime.now(datetime.UTC)
             self.patch_project(
                 session,
                 name,
@@ -1311,9 +1311,9 @@ class Projects(
             )
             if outcome == follower_contract.ReplayOutcome.replay:
                 return existing
-            # No updated_at on the wire for this op either — derive it from op_id's
-            # own UUIDv7 mint time.
-            updated_at = follower_contract.op_id_timestamp(op_id)
+            # No updated_at on the wire for this op either — MLRun stamps its own
+            # local time for when it applied the change.
+            updated_at = datetime.datetime.now(datetime.UTC)
             # The common set only — labels/annotations/owner/description. Everything else
             # is MLRun-specific spec the leader never sends and never syncs (see the
             # Backend HLD's "store labels/annotations/description?" decision).

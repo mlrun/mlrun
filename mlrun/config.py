@@ -559,6 +559,11 @@ default_config = {
             "iguazio_client_job_cache_ttl": "20 minutes",
             "nuclio_project_deletion_verification_timeout": "300 seconds",
             "nuclio_project_deletion_verification_interval": "5 seconds",
+            # when the leader is orca, how often to poll GET /api/v1/trackable-actions/executions while waiting
+            # for an operation (create/update/delete) to reach a terminal state, and how long to wait before
+            # giving up
+            "iguazio_project_states_poll_interval": "2 seconds",
+            "iguazio_project_states_poll_timeout": "300 seconds",
             "summaries": {
                 # Number of days back to include when calculating the project pipeline summary.
                 "list_pipelines_time_period_in_days": 2,

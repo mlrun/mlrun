@@ -13,8 +13,8 @@
 # limitations under the License.
 """Orca projects wire protocol, shared between MLRun's server-side Orca leader-proxy
 (server/py/framework/utils/clients/iguazio/v4.py) and MLRun's SDK-direct-to-Orca project client
-(mlrun/db/clients/orca.py). Kept here rather than in either caller so neither implementation can
-drift from Orca's actual contract.
+(mlrun/db/orca.py). Kept here rather than in either caller so neither implementation can drift
+from Orca's actual contract.
 """
 
 import uuid
@@ -41,7 +41,11 @@ class OrcaActionFailedError(Exception):
 
 def create_project_wire(project: mlrun.common.schemas.Project) -> dict:
     """Build Orca's flat CreateProjectOptions body: name is required, everything else - owner
-    included, Orca derives it from the authenticated caller when omitted - is optional."""
+    included, Orca derives it from the authenticated caller when omitted - is optional.
+
+    :param project: The project to create.
+    :return: The JSON-serializable request body for Orca's ``POST /projects`` endpoint.
+    """
     wire = {"name": project.metadata.name}
     if project.spec.owner:
         wire["owner"] = project.spec.owner
@@ -58,7 +62,13 @@ def update_project_wire(
     project: mlrun.common.schemas.Project, prev_op_id: uuid.UUID | None
 ) -> dict:
     """Build Orca's flat UpdateProjectOptions body: prevOpId/owner are required by Orca's contract,
-    so a missing value is sent through as-is and surfaces as a real validation error from Orca."""
+    so a missing value is sent through as-is and surfaces as a real validation error from Orca.
+
+    :param project: The project's desired state to update to.
+    :param prev_op_id: The CAS witness - the ``op_id`` last observed by the caller, or ``None``
+        for a PUT that upserts a project that doesn't exist yet.
+    :return: The JSON-serializable request body for Orca's ``PUT``/``PATCH /projects/{name}``.
+    """
     wire = {
         "prevOpId": str(prev_op_id) if prev_op_id else None,
         "owner": project.spec.owner,
@@ -75,7 +85,11 @@ def update_project_wire(
 def project_from_wire(body: dict) -> mlrun.common.schemas.Project:
     """Parse an Orca project response body. Orca's wire format is camelCase (the SDK schemas
     camelize every field), so this can't just pydantic-validate the body directly - op_id/updated_at
-    need explicit remapping."""
+    need explicit remapping.
+
+    :param body: The parsed JSON body of an Orca project response.
+    :return: The equivalent :class:`mlrun.common.schemas.Project`.
+    """
     metadata = body.get("metadata", {})
     spec = body.get("spec", {})
     status = body.get("status", {})
@@ -99,7 +113,11 @@ def project_from_wire(body: dict) -> mlrun.common.schemas.Project:
 
 def action_execution_query_params(op_id: uuid.UUID | str) -> dict:
     """Query params for ``GET .../trackable-actions/executions`` to find the sync-project action for
-    ``op_id``."""
+    ``op_id``.
+
+    :param op_id: The operation id to filter the trackable-action execution by.
+    :return: The query params for the request.
+    """
     return {
         "correlationId": str(op_id),
         "actionType": PROJECT_SYNC_ACTION_TYPE,
@@ -117,6 +135,10 @@ def verify_action_execution_terminal(
     :class:`mlrun.errors.MLRunRuntimeError` if it hasn't reached a terminal state yet (including "not
     observed yet") - callers drive the retry/poll loop and treat that as still-in-progress, not
     failure.
+
+    :param body: The parsed JSON body of a ``GET .../trackable-actions/executions`` response.
+    :param name: The project name, for error messages only.
+    :param op_id: The operation id being awaited, for error messages only.
     """
     items = body.get("items", [])
     if not items:

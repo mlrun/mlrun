@@ -30,6 +30,7 @@ import requests
 
 import mlrun.common.schemas
 import mlrun.errors
+import mlrun.projects
 import mlrun.utils
 import mlrun.utils.helpers
 import mlrun.utils.orca_projects as orca_projects
@@ -119,7 +120,14 @@ class OrcaProjectsClient:
     def update_project(
         self, name: str, project, wait_for_completion: bool = True
     ) -> typing.Union["mlrun.projects.MlrunProject", uuid.UUID]:
-        """Update (``PUT``) a project directly in Orca. See :meth:`create_project`."""
+        """Update (``PUT``) a project directly in Orca.
+
+        :param name: Name of the project to update.
+        :param project: The project's desired state - see :meth:`create_project`.
+        :param wait_for_completion: See :meth:`create_project`.
+        :return: The updated project, or the operation's ``op_id`` if ``wait_for_completion`` is
+            ``False``.
+        """
         project = _as_project_like(project)
         prev_op_id = self._resolve_prev_op_id(name, project)
         response = self._send_request(
@@ -146,9 +154,17 @@ class OrcaProjectsClient:
         ``project``'s changes into them the same way MLRun's own server does
         (:mod:`mergedeep`, keyed by ``patch_mode``), and sends the merged result to Orca's
         ``PATCH`` as a full object.
+
+        :param name: Name of the project to patch.
+        :param project: The changes to apply - only the fields present are merged in.
+        :param patch_mode: The strategy for merging the changes with the existing object. Can be
+            either ``replace`` or ``additive``.
+        :param wait_for_completion: See :meth:`create_project`.
+        :return: The patched project, or the operation's ``op_id`` if ``wait_for_completion`` is
+            ``False``.
         """
         project = _as_project_like(project)
-        current = self.get_project(name)
+        current = self._get_project_schema(name)
         merged_common = {
             "labels": dict(current.metadata.labels or {}),
             "annotations": dict(current.metadata.annotations or {}),
@@ -209,8 +225,19 @@ class OrcaProjectsClient:
         self._wait_for_op(name, op_id)
         return None
 
-    def get_project(self, name: str) -> "mlrun.common.schemas.Project":
-        """Get a project directly from Orca."""
+    def get_project(self, name: str) -> "mlrun.projects.MlrunProject":
+        """Get a project directly from Orca.
+
+        :param name: Name of the project to get.
+        :return: The project.
+        """
+        return self._to_mlrun_project(self._get_project_schema(name))
+
+    def _get_project_schema(self, name: str) -> "mlrun.common.schemas.Project":
+        # Internal, schema-typed accessor - unlike the public get_project(), this keeps fields
+        # (like status.op_id, the CAS witness) that mlrun.projects.MlrunProject's own status
+        # object doesn't carry, since those are Orca-sync plumbing, not part of the SDK's
+        # user-facing project contract.
         response = self._send_request(
             "GET",
             orca_projects.PROJECT_ENDPOINT_TEMPLATE.format(name=name),
@@ -218,15 +245,23 @@ class OrcaProjectsClient:
         )
         return orca_projects.project_from_wire(response.json())
 
+    @staticmethod
+    def _to_mlrun_project(
+        project: "mlrun.common.schemas.Project",
+    ) -> "mlrun.projects.MlrunProject":
+        return mlrun.projects.MlrunProject.from_dict(project.dict())
+
     def _settle(
         self, name: str, response: requests.Response, wait_for_completion: bool
-    ) -> typing.Union["mlrun.common.schemas.Project", uuid.UUID]:
+    ) -> typing.Union["mlrun.projects.MlrunProject", uuid.UUID]:
         # update/patch may settle synchronously (200 - "all ack -> clear phase -> 200" per the
         # HLD) rather than go through the async 202 + poll path create always takes. A 200 has
         # already reached its terminal state, and - unlike 202 - has no trackable-action record
         # to poll for, so it must be handled before any polling is attempted.
         if response.status_code != requests.codes.accepted:
-            return orca_projects.project_from_wire(response.json())
+            return self._to_mlrun_project(
+                orca_projects.project_from_wire(response.json())
+            )
         op_id = response.json()["status"]["opId"]
         if not wait_for_completion:
             return op_id
@@ -243,7 +278,7 @@ class OrcaProjectsClient:
         if prev_op_id:
             return prev_op_id
         try:
-            return self.get_project(name).status.op_id
+            return self._get_project_schema(name).status.op_id
         except mlrun.errors.MLRunNotFoundError:
             return None
 

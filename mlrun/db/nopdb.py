@@ -315,18 +315,24 @@ class NopDB(RunDBInterface):
         self,
         name: str,
         deletion_strategy: mlrun.common.schemas.DeletionStrategy = mlrun.common.schemas.DeletionStrategy.default(),
+        wait_for_completion: bool = True,
     ):
         pass
 
     def create_project(
-        self, project: mlrun.common.schemas.Project | dict
+        self,
+        project: mlrun.common.schemas.Project | dict,
+        wait_for_completion: bool = True,
     ) -> mlrun.common.schemas.Project:
         if isinstance(project, dict):
             project = mlrun.projects.MlrunProject.from_dict(project)
         return project
 
     def store_project(
-        self, name: str, project: mlrun.common.schemas.Project | dict
+        self,
+        name: str,
+        project: mlrun.common.schemas.Project | dict,
+        wait_for_completion: bool = True,
     ) -> mlrun.common.schemas.Project:
         return self.create_project(project)
 
@@ -335,6 +341,7 @@ class NopDB(RunDBInterface):
         name: str,
         project: dict,
         patch_mode: mlrun.common.schemas.PatchMode = mlrun.common.schemas.PatchMode.replace,
+        wait_for_completion: bool = True,
     ) -> mlrun.common.schemas.Project:
         pass
 

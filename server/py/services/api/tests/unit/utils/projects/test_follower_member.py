@@ -29,6 +29,7 @@ import mlrun.utils
 
 import framework.db.sqldb.models
 import framework.utils.background_tasks
+import framework.utils.clients.iguazio.v4
 import framework.utils.projects.follower
 import framework.utils.projects.remotes.leader
 import framework.utils.singletons.db
@@ -610,6 +611,28 @@ def _assert_list_projects(
         )
         == {}
     )
+
+
+def test_initialize_with_orca_leader(monkeypatch):
+    monkeypatch.setattr(mlrun.mlconf.httpdb.projects, "leader", "orca")
+    monkeypatch.setattr(
+        mlrun.mlconf.httpdb.projects, "periodic_sync_interval", "0 seconds"
+    )
+    monkeypatch.setattr(mlrun.mlconf, "iguazio_api_url", "http://orca-api-url:8080")
+    projects_follower = framework.utils.projects.follower.Member()
+    projects_follower.initialize()
+    assert isinstance(
+        projects_follower._leader_client, framework.utils.clients.iguazio.v4.Client
+    )
+    projects_follower.shutdown()
+
+
+def test_initialize_with_orca_leader_requires_api_url(monkeypatch):
+    monkeypatch.setattr(mlrun.mlconf.httpdb.projects, "leader", "orca")
+    monkeypatch.setattr(mlrun.mlconf, "iguazio_api_url", "")
+    projects_follower = framework.utils.projects.follower.Member()
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+        projects_follower.initialize()
 
 
 def _generate_project(

@@ -14,7 +14,6 @@
 import datetime
 import tempfile
 import typing
-import uuid
 
 import httpx
 import humanfriendly
@@ -31,6 +30,7 @@ import mlrun.common.types
 import mlrun.errors
 import mlrun.utils
 import mlrun.utils.helpers
+import mlrun.utils.orca_projects as orca_projects
 from mlrun.utils import get_in
 
 import framework.utils.clients.helpers as clients_helpers
@@ -40,23 +40,6 @@ from framework.utils.clients.iguazio.base import BaseAsyncClient, BaseClient
 
 _GROUP_TYPE_KEY = "@type"
 _GROUP_TYPE_VALUE = "type.googleapis.com/usergroup.Group"
-
-# Orca's project endpoints - Orca is the IG4/Oris API service, reached via the same iguazio_api_url
-# this client already uses for auth/token operations. The path is doubled ("projects/projects") because
-# the route registry combines the "projects" subdomain with that subdomain's own "/projects" resource path.
-PROJECTS_ENDPOINT = "v1/projects/projects"
-PROJECT_ENDPOINT_TEMPLATE = "v1/projects/projects/{name}"
-ACTION_EXECUTIONS_ENDPOINT = "v1/trackable-actions/executions"
-
-# The project-sync driver publishes a "sync-project" trackable action, keyed by op_id as its
-# correlation_id, on the "projects" subdomain's ActionRunner - see orca SDK PR #1059.
-PROJECT_SYNC_ACTION_TYPE = "sync-project"
-PROJECT_SYNC_SUBDOMAIN = "projects"
-
-
-class _OrcaActionFailedError(Exception):
-    """Internal marker so _wait_for_op can stop polling immediately instead of waiting out the full
-    timeout on an action that has already terminally failed."""
 
 
 class Client(BaseClient, project_leader.Member):
@@ -302,10 +285,10 @@ class Client(BaseClient, project_leader.Member):
         self._logger.debug("Creating project in Orca", project=project.metadata.name)
         response = self._send_project_request(
             mlrun.common.types.HTTPMethod.POST,
-            PROJECTS_ENDPOINT,
+            orca_projects.PROJECTS_ENDPOINT,
             "Failed creating project in Orca",
             auth_info,
-            json=self._create_project_wire(project),
+            json=orca_projects.create_project_wire(project),
         )
 
         if not wait_for_completion:
@@ -332,10 +315,10 @@ class Client(BaseClient, project_leader.Member):
         self._logger.debug("Updating project in Orca", name=name, prev_op_id=prev_op_id)
         response = self._send_project_request(
             mlrun.common.types.HTTPMethod.PUT,
-            PROJECT_ENDPOINT_TEMPLATE.format(name=name),
+            orca_projects.PROJECT_ENDPOINT_TEMPLATE.format(name=name),
             "Failed updating project in Orca",
             auth_info,
-            json=self._update_project_wire(project, prev_op_id),
+            json=orca_projects.update_project_wire(project, prev_op_id),
         )
 
         # the shared leader-client interface has no wait_for_completion for update, so always settle here to
@@ -360,7 +343,7 @@ class Client(BaseClient, project_leader.Member):
         )
         response = self._send_project_request(
             mlrun.common.types.HTTPMethod.DELETE,
-            PROJECT_ENDPOINT_TEMPLATE.format(name=name),
+            orca_projects.PROJECT_ENDPOINT_TEMPLATE.format(name=name),
             "Failed deleting project in Orca",
             auth_info,
         )
@@ -382,11 +365,11 @@ class Client(BaseClient, project_leader.Member):
     ) -> mlrun.common.schemas.Project:
         response = self._send_project_request(
             mlrun.common.types.HTTPMethod.GET,
-            PROJECT_ENDPOINT_TEMPLATE.format(name=name),
+            orca_projects.PROJECT_ENDPOINT_TEMPLATE.format(name=name),
             "Failed getting project from Orca",
             auth_info,
         )
-        return self._wire_to_project(response.json())
+        return orca_projects.project_from_wire(response.json())
 
     def list_projects(
         self,
@@ -465,9 +448,9 @@ class Client(BaseClient, project_leader.Member):
                 name,
                 op_id,
                 auth_info,
-                fatal_exceptions=(_OrcaActionFailedError,),
+                fatal_exceptions=(orca_projects.OrcaActionFailedError,),
             )
-        except _OrcaActionFailedError as exc:
+        except orca_projects.OrcaActionFailedError as exc:
             raise mlrun.errors.MLRunRuntimeError(str(exc)) from exc
 
     def _verify_op_terminal(
@@ -478,89 +461,12 @@ class Client(BaseClient, project_leader.Member):
     ) -> None:
         response = self._send_project_request(
             mlrun.common.types.HTTPMethod.GET,
-            ACTION_EXECUTIONS_ENDPOINT,
+            orca_projects.ACTION_EXECUTIONS_ENDPOINT,
             "Failed getting Orca sync-project action execution",
             auth_info,
-            params={
-                "correlationId": str(op_id),
-                "actionType": PROJECT_SYNC_ACTION_TYPE,
-                "subdomain": PROJECT_SYNC_SUBDOMAIN,
-                "limit": 1,
-            },
+            params=orca_projects.action_execution_query_params(op_id),
         )
-        items = response.json().get("items", [])
-        if not items:
-            raise mlrun.errors.MLRunRuntimeError(
-                f"No Orca sync-project action observed yet for project {name} (op_id={op_id})"
-            )
-        state = items[0].get("status", {}).get("state")
-        if state == "failed":
-            raise _OrcaActionFailedError(
-                f"Orca sync-project action for project {name} (op_id={op_id}) failed"
-            )
-        if state != "succeeded":
-            raise mlrun.errors.MLRunRuntimeError(
-                f"Orca sync-project action for project {name} (op_id={op_id}) is still in "
-                f"progress (state={state})"
-            )
-
-    @staticmethod
-    def _create_project_wire(project: mlrun.common.schemas.Project) -> dict:
-        # Matches Orca's flat CreateProjectOptions: name is required, everything else - owner included,
-        # the server derives it from the authenticated caller when omitted - is optional.
-        wire = {"name": project.metadata.name}
-        if project.spec.owner:
-            wire["owner"] = project.spec.owner
-        if project.spec.description:
-            wire["description"] = project.spec.description
-        if project.metadata.labels:
-            wire["labels"] = project.metadata.labels
-        if project.metadata.annotations:
-            wire["annotations"] = project.metadata.annotations
-        return wire
-
-    @staticmethod
-    def _update_project_wire(
-        project: mlrun.common.schemas.Project, prev_op_id: uuid.UUID | None
-    ) -> dict:
-        # Matches Orca's flat UpdateProjectOptions: prevOpId/owner are required by Orca's contract, so a
-        # missing value is sent through as-is and surfaces as a real validation error from Orca. The rest
-        # is optional.
-        wire = {
-            "prevOpId": str(prev_op_id) if prev_op_id else None,
-            "owner": project.spec.owner,
-        }
-        if project.spec.description:
-            wire["description"] = project.spec.description
-        if project.metadata.labels:
-            wire["labels"] = project.metadata.labels
-        if project.metadata.annotations:
-            wire["annotations"] = project.metadata.annotations
-        return wire
-
-    @staticmethod
-    def _wire_to_project(body: dict) -> mlrun.common.schemas.Project:
-        # Orca's wire format is camelCase (the SDK schemas camelize every field), so this can't just
-        # pydantic-validate the body directly - op_id/updated_at need explicit remapping.
-        metadata = body.get("metadata", {})
-        spec = body.get("spec", {})
-        status = body.get("status", {})
-        return mlrun.common.schemas.Project(
-            metadata=mlrun.common.schemas.ProjectMetadata(
-                name=metadata["name"],
-                labels=metadata.get("labels") or {},
-                annotations=metadata.get("annotations") or {},
-            ),
-            spec=mlrun.common.schemas.ProjectSpec(
-                owner=spec.get("owner"),
-                description=spec.get("description"),
-            ),
-            status=mlrun.common.schemas.ProjectStatus(
-                state=status.get("state"),
-                op_id=status.get("opId"),
-                updated_at=status.get("updatedAt"),
-            ),
-        )
+        orca_projects.verify_action_execution_terminal(response.json(), name, op_id)
 
     def _extract_response_error(
         self, response: httpx.Response

@@ -98,6 +98,14 @@ class OrcaProjectsClient:
             mlrun.mlconf.httpdb.projects.iguazio_project_states_poll_timeout
         )
 
+    @typing.overload
+    def create_project(
+        self, project: ProjectInput, wait_for_completion: typing.Literal[True] = True
+    ) -> "mlrun.projects.MlrunProject": ...
+    @typing.overload
+    def create_project(
+        self, project: ProjectInput, wait_for_completion: typing.Literal[False]
+    ) -> uuid.UUID: ...
     def create_project(
         self, project: ProjectInput, wait_for_completion: bool = True
     ) -> typing.Union["mlrun.projects.MlrunProject", uuid.UUID]:
@@ -121,6 +129,20 @@ class OrcaProjectsClient:
         )
         return self._settle(name, response, wait_for_completion)
 
+    @typing.overload
+    def update_project(
+        self,
+        name: str,
+        project: ProjectInput,
+        wait_for_completion: typing.Literal[True] = True,
+    ) -> "mlrun.projects.MlrunProject": ...
+    @typing.overload
+    def update_project(
+        self,
+        name: str,
+        project: ProjectInput,
+        wait_for_completion: typing.Literal[False],
+    ) -> uuid.UUID: ...
     def update_project(
         self, name: str, project: ProjectInput, wait_for_completion: bool = True
     ) -> typing.Union["mlrun.projects.MlrunProject", uuid.UUID]:
@@ -142,6 +164,23 @@ class OrcaProjectsClient:
         )
         return self._settle(name, response, wait_for_completion)
 
+    @typing.overload
+    def patch_project(
+        self,
+        name: str,
+        project: ProjectInput,
+        patch_mode: mlrun.common.schemas.PatchMode = mlrun.common.schemas.PatchMode.replace,
+        wait_for_completion: typing.Literal[True] = True,
+    ) -> "mlrun.projects.MlrunProject": ...
+    @typing.overload
+    def patch_project(
+        self,
+        name: str,
+        project: ProjectInput,
+        patch_mode: mlrun.common.schemas.PatchMode = mlrun.common.schemas.PatchMode.replace,
+        *,
+        wait_for_completion: typing.Literal[False],
+    ) -> uuid.UUID: ...
     def patch_project(
         self,
         name: str,
@@ -206,6 +245,14 @@ class OrcaProjectsClient:
         )
         return self._settle(name, response, wait_for_completion)
 
+    @typing.overload
+    def delete_project(
+        self, name: str, wait_for_completion: typing.Literal[True] = True
+    ) -> None: ...
+    @typing.overload
+    def delete_project(
+        self, name: str, wait_for_completion: typing.Literal[False]
+    ) -> uuid.UUID | None: ...
     def delete_project(
         self, name: str, wait_for_completion: bool = True
     ) -> uuid.UUID | None:
@@ -258,6 +305,13 @@ class OrcaProjectsClient:
     def _settle(
         self, name: str, response: requests.Response, wait_for_completion: bool
     ) -> typing.Union["mlrun.projects.MlrunProject", uuid.UUID]:
+        # wait_for_completion=False always means "give me an identifier to check later", even if
+        # the operation has, in fact, already settled - this keeps the return type strictly a
+        # function of wait_for_completion (see the @overload signatures above) rather than also
+        # depending on response.status_code, which callers can't predict.
+        if not wait_for_completion:
+            return response.json()["status"]["opId"]
+
         # update/patch may settle synchronously (200 - "all ack -> clear phase -> 200" per the
         # HLD) rather than go through the async 202 + poll path create always takes. A 200 has
         # already reached its terminal state, and - unlike 202 - has no trackable-action record
@@ -267,8 +321,6 @@ class OrcaProjectsClient:
                 orca_projects.project_from_wire(response.json())
             )
         op_id = response.json()["status"]["opId"]
-        if not wait_for_completion:
-            return op_id
         self._wait_for_op(name, op_id)
         return self.get_project(name)
 

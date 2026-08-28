@@ -173,6 +173,31 @@ class TestOrcaProjectsClient:
         ]
         assert not poll_requests, "a synchronous 200 has nothing to poll for"
 
+    def test_update_project_async_returns_op_id_even_if_settled_synchronously(
+        self, requests_mock, orca_client
+    ):
+        # regression guard: wait_for_completion=False must always return an op_id, never the
+        # project object - even when Orca happens to answer with a synchronous 200 (e.g. all
+        # followers acked within the request). The return type must depend only on the caller's
+        # wait_for_completion flag, never on a response detail the caller can't predict; a caller
+        # relying on getting back an identifier to poll on later must not silently receive a
+        # project object instead.
+        op_id = str(uuid.uuid4())
+        requests_mock.put(
+            f"{ORCA_API_URL}/api/v1/projects/projects/p5b",
+            json=_project_wire_body("p5b", op_id, "online"),
+            status_code=200,
+        )
+
+        project = mlrun.common.schemas.Project(
+            metadata=mlrun.common.schemas.ProjectMetadata(name="p5b"),
+            spec=mlrun.common.schemas.ProjectSpec(owner="jsmith"),
+            status=mlrun.common.schemas.ProjectStatus(op_id=uuid.uuid4()),
+        )
+        result = orca_client.update_project("p5b", project, wait_for_completion=False)
+
+        assert result == op_id
+
     def test_patch_project_merges_with_current_state(self, requests_mock, orca_client):
         op_id = str(uuid.uuid4())
         current_body = {

@@ -60,6 +60,13 @@ class ProjectLike(typing.Protocol):
     :class:`~mlrun.projects.MlrunProject`, :class:`mlrun.common.schemas.Project`, and the
     ``types.SimpleNamespace`` :func:`mlrun.db.orca._as_project_like` builds from a dict - the
     three shapes MLRun's own project CUD API already accepts interchangeably.
+
+    Deliberately duck-typed rather than always coercing to a real
+    :class:`mlrun.common.schemas.Project` (e.g. via pydantic's validation-skipping
+    ``Model.construct()``): this package binds the pydantic-v1 face of that schema in the SDK
+    but the API server binds native pydantic-v2 (see ``mlrun.common.schemas._dispatch``) - CI
+    guarantees the two faces have the same fields, but not that every pydantic-version-specific
+    API behaves identically across them, so this avoids leaning on one at all.
     """
 
     metadata: ProjectMetadataLike

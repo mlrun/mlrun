@@ -39,17 +39,21 @@ from mlrun.utils import logger
 if typing.TYPE_CHECKING:
     import mlrun.db.httpdb
 
+# The three shapes MLRun's own project CUD API already accepts interchangeably (see
+# HTTPRunDB.create_project/store_project/patch_project) - before normalization to
+# orca_projects.ProjectLike via _as_project_like().
+ProjectInput = typing.Union[
+    dict, "mlrun.projects.MlrunProject", "mlrun.common.schemas.Project"
+]
 
-def _as_project_like(project):
-    """Normalize ``project`` into something with ``.metadata``/``.spec``/``.status`` attribute
-    access - the shape :mod:`mlrun.utils.orca_projects`'s wire functions expect.
 
-    Accepts a dict, :class:`~mlrun.projects.MlrunProject`, or
-    :class:`mlrun.common.schemas.Project` - all three are already used interchangeably by
-    MLRun's own project CUD API (see ``HTTPRunDB.create_project``/``store_project``/
-    ``patch_project``). A dict may be partial (``patch_project``'s body only carries the changed
-    fields, and never ``metadata.name`` - that comes from the separate ``name`` argument), so
-    missing fields become ``None`` rather than raising - matching the wire functions' own
+def _as_project_like(project: ProjectInput) -> orca_projects.ProjectLike:
+    """Normalize ``project`` into something with ``.metadata``/``.spec`` attribute access - the
+    shape :mod:`mlrun.utils.orca_projects`'s wire functions expect.
+
+    A dict input may be partial (``patch_project``'s body only carries the changed fields, and
+    never ``metadata.name`` - that comes from the separate ``name`` argument), so missing fields
+    become ``None`` rather than raising - matching the wire functions' own
     ``if project.spec.owner:``-style optional-field handling.
     """
     if not isinstance(project, dict):
@@ -95,7 +99,7 @@ class OrcaProjectsClient:
         )
 
     def create_project(
-        self, project, wait_for_completion: bool = True
+        self, project: ProjectInput, wait_for_completion: bool = True
     ) -> typing.Union["mlrun.projects.MlrunProject", uuid.UUID]:
         """Create a project directly in Orca.
 
@@ -107,18 +111,18 @@ class OrcaProjectsClient:
         :return: The created project, or the operation's ``op_id`` if ``wait_for_completion`` is
             ``False``.
         """
-        project = _as_project_like(project)
-        name = project.metadata.name
+        project_like = _as_project_like(project)
+        name = project_like.metadata.name
         response = self._send_request(
             "POST",
             orca_projects.PROJECTS_ENDPOINT,
             f"Failed creating project {name} in Orca",
-            json=orca_projects.create_project_wire(project),
+            json=orca_projects.create_project_wire(project_like),
         )
         return self._settle(name, response, wait_for_completion)
 
     def update_project(
-        self, name: str, project, wait_for_completion: bool = True
+        self, name: str, project: ProjectInput, wait_for_completion: bool = True
     ) -> typing.Union["mlrun.projects.MlrunProject", uuid.UUID]:
         """Update (``PUT``) a project directly in Orca.
 
@@ -128,20 +132,20 @@ class OrcaProjectsClient:
         :return: The updated project, or the operation's ``op_id`` if ``wait_for_completion`` is
             ``False``.
         """
-        project = _as_project_like(project)
-        prev_op_id = self._resolve_prev_op_id(name, project)
+        project_like = _as_project_like(project)
+        prev_op_id = self._resolve_prev_op_id(name, project_like)
         response = self._send_request(
             "PUT",
             orca_projects.PROJECT_ENDPOINT_TEMPLATE.format(name=name),
             f"Failed updating project {name} in Orca",
-            json=orca_projects.update_project_wire(project, prev_op_id),
+            json=orca_projects.update_project_wire(project_like, prev_op_id),
         )
         return self._settle(name, response, wait_for_completion)
 
     def patch_project(
         self,
         name: str,
-        project,
+        project: ProjectInput,
         patch_mode: mlrun.common.schemas.PatchMode = mlrun.common.schemas.PatchMode.replace,
         wait_for_completion: bool = True,
     ) -> typing.Union["mlrun.projects.MlrunProject", uuid.UUID]:
@@ -163,7 +167,7 @@ class OrcaProjectsClient:
         :return: The patched project, or the operation's ``op_id`` if ``wait_for_completion`` is
             ``False``.
         """
-        project = _as_project_like(project)
+        project_like = _as_project_like(project)
         current = self._get_project_schema(name)
         merged_common = {
             "labels": dict(current.metadata.labels or {}),
@@ -172,16 +176,16 @@ class OrcaProjectsClient:
             "description": current.spec.description,
         }
         patch_common = {
-            "labels": project.metadata.labels,
-            "annotations": project.metadata.annotations,
-            "owner": project.spec.owner,
-            "description": project.spec.description,
+            "labels": project_like.metadata.labels,
+            "annotations": project_like.metadata.annotations,
+            "owner": project_like.spec.owner,
+            "description": project_like.spec.description,
         }
         patch_common = {k: v for k, v in patch_common.items() if v is not None}
         mergedeep.merge(
             merged_common, patch_common, strategy=patch_mode.to_mergedeep_strategy()
         )
-        merged_project = types.SimpleNamespace(
+        merged_project: orca_projects.ProjectLike = types.SimpleNamespace(
             metadata=types.SimpleNamespace(
                 name=name,
                 labels=merged_common["labels"],
@@ -268,7 +272,9 @@ class OrcaProjectsClient:
         self._wait_for_op(name, op_id)
         return self.get_project(name)
 
-    def _resolve_prev_op_id(self, name: str, project) -> uuid.UUID | None:
+    def _resolve_prev_op_id(
+        self, name: str, project: orca_projects.ProjectLike
+    ) -> uuid.UUID | None:
         # The CAS witness Orca requires for an update is the last op_id the caller observed; if
         # the caller didn't supply one, read the current state from Orca first (matches the
         # HLD's "client reads the project, then PUT/PATCH with prev_op_id" contract). A missing

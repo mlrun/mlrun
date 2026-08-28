@@ -17,6 +17,7 @@
 from Orca's actual contract.
 """
 
+import typing
 import uuid
 
 import mlrun.common.schemas
@@ -39,7 +40,33 @@ class OrcaActionFailedError(Exception):
     """Raised when the sync-project trackable action for an op_id reaches a terminal 'failed' state."""
 
 
-def create_project_wire(project: mlrun.common.schemas.Project) -> dict:
+class ProjectMetadataLike(typing.Protocol):
+    """Structural shape of a project's ``metadata`` this module's wire functions need."""
+
+    name: str | None
+    labels: dict | None
+    annotations: dict | None
+
+
+class ProjectSpecLike(typing.Protocol):
+    """Structural shape of a project's ``spec`` this module's wire functions need."""
+
+    owner: str | None
+    description: str | None
+
+
+class ProjectLike(typing.Protocol):
+    """Structural shape ``create_project_wire``/``update_project_wire`` need. Satisfied by
+    :class:`~mlrun.projects.MlrunProject`, :class:`mlrun.common.schemas.Project`, and the
+    ``types.SimpleNamespace`` :func:`mlrun.db.orca._as_project_like` builds from a dict - the
+    three shapes MLRun's own project CUD API already accepts interchangeably.
+    """
+
+    metadata: ProjectMetadataLike
+    spec: ProjectSpecLike
+
+
+def create_project_wire(project: ProjectLike) -> dict:
     """Build Orca's flat CreateProjectOptions body: name is required, everything else - owner
     included, Orca derives it from the authenticated caller when omitted - is optional.
 
@@ -58,9 +85,7 @@ def create_project_wire(project: mlrun.common.schemas.Project) -> dict:
     return wire
 
 
-def update_project_wire(
-    project: mlrun.common.schemas.Project, prev_op_id: uuid.UUID | None
-) -> dict:
+def update_project_wire(project: ProjectLike, prev_op_id: uuid.UUID | None) -> dict:
     """Build Orca's flat UpdateProjectOptions body: prevOpId/owner are required by Orca's contract,
     so a missing value is sent through as-is and surfaces as a real validation error from Orca.
 

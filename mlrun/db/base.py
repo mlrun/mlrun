@@ -370,7 +370,6 @@ class RunDBInterface(ABC):
         self,
         name: str,
         deletion_strategy: mlrun.common.schemas.DeletionStrategy = mlrun.common.schemas.DeletionStrategy.default(),
-        wait_for_completion: bool = True,
     ):
         pass
 
@@ -379,7 +378,6 @@ class RunDBInterface(ABC):
         self,
         name: str,
         project: mlrun.common.schemas.Project,
-        wait_for_completion: bool = True,
     ) -> mlrun.common.schemas.Project:
         pass
 
@@ -389,7 +387,6 @@ class RunDBInterface(ABC):
         name: str,
         project: dict,
         patch_mode: mlrun.common.schemas.PatchMode = mlrun.common.schemas.PatchMode.replace,
-        wait_for_completion: bool = True,
     ) -> mlrun.common.schemas.Project:
         pass
 
@@ -397,7 +394,6 @@ class RunDBInterface(ABC):
     def create_project(
         self,
         project: mlrun.common.schemas.Project,
-        wait_for_completion: bool = True,
     ) -> mlrun.common.schemas.Project:
         pass
 

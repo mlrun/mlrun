@@ -332,12 +332,15 @@ class TestHTTPRunDBOrcaGate:
         )
 
         with unittest.mock.patch.object(db, "api_call") as mock_api_call:
-            getattr(db, method_name)(*call_args, wait_for_completion=False)
+            getattr(db, method_name)(*call_args)
             assert not mock_api_call.called
 
+        # HTTPRunDB itself has no wait_for_completion knob (see ML-12903 discussion: no known
+        # SDK caller needs async project creation, and exposing it would only work in this one
+        # mode) - it always asks the Orca client to block until the operation settles.
         orca_method = getattr(fake_client, orca_method_name)
         orca_method.assert_called_once()
-        assert orca_method.call_args.kwargs["wait_for_completion"] is False
+        assert orca_method.call_args.kwargs["wait_for_completion"] is True
 
     def test_orca_direct_mode_patch_project_coerces_patch_mode(self, db):
         mlrun.mlconf.httpdb.authentication.mode = "iguazio-v4"

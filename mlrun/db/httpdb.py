@@ -355,7 +355,7 @@ class HTTPRunDB(RunDBInterface):
         """Build the auth-related request kwargs (``auth``/``cookies``/``headers``) for the
         credentials this instance was configured with. Shared by calls to MLRun's own API
         (``api_call``) and, in enterprise mode, calls made directly to Orca - which trusts the
-        same IG4 session/token (see :class:`mlrun.db.clients.orca.OrcaProjectsClient`).
+        same IG4 session/token (see :class:`mlrun.db.orca.OrcaProjectsClient`).
 
         :param headers: Extra headers to merge the auth header into, if any.
         :return: Request kwargs (a subset of ``auth``/``cookies``/``headers``) to pass to
@@ -3414,8 +3414,7 @@ class HTTPRunDB(RunDBInterface):
         deletion_strategy: Union[
             str, mlrun.common.schemas.DeletionStrategy
         ] = mlrun.common.schemas.DeletionStrategy.default(),
-        wait_for_completion: bool = True,
-    ) -> UUID | None:
+    ) -> None:
         """Delete a project.
 
         :param name: Name of the project to delete.
@@ -3424,17 +3423,12 @@ class HTTPRunDB(RunDBInterface):
             - ``restrict`` (default) - Project must not have any related resources when deleted. If using
               this mode while related resources exist, the operation will fail.
             - ``cascade`` - Automatically delete all related resources when deleting the project.
-        :param wait_for_completion: Block until the delete operation reaches a terminal state. If
-            ``False``, return the operation's ``op_id`` immediately instead, if it is still
-            converging. Only honored when talking to Orca directly (enterprise); when proxied
-            through the MLRun API this call is always synchronous.
-        :return: The operation's ``op_id`` if the delete is still converging and
-            ``wait_for_completion`` is ``False``, otherwise ``None``.
         """
         if self._orca_direct_mode():
-            return self._orca_projects_client_instance().delete_project(
-                name, wait_for_completion=wait_for_completion
+            self._orca_projects_client_instance().delete_project(
+                name, wait_for_completion=True
             )
+            return
 
         headers = {
             mlrun.common.schemas.HeaderNames.deletion_strategy: deletion_strategy
@@ -3470,18 +3464,11 @@ class HTTPRunDB(RunDBInterface):
         self,
         name: str,
         project: Union[dict, mlrun.projects.MlrunProject, mlrun.common.schemas.Project],
-        wait_for_completion: bool = True,
-    ) -> Union[mlrun.projects.MlrunProject, UUID]:
-        """Store a project in the DB. This operation will overwrite existing project of the same name if exists.
-
-        :param wait_for_completion: Block until the store operation reaches a terminal state and
-            return the resulting project. If ``False``, return the operation's ``op_id``
-            immediately instead. Only honored when talking to Orca directly (enterprise); when
-            proxied through the MLRun API this call is always synchronous.
-        """
+    ) -> mlrun.projects.MlrunProject:
+        """Store a project in the DB. This operation will overwrite existing project of the same name if exists."""
         if self._orca_direct_mode():
             return self._orca_projects_client_instance().update_project(
-                name, project, wait_for_completion=wait_for_completion
+                name, project, wait_for_completion=True
             )
 
         path = f"projects/{name}"
@@ -3507,25 +3494,20 @@ class HTTPRunDB(RunDBInterface):
         patch_mode: Union[
             str, mlrun.common.schemas.PatchMode
         ] = mlrun.common.schemas.PatchMode.replace,
-        wait_for_completion: bool = True,
-    ) -> Union[mlrun.projects.MlrunProject, UUID]:
+    ) -> mlrun.projects.MlrunProject:
         """Patch an existing project object.
 
         :param name: Name of project to patch.
         :param project: The actual changes to the project object.
         :param patch_mode: The strategy for merging the changes with the existing object. Can be either ``replace``
             or ``additive``.
-        :param wait_for_completion: Block until the patch operation reaches a terminal state and
-            return the resulting project. If ``False``, return the operation's ``op_id``
-            immediately instead. Only honored when talking to Orca directly (enterprise); when
-            proxied through the MLRun API this call is always synchronous.
         """
         if self._orca_direct_mode():
             return self._orca_projects_client_instance().patch_project(
                 name,
                 project,
                 patch_mode=mlrun.common.schemas.PatchMode(patch_mode),
-                wait_for_completion=wait_for_completion,
+                wait_for_completion=True,
             )
 
         path = f"projects/{name}"
@@ -3539,18 +3521,11 @@ class HTTPRunDB(RunDBInterface):
     def create_project(
         self,
         project: Union[dict, mlrun.projects.MlrunProject, mlrun.common.schemas.Project],
-        wait_for_completion: bool = True,
-    ) -> Union[mlrun.projects.MlrunProject, UUID]:
-        """Create a new project. A project with the same name must not exist prior to creation.
-
-        :param wait_for_completion: Block until the create operation reaches a terminal state and
-            return the resulting project. If ``False``, return the operation's ``op_id``
-            immediately instead. Only honored when talking to Orca directly (enterprise); when
-            proxied through the MLRun API this call is always synchronous.
-        """
+    ) -> mlrun.projects.MlrunProject:
+        """Create a new project. A project with the same name must not exist prior to creation."""
         if self._orca_direct_mode():
             return self._orca_projects_client_instance().create_project(
-                project, wait_for_completion=wait_for_completion
+                project, wait_for_completion=True
             )
 
         if isinstance(project, mlrun.common.schemas.Project):

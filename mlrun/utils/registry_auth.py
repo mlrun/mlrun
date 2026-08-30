@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""ECR/ACR push-credential minting, run inside a Buildah build's init container (ML-12886).
+"""ECR/ACR credential minting, run inside a Buildah build's init container (ML-12886, ML-12961).
 
 Invoked via ``python -m mlrun mint-registry-credentials`` by
 :mod:`services.api.utils.builder.registry_auth` (server-side) - the init container runs on the
@@ -44,46 +44,52 @@ _ACR_TOKEN_SCOPE = "https://management.azure.com/.default"
 _ACR_ANONYMOUS_USERNAME = "00000000-0000-0000-0000-000000000000"
 
 
-def mint_ecr_authfile(registry: str, dest: str, authfile_path: str) -> None:
-    """Create the target ECR repository (idempotent) and write a push authfile.
+def mint_ecr_authfile(
+    registry: str, authfile_path: str, dest: str | None = None
+) -> None:
+    """Mint an ECR authorization token and merge it into the authfile.
 
     Unlike ACR/GAR, ECR does not auto-create a repository on first push - it must exist first, or
-    the push fails outright, so this creates it up front.
+    the push fails outright. When ``dest`` is given (a push), the repository is created (idempotent)
+    up front; when it's omitted (a base-image pull), repository creation is skipped - the pod may
+    not even have create permissions on a registry it's only pulling from.
 
     Credentials come from boto3's default chain (IRSA or instance role, resolved via the build
     pod's own service account/environment) - nothing else needs to be configured.
 
     :param registry: The ECR registry host.
-    :param dest: The fully resolved destination image reference (for the repository name).
-    :param authfile_path: Where to write the docker-config-shaped authfile.
+    :param authfile_path: Where to merge the docker-config-shaped authfile entry.
+    :param dest: The fully resolved destination image reference, to derive the repository name for
+        creation. Omit for a pull-only (base-image) credential exchange.
     """
     import boto3
 
     region = registry.split(".")[3]
-    repo = _ecr_repo_name(dest)
     client = boto3.client("ecr", region_name=region)
-    try:
-        client.create_repository(repositoryName=repo)
-    except client.exceptions.RepositoryAlreadyExistsException:
-        pass
+    if dest:
+        repo = _ecr_repo_name(dest)
+        try:
+            client.create_repository(repositoryName=repo)
+        except client.exceptions.RepositoryAlreadyExistsException:
+            pass
 
     authorization_data = client.get_authorization_token()["authorizationData"][0]
     token = authorization_data["authorizationToken"]
-    with open(authfile_path, "w") as fh:
-        json.dump({"auths": {registry: {"auth": token}}}, fh)
+    _merge_auth_entry(authfile_path, registry, token)
 
 
 def mint_acr_authfile(registry: str, authfile_path: str) -> None:
-    """Exchange the pod's Azure workload identity for an ACR push credential.
+    """Exchange the pod's Azure workload identity for an ACR credential.
 
     Exchanges the pod's Azure workload identity (federated JWT, injected by the
     ``azure.workload.identity/use`` label - see
     :func:`~services.api.utils.builder.base.resolve_builder_pod_labels`) for an AAD access token via
     azure-identity, then exchanges that AAD token for an ACR refresh token via ACR's
-    ``/oauth2/exchange`` endpoint (no SDK covers this ACR-specific endpoint).
+    ``/oauth2/exchange`` endpoint (no SDK covers this ACR-specific endpoint). Used for both push and
+    base-image-pull credentials - the exchange itself is identical, only the registry host differs.
 
     :param registry: The ACR registry host.
-    :param authfile_path: Where to write the docker-config-shaped authfile.
+    :param authfile_path: Where to merge the docker-config-shaped authfile entry.
     """
     # lazy: azure-identity is only needed for ACR, not ECR/GAR - avoid requiring it unless this path
     # actually runs, same as boto3 in mint_ecr_authfile.
@@ -111,8 +117,32 @@ def mint_acr_authfile(registry: str, authfile_path: str) -> None:
     auth = base64.b64encode(
         f"{_ACR_ANONYMOUS_USERNAME}:{refresh_token}".encode()
     ).decode()
+    _merge_auth_entry(authfile_path, registry, auth)
+
+
+def _merge_auth_entry(authfile_path: str, registry: str, auth: str) -> None:
+    # a push-side and a pull-side credential exchange can both target this file (different
+    # registries, e.g. the push destination and a differently-hosted base image), and a copied-in
+    # static secret (ML-12988) may already be there too - init containers run sequentially, never
+    # concurrently, so read-modify-write here is safe without locking. Preserves any other
+    # top-level docker-config keys already in the file (credHelpers, credsStore, ...) - only the
+    # entry for this one registry is ever added or replaced. If a secret (or an earlier exchange)
+    # already had an entry for this exact registry, this mint's result wins - mirroring nuclio's own
+    # merge_authfile.py, which applies cloud tokens after secrets for the same reason: a successful
+    # mint means workload identity is actually configured for that host, so it's the fresher
+    # credential; a stale/misconfigured secret entry for the same host shouldn't shadow it.
+    if os.path.exists(authfile_path):
+        with open(authfile_path) as fh:
+            doc = json.load(fh)
+    else:
+        doc = {}
+    doc.setdefault("auths", {})[registry] = {"auth": auth}
     with open(authfile_path, "w") as fh:
-        json.dump({"auths": {registry: {"auth": auth}}}, fh)
+        json.dump(doc, fh)
+    # the previous writer's UID is never guaranteed to match this process's (init containers get no
+    # explicit security context - see append_secret_authfile_init_container in the server-side
+    # registry_auth.py), so the file must stay writable for whoever merges into it next.
+    os.chmod(authfile_path, 0o666)
 
 
 def _ecr_repo_name(dest: str) -> str:

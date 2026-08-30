@@ -13,7 +13,9 @@
 # limitations under the License.
 
 from contextlib import nullcontext as does_not_raise
+from unittest import mock
 
+import kubernetes.config
 import pytest
 
 import mlrun.errors
@@ -142,3 +144,48 @@ def test_verify_label_key(label_key, exception):
 def test_validate_node_selectors(node_selectors, expected):
     with expected:
         mlrun.k8s_utils.validate_node_selectors(node_selectors)
+
+
+@pytest.mark.parametrize(
+    "service_host, service_port, expected",
+    [
+        ("10.0.0.1", "443", True),
+        (None, None, False),
+        ("10.0.0.1", None, False),
+        (None, "443", False),
+        ("", "", False),
+    ],
+)
+def test_is_running_in_kubernetes_pod(
+    monkeypatch, service_host, service_port, expected
+):
+    for name, value in (
+        ("KUBERNETES_SERVICE_HOST", service_host),
+        ("KUBERNETES_SERVICE_PORT", service_port),
+    ):
+        if value is None:
+            monkeypatch.delenv(name, raising=False)
+        else:
+            monkeypatch.setenv(name, value)
+
+    assert mlrun.k8s_utils.is_running_in_kubernetes_pod() is expected
+
+
+@pytest.mark.parametrize(
+    "load_incluster_config_side_effect, expected",
+    [
+        (None, True),
+        (kubernetes.config.ConfigException("no token file"), False),
+    ],
+)
+def test_has_incluster_kubernetes_client_config(
+    monkeypatch, load_incluster_config_side_effect, expected
+):
+    monkeypatch.setattr(mlrun.k8s_utils, "_running_inside_kubernetes_cluster", None)
+    monkeypatch.setattr(
+        kubernetes.config,
+        "load_incluster_config",
+        mock.Mock(side_effect=load_incluster_config_side_effect),
+    )
+
+    assert mlrun.k8s_utils.has_incluster_kubernetes_client_config() is expected

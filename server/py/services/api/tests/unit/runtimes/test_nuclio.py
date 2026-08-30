@@ -2222,7 +2222,7 @@ class TestNuclioRuntime(TestRuntimeBase):
             ):
                 with unittest.mock.patch.object(
                     mlrun.k8s_utils,
-                    "is_running_inside_kubernetes_cluster",
+                    "is_running_in_kubernetes_pod",
                     return_value=inside_k8s,
                 ):
                     if expected_exception:

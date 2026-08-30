@@ -694,12 +694,7 @@ class HTTPRunDB(RunDBInterface):
                     user_token_file = os.path.expanduser("~/.igz.yml")
 
                     # runtimes
-                    # TODO: change to os.getenv("MLRUN_RUNTIME_KIND")
-                    # when https://github.com/mlrun/mlrun/pull/9121 is done.
-                    if (
-                        mlrun.k8s_utils.is_running_inside_kubernetes_cluster()
-                        and not os.environ.get("JPY_SESSION_NAME")
-                    ):
+                    if mlrun.utils.helpers.is_running_in_runtime():
                         user_token_file = os.path.join(
                             mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_PATH,
                             mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_FILE,
@@ -708,7 +703,7 @@ class HTTPRunDB(RunDBInterface):
                     config.auth_with_oauth_token.token_file = user_token_file
 
                 # if running inside kubernetes, use the internal endpoint, otherwise use the external endpoint
-                if mlrun.k8s_utils.is_running_inside_kubernetes_cluster():
+                if mlrun.k8s_utils.is_running_in_kubernetes_pod():
                     config.auth_token_endpoint = server_cfg.get(
                         "oauth_internal_token_endpoint"
                     )
@@ -1118,7 +1113,10 @@ class HTTPRunDB(RunDBInterface):
 
         :param states: List only runs whose state is one of the provided states.
         :param sort: Whether to sort the result according to their start time. Otherwise, results will be
-            returned by their internal order in the DB (order will not be guaranteed).
+            returned by their internal order in the DB (order will not be guaranteed). Takes precedence over
+            `partition_sort_by` for the returned order - `partition_sort_by` only decides which run wins
+            *within* a partition, and, when `max_partitions` is set, which partitions are kept; it does not
+            affect the order of the final result.
         :param iter: If ``True`` return runs from all iterations. Otherwise, return only runs whose ``iter`` is 0.
         :param start_time_from: Filter by run start time in ``[start_time_from, start_time_to]``.
         :param start_time_to: Filter by run start time in ``[start_time_from, start_time_to]``.

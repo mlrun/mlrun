@@ -352,7 +352,7 @@ def generate_image_builder_pipeline_node(
     task = container_component()
     task.set_display_name(name)
 
-    add_default_function_resources(task)
+    add_default_function_resources(task, function)
     add_function_node_selection_attributes(function, task)
     add_annotations(task, PipelineRunType.build, function, func_url)
 
@@ -396,7 +396,7 @@ def generate_deployer_pipeline_node(
     task = container_component()
     task.set_display_name(name)
 
-    add_default_function_resources(task)
+    add_default_function_resources(task, function)
     add_function_node_selection_attributes(function, task)
     add_annotations(task, PipelineRunType.deploy, function, func_url)
 

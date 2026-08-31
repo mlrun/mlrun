@@ -23,7 +23,6 @@ leader configured, but it stays always-registered rather than feature-gated.
 """
 
 import datetime
-import uuid
 
 import fastapi
 import sqlalchemy.orm
@@ -40,12 +39,6 @@ import framework.utils.projects.follower_schemas as follower_schemas
 import services.api.crud
 
 router = fastapi.APIRouter()
-
-
-def _project_op_id(project: mlrun.common.schemas.Project) -> uuid.UUID:
-    if project.status.op_id is None:
-        raise mlrun.errors.MLRunBadRequestError("project.status.op_id is required")
-    return project.status.op_id
 
 
 def _to_follower_state(
@@ -68,14 +61,19 @@ async def prepare_create_project(
     name: str,
     body: follower_schemas.FollowerPrepareCreateRequest,
 ) -> follower_schemas.FollowerProjectState:
-    project = body.project
-    if project.metadata.name != name:
+    if body.metadata.name != name:
         raise mlrun.errors.MLRunBadRequestError(
-            "Path project name does not match project.metadata.name"
+            "Path project name does not match metadata.name"
         )
-    op_id = _project_op_id(project)
+    project = mlrun.common.schemas.Project(
+        metadata=body.metadata,
+        spec=body.spec,
+        status=mlrun.common.schemas.ProjectStatus(op_id=body.status.op_id),
+    )
     result = await mlrun.utils.run_in_threadpool(
-        services.api.crud.Projects().prepare_create_project, project, op_id
+        services.api.crud.Projects().prepare_create_project,
+        project,
+        body.status.op_id,
     )
     return _to_follower_state(name, result)
 
@@ -102,17 +100,20 @@ async def update_project(
     name: str,
     body: follower_schemas.FollowerUpdateRequest,
 ) -> follower_schemas.FollowerProjectState:
-    project = body.project
-    if project.metadata.name != name:
+    if body.metadata.name != name:
         raise mlrun.errors.MLRunBadRequestError(
-            "Path project name does not match project.metadata.name"
+            "Path project name does not match metadata.name"
         )
-    op_id = _project_op_id(project)
+    project = mlrun.common.schemas.Project(
+        metadata=body.metadata,
+        spec=body.spec,
+        status=mlrun.common.schemas.ProjectStatus(op_id=body.status.op_id),
+    )
     result = await mlrun.utils.run_in_threadpool(
         services.api.crud.Projects().update_project_follower,
         name,
         project,
-        op_id,
+        body.status.op_id,
         body.prev_op_id,
     )
     return _to_follower_state(name, result)

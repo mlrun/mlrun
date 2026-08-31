@@ -198,7 +198,9 @@ class Client(
             "DELETE",
             f"follower/projects/{name}",
             request,
-            timeout=mlrun.mlconf.background_tasks.default_timeouts.operations.delete_project,
+            timeout=int(
+                mlrun.mlconf.background_tasks.default_timeouts.operations.delete_project
+            ),
         )
 
     async def get_clusterization_spec(

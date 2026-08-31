@@ -57,7 +57,12 @@ class FollowerOpIdStatus(pydantic.BaseModel):
 
 
 class FollowerPrepareCreateRequest(pydantic.BaseModel):
-    project: mlrun.common.schemas.Project
+    # Flat body per the Follower Contract HLD: the leader sends the common set
+    # (metadata + spec) and status.op_id directly at the top level — there is no
+    # "project" wrapper key on the wire.
+    metadata: mlrun.common.schemas.ProjectMetadata
+    spec: mlrun.common.schemas.ProjectSpec = mlrun.common.schemas.ProjectSpec()
+    status: FollowerOpIdStatus
 
 
 class FollowerCommitCreateRequest(pydantic.BaseModel):
@@ -65,7 +70,9 @@ class FollowerCommitCreateRequest(pydantic.BaseModel):
 
 
 class FollowerUpdateRequest(pydantic.BaseModel):
-    project: mlrun.common.schemas.Project
+    metadata: mlrun.common.schemas.ProjectMetadata
+    spec: mlrun.common.schemas.ProjectSpec = mlrun.common.schemas.ProjectSpec()
+    status: FollowerOpIdStatus
     # None is a valid CAS witness for a project with no op_id yet (see
     # follower_contract.check_cas) — the leader omits this field entirely rather than
     # sending an explicit null when it has no witness to offer.

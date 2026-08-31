@@ -3583,15 +3583,15 @@ class SQLDB(DBInterface):
             query = self._add_labels_filter(session, query, Project, labels)
         if names is not None:
             query = query.filter(Project.name.in_(names))
+        # Coalesce NULL updated_at (pre-existing rows from before this column existed)
+        # to a fixed floor — NULL comparisons are always NULL/false in SQL, which would
+        # silently drop those rows from an updated_after filter and from every
+        # keyset-paginated page, and sort them inconsistently across SQLite/Postgres/
+        # MySQL's differing default NULL-ordering rules.
+        updated_at_col = func.coalesce(Project.updated_at, _KEYSET_PAGINATION_EPOCH)
         if updated_after is not None:
-            query = query.filter(Project.updated_at >= updated_after)
+            query = query.filter(updated_at_col >= updated_after)
         if keyset_after is not None or limit is not None:
-            # Coalesce NULL updated_at (pre-existing rows from before this column
-            # existed) to a fixed floor — NULL comparisons are always NULL/false in
-            # SQL, which would silently drop those rows from every keyset-paginated
-            # page and sort them inconsistently across SQLite/Postgres/MySQL's
-            # differing default NULL-ordering rules.
-            updated_at_col = func.coalesce(Project.updated_at, _KEYSET_PAGINATION_EPOCH)
             if keyset_after is not None:
                 after_updated_at, after_name = keyset_after
                 # Portable keyset predicate (works identically on SQLite/Postgres/MySQL)

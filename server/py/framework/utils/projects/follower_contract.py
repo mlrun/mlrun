@@ -191,7 +191,12 @@ def validate_call(
     replay of yesterday's already-valid one.
     """
     if op in _CAS_OPS:
-        check_cas(stored_op_id, prev_op_id)
+        # ORIS-4336: the leader doesn't send prev_op_id yet on update/prepare_delete —
+        # a follower must tolerate that and fall back to the ordering check alone,
+        # rather than treating the witness as mandatory (see the Follower Contract
+        # HLD's "Implementation status" note).
+        if prev_op_id is not None:
+            check_cas(stored_op_id, prev_op_id)
         outcome = check_ordering(stored_op_id, incoming_op_id)
     elif op in _SAME_OP_OPS:
         outcome = check_same_op(stored_op_id, incoming_op_id)

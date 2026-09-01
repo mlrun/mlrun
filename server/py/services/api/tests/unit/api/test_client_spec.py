@@ -209,6 +209,39 @@ def test_client_spec_telemetry_fields_overridden(
 
 
 @pytest.mark.parametrize(
+    "function_authentication_enabled, expected_response_value",
+    [
+        # Default (unset by the operator) -> field omitted so the SDK keeps
+        # its local value.
+        (False, None),
+        # Operator-set value propagates through /client-spec to the SDK.
+        (True, True),
+    ],
+)
+def test_client_spec_nuclio_function_authentication_enabled(
+    db: sqlalchemy.orm.Session,
+    client: fastapi.testclient.TestClient,
+    function_authentication_enabled: bool,
+    expected_response_value: bool | None,
+) -> None:
+    mlrun.mlconf.httpdb.nuclio.function_authentication_enabled = (
+        function_authentication_enabled
+    )
+    services.api.api.endpoints.client_spec.get_cached_client_spec.cache_clear()
+
+    try:
+        response = client.get("client-spec")
+        assert response.status_code == http.HTTPStatus.OK.value
+        assert (
+            response.json()["nuclio_function_authentication_enabled"]
+            == expected_response_value
+        )
+    finally:
+        mlrun.mlconf.httpdb.nuclio.function_authentication_enabled = False
+        services.api.api.endpoints.client_spec.get_cached_client_spec.cache_clear()
+
+
+@pytest.mark.parametrize(
     "server_version, client_version, python_version, expected_dask_kfp",
     [
         # Server is "unstable"

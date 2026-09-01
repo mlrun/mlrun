@@ -529,3 +529,35 @@ def test_client_spec_telemetry_sync_keeps_local_when_server_omits(requests_mock)
     mlrun.mlconf.telemetry.otlp_endpoint = ""
     mlrun.mlconf.telemetry.insecure = True
     mlrun.mlconf.telemetry.model_monitoring.interval = 60
+
+
+@pytest.mark.parametrize(
+    "local_value, server_value, expected_local_value",
+    [
+        (False, True, True),
+        (True, None, True),
+    ],
+)
+def test_client_spec_nuclio_function_authentication_enabled_sync(
+    requests_mock, local_value, server_value, expected_local_value
+):
+    mlrun.mlconf.httpdb.nuclio.function_authentication_enabled = local_value
+
+    requests_mock.get(
+        "https://fake-url/api/v1/client-spec",
+        json={
+            "version": "v1.1.0",
+            "nuclio_function_authentication_enabled": server_value,
+        },
+    )
+
+    db = mlrun.db.httpdb.HTTPRunDB("https://fake-url")
+    db.connect()
+
+    assert (
+        mlrun.mlconf.httpdb.nuclio.function_authentication_enabled
+        == expected_local_value
+    )
+
+    # Restore defaults so we don't leak into other tests.
+    mlrun.mlconf.httpdb.nuclio.function_authentication_enabled = False

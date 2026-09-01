@@ -28,7 +28,7 @@ import framework.utils.auth.verifier
 def leader_identity(monkeypatch: pytest.MonkeyPatch) -> str:
     identity = "system:serviceaccount:orca:project-leader"
     monkeypatch.setattr(
-        mlrun.mlconf.httpdb.projects.follower, "leader_identity", identity
+        mlrun.mlconf.httpdb.projects, "follower_leader_identity", identity
     )
     return identity
 

@@ -14,7 +14,7 @@
 
 """
 CAS + UUIDv7-ordering + state-machine checks for the leader -> follower 2PC project-sync
-contract (see the "Follower Contract HLD" Confluence page, ML-12901).
+contract.
 
 Deliberately dependency-free (no DB session, no FastAPI, no SQLAlchemy types) so the
 contract logic stays decoupled from MLRun's own storage/transport and can be lifted into a
@@ -93,8 +93,8 @@ def check_cas(stored_op_id: uuid.UUID | None, prev_op_id: uuid.UUID | None) -> N
     before this follower interface has `op_id = NULL` (nothing auto-fills it at migration
     time), so the leader's *first* touch of such a project legitimately has no witness to
     offer either — it observes `None` via `list_projects` and sends that back as
-    `prev_op_id`. (The "`prev_op_id` missing -> 400" rule in the Backend HLD applies only
-    to the client<->leader boundary, not leader<->follower — there is no such rule here.)
+    `prev_op_id`. (Rejecting a missing `prev_op_id` with 400 is a client<->leader boundary
+    rule; there is no such rule for leader<->follower.)
     """
     if stored_op_id != prev_op_id:
         raise mlrun.errors.MLRunConflictError(

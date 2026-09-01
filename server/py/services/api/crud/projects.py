@@ -470,7 +470,7 @@ class Projects(
     ) -> tuple[list[mlrun.common.schemas.Project], str | None]:
         """
         Slim (name, op_id, state, updated_at) projection for follower reconciliation —
-        the "list states" op of the ML-12901 follower contract. Both `updated_after` and
+        the "list states" op of the follower contract. Both `updated_after` and
         the keyset cursor/page-size are pushed down to the DB query (via `list_projects`'s
         opt-in `keyset_after`/`limit` params) rather than loading the full result set into
         memory, since a follower reconnecting after a long gap, or doing its very first
@@ -1124,7 +1124,7 @@ class Projects(
             session, name, project_patch
         )
 
-    # ----- 2PC follower hooks (ML-12901) ------------------------------------
+    # ----- 2PC follower hooks -------------------------------------------
     # Leader -> MLRun-as-follower calls, reachable only through the SA-gated
     # /follower/projects surface (enterprise, leader=orca). In CE there is no Orca to
     # call these, so this code path is unreached there. Each hook validates the call
@@ -1315,8 +1315,7 @@ class Projects(
             # local time for when it applied the change.
             updated_at = datetime.datetime.now(datetime.UTC)
             # The common set only — labels/annotations/owner/description. Everything else
-            # is MLRun-specific spec the leader never sends and never syncs (see the
-            # Backend HLD's "store labels/annotations/description?" decision).
+            # is MLRun-specific spec the leader never sends and never syncs.
             common_set_patch = {
                 "metadata": {
                     "labels": project.metadata.labels,

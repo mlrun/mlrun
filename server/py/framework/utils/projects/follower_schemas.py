@@ -13,8 +13,7 @@
 # limitations under the License.
 
 """
-Wire request/response shapes for the leader -> follower 2PC project-sync contract (see
-the "Follower Contract HLD" Confluence page, ML-12901).
+Wire request/response shapes for the leader -> follower 2PC project-sync contract.
 
 Not in `mlrun.common.schemas`: that package is the public SDK<->server contract, and the
 SDK never talks to this surface. Kept dependency-free like `follower_contract.py` (only
@@ -57,9 +56,6 @@ class FollowerOpIdStatus(pydantic.BaseModel):
 
 
 class FollowerPrepareCreateRequest(pydantic.BaseModel):
-    # Flat body per the Follower Contract HLD: the leader sends the common set
-    # (metadata + spec) and status.op_id directly at the top level — there is no
-    # "project" wrapper key on the wire.
     metadata: mlrun.common.schemas.ProjectMetadata
     spec: mlrun.common.schemas.ProjectSpec = mlrun.common.schemas.ProjectSpec()
     status: FollowerOpIdStatus

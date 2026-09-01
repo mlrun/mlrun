@@ -3555,7 +3555,12 @@ class SQLDB(DBInterface):
     ) -> mlrun.common.schemas.ProjectsOutput:
         """
         :param keyset_after: opt-in keyset-pagination lower bound, exclusive, as
-            ``(updated_at, name)``. Unused by every other caller.
+            ``(updated_at, name)``. Unused by every other caller. Keyset rather than
+            offset (``Paginator``/``_calculate_offset_and_limit``): that mechanism is
+            built for cached, page-numbered listing scoped to a user's `auth_info`, and
+            an offset window shifts under concurrent writes to the same rows it's
+            paging through — exactly what happens here, since projects keep getting
+            created/updated while a caller pages through this list.
         :param limit: paired with ``keyset_after``; caps rows returned by this query.
         :param for_update: same ``SELECT ... FOR UPDATE`` as `_get_project_record`'s
             own `for_update`. No-op on SQLite (no row-level locking support there).

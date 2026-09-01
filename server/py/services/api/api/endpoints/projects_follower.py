@@ -13,13 +13,13 @@
 # limitations under the License.
 
 """
-The ML-12901 follower surface: leader (Orca) -> MLRun-as-follower calls.
+The follower surface: leader (Orca) -> MLRun-as-follower calls.
 
-Dedicated from the user-facing `/api/v1/projects` endpoints on purpose (see the Follower
-Contract HLD) — this router takes no user token, only the configured leader's service
-account (enforced by `deps.authenticate_leader_request`), so machine-origin auth never
-mixes with user auth. Enterprise-only in practice: nothing calls this without an Orca
-leader configured, but it stays always-registered rather than feature-gated.
+Dedicated from the user-facing `/api/v1/projects` endpoints on purpose — this router
+takes no user token, only the configured leader's service account (enforced by
+`deps.authenticate_leader_request`), so machine-origin auth never mixes with user auth.
+Enterprise-only in practice: nothing calls this without an Orca leader configured, but
+it stays always-registered rather than feature-gated.
 """
 
 import datetime

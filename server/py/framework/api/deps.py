@@ -52,13 +52,13 @@ async def authenticate_leader_request(
     request: Request,
 ) -> mlrun.common.schemas.AuthInfo:
     """
-    Auth for the `/follower/projects` surface (ML-12901): the caller must be the
-    configured project leader's service account (subject == `ProjectLeaderIdentity`),
-    never a user. Builds on the existing igz auth (the same session-verification flow
-    `authenticate_request` uses) rather than a separate machine-identity mechanism.
+    Auth for the `/follower/projects` surface: the caller must be the configured project
+    leader's service account (subject == `ProjectLeaderIdentity`), never a user. Builds
+    on the existing igz auth (the same session-verification flow `authenticate_request`
+    uses) rather than a separate machine-identity mechanism.
     """
     auth_info = await authenticate_request(request)
-    leader_identity = mlrun.mlconf.httpdb.projects.follower.leader_identity
+    leader_identity = mlrun.mlconf.httpdb.projects.follower_leader_identity
     if not auth_info.is_service_account() or auth_info.username != leader_identity:
         raise mlrun.errors.MLRunAccessDeniedError(
             "This endpoint accepts only the configured project leader's service account"

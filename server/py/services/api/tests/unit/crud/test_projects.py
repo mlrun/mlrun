@@ -452,7 +452,7 @@ def test_wait_for_nuclio_project_deletion_keeps_user_auth_when_not_iguazio_v4(
     assert polled_auth_info is user_auth_info
 
 
-# ----- 2PC follower hooks (ML-12901) ----------------------------------------
+# ----- 2PC follower hooks ---------------------------------------------------
 
 
 def _make_follower_snapshot(
@@ -938,8 +938,8 @@ def _patch_db_list_projects(
     monkeypatch: pytest.MonkeyPatch, projects: list[mlrun.common.schemas.Project]
 ) -> None:
     """
-    list_project_states() now pushes updated_after/keyset pagination down to
-    framework.utils.singletons.db.get_db().list_projects() (ML-12901) rather than
+    list_project_states() pushes updated_after/keyset pagination down to
+    framework.utils.singletons.db.get_db().list_projects() rather than
     filtering/paginating in memory — this fakes that DB-layer behavior faithfully
     enough to exercise the crud method's own cursor encode/decode and
     "fetch page_size+1 to detect a next page" logic for real.

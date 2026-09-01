@@ -17,7 +17,10 @@ In enterprise (IG4/Orca-led) deployments, this bypasses the MLRun API entirely f
 create/update/patch/delete: it calls Orca with the SDK's own user credentials (Orca authorizes
 the user itself, via OPA), then polls to a terminal state the same way MLRun's own backward-
 compatibility proxy does server-side (``server/py/framework/utils/clients/iguazio/v4.py``,
-mlrun#10043) - see :mod:`mlrun.utils.orca_projects` for the wire protocol shared between the two.
+mlrun#10043). The actual request sequencing (what to call, in what order, how to poll) lives in
+:mod:`mlrun.utils.orca_client`, shared with that server-side proxy - this module only supplies
+the SDK-specific pieces: how to send an authenticated request, and how to translate results into
+the SDK's own public return types.
 """
 
 import types
@@ -25,16 +28,14 @@ import typing
 import uuid
 
 import humanfriendly
-import mergedeep
 import requests
 
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.projects
 import mlrun.utils
-import mlrun.utils.helpers
+import mlrun.utils.orca_client as orca_client
 import mlrun.utils.orca_projects as orca_projects
-from mlrun.utils import logger
 
 if typing.TYPE_CHECKING:
     import mlrun.db.httpdb
@@ -91,11 +92,15 @@ class OrcaProjectsClient:
             ),
             verbose=True,
         )
-        self._poll_interval_seconds = humanfriendly.parse_timespan(
-            mlrun.mlconf.httpdb.projects.iguazio_project_states_poll_interval
-        )
-        self._poll_timeout_seconds = humanfriendly.parse_timespan(
-            mlrun.mlconf.httpdb.projects.iguazio_project_states_poll_timeout
+        self._orchestrator = orca_client.OrcaProjectsOrchestrator(
+            self._send_request,
+            mlrun.utils.logger,
+            poll_interval_seconds=humanfriendly.parse_timespan(
+                mlrun.mlconf.httpdb.projects.iguazio_project_states_poll_interval
+            ),
+            poll_timeout_seconds=humanfriendly.parse_timespan(
+                mlrun.mlconf.httpdb.projects.iguazio_project_states_poll_timeout
+            ),
         )
 
     @typing.overload
@@ -120,14 +125,14 @@ class OrcaProjectsClient:
             ``False``.
         """
         project_like = _as_project_like(project)
-        name = project_like.metadata.name
-        response = self._send_request(
-            "POST",
-            orca_projects.PROJECTS_ENDPOINT,
-            f"Failed creating project {name} in Orca",
-            json=orca_projects.create_project_wire(project_like),
+        response, op_id = self._orchestrator.create(project_like)
+        if not wait_for_completion:
+            return op_id
+        return self._to_mlrun_project(
+            self._orchestrator.settle(
+                project_like.metadata.name, response, op_id, wait_for_completion=True
+            )
         )
-        return self._settle(name, response, wait_for_completion)
 
     @typing.overload
     def update_project(
@@ -155,14 +160,12 @@ class OrcaProjectsClient:
             ``False``.
         """
         project_like = _as_project_like(project)
-        prev_op_id = self._resolve_prev_op_id(name, project_like)
-        response = self._send_request(
-            "PUT",
-            orca_projects.PROJECT_ENDPOINT_TEMPLATE.format(name=name),
-            f"Failed updating project {name} in Orca",
-            json=orca_projects.update_project_wire(project_like, prev_op_id),
+        response, op_id = self._orchestrator.update(name, project_like)
+        if not wait_for_completion:
+            return op_id
+        return self._to_mlrun_project(
+            self._orchestrator.settle(name, response, op_id, wait_for_completion=True)
         )
-        return self._settle(name, response, wait_for_completion)
 
     @typing.overload
     def patch_project(
@@ -207,43 +210,12 @@ class OrcaProjectsClient:
             ``False``.
         """
         project_like = _as_project_like(project)
-        current = self._get_project_schema(name)
-        merged_common = {
-            "labels": dict(current.metadata.labels or {}),
-            "annotations": dict(current.metadata.annotations or {}),
-            "owner": current.spec.owner,
-            "description": current.spec.description,
-        }
-        patch_common = {
-            "labels": project_like.metadata.labels,
-            "annotations": project_like.metadata.annotations,
-            "owner": project_like.spec.owner,
-            "description": project_like.spec.description,
-        }
-        patch_common = {k: v for k, v in patch_common.items() if v is not None}
-        mergedeep.merge(
-            merged_common, patch_common, strategy=patch_mode.to_mergedeep_strategy()
+        response, op_id = self._orchestrator.patch(name, project_like, patch_mode)
+        if not wait_for_completion:
+            return op_id
+        return self._to_mlrun_project(
+            self._orchestrator.settle(name, response, op_id, wait_for_completion=True)
         )
-        merged_project: orca_projects.ProjectLike = types.SimpleNamespace(
-            metadata=types.SimpleNamespace(
-                name=name,
-                labels=merged_common["labels"],
-                annotations=merged_common["annotations"],
-            ),
-            spec=types.SimpleNamespace(
-                owner=merged_common["owner"],
-                description=merged_common["description"],
-            ),
-        )
-        response = self._send_request(
-            "PATCH",
-            orca_projects.PROJECT_ENDPOINT_TEMPLATE.format(name=name),
-            f"Failed patching project {name} in Orca",
-            json=orca_projects.update_project_wire(
-                merged_project, current.status.op_id
-            ),
-        )
-        return self._settle(name, response, wait_for_completion)
 
     @typing.overload
     def delete_project(
@@ -263,17 +235,13 @@ class OrcaProjectsClient:
         :return: The operation's ``op_id`` if the delete is still converging and
             ``wait_for_completion`` is ``False``, otherwise ``None``.
         """
-        response = self._send_request(
-            "DELETE",
-            orca_projects.PROJECT_ENDPOINT_TEMPLATE.format(name=name),
-            f"Failed deleting project {name} in Orca",
-        )
+        response = self._orchestrator.delete(name)
         if response.status_code != requests.codes.accepted:
             return None
         op_id = response.json()["status"]["opId"]
         if not wait_for_completion:
             return op_id
-        self._wait_for_op(name, op_id)
+        self._orchestrator.wait_for_op(name, op_id)
         return None
 
     def get_project(self, name: str) -> "mlrun.projects.MlrunProject":
@@ -282,92 +250,13 @@ class OrcaProjectsClient:
         :param name: Name of the project to get.
         :return: The project.
         """
-        return self._to_mlrun_project(self._get_project_schema(name))
-
-    def _get_project_schema(self, name: str) -> "mlrun.common.schemas.Project":
-        # Internal, schema-typed accessor - unlike the public get_project(), this keeps fields
-        # (like status.op_id, the CAS witness) that mlrun.projects.MlrunProject's own status
-        # object doesn't carry, since those are Orca-sync plumbing, not part of the SDK's
-        # user-facing project contract.
-        response = self._send_request(
-            "GET",
-            orca_projects.PROJECT_ENDPOINT_TEMPLATE.format(name=name),
-            f"Failed getting project {name} from Orca",
-        )
-        return orca_projects.project_from_wire(response.json())
+        return self._to_mlrun_project(self._orchestrator.get(name))
 
     @staticmethod
     def _to_mlrun_project(
         project: "mlrun.common.schemas.Project",
     ) -> "mlrun.projects.MlrunProject":
         return mlrun.projects.MlrunProject.from_dict(project.dict())
-
-    def _settle(
-        self, name: str, response: requests.Response, wait_for_completion: bool
-    ) -> typing.Union["mlrun.projects.MlrunProject", uuid.UUID]:
-        # wait_for_completion=False always means "give me an identifier to check later", even if
-        # the operation has, in fact, already settled - this keeps the return type strictly a
-        # function of wait_for_completion (see the @overload signatures above) rather than also
-        # depending on response.status_code, which callers can't predict.
-        if not wait_for_completion:
-            return response.json()["status"]["opId"]
-
-        # update/patch may settle synchronously (200 - "all ack -> clear phase -> 200" per the
-        # HLD) rather than go through the async 202 + poll path create always takes. A 200 has
-        # already reached its terminal state, and - unlike 202 - has no trackable-action record
-        # to poll for, so it must be handled before any polling is attempted.
-        if response.status_code != requests.codes.accepted:
-            return self._to_mlrun_project(
-                orca_projects.project_from_wire(response.json())
-            )
-        op_id = response.json()["status"]["opId"]
-        self._wait_for_op(name, op_id)
-        return self.get_project(name)
-
-    def _resolve_prev_op_id(
-        self, name: str, project: orca_projects.ProjectLike
-    ) -> uuid.UUID | None:
-        # The CAS witness Orca requires for an update is the last op_id the caller observed; if
-        # the caller didn't supply one, read the current state from Orca first (matches the
-        # HLD's "client reads the project, then PUT/PATCH with prev_op_id" contract). A missing
-        # project (store_project's upsert-create case: PUT on a project that doesn't exist yet)
-        # has no prior op_id to CAS against - fall through with None.
-        prev_op_id = getattr(getattr(project, "status", None), "op_id", None)
-        if prev_op_id:
-            return prev_op_id
-        try:
-            return self._get_project_schema(name).status.op_id
-        except mlrun.errors.MLRunNotFoundError:
-            return None
-
-    def _wait_for_op(self, name: str, op_id: uuid.UUID | str) -> None:
-        logger.debug(
-            "Waiting for Orca sync-project action to reach a terminal state",
-            name=name,
-            op_id=op_id,
-        )
-        try:
-            mlrun.utils.helpers.retry_until_successful(
-                self._poll_interval_seconds,
-                self._poll_timeout_seconds,
-                logger,
-                False,
-                self._verify_op_terminal,
-                name,
-                op_id,
-                fatal_exceptions=(orca_projects.OrcaActionFailedError,),
-            )
-        except orca_projects.OrcaActionFailedError as exc:
-            raise mlrun.errors.MLRunRuntimeError(str(exc)) from exc
-
-    def _verify_op_terminal(self, name: str, op_id: uuid.UUID | str) -> None:
-        response = self._send_request(
-            "GET",
-            orca_projects.ACTION_EXECUTIONS_ENDPOINT,
-            "Failed getting Orca sync-project action execution",
-            params=orca_projects.action_execution_query_params(op_id),
-        )
-        orca_projects.verify_action_execution_terminal(response.json(), name, op_id)
 
     def _send_request(
         self, method: str, path: str, error_message: str, **kwargs

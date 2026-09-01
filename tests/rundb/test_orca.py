@@ -46,8 +46,8 @@ def orca_client() -> mlrun.db.orca.OrcaProjectsClient:
     db = mlrun.db.httpdb.HTTPRunDB("https://fake-mlrun-url")
     client = mlrun.db.orca.OrcaProjectsClient(db)
     # keep polling fast in tests
-    client._poll_interval_seconds = 0.01
-    client._poll_timeout_seconds = 1
+    client._orchestrator._poll_interval_seconds = 0.01
+    client._orchestrator._poll_timeout_seconds = 1
     return client
 
 

@@ -72,11 +72,11 @@ class TestOrcaProjectsClient:
         result = orca_client.create_project(project)
 
         # regression guard: the public contract must return mlrun.projects.MlrunProject
-        # (matching the legacy MLRun-API path), not the internal wire-schema type - op_id is
-        # Orca-sync plumbing and deliberately absent from MlrunProject's own status object.
+        # (matching the legacy MLRun-API path), not the internal wire-schema type - and must
+        # still carry status.op_id, so a later save() can send it back as the CAS witness.
         assert isinstance(result, mlrun.projects.MlrunProject)
         assert result.metadata.name == "p1"
-        assert not hasattr(result.status, "op_id")
+        assert str(result.status.op_id) == op_id
 
         create_request = requests_mock.request_history[0]
         assert create_request.json() == {"name": "p1", "owner": "jsmith"}
@@ -149,6 +149,49 @@ class TestOrcaProjectsClient:
 
         put_request = [r for r in requests_mock.request_history if r.method == "PUT"][0]
         assert put_request.json()["prevOpId"] == op_id
+
+    def test_update_project_round_trip_preserves_op_id_from_get(
+        self, requests_mock, orca_client
+    ):
+        # regression guard: MlrunProject.status must round-trip op_id through
+        # get_project() -> mutate -> save(), so update_project sends the CAS witness the caller
+        # actually observed at fetch time - not one freshly re-resolved from Orca right before
+        # the write, which would defeat conflict detection entirely.
+        fetched_op_id = str(uuid.uuid4())
+        new_op_id = str(uuid.uuid4())
+        requests_mock.get(
+            f"{ORCA_API_URL}/api/v1/projects/projects/p3b",
+            json=_project_wire_body("p3b", fetched_op_id, "online"),
+        )
+        requests_mock.put(
+            f"{ORCA_API_URL}/api/v1/projects/projects/p3b",
+            json={"status": {"opId": new_op_id}},
+            status_code=202,
+        )
+        requests_mock.get(
+            f"{ORCA_API_URL}/api/v1/trackable-actions/executions",
+            json={"items": [{"status": {"state": "succeeded"}}]},
+        )
+
+        project = orca_client.get_project("p3b")
+        assert isinstance(project, mlrun.projects.MlrunProject)
+        assert str(project.status.op_id) == fetched_op_id
+        project.spec.description = "updated"
+
+        orca_client.update_project("p3b", project.to_dict())
+
+        history = requests_mock.request_history
+        put_index = next(i for i, r in enumerate(history) if r.method == "PUT")
+        gets_before_put = [
+            r
+            for r in history[:put_index]
+            if r.method == "GET" and "trackable-actions" not in r.url
+        ]
+        # exactly the original get_project() GET - resolve_prev_op_id must not need another one,
+        # since the mutated project already carried the op_id it observed
+        assert len(gets_before_put) == 1
+        put_request = history[put_index]
+        assert put_request.json()["prevOpId"] == fetched_op_id
 
     def test_update_project_synchronous_200_does_not_poll(
         self, requests_mock, orca_client

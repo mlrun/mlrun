@@ -1311,8 +1311,12 @@ class ProjectSpec(ModelObj):
 
 
 class ProjectStatus(ModelObj):
-    def __init__(self, state=None):
+    def __init__(self, state=None, op_id=None):
         self.state = state
+        # The CAS witness Orca's project-sync expects back on the next update/patch as
+        # prev_op_id (see mlrun.utils.orca_client) - must round-trip through
+        # get_project()/save() unchanged, not just carry within a single request/response.
+        self.op_id = op_id
 
 
 class MlrunProject(ModelObj):

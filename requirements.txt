@@ -46,3 +46,5 @@ pyjwt~=2.10
 jsonpath-ng~=1.7
 uuid_utils~=0.14.1
 cachetools~=6.2
+# used to parse human-friendly duration config values (e.g. "2 seconds") for the SDK-direct Orca client
+humanfriendly~=10.0

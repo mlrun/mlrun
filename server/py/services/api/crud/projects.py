@@ -1377,6 +1377,9 @@ class Projects(
 
     @staticmethod
     def _encode_project_states_cursor(key: tuple[datetime.datetime, str]) -> str:
+        # `|` is a safe delimiter: project names are constrained to mlrun.utils.regex's
+        # DNS-1123-label pattern (lowercase alphanumerics and hyphens only) and can't
+        # contain it.
         updated_at, name = key
         return f"{updated_at.isoformat()}|{name}"
 

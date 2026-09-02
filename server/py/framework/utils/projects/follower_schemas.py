@@ -22,7 +22,6 @@ shapes are as portable as the validation rules and could move into a shared
 cross-follower library alongside them.
 """
 
-import typing
 import uuid
 
 import pydantic
@@ -40,15 +39,6 @@ class FollowerProjectState(pydantic.BaseModel):
 class FollowerProjectStatesPage(pydantic.BaseModel):
     projects: list[FollowerProjectState]
     next_cursor: str | None = None
-
-
-class FollowerDeleteResult(pydantic.BaseModel):
-    name: str
-    op_id: uuid.UUID
-    # Always "removed": commit-delete blocks until the purge actually finishes (Orca
-    # requirement) — there is no async/scheduled outcome to represent. A call that
-    # can't complete raises an HTTP error instead of returning a soft in-progress state.
-    result: typing.Literal["removed"]
 
 
 class FollowerOpIdStatus(pydantic.BaseModel):

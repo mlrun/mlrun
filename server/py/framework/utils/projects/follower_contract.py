@@ -163,6 +163,12 @@ def check_transition(
     # on an absent project) falls through to the generic 412 below, per its own status
     # table (403/409/412, no 404). Don't generalize this to "state is None -> 404" — that
     # would wrongly turn commit_create's 412 into a 404.
+    #
+    # Unreachable from MLRun's own call path today: crud.Projects.update_project_follower
+    # already raises 404 before calling validate_call when the project is absent, so
+    # current_state can't be None here for update in practice. Kept anyway as the
+    # contract's own source of truth for a caller that doesn't pre-guard absence the
+    # way MLRun's crud layer happens to (e.g. a future follower implementation).
     if op == FollowerOp.update and current_state is None:
         raise mlrun.errors.MLRunNotFoundError("Project not found")
     raise mlrun.errors.MLRunPreconditionFailedError(

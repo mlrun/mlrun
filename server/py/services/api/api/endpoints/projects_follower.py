@@ -113,8 +113,8 @@ async def update_project(
         services.api.crud.Projects().update_project_follower,
         name,
         project,
-        body.status.op_id,
-        body.prev_op_id,
+        op_id=body.status.op_id,
+        prev_op_id=body.prev_op_id,
     )
     return _to_follower_state(name, result)
 
@@ -130,21 +130,21 @@ async def prepare_delete_project(
     result = await mlrun.utils.run_in_threadpool(
         services.api.crud.Projects().prepare_delete_project,
         name,
-        body.status.op_id,
-        body.prev_op_id,
+        op_id=body.status.op_id,
+        prev_op_id=body.prev_op_id,
     )
     return _to_follower_state(name, result)
 
 
 @router.delete(
     "/follower/projects/{name}",
-    response_model=follower_schemas.FollowerDeleteResult,
+    response_model=follower_schemas.FollowerProjectState,
 )
 async def commit_delete_project(
     name: str,
     body: follower_schemas.FollowerCommitDeleteRequest,
     request: fastapi.Request,
-) -> follower_schemas.FollowerDeleteResult:
+) -> follower_schemas.FollowerProjectState:
     # delete_project_resources deletes schedules, which run only on chief, so we
     # re-route to chief — same reason the legacy (non-follower) delete endpoint does.
     if (
@@ -169,8 +169,12 @@ async def commit_delete_project(
     await mlrun.utils.run_in_threadpool(
         services.api.crud.Projects().commit_delete_project, name, op_id
     )
-    return follower_schemas.FollowerDeleteResult(
-        name=name, op_id=op_id, result="removed"
+    # The row is gone at this point — sync_status reports the state it was in right
+    # before removal, matching every other op's {name, op_id, sync_status} response.
+    return follower_schemas.FollowerProjectState(
+        name=name,
+        op_id=op_id,
+        sync_status=mlrun.common.schemas.ProjectState.deleting,
     )
 
 

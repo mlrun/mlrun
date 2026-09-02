@@ -22,6 +22,20 @@ import mlrun.utils
 from mlrun.package.utils._supported_format import SupportedFormat
 
 
+def _is_within_directory(directory, target):
+    abs_directory = os.path.realpath(directory)
+    abs_target = os.path.realpath(target)
+    return abs_target.startswith(abs_directory + os.sep) or abs_target == abs_directory
+
+
+def _safe_extract(tar, path=".", members=None, *, numeric_owner=False):
+    for member in tar.getmembers():
+        member_path = os.path.join(path, member.name)
+        if not _is_within_directory(path, member_path):
+            raise Exception(f"Path traversal attempt: {member.name}")
+    tar.extractall(path, members, numeric_owner=numeric_owner)
+
+
 class _Archiver(ABC):
     """
     An abstract base class for an archiver - a class to manage archives of multiple files.
@@ -178,9 +192,9 @@ class _TarArchiver(_Archiver):
 
         # Extract:
         with tarfile.open(archive_path, f"r:{cls._MODE_STRING}") as tar_file:
-            # use 'data' to ensure no security risks are imposed by the archive files
+            # use _safe_extract to prevent path traversal (zip slip) attacks (Bandit B202, CWE-22)
             # see: https://docs.python.org/3/library/tarfile.html#tarfile.TarFile.extractall
-            tar_file.extractall(directory_path, filter="data")
+            _safe_extract(tar_file, directory_path)
 
         return str(directory_path)
 

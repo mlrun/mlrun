@@ -4,7 +4,7 @@ go 1.26.4
 
 require (
 	github.com/google/uuid v1.6.0
-	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.3
+	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.4
 	github.com/nuclio/errors v0.0.4
 	github.com/nuclio/logger v0.0.1
 	github.com/nuclio/loggerus v0.0.7

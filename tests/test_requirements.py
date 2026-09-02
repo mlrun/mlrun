@@ -148,7 +148,7 @@ def test_requirement_specifiers_convention():
         # ensure minimal version to gain vulnerability fixes
         "setuptools": {">=75.2"},
         "snowballstemmer": {"!=3.0.0"},
-        "kafka-python": {"~=2.1.0"},
+        "kafka-python": {"~=2.3.2"},
         "dask-ml": {"~=2024.4.4"},
     }
 

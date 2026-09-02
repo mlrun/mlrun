@@ -32,7 +32,7 @@ def current_version() -> str:
 # -- Project information -----------------------------------------------------
 
 project = "mlrun"
-copyright = "2020-2025, Iguazio"
+copyright = "2020-2026, Iguazio"
 author = "Iguazio"
 
 master_doc = "contents"
@@ -165,7 +165,7 @@ myst_xref_missing = "ignore"
 # These substitutions point to the relevant mlrun docs for the current CE version
 myst_substitutions = {
     "version": "1.12.0",
-    "ceversion": "v0.12.0",
+    "ceversion": "v0.12",
     "releasedocumentation": "docs.mlrun.org/en/stable/index.html",
 }
 
@@ -255,6 +255,7 @@ linkcheck_ignore = [
     "https://docs.confident-ai.com/docs/metrics-contextual-precision",
     "https://docs.confident-ai.com/docs/metrics-contextual-relevancy",
     "https://docs.confident-ai.com/docs/metrics-faithfulness",
+    "https://mlopslive.slack.com/",
     # ignore links to kubernetes.io, since they often block the traffic
     r"https://kubernetes.io/.*",
 ]

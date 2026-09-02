@@ -1,8 +1,9 @@
 (change-log)=
 # Change log
 
-The change log lists updates per version, open issues, limitations, and deprecations.
-- [v1.12.0](#v1120)
+
+The change log lists updates per version, open issues, limitations, and deprecations:
+- [v1.12.0](#v1-12-0)
 - [v1.11.0](#v1110)
 - [v1.10.3](#v1103) | [v1.10.2](#v1102) | [v1.10.1](#v1101) | [v1.10.0](#v1100)
 - [v1.9.2](#v192) | [v1.9.1](#v191) | [v1.9.0](#v190)
@@ -20,19 +21,79 @@ The change log lists updates per version, open issues, limitations, and deprecat
 - [Deprecations and removed code](#deprecations-and-removed-code)
 
 ## Upgrading KFP, Python, and Pydantic
-Upgrading these three MLRun dependencies spans several releases.  The upgrades are comprised of:
+Upgrading these MLRun dependencies spans several releases.  The upgrades are comprised of:
 - KFP: from 1.8 to 2.x. KFP has 2 components: the KFP service, and the KFP client package (which is used in both the MLRun service and some MLRun clients) and pipeline code (which is provided by the user). The client is not yet upgraded.
 - Pydantic: from version 1 to 2.
 
 See a full description of KFP, Python, and the workflow engines in {ref}`local-remote`. Specific changes are listed under the relevant versions.
-(v1120)=
-## v1.12.0
 
-(1.12.0-breaking)=
-### Breaking Changes
+(v1-12-0)=
+## v1.12.0 (August 2026)
+
+### Model Monitoring
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
+|ML-12344|You can now export model monitoring metrics and results from a serving-graph via OpenTelemetry to a user-configured endpoint. See [](../model-monitoring/running-applications.md#export-results-and-metrics-via-otel), {ref}`otel-export-step`, {ref}`otel-metrics`. New API: and {py:class}`~OTelMetricsExporter`. |
+|ML-12045|You can now monitor an externally-served model over HTTP. New APIs: {py:meth}`~mlrun.projects.MlrunProject.create_user_model_endpoint`, {py:meth}`~mlrun.projects.MlrunProject.get_model_monitoring_url`, {py:meth}`~mlrun.runtimes.ServingRuntime.setup_model_monitoring`, {py:meth}`~mlrun.projects.MlrunProject.create_user_model_endpoint`. See {ref}`monitor-external-model-http`.|
+
+### Serving graph
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-12439|API handler improvements: a new per-endpoint BodyMappings object attached directly to each EndpointConfig replaces the global body_map mechanism ; new exit-mapping configuration; `include_url_info` now also injects `mlrun_request_method`; handlers can return a custom HTTP status code. API handler is no longer TechPreview. See [Breaking changes](v1-12-0-breaking) and [API handler](../serving/api-handler.md).|
+|ML-10754|MLRun now supports an OpenAI REST interface to serving graphs. See {ref}`openai-frontend` andthe new API {py:meth}`~mlrun.runtimes.ServingRuntime.set_openai_frontend`.|
+
+### Runtimes
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-11839|MLRun jobs now supports `async` function handlers (for batch execution). See [](../concepts/submitting-tasks-jobs-to-functions.md#async-handlers).|
+|ML-12045|You can now [Run model monitoring on an app runtime](../runtimes/application.ipynb#run-model-monitoring-on-a-runtime-application). New APIs: {py:meth}`~mlrun.projects.MlrunProject.create_user_model_endpoint`, {py:meth}`~mlrun.runtimes.RemoteRuntime.setup_model_monitoring`.|
+
+### Metrics
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-16|MLRun collects anonymized system-size statistics, for example, project counts, artifact counts, run activity, serving endpoints, etc., and exports them to Prometheus on the cluster via OpenTelemetry. Metrics are not exported from the cluster. See {ref}`otel-metrics`.|
+
+### Alerts
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-11994|The new `cooldown_period` parameter of the AlertConfig can be used to delay resetting an alert. See [Cooldown preiod](../concepts/alerts.md#cooldown-period)|
+
+### UI
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-1811|The Real-Time Pipelines page now displays: a table of serving graphs with a few parameters that can be filtered; the total number of graphs/pipelines, the status of the main function, and the total number of endpoints; icons and details of the graph steps according to the step category; a model endpoints tab.| 
+|ML-12045|New page for model monitoring of runtime applications. See [View the results in the UI](../runtimes/application.ipynb#view-the-results-in-the-ui).|
+
+(v1-12-0-breaking)=
+### Breaking changes
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-12439|`APIHandlerConfig.body_map`, `add_body_mapping()` and `remove_body_mapping()` are removed. Callers must migrate to attaching a BodyMappings instance via `input_body_mappings` on `add_endpoint_handler`. The old global body map was applied to all endpoints uniformly — the new model requires explicit attachment per endpoint.|
 |ML-12819|`v3io-frames` is now optional. Standard `pip install mlrun` installs no longer include it. If you use v3io Frames or v3io TSDB model monitoring, install `mlrun[v3io-frames]`. The dependency is still included in `mlrun[all]`, `mlrun[complete]`, and MLRun images.|
+
+### Documentation
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-12383|The updated {ref}`guardrails-data` page now showcases a guardrail step from the MLRun hub, and a ModelRunnerStep that runs  theLLMModel.|
+|NA|Updated {ref}`git-repo-as-hub`.|
+
+
+
+### Closed issues
+
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-11824|When running a workflow from a Jupyter notebook, for example, the link `click here to view` now opens the workflow monitor view.|
+|ML-11829|You can now access an S3 public-like bucket from AWS. Previously, access was blocked with a ClientError.|
+|ML-12102|Remote workflow projects are now run from the MLRun DB, maintaining consistency between the project version before running the remote workflow and afterwards.|
+|ML-12319|Default image values per function kind are now enriched from the MLRun server.|
+|ML-12372|UI: runs with a long name now display the run's logs in the Monitor Workflow tab.|
+|ML-12391|In the Real-time pipelines page, the status of root functions no longer include the status of child functions.|
+|ML-12392|The predefined date picker time selections are now synchronized with the Start time in the message "No data matches the filter: Start time....".|
+|ML-12395|The deployment status in the Real-Time Pipelines > Serving Pipelines table is now consistent with the Details pane.|
+|ML-12458|Submitting a scheduled job in MLRun with a specified timezone now succeeds. |
+|ML-12590|The Monitor Jobs page no onger time out when requestion runs older then 24 hours and filter on state. |
+|ML-12755|Resolved slow per-project pipeline listings and project deletion timeouts on tenants with KFP v2. |
 
 (v1110)=
 ## v1.11.0 (May 2026)
@@ -72,7 +133,7 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 |ML-1811|The realtime pipelines page now displays: a table of serving graphs with a few parameters that can be filtered; the total number of graphs/pipelines, the main function status, and the total number of endpoints; icons and details of the graph steps according to the step category; a model endpoints tab.|
 |ML-11445| In the **Model endpoints > Metrics** tab, you can now select aggregation functions, which appear as multiple lines in the values graphs. Also, you can select a period of time greater than 1 month. See [Model endpoints metrics](../model-monitoring/monitoring-models.ipynb#model-endpoints-metrics). Supported for TimescaleDB (PostgreSQL).|
 
-## Packagers
+### Packagers
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |ML-3474|MLRun now suports packagers for moving data in and out of MLRun functions by using standard Python functions with type hints and returning values. See {ref}`packagers`.|
@@ -95,6 +156,12 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |10357|You can now import steps from the MLRun hub or your own private hub. See [Load steps from the hub](../runtimes/load-from-hub.md#steps) and {py:class}`~mlrun.hub.step.get_hub_step`.|
+
+### CE MLRun
+
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|CEML-642|New OpenTelemetry (OTel) observability feature for Kubernetes installations. See [Configure OTel](../install-mlrun-ce/mlrun-ce-installation-notes.md#configure-otel)
 
 ### Documentation
 | ID    |Description                                                                 |
@@ -124,30 +191,32 @@ ML-11820|Improved the time to access the monitoring page (V3IO).|
 |ML-12328|Fixed KFP experiments pagination.|
 |ML-12372|Fixed workflows pagination.|
 
+
+## v1.10.x
 (#v1103)=
-## v1.10.3
-### Closed issues
+### v1.10.3
+#### Closed issues
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |ML-12379|Fixed workflows pagination.|
 
 (v1102)=
-## v1.10.2 (February 2025)
+### v1.10.2 (February 2025)
 
 ```{admonition} Important
 **v1.10.x are the last versions that support Python 3.9 and TDEngine. They will not be supported in MLRun v1.11.0.<br>
 TDEngine will be replaced with TimescaleDB. Model monitoring data in TDEngine will not be migrated.**
 ```
 
-### Closed issues
+#### Closed issues
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |ML-11771|Resolved issue of Users temporarily unable to access projects by improving all the async clients to use per-thread session instances and all http clients to use a dummy cookie jar.|
 
 (v1101)=
-## v1.10.1 (January 2026)
+### v1.10.1 (January 2026)
 
-### Closed issues
+#### Closed issues
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |ML-10488|Validation of mail configuration does not fail on non-required parameters. See the updated documentation [Mail notifications](../concepts/notifications.md#mail-notifications).|
@@ -164,28 +233,28 @@ TDEngine will be replaced with TimescaleDB. Model monitoring data in TDEngine wi
 |NA|Security fixes.|
 
 (v1100)=
-## v1.10.0 (November 2025)
+### v1.10.0 (November 2025)
 
 
-### MLRun hub
+#### MLRun hub
 
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |ML-9564|You can now import monitoring apps from the MLRun hub or your own private hub. See [import a model monitoring application](../runtimes/load-from-hub.md#import-a-model-monitoring-application).|
 |ML-9319|You can now import python modules from the MLRun hub or your own private hub. See [import a module](../runtimes/load-from-hub.md#import-a-module).|
 
-### Serving
+#### Serving
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |ML-9685| You can now use models stored in a remote source like HuggingFace, without saving it in your datastore. See [Remote models](../store/models.md#remote-models) and [Serving using a remote model](../genai/deployment/genai_serving.md#serving-using-a-remote-model).|
 |ML-9642|The new ModelRunnerStep enables running a model as part of a inference graph. It gives you an advanced way to run multiple models with control over how they are executed in terms of concurrency and parallelism. See [ModelRunnerStep](../serving/model-serving-steps.md#modelrunnerstep) and {py:class}`~mlrun.serving.ModelRunnerStep`.|
 
-### Artifacts
+#### Artifacts
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |ML-9812|This version introduces LLM prompt templates and artifacts and experiment tracking on artifacts. You simply use your selected provider (e.g., OpenAI or Hugging Face). See {ref}`genai-04-llm-prompt-artifact`, {ref}`genai-serving-graph`, and {ref}`llm-prompt-artifacts`.|
 
-### Model Monitoring
+#### Model Monitoring
 
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
@@ -193,13 +262,13 @@ TDEngine will be replaced with TimescaleDB. Model monitoring data in TDEngine wi
 |ML-9613|The new Monitoring Application view, accessed with the Monitoring app icon in the menu, provides you with a comprehensive overview of your model monitoring applications and their status. See {ref}`view-mm-applications`.|
 |ML-8072|You can now run a model monitoring application as a batch application on existing model endpoint data. See {ref}`mm-running-applications`.|
 
-### Batch run
+#### Batch run
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |ML-5986|You can now use the SDK to configure retries on runs that fail. See {ref}`run_function`.|
 |ML-9681|You can now deploy a serving graph as a job. See {ref}`batch-infer-drift-tutor`.|
 
-### UI
+#### UI
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |ML-9351|You can now terminate a workflow from the UI with either the <b>Terminate</b> button or the <b>Terminate</b> option in the vertical ellipsis menu, depending on the page you are in. |
@@ -207,13 +276,13 @@ TDEngine will be replaced with TimescaleDB. Model monitoring data in TDEngine wi
 
 
 (1.10.0-breaking)=
-### Breaking Changes
+#### Breaking Changes
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |ML-10279|The default project (`project="default"`) is no longer supported. This also affects the CE. All functions must have an explicit project. You can name a project default, but it will not have any pre-ordained permissions. Existing systems can keep pre-existing default projects, but they are no longer enriched. For example, this code:<br><br>`mlrun.get_or_create_ctx("my-context")`<br><br> should be replaced by:<br><br>`mlrun.get_or_create_ctx("my-context", project="my-project")`|
 
 
-### Infrastructure
+#### Infrastructure
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |ML-2714|MLRun supports Confluent Kafka 7.8.|
@@ -221,14 +290,14 @@ TDEngine will be replaced with TimescaleDB. Model monitoring data in TDEngine wi
 |ML-10799|When using the KFP client, you can now use Kubeflow Pipelines (KFP) 1.8.23, which supports Python 3.11.
 
 
-### Upcoming changes
+#### Upcoming changes
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 | NA |The default `--allow-cross-project` CLI flag in `run`, `build`, `deploy`, and `project` CLI commands will change to `False` in v1.11.0.|
 |ML-11414|Use of underscore '_' in function names will be deprecated in an upcoming release. Use dashes '-' instead.|
 
 
-### Documentation
+#### Documentation
 
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
@@ -248,7 +317,7 @@ TDEngine will be replaced with TimescaleDB. Model monitoring data in TDEngine wi
 |ML-10676|Fixed CE installation pages: {ref}`aws-install` and {ref}`install-on-kubernetes`.|
 
 
-### Closed issues
+#### Closed issues
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |ML-7678|Warning is raised when `with_source_archive` is used but source code was provided via `set_function`.|
@@ -285,10 +354,10 @@ TDEngine will be replaced with TimescaleDB. Model monitoring data in TDEngine wi
 |ML-10987|UI: Resolved the issue of displaying Workflows in the Monitor workflows page with KFP 2.5.|
 
 
-
+## v1.9.x
 (v192)=
-## v1.9.2 (July 2025)
-### Closed issues
+### v1.9.2 (July 2025)
+#### Closed issues
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |ML-10147|Fixed the image build process, thereby resolving issues with the tutorial Model monitoring using LLM.|
@@ -297,50 +366,48 @@ TDEngine will be replaced with TimescaleDB. Model monitoring data in TDEngine wi
 |NA|Security fixes.|
 
 
-### Documentation
+#### Documentation
 
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |NA|Workflow engine types and the interdependencies with Python are fully described in {ref}`local-remote`.|
 |ML-10367|Improved the description of creating an alert, including `run-id`. See [Create an alert](../concepts/alerts.md#create-an-alert).|
 
-
-
 (v191)=
-## v1.9.1 (June 2025)
+### v1.9.1 (June 2025)
 
-### Breaking change
+#### Breaking change
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |NA   |The project default image no longer affects the workflow runner image.|
 
-### Closed issue
+#### Closed issue
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |ML-10326|Fixed the image tag extraction process.|
 
 (v190)=
-## v1.9.0 (June 2025)
+### v1.9.0 (June 2025)
 
-### Infrastructure
+#### Infrastructure
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |ML-9326| MLRun now supports Python 3.11, and also continues to support Python 3.9. </br>Workflows that use Python 3.11 must use `engine="remote"`. |
 |ML-10199|KFP 2.x server is now supported, but workflows still require the KFP 1.8 syntax. </br>Usage guidelines:<ul><li>Client code and workflow code and syntax (DSL) is still the KFP 1.8 syntax. Working with the newer KFP 2.x syntax is not yet supported by MLRun.</li><li>As in MLRun v1.8.0, KFP is not pre-installed on images such as `mlrun/mlrun`. The image `mlrun/mlrun-kfp` includes KFP, but works with Python 3.9.</li><li>You can install KFP manually (`pip install mlrun[kfp18]`), for example, to run KFP pipelines locally using the KFP 1.8 client, and thereby requiring Python 3.9.</li></ul>|
 
-### Breaking change
+#### Breaking change
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |ML-10186|By default, the remote workflow runs with the mlrun/mlrun-kfp image that includes the KFP Python package. If you want to use a different image to compile your workflow, you must install kfp~=1.8, use Python 3,9, and you can change the image by using `set_workflow(image=<image-name>)`.|
 
-### Closed issues
+#### Closed issues
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |ML-4767|PyTorch 2.1.0 is now compatible with `mlrun-gpu` image.|
 |ML-9894|Logging artifacts to the V3IO store does not result in an "EOF occurred in violation of protocol" error.|
 
 
-### Model monitoring
+#### Model monitoring
 
 ```{admonition} Important
 You must use the v1.8.0 client or higher to utilize model monitoring on a v1.9.0 server.
@@ -1386,7 +1453,7 @@ capabilities of Iguazio, and provide quick access to common tasks.
 - [MLRun change log in GitHub](https://github.com/mlrun/mlrun/releases/tag/v1.1.0)
 - [UI change log in GitHub](https://github.com/mlrun/ui/releases/tag/v1.1.0)
 
-## 1.0.x
+## v1.0.x
 
 ### v1.0.6 (16 August 2022)
 
@@ -1559,17 +1626,17 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-12078|When Model-monitoring is enabled with V3io configured as default artifact storage, each model-endpoint creates 25 directories per day. |Run a daily cron job to delete parquet partition directories older than a week.|v1.11.0|
 |ML-12185|A split graph with a collector as a merge step does not fail deployment nor invoke and produce a false response. |Do not use the collector step as the merge step.|v1.11.0|
 |ML-12378|When using HTTP streaming, async does not work but works in the same manner as sync.|NA|v1.11.0|
-|ML-12458|Schedules only work with UTC timezone.|Use UTC instead of other timezones.|V1.11.0|
+|ML-12573|In rare, high-stress situations, TSDB records are lost on Kafka rebalance. |Set a constant number of stream pod replicas and document the Kafka rebalance handling.|v1.11.0|
 
 ## Limitations
 
-| ID     |Description                                                                                                                                 |Workaround |Opened in|
-|---------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------|     
+| ID     |Description                                    |Workaround |Opened in|
+|---------|----------------------------------------------|------------------|-------|     
 |ML-1278|Users do not automatically have access rights to the project data of the projects they are members of.    | Assign the user access permission for the project folder.             | v0.8.0   |
-|ML-2014|Model deployment returns ResourceNotFoundException (Nuclio error that Service <name> is invalid.)                                                                                    |Verify that all `metadata.labels` values are 63 characters or less. See the [Kubernetes limitation](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set).                                                                                                                        |v1.0.0    |
-|ML-3520|MLRun does not decompress large Kubeflow pipelines.                                                                                                                                 |NA                                                                                                                                                                                                                                                                                                                              |v1.3.0    |
-|ML-3731|When trying to identify a failed step in a workflow with `mlrun.get_run_db().list_pipelines('project-name')`, the returned error is `None`.                                          |To see the error, use `mlrun.db.get_pipelines()` instead.                                                                                                                                                                                                 |v1.3.0|
-|ML-3743|Setting AWS credentials as project secret cause a build failure on EKS configured with ECR.                                                                                          |When using an ECR as the external container registry, make sure that the project secrets AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY have read/write access to ECR, as described in the [platform documentation](https://www.iguazio.com/docs/latest-release/services/app-services/docker-registry/#create-off-cluster-registry)|v1.3.0 |
+|ML-2014|Model deployment returns ResourceNotFoundException (Nuclio error that Service <name> is invalid.)  |Verify that all `metadata.labels` values are 63 characters or less. See the [Kubernetes limitation](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set).  |v1.0.0    |
+|ML-3520|MLRun does not decompress large Kubeflow pipelines.  |NA  |v1.3.0    |
+|ML-3731|When trying to identify a failed step in a workflow with `mlrun.get_run_db().list_pipelines('project-name')`, the returned error is `None`.  |To see the error, use `mlrun.db.get_pipelines()` instead. |v1.3.0|
+|ML-3743|Setting AWS credentials as project secret cause a build failure on EKS configured with ECR.  |When using an ECR as the external container registry, make sure that the project secrets AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY have read/write access to ECR, as described in the [platform documentation](https://www.iguazio.com/docs/latest-release/services/app-services/docker-registry/#create-off-cluster-registry)|v1.3.0 |
 |ML-4386|Notifications of local runs aren't persisted. | NA | v1.5.0|
 |ML-4767|When using mlrun-gpu image, use PyTorch versions up to and including than 2.0.1, but not higher.       | You can build your own images with newer CUDA for a later release of PyTorch. |                 v1.5.0|   
 |ML-4907|MLRun Client does not support Win OS.                                                 | Use WSL instead. | v1.3.0 | 
@@ -1584,12 +1651,6 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-9993|Pagination is not persistent upon browser refresh on Iguazio releases 3.6.0 and 3.6.1.|NA|v1.8.0|
 |ML-10004|Batch writes to TSDB fail when the ingestion rate for the TSDB target is greater than 1/s. The result is that you cannot monitor inferencing and at some point the influencing results are dropped. |NA|v1.11.0|
 |ML-10614|`project.log_model()` and `project.log_artifact()` do not account for the context folder.|NA|v1.11.0|
-
-
-
-
-
-
 
 ## Deprecations and removed code
 
@@ -1606,6 +1667,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | v1.5.0 |ML-4366 |MLRun images `mlrun/ml-models` and `mlrun/ml-models-gpu`.  |
 | v1.5.0 |ML-3605|Model Monitoring:  Most of the charts and KPIs in Grafana are now based on the data store target instead of the MLRun API. It is recommended to update the model monitoring dashboards since the old dashboards are not supported. |
 | v1.0.0 |NA      |MLRun / Nuclio do not support python 3.6.      |
+
 
 
 ## Removed APIs
@@ -1626,7 +1688,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | v1.12.0 |key name `S3_ENDPOINT_URL`env-var fallback in `mlrun/datastore/s3`|`AWS_ENDPOINT_URL_S3`|
 | v1.12.0 |Datastore class: `DatastoreProfileKafkaSource`, `DatastoreProfileKafkaTarget` in `mlrun/datastore/datastore_profile`|`DatastoreProfileKafkaStream`|
 | v1.12.0 |Real-time processing of model endpoints (the branch) in `mlrun/model_monitoring/controller`|NA (job-based serving)|
- v1.12.0 |`route` in `server/py/services/api/api/endpoints/model_endpoints`|GET /projects/{project}/model-monitoring/metrics|
+| v1.12.0 |`route` in `server/py/services/api/api/endpoints/model_endpoints`|GET /projects/{project}/model-monitoring/metrics|
 | v1.12.0 |Query param: `fetch_credentials_from_sys_config`                                       |NA|
 | v1.11.0|`get_cached_artifact` of MLClientCtx                                              |`get_artifact`|
 | v1.11.0|`remove_function` of MLrunProject                            |`delete_function`|
@@ -1724,6 +1786,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | v1.3.0 |`NewTask`   |`new_task()`             |
 | v1.3.0 |Dask `with_limits`   |`with_scheduler_limits` / `with_worker_limits`     |
 | v1.3.0 |Dask `with_requests`   |`with_scheduler_requests` / `with_worker_requests`      |
+
 
 
 ## Removed CLIs 

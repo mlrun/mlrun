@@ -428,3 +428,15 @@ def _assert_data_artifacts(df, number_of_columns):
     )
     # Dataset previews have an extra column called "index"
     assert len(artifact.preview[0]) - 1 == number_of_columns
+
+
+def test_is_format_supported():
+    # supported formats should return True
+    for fmt in mlrun.artifacts.dataset.DatasetArtifact.SUPPORTED_FORMATS:
+        assert mlrun.artifacts.dataset.DatasetArtifact.is_format_supported(fmt) is True
+    # unsupported / unknown formats should return False
+    assert (
+        mlrun.artifacts.dataset.DatasetArtifact.is_format_supported("unsupported_fmt")
+        is False
+    )
+    assert mlrun.artifacts.dataset.DatasetArtifact.is_format_supported("") is False

@@ -17,6 +17,7 @@ from collections.abc import Iterator
 from unittest.mock import Mock, patch
 
 import kafka.errors
+import kafka.structs
 import pytest
 
 import mlrun.common.schemas
@@ -767,6 +768,119 @@ def test_controller_tolerates_existing_kafka_topic(
     )
 
     migrate_offsets_mock.assert_called_once()
+
+
+def test_migrate_kafka_consumer_group_offsets_commits_old_group_offsets(
+    monitoring_deployment: mm_dep.MonitoringDeployment,
+) -> None:
+    topic = "my-topic"
+    old_group = "prod"
+    new_group = f"prod_{topic}"
+    old_tp = kafka.TopicPartition(topic, 0)
+    unrelated_tp = kafka.TopicPartition("other-topic", 0)
+    old_offset = Mock(offset=42, metadata="meta", leader_epoch=7)
+
+    admin_mock = Mock()
+    admin_mock.list_consumer_group_offsets.side_effect = lambda group: (
+        {} if group == new_group else {old_tp: old_offset, unrelated_tp: Mock()}
+    )
+    consumer_mock = Mock()
+
+    kafka_profile = DatastoreProfileKafkaStream(
+        name="test-kafka-profile",
+        brokers=["localhost:9092"],
+        topics=[],
+        group=old_group,
+    )
+
+    with (
+        patch("kafka.admin.KafkaAdminClient", return_value=admin_mock),
+        patch("kafka.KafkaConsumer", return_value=consumer_mock),
+    ):
+        monitoring_deployment._migrate_kafka_consumer_group_offsets(
+            kafka_profile=kafka_profile,
+            old_group=old_group,
+            new_group=new_group,
+            topic=topic,
+        )
+
+    admin_mock.list_consumer_group_offsets.assert_any_call(new_group)
+    admin_mock.list_consumer_group_offsets.assert_any_call(old_group)
+    admin_mock.close.assert_called_once()
+
+    consumer_mock.assign.assert_called_once_with([old_tp])
+    consumer_mock.commit.assert_called_once_with(
+        {old_tp: kafka.structs.OffsetAndMetadata(42, "meta", 7)}
+    )
+    consumer_mock.close.assert_called_once()
+
+
+def test_migrate_kafka_consumer_group_offsets_is_idempotent(
+    monitoring_deployment: mm_dep.MonitoringDeployment,
+) -> None:
+    topic = "my-topic"
+    new_group = "prod_my-topic"
+
+    admin_mock = Mock()
+    admin_mock.list_consumer_group_offsets.return_value = {
+        kafka.TopicPartition(topic, 0): Mock()
+    }
+
+    kafka_profile = DatastoreProfileKafkaStream(
+        name="test-kafka-profile",
+        brokers=["localhost:9092"],
+        topics=[],
+        group="prod",
+    )
+
+    with (
+        patch("kafka.admin.KafkaAdminClient", return_value=admin_mock),
+        patch("kafka.KafkaConsumer") as consumer_cls_mock,
+    ):
+        monitoring_deployment._migrate_kafka_consumer_group_offsets(
+            kafka_profile=kafka_profile,
+            old_group="prod",
+            new_group=new_group,
+            topic=topic,
+        )
+
+    admin_mock.list_consumer_group_offsets.assert_called_once_with(new_group)
+    consumer_cls_mock.assert_not_called()
+    admin_mock.close.assert_called_once()
+
+
+def test_migrate_kafka_consumer_group_offsets_no_op_when_old_group_empty(
+    monitoring_deployment: mm_dep.MonitoringDeployment,
+) -> None:
+    topic = "my-topic"
+    old_group = "prod"
+    new_group = "prod_my-topic"
+
+    admin_mock = Mock()
+    admin_mock.list_consumer_group_offsets.side_effect = lambda group: (
+        {} if group == new_group else {kafka.TopicPartition("other-topic", 0): Mock()}
+    )
+
+    kafka_profile = DatastoreProfileKafkaStream(
+        name="test-kafka-profile",
+        brokers=["localhost:9092"],
+        topics=[],
+        group=old_group,
+    )
+
+    with (
+        patch("kafka.admin.KafkaAdminClient", return_value=admin_mock),
+        patch("kafka.KafkaConsumer") as consumer_cls_mock,
+    ):
+        monitoring_deployment._migrate_kafka_consumer_group_offsets(
+            kafka_profile=kafka_profile,
+            old_group=old_group,
+            new_group=new_group,
+            topic=topic,
+        )
+
+    consumer_cls_mock.assert_not_called()
+    admin_mock.close.assert_called_once()
 
 
 # --- ML-12543: project.spec.model_monitoring persistence + OTel validation -----

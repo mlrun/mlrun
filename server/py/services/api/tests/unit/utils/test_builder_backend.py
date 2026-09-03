@@ -938,11 +938,9 @@ def test_buildah_backend_routes_remote_source_through_fetch_init_container(sourc
 
 
 def test_buildah_backend_chowns_fetch_source_populated_dir():
-    # ML-13048 regression: the fetch-source init container (used for remote sources - git, s3,
-    # http) runs with no matching security context, so it clones/downloads as its image's
-    # default user (root), not the build container's non-root uid. A separate post-ADD
-    # `RUN chown -R` would need real CAP_CHOWN to reassign that ownership, which the rootless
-    # Buildah build container doesn't have - it must be `--chown` on the ADD itself instead.
+    # the fetch-source init container gets no matching security context, so it clones as its
+    # image's default user (root), not the build container's non-root uid - the chown here is a
+    # real ownership change, not a no-op like the baked-source case below.
     pod = _make_buildah_backend_pod(
         source="git://github.com/some-org/some-repo.git#main",
         user_unix_id=1000,
@@ -1000,9 +998,8 @@ def test_buildah_backend_chowns_source_dir_when_security_context_enriched():
     # non-root job pod can't write into it at runtime. Buildah was silently skipping this
     # (unlike Kaniko, which already threads user_unix_id/enriched_group_id through).
     #
-    # ML-13048: ownership is set via `ADD --chown` (at copy time), not a separate `RUN chown -R`
-    # - a `RUN chown` would need real CAP_CHOWN in Buildah's rootless "caps" model whenever the
-    # source was staged by a fetch-source init container that ran as a different (root) user.
+    # ownership is now set via `ADD --chown` at copy time rather than a separate `RUN chown -R`
+    # (see make_dockerfile) - here it's a no-op since the build container already owns the source.
     pod = _make_buildah_backend_pod(
         source="/opt/baked-in-source",
         user_unix_id=1000,

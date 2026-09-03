@@ -1247,10 +1247,8 @@ def test_make_dockerfile_with_build_and_extra_args(
 
 
 def test_make_dockerfile_zip_source_chowns_via_copy_from_extractor():
-    # ML-13048: a .zip source is staged through the extractor stage's COPY --from=, not a plain
-    # ADD - the chown must land on that COPY as --chown, same as the non-zip ADD case, or a
-    # rootless build (e.g. Buildah) can't grant ownership without a RUN chown (which would need
-    # CAP_CHOWN it doesn't have).
+    # a .zip source is staged through the extractor stage's COPY --from=, not a plain ADD - the
+    # chown must land on that COPY as --chown too, same as the non-zip case in make_dockerfile.
     dock = services.api.utils.builder.base.make_dockerfile(
         base_image="mlrun/mlrun",
         source="source.zip",

@@ -41,8 +41,8 @@ MLRUN_POSTGRES_IMAGE = gcr.io/iguazio/postgres:17
 
 MLRUN_SKIP_COMPILE_SCHEMAS ?=
 INCLUDE_PYTHON_VERSION_SUFFIX ?=
-MLRUN_PIP_VERSION ?= 26.0.1
-MLRUN_UV_VERSION ?= 0.10.9
+MLRUN_PIP_VERSION ?= 26.0
+MLRUN_UV_VERSION ?= 0.12.9
 MLRUN_UV_IMAGE ?= ghcr.io/astral-sh/uv:$(MLRUN_UV_VERSION)
 MLRUN_CACHE_DATE ?= $(shell date +%s)
 # empty by default, can be set to something like "tag-name" which will cause to:

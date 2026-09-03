@@ -330,11 +330,11 @@ def make_dockerfile(
 
     if source:
         args = args.rstrip("\n")
-        # chowning via a separate `RUN chown -R` (rather than `ADD/COPY --chown`) would need real
-        # CAP_CHOWN in a rootless build (e.g. Buildah's "caps" model), since the source may have
-        # been staged by a fetch-source init container that ran as a different (often root) user.
-        # `--chown` sets ownership at copy time instead, which rootless builders implement via
-        # their existing SETUID/SETGID grant - no extra capability required.
+        # a separate post-ADD `RUN chown -R` can fail with "Operation not permitted" on some base
+        # images (observed on iguazio/spark-app) when the source was staged by a fetch-source
+        # init container that ran as a different (often root) user - reassigning that ownership
+        # away from root gets denied. `--chown` on ADD/COPY sets ownership at copy time instead
+        # and avoids the failure.
         if user_unix_id is not None and enriched_group_id is not None:
             chown_flag = f"--chown={user_unix_id}:{enriched_group_id} "
         else:

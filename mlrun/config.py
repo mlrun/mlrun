@@ -572,6 +572,12 @@ default_config = {
             "stale_resource_ttl_create": "2 minutes",
             "stale_resource_ttl_update": "2 minutes",
             "stale_resource_ttl_delete": "10 minutes",
+            # Expected service-account identity (AuthInfo.username) of the configured
+            # project leader when MLRun is a follower (distinct from "followers" above,
+            # which is the list MLRun fans out to when it's the leader). Inbound
+            # /follower/projects calls are rejected with 403 unless the caller is a
+            # service account matching this identity.
+            "follower_leader_identity": "",
         },
         # The API needs to know what is its k8s svc url so it could enrich it in the jobs it creates
         "api_url": "",

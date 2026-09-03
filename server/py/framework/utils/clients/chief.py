@@ -186,6 +186,23 @@ class Client(
             "DELETE", f"projects/{name}", request, timeout=120, version=api_version
         )
 
+    async def commit_delete_follower_project(
+        self, name: str, request: fastapi.Request
+    ) -> fastapi.Response:
+        """
+        Re-routes the /follower/projects commit-delete call to chief. Blocks until
+        the full purge finishes, so the timeout needs to cover that, not the legacy
+        chief-proxy default.
+        """
+        return await self._proxy_request_to_chief(
+            "DELETE",
+            f"follower/projects/{name}",
+            request,
+            timeout=int(
+                mlrun.mlconf.background_tasks.default_timeouts.operations.delete_project
+            ),
+        )
+
     async def get_clusterization_spec(
         self, return_fastapi_response: bool = True, raise_on_failure: bool = False
     ) -> typing.Union[fastapi.Response, mlrun.common.schemas.ClusterizationSpec]:

@@ -162,7 +162,9 @@ class Member(
                     commit_before_get=True,
                 )
             else:
-                self._leader_client.update_project(auth_info.session, name, project)
+                self._leader_client.update_project(
+                    auth_info.session, name, project, auth_info
+                )
                 return framework.db.session.run_function_with_new_db_session(
                     self.get_project, name, auth_info
                 ), False

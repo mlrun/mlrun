@@ -210,7 +210,7 @@ def add_labels(task, function, scrape_metrics=False):
     )
 
 
-def add_default_env(task):
+def add_default_env(task, function):
     if hasattr(kfp_k8s, "use_field_path_as_env"):
         kfp_k8s.use_field_path_as_env(task, "MLRUN_NAMESPACE", "metadata.namespace")
         # Inject the full pod name for runner_pod annotation.
@@ -222,6 +222,12 @@ def add_default_env(task):
             'Functions tentatively default to "MLRUN_NAMESPACE: mlrun"',
         )
         task.set_env_variable(name="MLRUN_NAMESPACE", value="mlrun")
+
+    # Mirrors the MLRUN_RUNTIME_KIND env var mlrun/runtimes/base.py sets for job
+    # pods (from the same mlrun/class label value), so
+    # mlrun.utils.helpers.is_running_in_runtime() also detects KFP-orchestrated
+    # pipeline steps instead of only standalone job pods (see ML-13046).
+    task.set_env_variable(name="MLRUN_RUNTIME_KIND", value=function.kind)
 
     if config.httpdb.api_url:
         task.set_env_variable(name="MLRUN_DBPATH", value=config.httpdb.api_url)
@@ -327,7 +333,7 @@ def generate_pipeline_node(
         task.set_env_variable(
             name="MLRUN_HTTPDB__BUILDER__DOCKER_REGISTRY", value=registry
         )
-    add_default_env(task)
+    add_default_env(task, function)
     sync_mounts(function, task)
     sync_environment_variables(function, task)
     return task
@@ -374,7 +380,7 @@ def generate_image_builder_pipeline_node(
         task.set_env_variable(
             name="V3IO_ACCESS_KEY", value=os.environ.get("V3IO_ACCESS_KEY")
         )
-    add_default_env(task)
+    add_default_env(task, function)
     return task
 
 
@@ -400,5 +406,5 @@ def generate_deployer_pipeline_node(
     add_function_node_selection_attributes(function, task)
     add_annotations(task, PipelineRunType.deploy, function, func_url)
 
-    add_default_env(task)
+    add_default_env(task, function)
     return task

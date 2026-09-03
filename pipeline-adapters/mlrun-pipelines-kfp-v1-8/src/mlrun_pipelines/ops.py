@@ -54,7 +54,7 @@ def generate_deployer_pipeline_node(
     add_annotations(
         cop, mlrun_pipelines.common.constants.PipelineRunType.deploy, function, func_url
     )
-    add_default_env(k8s_client, cop)
+    add_default_env(k8s_client, cop, function)
     return cop
 
 
@@ -119,7 +119,7 @@ def generate_image_builder_pipeline_node(
             )
         )
 
-    add_default_env(k8s_client, cop)
+    add_default_env(k8s_client, cop, function)
 
     return cop
 
@@ -170,12 +170,12 @@ def generate_pipeline_node(
             )
         )
 
-    add_default_env(k8s_client, cop)
+    add_default_env(k8s_client, cop, function)
 
     return cop
 
 
-def add_default_env(k8s_client, cop):
+def add_default_env(k8s_client, cop, function):
     cop.container.add_env_variable(
         k8s_client.V1EnvVar(
             "MLRUN_NAMESPACE",
@@ -196,6 +196,14 @@ def add_default_env(k8s_client, cop):
                 field_ref=k8s_client.V1ObjectFieldSelector(field_path="metadata.name")
             ),
         )
+    )
+
+    # Mirrors the MLRUN_RUNTIME_KIND env var mlrun/runtimes/base.py sets for job
+    # pods (from the same mlrun/class label value), so
+    # mlrun.utils.helpers.is_running_in_runtime() also detects KFP-orchestrated
+    # pipeline steps instead of only standalone job pods (see ML-13046).
+    cop.container.add_env_variable(
+        k8s_client.V1EnvVar(name="MLRUN_RUNTIME_KIND", value=function.kind)
     )
 
     if config.httpdb.api_url:

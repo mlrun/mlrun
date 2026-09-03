@@ -313,9 +313,9 @@ class TestOrcaProjectsClient:
         )
 
         # a failed action is fatal - it should stop polling immediately, not retry until
-        # timeout (matches the identical, already-merged-and-CI-passing behavior of
-        # server/py/framework/utils/clients/iguazio/v4.py's _wait_for_op for the same case:
-        # retry_until_successful wraps a fatal_exceptions hit in MLRunRetryExhaustedError).
+        # timeout: OrcaProjectsOrchestrator.wait_for_op passes OrcaActionFailedError as a
+        # fatal_exception, so retry_until_successful wraps it in MLRunRetryExhaustedError
+        # instead of retrying.
         with pytest.raises(mlrun.errors.MLRunRetryExhaustedError):
             orca_client.delete_project("p8")
 
@@ -403,9 +403,9 @@ class TestHTTPRunDBOrcaGate:
             getattr(db, method_name)(*call_args)
             assert not mock_api_call.called
 
-        # HTTPRunDB itself has no wait_for_completion knob (see ML-12903 discussion: no known
-        # SDK caller needs async project creation, and exposing it would only work in this one
-        # mode) - it always asks the Orca client to block until the operation settles.
+        # HTTPRunDB itself has no wait_for_completion knob (ML-12903: no known SDK caller
+        # needs async project creation, and exposing it would only work in this one mode) -
+        # it always asks the Orca client to block until the operation settles.
         orca_method = getattr(fake_client, orca_method_name)
         orca_method.assert_called_once()
         assert orca_method.call_args.kwargs["wait_for_completion"] is True

@@ -393,13 +393,9 @@ class Client(BaseClient, project_leader.Member):
     def _orca_orchestrator(
         self, auth_info: mlrun.common.schemas.AuthInfo
     ) -> orca_client.OrcaProjectsOrchestrator:
-        # The actual sequence of Orca requests (what to call, in what order, how to poll to a
-        # terminal state) is shared with mlrun's SDK-direct-to-Orca client
-        # (mlrun/db/orca.py) - see mlrun.utils.orca_client. The two differ only in how they
-        # send an authenticated request: this relays the acting user's identity (auth_info),
-        # which changes per call, so a fresh orchestrator is built per call rather than cached
-        # on self like _session/_poll_interval_seconds - it's a cheap object holding no I/O
-        # state of its own.
+        # auth_info changes per call (this relays the acting user's identity), so a fresh
+        # orchestrator is built per call rather than cached on self like _session/
+        # _poll_interval_seconds - it's a cheap object holding no I/O state of its own.
         return orca_client.OrcaProjectsOrchestrator(
             lambda method, path, error_message, **kwargs: self._send_project_request(
                 method, path, error_message, auth_info, **kwargs

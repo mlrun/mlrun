@@ -284,10 +284,10 @@ def make_dockerfile(
                               the Python dependencies to be installed in the Docker image.
     :param target_dir: The directory to which source code will be copied. Default is "/mlrun".
     :param extra: Additional content to be appended to the generated Dockerfile.
-    :param user_unix_id: The Unix user ID to be used in the Docker image for running processes.
-                         This is useful for matching the user ID with the host environment
-                         to avoid permission issues.
-    :param enriched_group_id: The group ID to be used in the Docker image for running processes.
+    :param user_unix_id: The Unix user ID the copied-in source should be owned by (via
+                         ``ADD``/``COPY --chown``), so the job pod's non-root runtime user can
+                         write into it.
+    :param enriched_group_id: The group ID paired with ``user_unix_id`` for the same ``--chown``.
     :param builder_env: A list of Kubernetes V1EnvVar objects representing build-time arguments
                         to be set during the build process.
     :param extra_args:  A string containing additional builder arguments in the format of command-line options,
@@ -330,6 +330,16 @@ def make_dockerfile(
 
     if source:
         args = args.rstrip("\n")
+        # chowning via a separate `RUN chown -R` (rather than `ADD/COPY --chown`) would need real
+        # CAP_CHOWN in a rootless build (e.g. Buildah's "caps" model), since the source may have
+        # been staged by a fetch-source init container that ran as a different (often root) user.
+        # `--chown` sets ownership at copy time instead, which rootless builders implement via
+        # their existing SETUID/SETGID grant - no extra capability required.
+        if user_unix_id is not None and enriched_group_id is not None:
+            chown_flag = f"--chown={user_unix_id}:{enriched_group_id} "
+        else:
+            chown_flag = ""
+
         # 'ADD' command does not extract zip files - add extraction stage to the dockerfile
         # it is up to base image to have unzip included in case source is zip
         if source.endswith(".zip"):
@@ -345,12 +355,9 @@ def make_dockerfile(
             stage = textwrap.dedent("\n".join(stage_lines)).strip()
             dock = stage + "\n" + dock
 
-            dock += f"COPY --from=extractor {source_dir}/ {target_dir}\n"
+            dock += f"COPY {chown_flag}--from=extractor {source_dir}/ {target_dir}\n"
         else:
-            dock += f"ADD {source} {target_dir}\n"
-
-        if user_unix_id is not None and enriched_group_id is not None:
-            dock += f"RUN chown -R {user_unix_id}:{enriched_group_id} {target_dir}\n"
+            dock += f"ADD {chown_flag}{source} {target_dir}\n"
 
         dock += f"ENV PYTHONPATH {target_dir}\n"
     if commands:

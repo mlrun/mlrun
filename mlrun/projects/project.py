@@ -1311,8 +1311,13 @@ class ProjectSpec(ModelObj):
 
 
 class ProjectStatus(ModelObj):
-    def __init__(self, state=None):
+    """Project state as last synced from the leader. ``op_id`` is the CAS witness Orca's
+    project-sync expects back on the next update/patch (see ``mlrun.utils.orca_client``).
+    """
+
+    def __init__(self, state=None, op_id=None):
         self.state = state
+        self.op_id = op_id
 
 
 class MlrunProject(ModelObj):

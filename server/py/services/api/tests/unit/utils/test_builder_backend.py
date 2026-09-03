@@ -937,6 +937,21 @@ def test_buildah_backend_routes_remote_source_through_fetch_init_container(sourc
     assert "ADD ./source /home/mlrun_code" in _decoded_dockerfile(pod)
 
 
+def test_buildah_backend_chowns_fetch_source_populated_dir():
+    # the fetch-source init container gets no matching security context, so it clones as its
+    # image's default user (root), not the build container's non-root uid - the chown here is a
+    # real ownership change, not a no-op like the baked-source case below.
+    pod = _make_buildah_backend_pod(
+        source="git://github.com/some-org/some-repo.git#main",
+        user_unix_id=1000,
+        enriched_group_id=1000,
+    )
+
+    assert _init_container_by_name(pod, "fetch-source") is not None
+    assert "ADD --chown=1000:1000 ./source /home/mlrun_code" in _decoded_dockerfile(pod)
+    assert "RUN chown" not in _decoded_dockerfile(pod)
+
+
 def test_buildah_backend_mounts_v3io_source():
     # v3io keeps its existing FUSE-mount mechanism (shared with Kaniko via
     # base.mount_v3io_source) rather than being routed through the fetch-source init container.
@@ -982,12 +997,18 @@ def test_buildah_backend_chowns_source_dir_when_security_context_enriched():
     # enrichment enabled must chown the baked source dir to the job pod's runtime uid/gid, or a
     # non-root job pod can't write into it at runtime. Buildah was silently skipping this
     # (unlike Kaniko, which already threads user_unix_id/enriched_group_id through).
+    #
+    # ownership is now set via `ADD --chown` at copy time rather than a separate `RUN chown -R`
+    # (see make_dockerfile) - here it's a no-op since the build container already owns the source.
     pod = _make_buildah_backend_pod(
         source="/opt/baked-in-source",
         user_unix_id=1000,
         enriched_group_id=1000,
     )
-    assert "RUN chown -R 1000:1000 /home/mlrun_code" in _decoded_dockerfile(pod)
+    assert (
+        "ADD --chown=1000:1000 /opt/baked-in-source /home/mlrun_code"
+        in _decoded_dockerfile(pod)
+    )
 
 
 def test_buildah_backend_no_chown_when_security_context_not_enriched():

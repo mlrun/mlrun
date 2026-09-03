@@ -15,7 +15,7 @@
 """
 The follower surface: leader (Orca) -> MLRun-as-follower calls.
 
-Dedicated from the user-facing `/api/v1/projects` endpoints on purpose — this router
+this router
 takes no user token, only the configured leader's service account (enforced by
 `deps.authenticate_leader_request`), so machine-origin auth never mixes with user auth.
 Enterprise-only in practice: nothing calls this without an Orca leader configured, but

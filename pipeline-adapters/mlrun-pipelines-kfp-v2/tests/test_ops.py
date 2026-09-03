@@ -11,11 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import unittest.mock
-
-import pytest
-
 import mlrun_pipelines.ops as ops
+from mlrun_pipelines.imports import kubernetes as kfp_k8s
 
 
 class _FakeTask:
@@ -26,12 +23,17 @@ class _FakeTask:
         self.env_vars[name] = value
 
 
-@pytest.mark.parametrize("kind", ["job", "spark", "mpijob"])
-def test_add_default_env_sets_mlrun_runtime_kind(kind):
+def test_add_default_env_sets_mlrun_runtime_kind_field_path(monkeypatch):
     """Regression test for ML-13046: KFP step pods never got MLRUN_RUNTIME_KIND."""
+    field_paths = {}
+    monkeypatch.setattr(
+        kfp_k8s,
+        "use_field_path_as_env",
+        lambda task, name, field_path: field_paths.setdefault(name, field_path),
+        raising=False,
+    )
     task = _FakeTask()
-    function = unittest.mock.MagicMock(kind=kind)
 
-    ops.add_default_env(task, function)
+    ops.add_default_env(task)
 
-    assert task.env_vars["MLRUN_RUNTIME_KIND"] == kind
+    assert field_paths["MLRUN_RUNTIME_KIND"] == "metadata.labels['mlrun/class']"

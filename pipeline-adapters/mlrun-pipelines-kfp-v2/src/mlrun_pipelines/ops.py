@@ -210,11 +210,18 @@ def add_labels(task, function, scrape_metrics=False):
     )
 
 
-def add_default_env(task, function):
+def add_default_env(task):
     if hasattr(kfp_k8s, "use_field_path_as_env"):
         kfp_k8s.use_field_path_as_env(task, "MLRUN_NAMESPACE", "metadata.namespace")
         # Inject the full pod name for runner_pod annotation.
         kfp_k8s.use_field_path_as_env(task, "MLRUN_POD_NAME", "metadata.name")
+        # Mirrors MLRUN_RUNTIME_KIND from mlrun/runtimes/base.py so
+        # is_running_in_runtime() also detects KFP pipeline-step pods.
+        kfp_k8s.use_field_path_as_env(
+            task,
+            "MLRUN_RUNTIME_KIND",
+            f"metadata.labels['{mlrun_constants.MLRunInternalLabels.mlrun_class}']",
+        )
     else:
         # TODO: remove this warning as soon as "use_field_path_as_env" is available for MLRun SDK
         logger.warning(
@@ -222,10 +229,6 @@ def add_default_env(task, function):
             'Functions tentatively default to "MLRUN_NAMESPACE: mlrun"',
         )
         task.set_env_variable(name="MLRUN_NAMESPACE", value="mlrun")
-
-    # Mirrors MLRUN_RUNTIME_KIND from mlrun/runtimes/base.py so
-    # is_running_in_runtime() also detects KFP pipeline-step pods.
-    task.set_env_variable(name="MLRUN_RUNTIME_KIND", value=function.kind)
 
     if config.httpdb.api_url:
         task.set_env_variable(name="MLRUN_DBPATH", value=config.httpdb.api_url)
@@ -331,7 +334,7 @@ def generate_pipeline_node(
         task.set_env_variable(
             name="MLRUN_HTTPDB__BUILDER__DOCKER_REGISTRY", value=registry
         )
-    add_default_env(task, function)
+    add_default_env(task)
     sync_mounts(function, task)
     sync_environment_variables(function, task)
     return task
@@ -378,7 +381,7 @@ def generate_image_builder_pipeline_node(
         task.set_env_variable(
             name="V3IO_ACCESS_KEY", value=os.environ.get("V3IO_ACCESS_KEY")
         )
-    add_default_env(task, function)
+    add_default_env(task)
     return task
 
 
@@ -404,5 +407,5 @@ def generate_deployer_pipeline_node(
     add_function_node_selection_attributes(function, task)
     add_annotations(task, PipelineRunType.deploy, function, func_url)
 
-    add_default_env(task, function)
+    add_default_env(task)
     return task

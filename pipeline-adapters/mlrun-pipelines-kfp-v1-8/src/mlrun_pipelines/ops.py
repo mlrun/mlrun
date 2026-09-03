@@ -54,7 +54,7 @@ def generate_deployer_pipeline_node(
     add_annotations(
         cop, mlrun_pipelines.common.constants.PipelineRunType.deploy, function, func_url
     )
-    add_default_env(k8s_client, cop, function)
+    add_default_env(k8s_client, cop)
     return cop
 
 
@@ -119,7 +119,7 @@ def generate_image_builder_pipeline_node(
             )
         )
 
-    add_default_env(k8s_client, cop, function)
+    add_default_env(k8s_client, cop)
 
     return cop
 
@@ -170,12 +170,12 @@ def generate_pipeline_node(
             )
         )
 
-    add_default_env(k8s_client, cop, function)
+    add_default_env(k8s_client, cop)
 
     return cop
 
 
-def add_default_env(k8s_client, cop, function):
+def add_default_env(k8s_client, cop):
     cop.container.add_env_variable(
         k8s_client.V1EnvVar(
             "MLRUN_NAMESPACE",
@@ -201,7 +201,17 @@ def add_default_env(k8s_client, cop, function):
     # Mirrors MLRUN_RUNTIME_KIND from mlrun/runtimes/base.py so
     # is_running_in_runtime() also detects KFP pipeline-step pods.
     cop.container.add_env_variable(
-        k8s_client.V1EnvVar(name="MLRUN_RUNTIME_KIND", value=function.kind)
+        k8s_client.V1EnvVar(
+            "MLRUN_RUNTIME_KIND",
+            value_from=k8s_client.V1EnvVarSource(
+                field_ref=k8s_client.V1ObjectFieldSelector(
+                    field_path=(
+                        "metadata.labels"
+                        f"['{mlrun_constants.MLRunInternalLabels.mlrun_class}']"
+                    )
+                )
+            ),
+        )
     )
 
     if config.httpdb.api_url:

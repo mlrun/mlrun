@@ -11,9 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import unittest.mock
-
-import pytest
 from kubernetes import client as k8s_client
 
 import mlrun_pipelines.ops as ops
@@ -32,19 +29,18 @@ class _FakeContainerOp:
         self.container = _FakeContainer()
 
 
-def _env_value(cop, name):
+def _env_var(cop, name):
     for env_var in cop.container.env_vars:
         if env_var.name == name:
-            return env_var.value
+            return env_var
     raise AssertionError(f"{name} env var was not set on the container")
 
 
-@pytest.mark.parametrize("kind", ["job", "spark", "mpijob"])
-def test_add_default_env_sets_mlrun_runtime_kind(kind):
+def test_add_default_env_sets_mlrun_runtime_kind_field_ref():
     """Regression test for ML-13046: KFP step pods never got MLRUN_RUNTIME_KIND."""
     cop = _FakeContainerOp()
-    function = unittest.mock.MagicMock(kind=kind)
 
-    ops.add_default_env(k8s_client, cop, function)
+    ops.add_default_env(k8s_client, cop)
 
-    assert _env_value(cop, "MLRUN_RUNTIME_KIND") == kind
+    env_var = _env_var(cop, "MLRUN_RUNTIME_KIND")
+    assert env_var.value_from.field_ref.field_path == "metadata.labels['mlrun/class']"

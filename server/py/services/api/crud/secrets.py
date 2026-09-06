@@ -551,7 +551,9 @@ class Secrets(
         :param request_headers: Request headers for authenticating with Iguazio.
         :param skip_revocation: If True, skip revoking the token via Iguazio and only delete
                                 the K8s secret. Used in bulk delete during user deletion flow
-                                since tokens are invalidated when the user is deleted anyway.
+                                since tokens are invalidated when the user is deleted anyway,
+                                and for service-account callers (e.g. Orca) that already own
+                                revocation themselves.
         :raises mlrun.errors.MLRunNotFoundError: If the token is not found.
         :raises mlrun.errors.MLRunRuntimeError: If K8s deletion fails after revocation.
         """
@@ -596,7 +598,10 @@ class Secrets(
         Delete a stored offline token for a user and its corresponding Kubernetes secret.
 
         This method performs two actions:
-        1. Calls the Iguazio management service to revoke the offline token.
+        1. Calls the Iguazio management service to revoke the offline token, unless the
+           caller is a service account (e.g. Orca) — Orca is now the source of truth for
+           offline-token revocation and already revokes the Keycloak session itself before
+           calling this endpoint, so revoking again here would be redundant.
         2. Removes the Kubernetes secret associated with the token.
 
         :param token_name:
@@ -630,6 +635,7 @@ class Secrets(
                 token_name=token_name,
                 iguazio_client=iguazio_client,
                 request_headers=auth_info.request_headers,
+                skip_revocation=auth_info.is_service_account(),
             )
         except mlrun.errors.MLRunNotFoundError:
             logger.warning(

@@ -1056,6 +1056,10 @@ default_config = {
         # Default true so that enabling telemetry (the master switch) is sufficient.
         "rest_metrics": {
             "enabled": True,
+            # Caps data points per OTLP export gRPC request; the exporter
+            # splits into multiple requests above this to stay under gRPC's
+            # 4MB message-size limit.
+            "max_export_batch_size": 7000,
         },
     },
     "system_id": "",

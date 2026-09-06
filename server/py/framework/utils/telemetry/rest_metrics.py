@@ -82,7 +82,8 @@ def init(service_name: str) -> None:
         return
 
     _provider = framework.utils.telemetry.otel.build_metric_provider(
-        service_name=f"mlrun-{service_name}"
+        service_name=f"mlrun-{service_name}",
+        max_export_batch_size=mlrun.mlconf.telemetry.rest_metrics.max_export_batch_size,
     )
     _meter = _provider.get_meter("mlrun.rest_metrics")
     # Explicit-bucket histograms: universally supported. Exponential histograms

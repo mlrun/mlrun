@@ -215,6 +215,13 @@ def add_default_env(task):
         kfp_k8s.use_field_path_as_env(task, "MLRUN_NAMESPACE", "metadata.namespace")
         # Inject the full pod name for runner_pod annotation.
         kfp_k8s.use_field_path_as_env(task, "MLRUN_POD_NAME", "metadata.name")
+        # Mirrors MLRUN_RUNTIME_KIND from mlrun/runtimes/base.py so
+        # is_running_in_runtime() also detects KFP pipeline-step pods.
+        kfp_k8s.use_field_path_as_env(
+            task,
+            "MLRUN_RUNTIME_KIND",
+            f"metadata.labels['{mlrun_constants.MLRunInternalLabels.mlrun_class}']",
+        )
     else:
         # TODO: remove this warning as soon as "use_field_path_as_env" is available for MLRun SDK
         logger.warning(

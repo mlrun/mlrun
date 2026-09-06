@@ -198,6 +198,22 @@ def add_default_env(k8s_client, cop):
         )
     )
 
+    # Mirrors MLRUN_RUNTIME_KIND from mlrun/runtimes/base.py so
+    # is_running_in_runtime() also detects KFP pipeline-step pods.
+    cop.container.add_env_variable(
+        k8s_client.V1EnvVar(
+            "MLRUN_RUNTIME_KIND",
+            value_from=k8s_client.V1EnvVarSource(
+                field_ref=k8s_client.V1ObjectFieldSelector(
+                    field_path=(
+                        "metadata.labels"
+                        f"['{mlrun_constants.MLRunInternalLabels.mlrun_class}']"
+                    )
+                )
+            ),
+        )
+    )
+
     if config.httpdb.api_url:
         cop.container.add_env_variable(
             k8s_client.V1EnvVar(name="MLRUN_DBPATH", value=config.httpdb.api_url)

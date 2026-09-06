@@ -15,7 +15,7 @@
 """Per-REST-call OTel telemetry for MLRun API-bearing services.
 
 Records duration, request/response size, and items-returned histograms per
-REST call, tagged with system_id/method/status_code/resource/project.
+REST call, tagged with method/status_code/resource/project.
 Collection-returning GETs report method="LIST" (see parse_method).
 
 Gated behind telemetry.enabled + telemetry.rest_metrics.enabled; init() is a
@@ -265,7 +265,6 @@ def _record(
     if record_fn is None:
         return
     attributes = {
-        "system_id": mlrun.mlconf.system_id or "",
         "status_code": status_code,
         "resource": resource,
         "project": project,

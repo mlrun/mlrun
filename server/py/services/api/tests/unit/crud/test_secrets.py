@@ -986,6 +986,39 @@ def test_delete_secret_token_success(mock_iguazio_client):
     )
 
 
+def test_delete_secret_token_service_account_skips_revocation(mock_iguazio_client):
+    """
+    Orca is the source of truth for offline-token revocation and revokes the Keycloak
+    session itself before calling this endpoint, so a service-account caller (e.g. Orca)
+    must not trigger a redundant revoke here - it should only delete the K8s secret.
+    """
+    auth_info = mlrun.common.schemas.AuthInfo(
+        username="dummy-user",
+        user_id="user-id-123",
+        kind=mlrun.common.schemas.AuthInfoKind.service_account,
+    )
+    token_name = "my-token"
+
+    mock_secrets_provider = unittest.mock.Mock()
+    services.api.crud.Secrets().secrets_provider = mock_secrets_provider
+    mock_secrets_provider.delete_user_token_secret = unittest.mock.Mock()
+
+    result = services.api.crud.Secrets().delete_secret_token(
+        token_name=token_name,
+        username=auth_info.username,
+        auth_info=auth_info,
+    )
+
+    assert result.deleted is True
+    assert result.username == auth_info.username
+
+    mock_secrets_provider.get_user_token_secret_value.assert_not_called()
+    mock_iguazio_client.revoke_offline_token.assert_not_called()
+    mock_secrets_provider.delete_user_token_secret.assert_called_once_with(
+        user_id=auth_info.user_id, token_name=token_name
+    )
+
+
 def test_delete_secret_token_not_found(mock_iguazio_client):
     auth_info = mlrun.common.schemas.AuthInfo(
         username="dummy-user", user_id="user-id-123"

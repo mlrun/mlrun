@@ -843,6 +843,36 @@ def test_prepare_delete_project_marks_deleting(
     assert before <= result.status.updated_at <= after
 
 
+def _patch_background_task_handler(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    active_task_name: str | None = None,
+    created_task_name: str = "new-task",
+) -> unittest.mock.MagicMock:
+    """Stub `InternalBackgroundTasksHandler` so `commit_delete_project` doesn't touch
+    the real (process-global singleton) task registry. `active_task_name` set means
+    an active task already exists for this project's kind (dedup path); `None` means
+    none exists, so a new one gets created."""
+    handler_mock = unittest.mock.MagicMock()
+    if active_task_name is not None:
+        active_task = unittest.mock.MagicMock()
+        active_task.metadata.name = active_task_name
+        handler_mock.get_active_background_task_by_kind.return_value = active_task
+    else:
+        handler_mock.get_active_background_task_by_kind.side_effect = (
+            mlrun.errors.MLRunNotFoundError("no active task")
+        )
+    handler_mock.create_background_task.return_value = (
+        unittest.mock.MagicMock(),
+        created_task_name,
+    )
+    monkeypatch.setattr(
+        "framework.utils.background_tasks.InternalBackgroundTasksHandler",
+        lambda: handler_mock,
+    )
+    return handler_mock
+
+
 def test_commit_delete_project_absent_project_is_noop(
     reset_projects_singleton: None,
     patched_db_session: unittest.mock.MagicMock,
@@ -851,15 +881,15 @@ def test_commit_delete_project_absent_project_is_noop(
     monkeypatch.setattr(
         projects_crud.Projects, "get_follower_project_snapshot", lambda *a, **k: None
     )
-    delete_mock = unittest.mock.MagicMock()
-    monkeypatch.setattr(projects_crud.Projects, "delete_project", delete_mock)
+    handler_mock = _patch_background_task_handler(monkeypatch)
 
-    projects_crud.Projects().commit_delete_project("proj", uuid.UUID(int=1))
+    result = projects_crud.Projects().commit_delete_project("proj", uuid.UUID(int=1))
 
-    delete_mock.assert_not_called()
+    handler_mock.create_background_task.assert_not_called()
+    assert result is None
 
 
-def test_commit_delete_project_purges_with_cascading_strategy(
+def test_commit_delete_project_schedules_new_background_task(
     reset_projects_singleton: None,
     patched_db_session: unittest.mock.MagicMock,
     monkeypatch: pytest.MonkeyPatch,
@@ -873,26 +903,93 @@ def test_commit_delete_project_purges_with_cascading_strategy(
         "get_follower_project_snapshot",
         lambda *a, **k: existing,
     )
+    handler_mock = _patch_background_task_handler(
+        monkeypatch, created_task_name="new-task"
+    )
+
+    task, task_name = projects_crud.Projects().commit_delete_project("proj", op_id)
+
+    assert task_name == "new-task"
+    assert task is not None
+    handler_mock.create_background_task.assert_called_once()
+    kind_arg = handler_mock.create_background_task.call_args.args[0]
+    assert kind_arg == "project.deletion.proj"
+
+
+def test_commit_delete_project_create_race_reuses_winners_task(
+    reset_projects_singleton: None,
+    patched_db_session: unittest.mock.MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """Two concurrent calls can both see "no active task" and both reach
+    create_background_task; the loser gets MLRunConflictError from the handler. That
+    must be folded into the reuse path (same idempotent outcome as finding it active
+    up front), not surfaced as an uncaught 409."""
+    op_id = uuid.UUID(int=1)
+    existing = _make_follower_snapshot(
+        op_id, mlrun.common.schemas.ProjectState.deleting
+    )
+    monkeypatch.setattr(
+        projects_crud.Projects,
+        "get_follower_project_snapshot",
+        lambda *a, **k: existing,
+    )
+    handler_mock = unittest.mock.MagicMock()
+    winners_task = unittest.mock.MagicMock()
+    winners_task.metadata.name = "winners-task"
+    handler_mock.get_active_background_task_by_kind.side_effect = [
+        mlrun.errors.MLRunNotFoundError("no active task"),  # initial check
+        winners_task,  # re-fetch after losing the create race
+    ]
+    handler_mock.create_background_task.side_effect = mlrun.errors.MLRunConflictError(
+        "already running"
+    )
+    monkeypatch.setattr(
+        "framework.utils.background_tasks.InternalBackgroundTasksHandler",
+        lambda: handler_mock,
+    )
+
+    task, task_name = projects_crud.Projects().commit_delete_project("proj", op_id)
+
+    assert task is None
+    assert task_name == "winners-task"
+
+
+def test_purge_follower_project_resources_uses_cascading_strategy(
+    patched_db_session: unittest.mock.MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """The scheduled task's body — invoked directly here, simulating FastAPI's
+    BackgroundTasks actually running it after the response is sent — must purge with
+    the cascading strategy, same as the pre-background-task synchronous call did, and
+    on its own (fresh) DB session since the request-scoped one is already closed by
+    the time it runs."""
+    project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name="proj")
+    )
     delete_mock = unittest.mock.MagicMock()
     monkeypatch.setattr(projects_crud.Projects, "delete_project", delete_mock)
 
-    projects_crud.Projects().commit_delete_project("proj", op_id)
+    projects_crud.Projects()._purge_follower_project_resources(project)
 
+    delete_mock.assert_called_once()
+    assert delete_mock.call_args.args[1] == "proj"
     assert (
         delete_mock.call_args.kwargs["deletion_strategy"]
         == mlrun.common.schemas.DeletionStrategy.cascading
     )
 
 
-def test_commit_delete_project_retry_with_same_op_id_re_runs_the_purge(
+def test_commit_delete_project_retry_with_same_op_id_reuses_active_task(
     reset_projects_singleton: None,
     patched_db_session: unittest.mock.MagicMock,
     monkeypatch: pytest.MonkeyPatch,
 ):
-    """Blocking commit-delete (Orca requirement) means a retry with the same op_id —
-    e.g. after a dropped connection — must re-attempt the purge, not silently skip
-    it: check_same_op never returns ReplayOutcome.replay for commit_delete, precisely
-    so this keeps retrying rather than falsely reporting success."""
+    """Dedup guard: when an active task already exists for this project's kind (e.g.
+    because a same-op_id retry landed while the first call's task is still running),
+    commit_delete_project must reuse it rather than scheduling a second concurrent
+    purge — the old synchronous code got this for free by re-running inline each
+    time; the background-task version needs the dedup to be explicit."""
     op_id = uuid.UUID(int=1)
     existing = _make_follower_snapshot(
         op_id, mlrun.common.schemas.ProjectState.deleting
@@ -902,13 +999,15 @@ def test_commit_delete_project_retry_with_same_op_id_re_runs_the_purge(
         "get_follower_project_snapshot",
         lambda *a, **k: existing,
     )
-    delete_mock = unittest.mock.MagicMock()
-    monkeypatch.setattr(projects_crud.Projects, "delete_project", delete_mock)
+    handler_mock = _patch_background_task_handler(
+        monkeypatch, active_task_name="already-running-task"
+    )
 
-    projects_crud.Projects().commit_delete_project("proj", op_id)
-    projects_crud.Projects().commit_delete_project("proj", op_id)
+    task, task_name = projects_crud.Projects().commit_delete_project("proj", op_id)
 
-    assert delete_mock.call_count == 2
+    assert task is None
+    assert task_name == "already-running-task"
+    handler_mock.create_background_task.assert_not_called()
 
 
 def test_commit_delete_project_mismatched_op_is_rejected(

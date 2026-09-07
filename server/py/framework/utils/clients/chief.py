@@ -190,9 +190,12 @@ class Client(
         self, name: str, request: fastapi.Request
     ) -> fastapi.Response:
         """
-        Re-routes the /follower/projects commit-delete call to chief. Blocks until
-        the full purge finishes, so the timeout needs to cover that, not the legacy
-        chief-proxy default.
+        Re-routes the /follower/projects commit-delete call to chief. The chief itself
+        returns once the deletion background task is scheduled (or reused), not once
+        the full purge finishes, but the timeout is kept generous (matching the
+        deletion task's own timeout) rather than the legacy chief-proxy default, since
+        the chief-side call still does a synchronous CAS/ordering/state validation and
+        background-task lookup before responding.
         """
         return await self._proxy_request_to_chief(
             "DELETE",

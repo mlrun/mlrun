@@ -12,49 +12,34 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import collections.abc
-import unittest.mock
 import uuid
 
 import pytest
+import sqlalchemy.orm
 
 import mlrun.common.schemas
 import mlrun.errors
-import mlrun.utils.singleton
 
 import services.api.api.endpoints.projects_follower as projects_follower
-import services.api.crud.projects as projects_crud
-
-
-@pytest.fixture
-def reset_projects_singleton() -> collections.abc.Iterator[None]:
-    """Drop the Projects singleton so __init__ re-runs with the current mlconf."""
-    mlrun.utils.singleton.Singleton._instances.pop(projects_crud.Projects, None)
-    yield
-    mlrun.utils.singleton.Singleton._instances.pop(projects_crud.Projects, None)
+import services.api.crud
 
 
 @pytest.mark.asyncio
 async def test_get_project_state_returns_state_for_existing_project(
-    reset_projects_singleton: None,
-    monkeypatch: pytest.MonkeyPatch,
+    db: sqlalchemy.orm.Session,
 ):
-    op_id = uuid.UUID(int=1)
-    snapshot = mlrun.common.schemas.Project(
-        metadata=mlrun.common.schemas.ProjectMetadata(name="proj"),
-        status=mlrun.common.schemas.ProjectStatus(
-            op_id=op_id, state=mlrun.common.schemas.ProjectState.online
+    op_id = uuid.uuid4()
+    services.api.crud.Projects().create_project(
+        db,
+        mlrun.common.schemas.Project(
+            metadata=mlrun.common.schemas.ProjectMetadata(name="proj"),
+            status=mlrun.common.schemas.ProjectStatus(
+                op_id=op_id, state=mlrun.common.schemas.ProjectState.online
+            ),
         ),
     )
-    monkeypatch.setattr(
-        projects_crud.Projects,
-        "get_follower_project_snapshot",
-        lambda *a, **k: snapshot,
-    )
 
-    result = await projects_follower.get_project_state(
-        "proj", unittest.mock.MagicMock()
-    )
+    result = await projects_follower.get_project_state("proj", db)
 
     assert result == projects_follower.follower_schemas.FollowerProjectState(
         name="proj",
@@ -65,36 +50,7 @@ async def test_get_project_state_returns_state_for_existing_project(
 
 @pytest.mark.asyncio
 async def test_get_project_state_raises_not_found_for_missing_project(
-    reset_projects_singleton: None,
-    monkeypatch: pytest.MonkeyPatch,
+    db: sqlalchemy.orm.Session,
 ):
-    monkeypatch.setattr(
-        projects_crud.Projects, "get_follower_project_snapshot", lambda *a, **k: None
-    )
-
     with pytest.raises(mlrun.errors.MLRunNotFoundError):
-        await projects_follower.get_project_state("missing", unittest.mock.MagicMock())
-
-
-@pytest.mark.asyncio
-async def test_get_project_state_passes_session_and_name_to_the_snapshot_lookup(
-    reset_projects_singleton: None,
-    monkeypatch: pytest.MonkeyPatch,
-):
-    calls = []
-
-    def _fake_get_follower_project_snapshot(self, session, name):
-        calls.append((session, name))
-        return None
-
-    monkeypatch.setattr(
-        projects_crud.Projects,
-        "get_follower_project_snapshot",
-        _fake_get_follower_project_snapshot,
-    )
-    db_session = unittest.mock.MagicMock()
-
-    with pytest.raises(mlrun.errors.MLRunNotFoundError):
-        await projects_follower.get_project_state("proj", db_session)
-
-    assert calls == [(db_session, "proj")]
+        await projects_follower.get_project_state("missing", db)

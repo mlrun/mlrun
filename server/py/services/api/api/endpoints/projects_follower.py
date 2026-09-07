@@ -203,3 +203,23 @@ async def list_project_states(
         ],
         next_cursor=next_cursor,
     )
+
+
+@router.get(
+    "/follower/projects/states/{name}",
+    response_model=follower_schemas.FollowerProjectState,
+)
+async def get_project_state(
+    name: str,
+    db_session: sqlalchemy.orm.Session = fastapi.Depends(
+        framework.api.deps.get_db_session
+    ),
+) -> follower_schemas.FollowerProjectState:
+    project = await mlrun.utils.run_in_threadpool(
+        services.api.crud.Projects().get_follower_project_snapshot,
+        db_session,
+        name,
+    )
+    if project is None:
+        raise mlrun.errors.MLRunNotFoundError(f"Project {name} not found")
+    return _to_follower_state(name, project)

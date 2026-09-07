@@ -337,12 +337,10 @@ def test_set_count_noop_when_metric_name_unknown(reset_inventory_state: None) ->
     known_gauge.set.assert_not_called()
 
 
-def test_set_count_injects_system_id_and_forwards_attributes(
+def test_set_count_forwards_attributes(
     reset_inventory_state: None,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The current mlconf.system_id is added to every emission alongside user kwargs."""
-    monkeypatch.setattr(mlrun.mlconf, "system_id", "sys-xyz")
+    """User kwargs are forwarded to the gauge as attributes."""
     gauge = unittest.mock.MagicMock()
     telemetry_inventory._gauges = {"mlrun_artifacts": gauge}
 
@@ -350,19 +348,17 @@ def test_set_count_injects_system_id_and_forwards_attributes(
 
     gauge.set.assert_called_once_with(
         7,
-        attributes={"system_id": "sys-xyz", "project": "proj-a", "kind": "model"},
+        attributes={"project": "proj-a", "kind": "model"},
     )
 
 
 def test_set_count_falls_back_to_empty_string_for_missing_values(
     reset_inventory_state: None,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """None or "" attribute values + missing system_id are normalized to "".
+    """None or "" attribute values are normalized to "".
 
     OTLP attribute values must be non-None primitives; None would break export.
     """
-    monkeypatch.setattr(mlrun.mlconf, "system_id", "")
     gauge = unittest.mock.MagicMock()
     telemetry_inventory._gauges = {"mlrun_projects": gauge}
 
@@ -370,7 +366,7 @@ def test_set_count_falls_back_to_empty_string_for_missing_values(
 
     gauge.set.assert_called_once_with(
         0,
-        attributes={"system_id": "", "project": "", "kind": ""},
+        attributes={"project": "", "kind": ""},
     )
 
 

@@ -731,6 +731,10 @@ class HTTPRunDB(RunDBInterface):
                 config.telemetry.model_monitoring.interval = server_cfg[
                     "telemetry_model_monitoring_interval"
                 ]
+            if server_cfg.get("nuclio_function_authentication_enabled") is not None:
+                config.httpdb.nuclio.function_authentication_enabled = server_cfg[
+                    "nuclio_function_authentication_enabled"
+                ]
 
         except Exception as exc:
             logger.warning(

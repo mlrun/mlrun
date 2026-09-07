@@ -35,6 +35,7 @@ import mlrun.utils.telemetry
 def build_metric_provider(
     service_name: str,
     export_interval_millis: int | None = None,
+    max_export_batch_size: int | None = None,
 ) -> MeterProvider:
     """Build an OTLP-exporting ``MeterProvider`` from the telemetry config.
 
@@ -51,6 +52,9 @@ def build_metric_provider(
     :param service_name:           OTel ``service.name`` for this provider.
     :param export_interval_millis: Reader export interval in ms; omit for the
                                    SDK default.
+    :param max_export_batch_size: Maximum data points per gRPC export request;
+                                   the exporter splits into multiple requests
+                                   above this. Omit for no cap.
     :returns: A configured ``MeterProvider`` (not registered as the global one).
     """
     cfg = mlrun.mlconf.telemetry
@@ -58,6 +62,7 @@ def build_metric_provider(
         endpoint=cfg.otlp_endpoint,
         insecure=cfg.insecure,
         headers=mlrun.utils.telemetry.resolve_otlp_headers(),
+        max_export_batch_size=max_export_batch_size,
     )
     reader_kwargs = {}
     if export_interval_millis is not None:

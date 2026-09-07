@@ -102,3 +102,4 @@ class ClientSpec(pydantic.BaseModel):
     telemetry_otlp_endpoint: str | None = None
     telemetry_insecure: bool | None = None
     telemetry_model_monitoring_interval: int | None = None
+    nuclio_function_authentication_enabled: bool | None = None

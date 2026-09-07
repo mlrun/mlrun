@@ -160,6 +160,9 @@ class ClientSpec(
             telemetry_model_monitoring_interval=self._get_config_value_if_not_default(
                 "telemetry.model_monitoring.interval"
             ),
+            nuclio_function_authentication_enabled=self._get_config_value_if_not_default(
+                "httpdb.nuclio.function_authentication_enabled"
+            ),
         )
 
     @staticmethod

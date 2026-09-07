@@ -50,6 +50,7 @@ class SecretsClientType(enum.StrEnum):
     notifications = "notifications"
     datastore_profiles = "datastore-profiles"
 
+
 # TODO: Update to 2.1.1 during ML-13070
 # The first Orca release that ships RevokeOfflineSession and self-revokes the
 # Keycloak session before calling this endpoint.

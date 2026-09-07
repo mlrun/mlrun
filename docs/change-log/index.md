@@ -48,7 +48,7 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 ### Closed issues
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-
+|ML-12573
 
 
 (v1120)=

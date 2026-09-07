@@ -30,7 +30,8 @@ import mlrun.common.formatters
 import mlrun.common.schemas
 import mlrun.common.types
 import mlrun.errors
-from mlrun.utils import get_in
+from mlrun.config import config
+from mlrun.utils import get_in, logger
 
 import framework.utils.clients.helpers as clients_helpers
 import framework.utils.clients.service_account_token as service_account_token
@@ -156,6 +157,24 @@ class Client(BaseClient, project_follower.Member):
             mlrun.errors.MLRunUnauthorizedError,
             "Failed to revoke offline token from Iguazio",
             auth_headers=request_headers,
+        )
+
+    def get_orca_version(self) -> str:
+        """
+        Fetch Orca's own release version from its system-info API.
+
+        :return: Orca's version string (e.g. "1.2.0").
+        :raises mlrun.errors.MLRunRuntimeError: If the request to Orca fails.
+        """
+
+        def _get_orca_version():
+            system_info = self._client.get_system_info()
+            return system_info.metadata.version.oris_version
+
+        return self._try_callback_with_httpx_exceptions(
+            _get_orca_version,
+            mlrun.errors.MLRunRuntimeError,
+            "Failed to get Orca version from its system-info API",
         )
 
     def get_user_id_by_username(
@@ -625,3 +644,18 @@ class AsyncClient(BaseAsyncClient, Client):
     """Asynchronous implementation of the Iguazio V4 client. Inherits logic from Client and BaseAsyncClient."""
 
     pass
+
+# if orca version specified on mlrun config set it likewise,
+# if not specified, get it from Orca's own info API
+# since this is a heavy operation (sending requests to API), and it's unlikely that the version
+# will change - only fetch it once
+def resolve_orca_version() -> str:
+    if not config.orca_version and config.iguazio_api_url:
+        try:
+            config.orca_version = Client().get_orca_version()
+        except Exception as exc:
+            logger.warning(
+                "Failed to resolve Orca version", exc=mlrun.errors.err_to_str(exc)
+            )
+
+    return config.orca_version

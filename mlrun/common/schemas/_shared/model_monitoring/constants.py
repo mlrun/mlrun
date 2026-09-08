@@ -260,17 +260,22 @@ class OTelMonitoringAttribute(MonitoringStrEnum):
     application results / metrics.
 
     Dot-separated naming follows the OpenTelemetry semantic-conventions
-    convention. ``project``, ``app.name``, ``function.name``,
+    convention. ``project``, ``app.name``, ``serving.function.name``,
     ``endpoint.uid``, ``endpoint.name`` are shared by every entry in a
     batch. ``result.name``, ``result.kind`` and ``result.status`` apply only
     to entries coming from a :class:`ModelMonitoringApplicationResult`;
     ``metric.name`` applies only to entries coming from a
     :class:`ModelMonitoringApplicationMetric`.
+
+    ``serving.function.name`` is the model endpoint's serving function.
+    It is not ``function.name`` so it does not collide with the collector's
+    pod-identity ``function_name`` label (from ``nuclio.io/function-name``)
+    when both are sanitized for Prometheus (ML-13034).
     """
 
     PROJECT = "project"
     APP_NAME = "app.name"
-    FUNCTION_NAME = "function.name"
+    SERVING_FUNCTION_NAME = "serving.function.name"
     ENDPOINT_UID = "endpoint.uid"
     ENDPOINT_NAME = "endpoint.name"
     RESULT_NAME = "result.name"

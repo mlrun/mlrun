@@ -47,7 +47,7 @@ Each result exposes two fixed gauges. The name is a label, not part of the metri
 - mlrun.model_monitoring.result → scraped as mlrun_model_monitoring_result (one per result)
 - mlrun.model_monitoring.metric → scraped as mlrun_model_monitoring_metric (one per metric)
 
-**Shared labels**: `project`, `app.name`, `function.name`, `endpoint.uid`, `endpoint.name` </br>
+**Shared labels**: `project`, `app.name`, `serving.function.name`, `endpoint.uid`, `endpoint.name` </br>
 **Result only**: `result.name`, `result.kind`, `result.status` </br>
 **Metric only**: `metric.name`
 

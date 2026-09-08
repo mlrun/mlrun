@@ -12,18 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import typing
 
-import pydantic.v1
+# Facade re-exporting the ``_shared`` layer and the active model face, preserving the
+# ``mlrun.common.schemas.memory_reports`` import path.
+from ._dispatch import USE_V2_SCHEMAS as _USE_V2
 
-
-class MostCommonObjectTypesReport(pydantic.v1.BaseModel):
-    object_types: list[tuple[str, int]]
-
-
-class ObjectTypeReport(pydantic.v1.BaseModel):
-    object_type: str
-    sample_size: int
-    start_index: int | None
-    max_depth: int
-    object_report: list[dict[str, typing.Any]]
+if _USE_V2:
+    from ._v2.memory_reports import *  # noqa: F401,F403
+else:
+    from ._v1.memory_reports import *  # noqa: F401,F403

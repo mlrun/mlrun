@@ -869,10 +869,10 @@ def test_store_secret_tokens_return_values(mock_iguazio_client):
         mlrun.common.schemas.AuthInfo(username="dummy-username", user_id="user-id-123"),
     )
 
-    assert result == {
-        "created_tokens": ["token1"],
-        "updated_tokens": ["token2"],
-    }
+    assert result == mlrun.common.schemas.StoreSecretTokensResponse(
+        created_tokens=["token1"],
+        updated_tokens=["token2"],
+    )
 
     assert mock_secrets_provider.store_user_token_secret.call_count == 3
     assert mock_iguazio_client.refresh_access_tokens.call_count == 1

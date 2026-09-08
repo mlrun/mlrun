@@ -700,8 +700,10 @@ class ApplicationRuntime(nuclio_function.RemoteRuntime):
         :param path:                    Optional path of the API gateway, default value is "/".
                                         The given path should be supported by the deployed application
         :param direct_port_access:      Set True to allow direct port access to the application sidecar
-        :param authentication_mode:     API Gateway authentication mode
-        :param authentication_creds:    API Gateway basic authentication credentials as a tuple (username, password)
+        :param authentication_mode:     API Gateway authentication mode. Deprecated — use
+                                        ``fn.with_http(authentication_mode=...)`` instead.
+        :param authentication_creds:    API Gateway basic authentication credentials as a tuple
+                                        (username, password). Deprecated — see ``authentication_mode``.
         :param ssl_redirect:            Set True to force SSL redirect, False to disable. Defaults to
                                         mlrun.mlconf.force_api_gateway_ssl_redirect()
         :param set_as_default:          Set the API gateway as the default for the application (`status.api_gateway`)
@@ -721,13 +723,10 @@ class ApplicationRuntime(nuclio_function.RemoteRuntime):
                 f"Non-default API gateway cannot use the default gateway name, {name=}."
             )
 
-        if (
-            authentication_mode == schemas.APIGatewayAuthenticationMode.basic
-            and not authentication_creds
-        ):
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "Authentication credentials not provided"
-            )
+        nuclio_api_gateway.validate_authentication(
+            authentication_mode=authentication_mode,
+            authentication_creds=authentication_creds,
+        )
 
         if not direct_port_access and port:
             logger.warning(

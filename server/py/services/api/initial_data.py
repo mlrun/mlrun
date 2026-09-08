@@ -53,6 +53,7 @@ import framework.db.sqldb.sql_session
 import framework.utils.pagination_cache
 import services.api.utils.db.alembic
 import services.api.utils.db.backup
+import services.api.utils.events.db_errors
 import services.api.utils.events.events_factory
 import services.api.utils.scheduler
 from framework.utils.db.utils import DBUtil
@@ -90,15 +91,26 @@ def _initialize_db_if_needed(engine: sqlalchemy.engine.Engine) -> bool:
     Returns True if the database needs to be created or initialized from scratch (i.e.,
     if the database does not exist or exists but has no tables).
     Returns False if the database exists and has tables (i.e., is set up and ready).
+
+    ``sqlalchemy_utils.database_exists``/``create_database`` open their own throwaway
+    engines that never go through the ``handle_error`` listener registered on the
+    long-lived singleton ``engine``, so a connection failure here would otherwise crash
+    the process without ever publishing ``MLRun.DB.Connection.Failed``.
     """
     url = engine.url
-    if not sqlalchemy_utils.database_exists(url):
-        mlrun.utils.logger.info(
-            "Database does not exist, creating",
-            database_url=url,
+    try:
+        if not sqlalchemy_utils.database_exists(url):
+            mlrun.utils.logger.info(
+                "Database does not exist, creating",
+                database_url=url,
+            )
+            sqlalchemy_utils.create_database(url)
+            return True
+    except sqlalchemy.exc.DBAPIError as exc:
+        services.api.utils.events.db_errors.publish_connection_failed_from_exception(
+            exc, dialect=engine.dialect.name
         )
-        sqlalchemy_utils.create_database(url)
-        return True
+        raise
 
     # db exists, lets see if it has some tables
     has_tables = bool(sqlalchemy.inspect(engine).get_table_names())

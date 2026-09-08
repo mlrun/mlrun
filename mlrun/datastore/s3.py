@@ -188,7 +188,12 @@ class S3Store(DataStore):
             token = None
 
         storage_options = dict(
-            anon=not (force_non_anonymous or (access_key_id and secret) or token_file),
+            anon=not (
+                force_non_anonymous
+                or (access_key_id and secret)
+                or token_file
+                or self._has_default_credentials()
+            ),
             key=access_key_id,
             secret=secret,
             token=token,

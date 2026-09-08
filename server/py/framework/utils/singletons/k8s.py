@@ -2033,6 +2033,10 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
 
 
 class BasePod:
+    # the single build-pod container's name. Exposed as a constant so callers that key resources off
+    # it (e.g. the per-container AppArmor annotation) share one source of truth and can't drift.
+    container_name = "base"
+
     def __init__(
         self,
         task_name="",
@@ -2045,6 +2049,8 @@ class BasePod:
         default_pod_spec_attributes=None,
         resources=None,
         labels=None,
+        security_context=None,
+        env=None,
     ):
         self.namespace = namespace
         self.name = ""
@@ -2054,8 +2060,12 @@ class BasePod:
         self.args = args
         self._volumes = []
         self._mounts = []
-        self.env = None
+        self.env = env
         self.node_selector = None
+        # optional container-level security context (e.g. the rootless build pod's runAsUser +
+        # capabilities). None (the default) leaves the container security context unset, so pods
+        # that don't pass one are byte-for-byte unchanged.
+        self.security_context = security_context
         self.project = project
         self._labels = {
             mlrun_constants.MLRunInternalLabels.task_name: task_name,
@@ -2163,13 +2173,14 @@ class BasePod:
         else:
             env = self.env
         container = client.V1Container(
-            name="base",
+            name=self.container_name,
             image=self.image,
             env=env,
             command=self.command,
             args=self.args,
             volume_mounts=self._mounts,
             resources=self.resources,
+            security_context=self.security_context,
         )
 
         pod_spec = client.V1PodSpec(

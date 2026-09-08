@@ -468,7 +468,13 @@ class Member(
 
     @staticmethod
     def _enrich_project(project: mlrun.common.schemas.Project):
-        project.status.state = project.spec.desired_state
+        desired_state = project.spec.desired_state
+        if desired_state is None:
+            project.status.state = None
+        else:
+            project.status.state = mlrun.common.schemas.ProjectState(
+                desired_state.value
+            )
 
     @staticmethod
     def _enrich_project_patch(project_patch: dict):

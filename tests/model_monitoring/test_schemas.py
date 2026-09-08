@@ -28,7 +28,7 @@ from mlrun.common.schemas.model_monitoring.constants import (
 from mlrun.common.schemas.model_monitoring.model_endpoints import (
     ModelEndpoint,
     ModelEndpointMonitoringMetric,
-    _parse_metric_fqn_to_monitoring_metric,
+    parse_metric_fqn_to_monitoring_metric,
 )
 from mlrun.model_monitoring.db.tsdb.v3io.stream_graph_steps import (
     _normalize_dict_for_v3io_frames,
@@ -68,7 +68,7 @@ def test_fqn_parsing(
     expectation: AbstractContextManager,
 ) -> None:
     with expectation:
-        assert _parse_metric_fqn_to_monitoring_metric(fqn) == expected_result
+        assert parse_metric_fqn_to_monitoring_metric(fqn) == expected_result
 
 
 @pytest.mark.parametrize(

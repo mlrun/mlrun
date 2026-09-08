@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import concurrent.futures
 import os
 import os.path
 import pathlib
@@ -19,10 +20,12 @@ import shutil
 import tempfile
 import unittest.mock
 import zipfile
+from base64 import b64decode
 from contextlib import nullcontext as does_not_raise
 
 import deepdiff
 import inflection
+import nuclio
 import pytest
 import yaml
 
@@ -35,6 +38,7 @@ import mlrun.common.schemas.model_monitoring as mm_consts
 import mlrun.db.nopdb
 import mlrun.errors
 import mlrun.projects.project
+import mlrun.run
 import mlrun.runtimes.base
 import mlrun.runtimes.nuclio.api_gateway
 import mlrun.utils.helpers
@@ -2556,6 +2560,54 @@ def test_get_or_create_project_no_db(monkeypatch):
     assert project.name == project_name
 
 
+def test_get_or_create_project_concurrent_context_creation(rundb_mock, context):
+    # concurrent get_or_create_project calls sharing one not-yet-existing context dir
+    # must not race on directory creation.
+    project_name = "concurrent-context-project"
+    rundb_mock.create_project({"metadata": {"name": project_name}})
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as pool:
+        futures = [
+            pool.submit(mlrun.get_or_create_project, project_name, context=str(context))
+            for _ in range(10)
+        ]
+        for future in concurrent.futures.as_completed(futures):
+            future.result()
+
+    assert os.path.isdir(context)
+
+
+def test_get_or_create_project_context_dir_race_guard(rundb_mock, context, monkeypatch):
+    # deterministically simulate the TOCTOU window: another thread/process creates the
+    # context dir the instant this call's makedirs executes. A bare check-then-act
+    # makedirs would raise FileExistsError here; the exist_ok=True fix must not.
+    project_name = "existing-context-project"
+    rundb_mock.create_project({"metadata": {"name": project_name}})
+    real_makedirs = os.makedirs
+
+    def racy_makedirs(name, *args, **kwargs):
+        real_makedirs(name, exist_ok=True)
+        return real_makedirs(name, *args, **kwargs)
+
+    monkeypatch.setattr(mlrun.projects.project, "makedirs", racy_makedirs)
+
+    project = mlrun.get_or_create_project(project_name, context=str(context))
+
+    assert project.name == project_name
+
+
+def test_get_or_create_project_context_path_is_file(rundb_mock, context):
+    # a context path that collides with an existing plain file (not a directory) must
+    # still fail loudly, not be silently accepted.
+    project_name = "file-collision-project"
+    rundb_mock.create_project({"metadata": {"name": project_name}})
+    os.makedirs(context.parent, exist_ok=True)
+    context.touch()
+
+    with pytest.raises(FileExistsError):
+        mlrun.get_or_create_project(project_name, context=str(context))
+
+
 @pytest.mark.parametrize(
     "requirements ,with_requirements_file, commands",
     [
@@ -4337,3 +4389,112 @@ def test_init_function_from_dict_store_uri_with_repo_raises():
             handler="main",
             with_repo=True,
         )
+
+
+@pytest.mark.parametrize(
+    "remote_url",
+    [
+        "az://bucket/iguazio/naipi-artifacts/handler.py",
+        "ds://my-profile/path/handler.py",
+        "gs://bucket/handler.py",
+        "wasbs://container@acct.blob.core.windows.net/handler.py",
+        "dbfs://handler.py",
+    ],
+)
+def test_set_function_remote_py_prefetches_via_dataitem(
+    monkeypatch, tmp_path, remote_url
+):
+    """Regression test for ML-12701: a `.py` URL on a nuclio-incompatible
+    scheme is downloaded via mlrun.get_dataitem before nuclio.build_file is
+    called, so set_function returns a function with the source embedded."""
+    handler_body = "def my_handler(context):\n    return 'ml-12701-ok'\n"
+    item = _make_handler_dataitem(tmp_path, handler_body)
+    monkeypatch.setattr(mlrun, "get_dataitem", lambda url, *a, **kw: item)
+    monkeypatch.setattr(mlrun.run, "get_dataitem", lambda url, *a, **kw: item)
+
+    project = mlrun.new_project("ml-12701-proj", save=False)
+    project.spec.context = str(tmp_path)
+
+    func = project.set_function(
+        func=remote_url,
+        name="my-func",
+        kind="job",
+        handler="fetched_handler:my_handler",
+    )
+
+    item.local.assert_called_once()
+    embedded = b64decode(func.spec.build.functionSourceCode).decode("utf-8")
+    assert "my_handler" in embedded
+    assert "ml-12701-ok" in embedded
+
+
+def test_code_to_function_does_not_intercept_git_scheme(monkeypatch):
+    """git:// stays with nuclio's GitRepo because mlrun's datastore has no
+    GitStore — passing the original URL through is the only way to make it work."""
+
+    def _fail_if_called(*args, **kwargs):
+        raise AssertionError("mlrun.get_dataitem must not be called for git:// URLs")
+
+    monkeypatch.setattr(mlrun, "get_dataitem", _fail_if_called)
+    monkeypatch.setattr(mlrun.run, "get_dataitem", _fail_if_called)
+
+    captured = {}
+
+    def fake_build_file(filename, **kwargs):
+        captured["filename"] = filename
+        return (
+            "x",
+            {
+                "kind": "Function",
+                "spec": {
+                    "build": {"functionSourceCode": "ZGVmIGYoY3R4KTogcGFzcwo="},
+                    "env": [],
+                },
+            },
+            "def f(ctx): pass\n",
+        )
+
+    monkeypatch.setattr(nuclio, "build_file", fake_build_file)
+
+    mlrun.code_to_function(
+        name="x",
+        kind="job",
+        filename="git://github.com/me/repo.git#handler.py",
+        handler="f",
+    )
+
+    assert captured["filename"] == "git://github.com/me/repo.git#handler.py"
+
+
+def test_set_function_remote_py_propagates_dataitem_fetch_errors(monkeypatch, tmp_path):
+    """If the underlying mlrun datastore raises (e.g. missing Azure creds),
+    set_function must surface that loud error instead of silently swallowing
+    it. Strict improvement over the previous opaque 'unsupported repo scheme'."""
+    item = unittest.mock.MagicMock()
+    item.local.side_effect = mlrun.errors.MLRunInvalidArgumentError(
+        "Azure Blob storage requires an account_name"
+    )
+    monkeypatch.setattr(mlrun, "get_dataitem", lambda url, *a, **kw: item)
+    monkeypatch.setattr(mlrun.run, "get_dataitem", lambda url, *a, **kw: item)
+
+    project = mlrun.new_project("ml-12701-proj-err", save=False)
+    project.spec.context = str(tmp_path)
+
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError, match="Azure Blob storage requires"
+    ):
+        project.set_function(
+            func="az://bucket/handler.py",
+            name="my-func",
+            kind="job",
+            handler="handler:main",
+        )
+
+
+def _make_handler_dataitem(tmp_path, body: str):
+    """Build a fake DataItem.local() that materialises ``body`` to disk."""
+    target = tmp_path / "fetched_handler.py"
+    target.write_text(body)
+    item = unittest.mock.MagicMock()
+    item.local.return_value = str(target)
+    return item

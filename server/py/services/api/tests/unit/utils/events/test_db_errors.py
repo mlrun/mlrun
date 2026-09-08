@@ -13,6 +13,7 @@
 # limitations under the License.
 import unittest.mock
 
+import psycopg2
 import pymysql.err
 import pytest
 import sqlalchemy
@@ -196,6 +197,25 @@ def test_classify_postgres_unknown_sqlstate_returns_none():
     assert code is None
 
 
+def test_classify_postgres_never_connected_via_message_fallback():
+    """
+    A fresh-connect attempt against a fully unreachable Postgres server (no
+    established connection to invalidate, hence no SQLSTATE and
+    is_disconnect=False) must still classify as a disconnect. This is the
+    same shape mlrun-api-chief hits mid-session when the DB pool needs a new
+    connection and the server is down, not just at bootstrap.
+    """
+    exc = psycopg2.OperationalError(
+        'connection to server at "mlrun-db" (10.43.154.75), port 5432 '
+        "failed: Connection refused"
+    )
+    category, code = db_errors.classify(
+        _ctx(exc, is_disconnect=False, dialect_name="postgresql")
+    )
+    assert category == db_errors.CATEGORY_DISCONNECT
+    assert code is None
+
+
 @pytest.mark.parametrize(
     "exc",
     [
@@ -208,6 +228,121 @@ def test_classify_skips_non_fatal_errors(exc):
     category, code = db_errors.classify(_ctx(exc))
     assert category is None
     assert code is None
+
+
+@pytest.mark.parametrize(
+    "exc",
+    [
+        psycopg2.OperationalError(
+            'connection to server at "mlrun-db" (10.43.154.75), port 5432 '
+            "failed: Connection refused"
+        ),
+        psycopg2.OperationalError(
+            'could not translate host name "mlrun-db" to address: '
+            "Name or service not known"
+        ),
+        psycopg2.OperationalError(
+            "could not connect to server: Connection timed out\n\tIs the server "
+            'running on host "mlrun-db" and accepting TCP/IP connections?'
+        ),
+        psycopg2.OperationalError(
+            'connection to server at "mlrun-db" (10.43.154.75), port 5432 failed: '
+            "No route to host"
+        ),
+        psycopg2.OperationalError(
+            'connection to server at "mlrun-db" (10.43.154.75), port 5432 failed: '
+            "Network is unreachable"
+        ),
+        psycopg2.OperationalError("timeout expired"),
+    ],
+)
+def test_classify_exception_postgres_unreachable(exc):
+    """The ticket's exact repro shape: no SQLSTATE, no is_disconnect flag —
+    the connection was never established at all."""
+    category, code = db_errors.classify_exception(exc)
+    assert category == db_errors.CATEGORY_DISCONNECT
+    assert code is None
+
+
+def test_classify_exception_mysql_unreachable():
+    exc = pymysql.err.OperationalError(
+        2003, "Can't connect to MySQL server on 'mlrun-db' (111)"
+    )
+    category, code = db_errors.classify_exception(exc)
+    assert category == db_errors.CATEGORY_DISCONNECT
+    assert code == 2003
+
+
+def test_classify_exception_unwraps_sqlalchemy_wrapper():
+    """initial_data.py's except-block receives the wrapped sqlalchemy.exc
+    error, not the bare driver exception."""
+    orig = _PsycopgLikeError("08006", "server closed the connection unexpectedly")
+    wrapped = sqlalchemy.exc.OperationalError(
+        statement=None, params=None, orig=orig, connection_invalidated=True
+    )
+    category, code = db_errors.classify_exception(wrapped)
+    assert category == db_errors.CATEGORY_DISCONNECT
+    assert code == "08006"
+
+
+@pytest.mark.parametrize(
+    "exc",
+    [
+        pymysql.err.IntegrityError(1062, "Duplicate entry"),
+        _PsycopgLikeError("23505", "unique_violation"),
+        ValueError("not a db error"),
+    ],
+)
+def test_classify_exception_skips_non_connection_errors(exc):
+    category, code = db_errors.classify_exception(exc)
+    assert category is None
+    assert code is None
+
+
+def test_publish_connection_failed_from_exception_happy_path(monkeypatch):
+    publish_calls: list[dict] = []
+    monkeypatch.setattr(
+        db_errors,
+        "publish_connection_failed",
+        lambda **kw: publish_calls.append(kw) or True,
+    )
+    exc = psycopg2.OperationalError(
+        'connection to server at "mlrun-db" ... failed: Connection refused'
+    )
+    emitted = db_errors.publish_connection_failed_from_exception(
+        exc, dialect="postgresql"
+    )
+    assert emitted is True
+    assert len(publish_calls) == 1
+    assert publish_calls[0]["error"] is exc
+    assert publish_calls[0]["dialect"] == "postgresql"
+    assert publish_calls[0]["category"] == db_errors.CATEGORY_DISCONNECT
+    assert publish_calls[0]["error_code"] is None
+
+
+def test_publish_connection_failed_from_exception_skips_non_connection_error(
+    monkeypatch,
+):
+    publish_spy = unittest.mock.MagicMock()
+    monkeypatch.setattr(db_errors, "publish_connection_failed", publish_spy)
+    emitted = db_errors.publish_connection_failed_from_exception(
+        ValueError("not a db error")
+    )
+    assert emitted is False
+    publish_spy.assert_not_called()
+
+
+def test_publish_connection_failed_from_exception_swallows_classify_error(
+    monkeypatch,
+):
+    """If classify_exception raises, the caller must not see it (never raises)."""
+    monkeypatch.setattr(
+        db_errors,
+        "classify_exception",
+        unittest.mock.MagicMock(side_effect=RuntimeError("classifier broke")),
+    )
+    emitted = db_errors.publish_connection_failed_from_exception(RuntimeError("boom"))
+    assert emitted is False
 
 
 def test_publish_emits_event_via_factory(monkeypatch):

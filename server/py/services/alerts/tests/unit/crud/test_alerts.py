@@ -59,7 +59,7 @@ class TestAlerts(TestAlertsBase):
         alert_entity = alert_objects.EventEntities(
             kind=alert_objects.EventEntityKind.MODEL_ENDPOINT_RESULT,
             project=project,
-            ids=[123],
+            ids=["123"],
         )
         event_kind = alert_objects.EventKind.DATA_DRIFT_SUSPECTED
 
@@ -133,7 +133,7 @@ class TestAlerts(TestAlertsBase):
         alert_entity = alert_objects.EventEntities(
             kind=alert_objects.EventEntityKind.JOB,
             project=project,
-            ids=[123],
+            ids=["123"],
         )
         event_kind = alert_objects.EventKind.FAILED
 
@@ -181,7 +181,7 @@ class TestAlerts(TestAlertsBase):
                 alert_objects.EventEntities(
                     kind=alert_objects.EventEntityKind.JOB,
                     project="project-name",
-                    ids=[456],
+                    ids=["456"],
                 ),
                 True,
             ),
@@ -190,7 +190,7 @@ class TestAlerts(TestAlertsBase):
                 alert_objects.EventEntities(
                     kind=alert_objects.EventEntityKind.MODEL_ENDPOINT_RESULT,
                     project="project-name",
-                    ids=[123],
+                    ids=["123"],
                 ),
                 True,
             ),
@@ -286,7 +286,7 @@ class TestAlerts(TestAlertsBase):
         alert_entity = alert_objects.EventEntities(
             kind=alert_objects.EventEntityKind.JOB,
             project=project,
-            ids=[123],
+            ids=["123"],
         )
         event_kind = alert_objects.EventKind.FAILED
 
@@ -377,7 +377,7 @@ class TestAlerts(TestAlertsBase):
         alert_entity = alert_objects.EventEntities(
             kind=alert_objects.EventEntityKind.MODEL_ENDPOINT_RESULT,
             project=project,
-            ids=[123],
+            ids=["123"],
         )
         event_kind = alert_objects.EventKind.DATA_DRIFT_SUSPECTED
 

@@ -30,28 +30,27 @@ import mlrun
 import mlrun.common.schemas
 from mlrun.utils.logger import Logger, context_id_var
 
+from .base import BaseHTTPMiddleware, is_response_start
 
-class RequestLoggerMiddleware:
+
+class RequestLoggerMiddleware(BaseHTTPMiddleware):
     def __init__(
         self,
         app: "ASGI3Application",
         logger: "Logger",
     ) -> None:
-        self.app = app
+        super().__init__(app)
         self._logger = logger
         self._silent_logging_paths = [
             "healthz",
         ]
 
-    async def __call__(
+    async def _handle_http(
         self, scope: "Scope", receive: "ASGIReceiveCallable", send: "ASGISendCallable"
     ) -> None:
         """
         This middleware logs request and response information for audit and debugging purposes.
         """
-        if scope["type"] not in ("http",):
-            return await self.app(scope, receive, send)
-
         headers = MutableHeaders(scope=scope)
         request_id = self._resolve_context_id(headers)
         context_id_var.set(request_id)
@@ -81,11 +80,8 @@ class RequestLoggerMiddleware:
             try:
                 await send(message)
             finally:
-                if message["type"] == "http.response.start":
-                    # convert from nanoseconds to milliseconds
-                    elapsed_time_in_ms = (
-                        (time.perf_counter_ns() - start_time) / 1000 / 1000
-                    )
+                if is_response_start(message):
+                    elapsed_time_in_ms = self._elapsed_time_ms(start_time)
                     if should_log:
                         self._logger.debug(
                             "Sending response",

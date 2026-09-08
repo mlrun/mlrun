@@ -559,3 +559,34 @@ def test_generate_project_secret_event_unsupported_action_raises(client):
             secret_name="mlrun.secret.k8s",
             action="bogus",  # type: ignore[arg-type]
         )
+
+
+def test_generate_permission_denied_event_audit_fields(client):
+    event = client.generate_permission_denied_event(
+        resource="/projects/my-project/functions/my-function",
+        action="create",
+        username="alice",
+    )
+    assert event.config_name == iguazio_v4_events.PERMISSION_DENIED
+    assert event.kind == "audit"
+    assert event.class_ == "user action"
+    assert event.entity_name == "/projects/my-project/functions/my-function"
+    assert event.initiator == "alice"
+    assert event.description == (
+        "Permission denied for user alice to perform action create in resource "
+        "/projects/my-project/functions/my-function"
+    )
+    assert event.details == {
+        "username": "alice",
+        "action": "create",
+        "resource": "/projects/my-project/functions/my-function",
+    }
+
+
+def test_generate_permission_denied_event_no_username(client):
+    event = client.generate_permission_denied_event(
+        resource="/projects/my-project/functions/my-function",
+        action="read",
+    )
+    assert event.initiator is None
+    assert event.details["username"] is None

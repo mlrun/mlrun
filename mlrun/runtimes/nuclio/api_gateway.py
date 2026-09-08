@@ -30,7 +30,38 @@ from mlrun.model import ModelObj
 from mlrun.platforms.iguazio import min_iguazio_versions
 from mlrun.utils import logger
 
-from .function import min_nuclio_versions
+from .function import min_nuclio_versions, validate_basic_auth_creds
+
+
+def validate_authentication(
+    authentication_mode: schemas.APIGatewayAuthenticationMode | None,
+    authentication_creds: tuple[str, str] | None,
+) -> None:
+    """Validate API-Gateway-level authentication inputs.
+
+    Callers must invoke this once, up front, before constructing the ``APIGatewaySpec`` or
+    calling ``APIGateway.with_*_auth`` setters. Consolidates two rules in one place:
+
+    * When function-level authentication is enabled on the platform (via
+      ``httpdb.nuclio.function_authentication_enabled``), API-Gateway-level auth is not
+      supported — configure it on the function HTTP trigger via ``fn.with_http(...)`` instead.
+    * ``basicAuth`` requires ``authentication_creds=(username, password)``.
+
+    :raises MLRunInvalidArgumentError: on either rule violation.
+    """
+    if (
+        mlrun.mlconf.is_nuclio_function_authentication_enabled()
+        and authentication_mode is not None
+        and authentication_mode != schemas.APIGatewayAuthenticationMode.none
+    ):
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"authentication_mode={authentication_mode.value!r} is not supported on the API "
+            f"Gateway when function-level authentication is enabled. Configure it on the function "
+            f"HTTP trigger instead: fn.with_http(authentication_mode=..., authentication_creds=...)."
+        )
+
+    if authentication_mode == schemas.APIGatewayAuthenticationMode.basic:
+        validate_basic_auth_creds(authentication_creds)
 
 
 class Authenticator(typing.Protocol):

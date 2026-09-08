@@ -12,65 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import enum
-from datetime import datetime
 
-from pydantic.v1 import BaseModel
+# Facade re-exporting the ``_shared`` layer and the active model face, preserving the
+# ``mlrun.common.schemas.model_monitoring.functions`` import path.
+from .._dispatch import USE_V2_SCHEMAS as _USE_V2
+from .._shared.model_monitoring.functions import *  # noqa: F401,F403
 
-
-class FunctionsType(enum.Enum):
-    APPLICATION = "application"
-    INFRA = "infra"
-
-
-class FunctionSummary(BaseModel):
-    """
-    Function summary model. Includes metadata about the function, such as its name, as well as statistical
-    metrics such as the number of detections and possible detections. A function summary can be from either a
-    model monitoring application (type "application") or an infrastructure function (type "infra").
-    """
-
-    type: FunctionsType
-    name: str
-    application_class: str
-    project_name: str
-    updated_time: datetime
-    status: str | None = None
-    base_period: int | None = None
-    stats: dict | None = None
-
-    @classmethod
-    def from_function_dict(
-        cls,
-        func_dict: dict,
-        func_type=FunctionsType.APPLICATION,
-        base_period: int | None = None,
-        stats: dict | None = None,
-    ):
-        """
-        Create a FunctionSummary instance from a dictionary.
-        """
-
-        return cls(
-            type=func_type,
-            name=func_dict["metadata"]["name"]
-            if func_type != FunctionsType.APPLICATION
-            else func_dict["spec"]
-            .get("graph", {})
-            .get("steps", {})
-            .get("PrepareMonitoringEvent", {})
-            .get("class_args", {})
-            .get("application_name"),
-            application_class=""
-            if func_type != FunctionsType.APPLICATION
-            else func_dict["spec"]
-            .get("graph", {})
-            .get("steps", {})
-            .get("PushToMonitoringWriter", {})
-            .get("after", [None])[0],
-            project_name=func_dict["metadata"]["project"],
-            updated_time=func_dict["metadata"].get("updated"),
-            status=func_dict["status"].get("state"),
-            base_period=base_period,
-            stats=stats or {},
-        )
+if _USE_V2:
+    from .._v2.model_monitoring.functions import *  # noqa: F401,F403
+else:
+    from .._v1.model_monitoring.functions import *  # noqa: F401,F403

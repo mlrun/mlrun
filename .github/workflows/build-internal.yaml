@@ -187,7 +187,7 @@ jobs:
         INPUT_DOCKER_REPO: ${{ inputs.docker_repo }}
 
     - name: Docker login (ghcr)
-      uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # 4.4.0
+      uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # 4.6.0
       with:
         registry: ghcr.io
         username: ${{ github.repository_owner }}
@@ -196,7 +196,7 @@ jobs:
     - name: Docker login (quay.io)
       continue-on-error: true
       if: inputs.pr_number == ''
-      uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # 4.4.0
+      uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # 4.6.0
       with:
         registry: quay.io
         username: ${{ secrets.QUAY_IO_DOCKER_REGISTRY_USERNAME }}
@@ -205,7 +205,7 @@ jobs:
     - name: Docker login (docker.com)
       if: inputs.pr_number == ''
       continue-on-error: true
-      uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # 4.4.0
+      uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # 4.6.0
       with:
         registry: registry.hub.docker.com
         username: ${{ secrets.DOCKER_HUB_DOCKER_REGISTRY_USERNAME }}
@@ -213,7 +213,7 @@ jobs:
 
     - name: Docker login (Artifactory)
       if: inputs.is_private_release == true
-      uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # 4.4.0
+      uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # 4.6.0
       with:
         registry: ${{ secrets.PRIVATE_ARTIFACTORY_DOCKER_URL }}
         username: ${{ secrets.PRIVATE_ARTIFACTORY_USERNAME }}
@@ -275,18 +275,24 @@ jobs:
           done;
     - name: Pull cache, build and push test image
       # When version is given we're probably in a release process, we don't need the test image in that case
+      # The test image is built in "client" (rest/SDK) and "server" (api) flavors, each with its own
+      # lock and cache tag, so build and push both.
       if: matrix.image-name == 'test' && inputs.version == ''
       run: |
-        MLRUN_CACHE_DATE=${{ steps.computed_params.outputs.mlrun_cache_date }} \
-        MLRUN_DOCKER_REGISTRY=ghcr.io/ \
-        MLRUN_DOCKER_CACHE_FROM_REGISTRY=ghcr.io/ \
-        MLRUN_DOCKER_REPO=${{ steps.computed_params.outputs.mlrun_docker_repo }} \
-        MLRUN_VERSION=${{ steps.docker_cache.outputs.tag }} \
-        MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
-        MLRUN_PUSH_DOCKER_CACHE_IMAGE=${{ inputs.build_to_cache }} \
-        MLRUN_PYTHON_VERSION=${{ matrix.python-version }} \
-        INCLUDE_PYTHON_VERSION_SUFFIX=${{ matrix.include-suffix }} \
-        make push-${{ matrix.image-name }}
+        for flavor in client server; \
+          do \
+            MLRUN_CACHE_DATE=${{ steps.computed_params.outputs.mlrun_cache_date }} \
+            MLRUN_DOCKER_REGISTRY=ghcr.io/ \
+            MLRUN_DOCKER_CACHE_FROM_REGISTRY=ghcr.io/ \
+            MLRUN_DOCKER_REPO=${{ steps.computed_params.outputs.mlrun_docker_repo }} \
+            MLRUN_VERSION=${{ steps.docker_cache.outputs.tag }} \
+            MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
+            MLRUN_PUSH_DOCKER_CACHE_IMAGE=${{ inputs.build_to_cache }} \
+            MLRUN_PYTHON_VERSION=${{ matrix.python-version }} \
+            INCLUDE_PYTHON_VERSION_SUFFIX=${{ matrix.include-suffix }} \
+            MLRUN_TEST_FLAVOR=$flavor \
+            make push-${{ matrix.image-name }}; \
+          done;
 
     - name: Clean docker images
       if: always()

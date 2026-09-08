@@ -619,6 +619,17 @@ class SQLDB(DBInterface):
                 partition_order,
                 max_partitions,
             )
+            if sort:
+                # _create_partitioned_query() orders its result by partition_sort_by
+                # (e.g. "updated" for the "no filter" default) purely to make row
+                # selection/pagination deterministic - that field governs which row
+                # wins *within* a partition, not the contract of this function's own
+                # `sort` param (order by start_time). Query.order_by() appends rather
+                # than replaces, so reset before reapplying the same sort used for the
+                # non-partitioned path above.
+                query = query.order_by(None).order_by(
+                    Run.start_time.desc(), Run.id.desc()
+                )
 
         query = self._paginate_query(query, offset, limit)
 
@@ -1981,6 +1992,13 @@ class SQLDB(DBInterface):
                 partition_order,
                 with_tagged=True,
             )
+            # _create_partitioned_query() now applies its own ORDER BY for determinism.
+            # Query.order_by() appends rather than replaces, so left unreset it would
+            # silently become the leading sort key for order_criteria below and change
+            # which rows survive limit/offset for non-default partition_sort_by/order.
+            # This function already orders deterministically via order_criteria and the
+            # outer query's order_by(), so reset it here.
+            query = query.order_by(None)
         if parent_uri:
             query = self._add_artifact_parent_query(query=query, parent_uri=parent_uri)
 
@@ -4824,7 +4842,7 @@ class SQLDB(DBInterface):
                     feature_set, feature_set_digest_id_to_index, feature_set_digests_v2
                 )
                 features_with_feature_set_index.append(
-                    feature.copy(update=dict(feature_set_index=feature_set_index))
+                    feature.model_copy(update=dict(feature_set_index=feature_set_index))
                 )
 
         return mlrun.common.schemas.FeaturesOutputV2(
@@ -4886,7 +4904,7 @@ class SQLDB(DBInterface):
                     feature_set, feature_set_digest_id_to_index, feature_set_digests_v2
                 )
                 entities_with_feature_set_index.append(
-                    entity.copy(update=dict(feature_set_index=feature_set_index))
+                    entity.model_copy(update=dict(feature_set_index=feature_set_index))
                 )
 
         return mlrun.common.schemas.EntitiesOutputV2(
@@ -4965,8 +4983,15 @@ class SQLDB(DBInterface):
                     subquery.c.tag_name,
                     subquery.c.tag_id,
                 )
-            result_query = result_query.join(subquery, cls.id == subquery.c.id).filter(
-                subquery.c.row_number <= rows_per_partition
+            result_query = (
+                result_query.join(subquery, cls.id == subquery.c.id)
+                .filter(subquery.c.row_number <= rows_per_partition)
+                # The join above doesn't preserve the row_number window function's
+                # implicit order, so without an explicit ORDER BY the result order is
+                # undefined by the SQL standard.
+                .order_by(
+                    partition_order.to_order_by_predicate(sort_by_field), cls.id.desc()
+                )
             )
             return result_query
 
@@ -4986,6 +5011,9 @@ class SQLDB(DBInterface):
             session.query(cls)
             .join(subquery, cls.id == subquery.c.id)
             .filter(subquery.c.partition_rank <= max_partitions)
+            # Same ordering gap as the max_partitions == 0 branch above: rank the
+            # partitions by recency, then rows within a partition by their row_number.
+            .order_by(subquery.c.partition_rank, subquery.c.row_number, cls.id.desc())
         )
         return result_query
 
@@ -8108,6 +8136,7 @@ class SQLDB(DBInterface):
         )
 
     # --- Pagination ---
+    @retry_on_conflict
     def store_paginated_query_cache_record(
         self,
         session,
@@ -8131,7 +8160,12 @@ class SQLDB(DBInterface):
             f"{user}/{function}/{page_size}/{kwargs}".encode()
         ).hexdigest()
         if not pagination_cache_record:
-            # in this case, we just lock for update to make sure no one else is writing to it
+            # Lock for update in case a record for this key already exists, so a concurrent
+            # request updating it can't be lost. This does NOT protect the insert branch below:
+            # if two concurrent callers both see zero rows here, both build a fresh
+            # PaginationCache and one of the two inserts collides on the `key` primary key.
+            # @retry_on_conflict closes that gap by retrying this whole method on conflict, so
+            # the retry's SELECT sees the row the other caller just committed.
             pagination_cache_record = self.get_paginated_query_cache_record(
                 session, key=key, for_update=True
             )

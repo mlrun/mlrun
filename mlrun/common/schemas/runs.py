@@ -12,12 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import typing
 
-import pydantic.v1
+# Facade re-exporting the ``_shared`` layer and the active model face, preserving the
+# ``mlrun.common.schemas.runs`` import path.
+from ._dispatch import USE_V2_SCHEMAS as _USE_V2
 
-
-class RunIdentifier(pydantic.v1.BaseModel):
-    kind: typing.Literal["run"] = "run"
-    uid: str | None
-    iter: int | None
+if _USE_V2:
+    from ._v2.runs import *  # noqa: F401,F403
+else:
+    from ._v1.runs import *  # noqa: F401,F403

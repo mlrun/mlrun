@@ -492,6 +492,57 @@ async def test_multiple_store_function_race_condition(
     )
 
 
+@pytest.mark.asyncio
+async def test_concurrent_fresh_pagination_requests_do_not_conflict(
+    db: sqlalchemy.orm.Session, async_client: httpx.AsyncClient
+):
+    """
+    Regression test for ML-13001: two concurrent, fresh (no page-token) paginated list requests
+    with identical parameters hash to the same pagination-cache key. Before @retry_on_conflict was
+    added to store_paginated_query_cache_record, the losing request's insert raised an uncaught
+    MLRunConflictError instead of retrying - see the decorator's docstring for the general case
+    this is testing.
+    """
+    await services.api.tests.unit.api.utils.create_project_async(async_client, PROJECT)
+    # Make the pagination cache lookup return None (not found) on the first two calls, forcing
+    # both concurrent requests to take the fresh-insert branch and race on the same cache key
+    get_cache_record_mock = tests.conftest.MockSpecificCalls(
+        framework.utils.singletons.db.get_db().get_paginated_query_cache_record,
+        [1, 2],
+        None,
+    ).mock_function
+    framework.utils.singletons.db.get_db().get_paginated_query_cache_record = (
+        unittest.mock.Mock(side_effect=get_cache_record_mock)
+    )
+
+    request1_task = asyncio.create_task(
+        async_client.get(
+            f"projects/{PROJECT}/functions",
+            params={"page": 1, "page-size": 10},
+        )
+    )
+    request2_task = asyncio.create_task(
+        async_client.get(
+            f"projects/{PROJECT}/functions",
+            params={"page": 1, "page-size": 10},
+        )
+    )
+    response1, response2 = await asyncio.gather(
+        request1_task,
+        request2_task,
+    )
+
+    assert response1.status_code == HTTPStatus.OK.value
+    assert response2.status_code == HTTPStatus.OK.value
+    # 2 times for the two concurrent lookups + at least 1 retry lookup for the loser, but no more
+    # than 5 times, as retry should not be that excessive
+    assert (
+        3
+        <= framework.utils.singletons.db.get_db().get_paginated_query_cache_record.call_count
+        < 5
+    )
+
+
 def test_redirection_from_worker_to_chief_only_if_serving_function_with_track_models(
     db: sqlalchemy.orm.Session,
     client: fastapi.testclient.TestClient,
@@ -762,10 +813,10 @@ def test_build_function_force_build(
     # Mock the functions responsible for the image building
     with (
         unittest.mock.patch(
-            "services.api.utils.builder.make_dockerfile", return_value=""
+            "services.api.utils.builder.base.make_dockerfile", return_value=""
         ),
         unittest.mock.patch(
-            "services.api.utils.builder.make_kaniko_pod",
+            "services.api.utils.builder.kaniko.make_kaniko_pod",
             return_value=framework.utils.singletons.k8s.BasePod(),
         ),
         unittest.mock.patch(
@@ -784,6 +835,10 @@ def test_build_function_force_build(
             "pod-name",
             "namespace",
         )
+        # service-account resolution reads project secrets from k8s; return a real dict
+        # (as a live cluster would) so SecretsData validation succeeds - pydantic 2 rejects
+        # the default MagicMock, whereas pydantic 1 silently coerced it to {}.
+        mock_get_k8s_helper.return_value.get_project_secret_data.return_value = {}
 
         # call build/function and assert the function was called or not called as expected,
         # based on the force_build flag
@@ -796,8 +851,8 @@ def test_build_function_force_build(
         )
         assert response.status_code == HTTPStatus.OK.value
 
-        assert services.api.utils.builder.make_kaniko_pod.call_count == expected
-        assert services.api.utils.builder.make_dockerfile.call_count == expected
+        assert services.api.utils.builder.kaniko.make_kaniko_pod.call_count == expected
+        assert services.api.utils.builder.base.make_dockerfile.call_count == expected
         assert (
             framework.utils.singletons.k8s.get_k8s_helper().create_pod.call_count
             == expected

@@ -164,8 +164,8 @@ myst_xref_missing = "ignore"
 
 # These substitutions point to the relevant mlrun docs for the current CE version
 myst_substitutions = {
-    "version": "1.10.0",
-    "ceversion": "v0.10.0",
+    "version": "1.12.0",
+    "ceversion": "v0.12.0",
     "releasedocumentation": "docs.mlrun.org/en/stable/index.html",
 }
 
@@ -257,6 +257,9 @@ linkcheck_ignore = [
     "https://docs.confident-ai.com/docs/metrics-faithfulness",
     # ignore links to kubernetes.io, since they often block the traffic
     r"https://kubernetes.io/.*",
+    # iguazio docs and Slack return 403 to CI crawlers
+    r"https://www\.iguazio\.com/docs/.*",
+    r"https://mlopslive\.slack\.com.*",
 ]
 
 # -- Autosummary -------------------------------------------------------------

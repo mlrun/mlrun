@@ -12,19 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import typing
 
-import pydantic.v1
+# Facade re-exporting the ``_shared`` layer and the active model face, preserving the
+# ``mlrun.common.schemas.pipeline`` import path.
+from ._dispatch import USE_V2_SCHEMAS as _USE_V2
+from ._shared.pipeline import *  # noqa: F401,F403
 
-
-class PipelinesPagination(str):
-    default_page_size = 200
-    # https://github.com/kubeflow/pipelines/blob/release-2.16/backend/src/apiserver/list/list.go#L385
-    max_page_size = 200
-
-
-class PipelinesOutput(pydantic.v1.BaseModel):
-    # use the format query param to control what is returned
-    runs: list[typing.Union[dict, str]]
-    total_size: int
-    next_page_token: str | None
+if _USE_V2:
+    from ._v2.pipeline import *  # noqa: F401,F403
+else:
+    from ._v1.pipeline import *  # noqa: F401,F403

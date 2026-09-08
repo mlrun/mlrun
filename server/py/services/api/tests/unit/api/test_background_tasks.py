@@ -388,15 +388,19 @@ async def test_internal_background_task_already_running(
     db: sqlalchemy.orm.Session, async_client: httpx.AsyncClient
 ):
     timeout = 3
+    kind = "long_bump_counter"
     curr_call_counter = call_counter
+    handler = framework.utils.background_tasks.InternalBackgroundTasksHandler()
 
     # if we await the first future before sending the second request, the second request will be sent after the whole
-    # background task is finished because of how httpx.AsyncClient works. To avoid this, we send both requests and
-    # await them together. This way, the second request will be sent before the first background task is finished and
-    # will be rejected.
+    # background task is finished because of how httpx.AsyncClient works. To avoid this, we send the first request
+    # then wait for it to actually lock the "long_bump_counter" kind before sending the second - this way the second
+    # request is guaranteed to be sent while the first background task is still running and gets rejected.
     first_future = await async_client.post(
         f"/test/long-internal-background-tasks/{timeout}"
     )
+    while not handler.get_active_background_task_by_kind(kind):
+        await asyncio.sleep(0.05)
     second_future = await async_client.post(
         f"/test/long-internal-background-tasks/{timeout}"
     )

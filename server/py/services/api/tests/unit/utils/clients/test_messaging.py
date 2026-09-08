@@ -39,7 +39,7 @@ def fastapi_request():
             "method": "GET",
             "path": "/proxy-service/success",
             "headers": [(b"host", b"http://some-other-svc/proxy-service/success")],
-            "query_string": "",
+            "query_string": b"",
             "state": {"request_id": "test"},
             "app": fastapi_app,
         }

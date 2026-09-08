@@ -180,6 +180,46 @@ async def test_paginate_request(
 
 
 @pytest.mark.asyncio
+async def test_paginate_request_defaults_page_when_only_page_size_given(
+    mock_paginated_method,
+    cleanup_pagination_cache_on_teardown,
+    db: sqlalchemy.orm.Session,
+):
+    """
+    Regression test for ML-12987.
+    Requesting with page_size but no page and no token (the shape a first page-load request takes)
+    must default page to 1 instead of leaving it None, which used to crash _validate_integer_max_value
+    with a TypeError comparing NoneType to int.
+    """
+    auth_info = mlrun.common.schemas.AuthInfo(user_id="user1")
+    page_size = 3
+    method_kwargs = {"total_amount": 5, "since": datetime.datetime.now()}
+
+    paginator = framework.utils.pagination.Paginator()
+
+    response, pagination_info = await paginator.paginate_request(
+        db, paginated_method, auth_info, None, None, page_size, **method_kwargs
+    )
+    _assert_paginated_response(
+        response,
+        pagination_info,
+        1,
+        page_size,
+        ["item0", "item1", "item2"],
+        method_kwargs["since"],
+    )
+
+    cache_record = (
+        framework.utils.pagination_cache.PaginationCache().get_pagination_cache_record(
+            db, pagination_info.page_token
+        )
+    )
+    _assert_cache_record(
+        cache_record, auth_info.user_id, paginated_method, 1, page_size
+    )
+
+
+@pytest.mark.asyncio
 async def test_paginate_other_users_token(
     mock_paginated_method,
     cleanup_pagination_cache_on_teardown,
@@ -670,6 +710,41 @@ async def test_paginate_permission_filtered_no_pagination(
     )
     assert len(response) == 5
     assert not pagination_info["page"]
+
+
+@pytest.mark.asyncio
+async def test_paginate_permission_filtered_request_defaults_page_when_only_page_size_given(
+    mock_paginated_method,
+    cleanup_pagination_cache_on_teardown,
+    db: sqlalchemy.orm.Session,
+):
+    """
+    Regression test for ML-12987, exercised through the outer permission-filtered wrapper.
+    Requesting with page_size but no page and no token must default page to 1 instead of crashing.
+    """
+    auth_info = mlrun.common.schemas.AuthInfo(user_id="user1")
+    page_size = 3
+    method_kwargs = {"total_amount": 5, "since": datetime.datetime.now()}
+
+    paginator = framework.utils.pagination.Paginator()
+
+    async def filter_(items):
+        return items
+
+    response, pagination_info = await paginator.paginate_permission_filtered_request(
+        db,
+        paginated_method,
+        filter_,
+        auth_info,
+        None,
+        None,
+        page_size,
+        **method_kwargs,
+    )
+    pagination_info = mlrun.common.schemas.PaginationInfo(**pagination_info)
+    assert len(response) == 3
+    assert pagination_info.page == 1
+    assert pagination_info.page_size == page_size
 
 
 @pytest.mark.asyncio

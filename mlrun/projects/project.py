@@ -431,8 +431,9 @@ def load_project(
         elif url.startswith("db://") or "://" not in url:
             project = _load_project_from_db(url, secrets, user_project)
             project.spec.context = context
-            if not path.isdir(context):
-                makedirs(context)
+            # exist_ok=True avoids a TOCTOU race between concurrent get_or_create_project
+            # calls targeting the same new context dir.
+            makedirs(context, exist_ok=True)
             project.spec.subpath = subpath or project.spec.subpath
             from_db = True
         else:
@@ -5792,7 +5793,10 @@ class MlrunProject(ModelObj):
 
         :param states: List only runs whose state is one of the provided states.
         :param sort: Whether to sort the result according to their start time. Otherwise, results will be
-            returned by their internal order in the DB (order will not be guaranteed).
+            returned by their internal order in the DB (order will not be guaranteed). Takes precedence over
+            `partition_sort_by` for the returned order - `partition_sort_by` only decides which run wins
+            *within* a partition, and, when `max_partitions` is set, which partitions are kept; it does not
+            affect the order of the final result.
         :param iter: If ``True`` return runs from all iterations. Otherwise, return only runs whose ``iter`` is 0.
         :param start_time_from: Filter by run start time in ``[start_time_from, start_time_to]``.
         :param start_time_to: Filter by run start time in ``[start_time_from, start_time_to]``.

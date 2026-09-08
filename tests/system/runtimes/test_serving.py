@@ -53,6 +53,7 @@ class TestServingAPIHandler(tests.system.base.TestMLRunSystem):
     """System tests for serving function API handler functionality."""
 
     project_name = "serving-api-handler"
+    reuse_project_across_tests = True
     image: str | None = None
 
     def _create_serving_function(

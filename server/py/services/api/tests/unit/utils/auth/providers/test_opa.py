@@ -15,6 +15,7 @@
 import http
 import time
 import typing
+import unittest.mock
 
 import aioresponses
 import deepdiff
@@ -205,6 +206,189 @@ async def test_query_permissions_failure(
             mlrun.errors.MLRunAccessDeniedError,
             match=f"Not allowed to {action} resource {resource}",
         ):
+            await opa_provider.query_permissions(resource, action, auth_info)
+
+
+@pytest.mark.asyncio
+async def test_query_permissions_store_both_sub_actions_denied_emits_one_event(
+    api_url: str,
+    permission_query_path: str,
+    opa_provider: framework.utils.auth.providers.opa.Provider,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """A denied store must surface as exactly one audit event labeled "store",
+    not one event per denied create/update sub-check."""
+    resource = "/projects/project-name/functions/function-name"
+    action = mlrun.common.schemas.AuthorizationAction.store
+    auth_info = mlrun.common.schemas.AuthInfo(username="some-user")
+    listener = _mock_permission_denied_listener(monkeypatch)
+
+    with aioresponses.aioresponses() as aiohttp_mock:
+        aiohttp_mock.post(
+            f"{api_url}{permission_query_path}",
+            payload={"result": False},
+            repeat=True,
+        )
+        with pytest.raises(mlrun.errors.MLRunAccessDeniedError):
+            await opa_provider.query_permissions(resource, action, auth_info)
+
+    listener.assert_called_once_with(resource, str(action), "some-user")
+
+
+@pytest.mark.asyncio
+async def test_query_permissions_store_one_sub_action_denied_emits_one_event(
+    api_url: str,
+    permission_query_path: str,
+    opa_provider: framework.utils.auth.providers.opa.Provider,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    resource = "/projects/project-name/functions/function-name"
+    action = mlrun.common.schemas.AuthorizationAction.store
+    auth_info = mlrun.common.schemas.AuthInfo(username="some-user")
+    listener = _mock_permission_denied_listener(monkeypatch)
+
+    def mock_permission_query(url, **kwargs):
+        allowed = kwargs["json"]["input"]["action"] == str(
+            mlrun.common.schemas.AuthorizationAction.create
+        )
+        return aioresponses.CallbackResult(
+            status=http.HTTPStatus.OK.value, payload={"result": allowed}
+        )
+
+    with aioresponses.aioresponses() as aiohttp_mock:
+        aiohttp_mock.post(
+            f"{api_url}{permission_query_path}",
+            callback=mock_permission_query,
+            repeat=True,
+        )
+        with pytest.raises(mlrun.errors.MLRunAccessDeniedError):
+            await opa_provider.query_permissions(resource, action, auth_info)
+
+    listener.assert_called_once_with(resource, str(action), "some-user")
+
+
+@pytest.mark.asyncio
+async def test_query_permissions_store_success_emits_no_event(
+    api_url: str,
+    permission_query_path: str,
+    opa_provider: framework.utils.auth.providers.opa.Provider,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    resource = "/projects/project-name/functions/function-name"
+    action = mlrun.common.schemas.AuthorizationAction.store
+    auth_info = mlrun.common.schemas.AuthInfo(username="some-user")
+    listener = _mock_permission_denied_listener(monkeypatch)
+
+    with aioresponses.aioresponses() as aiohttp_mock:
+        aiohttp_mock.post(
+            f"{api_url}{permission_query_path}",
+            payload={"result": True},
+            repeat=True,
+        )
+        allowed = await opa_provider.query_permissions(resource, action, auth_info)
+
+    assert allowed is True
+    listener.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_query_permissions_failure_emits_permission_denied_event(
+    api_url: str,
+    permission_query_path: str,
+    opa_provider: framework.utils.auth.providers.opa.Provider,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    resource = "/projects/project-name/functions/function-name"
+    action = mlrun.common.schemas.AuthorizationAction.create
+    auth_info = mlrun.common.schemas.AuthInfo(username="some-user")
+    listener = _mock_permission_denied_listener(monkeypatch)
+
+    with aioresponses.aioresponses() as aiohttp_mock:
+        aiohttp_mock.post(
+            f"{api_url}{permission_query_path}",
+            payload={"result": False},
+        )
+        with pytest.raises(mlrun.errors.MLRunAccessDeniedError):
+            await opa_provider.query_permissions(resource, action, auth_info)
+
+    listener.assert_called_once_with(resource, str(action), "some-user")
+
+
+@pytest.mark.asyncio
+async def test_query_permissions_failure_skip_logging_forbidden_skips_event(
+    api_url: str,
+    permission_query_path: str,
+    opa_provider: framework.utils.auth.providers.opa.Provider,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    resource = "/projects/project-name/functions/function-name"
+    action = mlrun.common.schemas.AuthorizationAction.create
+    auth_info = mlrun.common.schemas.AuthInfo(username="some-user")
+    listener = _mock_permission_denied_listener(monkeypatch)
+
+    with aioresponses.aioresponses() as aiohttp_mock:
+        aiohttp_mock.post(
+            f"{api_url}{permission_query_path}",
+            payload={"result": False},
+        )
+        with pytest.raises(mlrun.errors.MLRunAccessDeniedError):
+            await opa_provider.query_permissions(
+                resource, action, auth_info, skip_logging_forbidden=True
+            )
+
+    listener.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_query_permissions_raise_on_forbidden_false_skips_event(
+    api_url: str,
+    permission_query_path: str,
+    opa_provider: framework.utils.auth.providers.opa.Provider,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    resource = "/projects/project-name/functions/function-name"
+    action = mlrun.common.schemas.AuthorizationAction.create
+    auth_info = mlrun.common.schemas.AuthInfo(username="some-user")
+    listener = _mock_permission_denied_listener(monkeypatch)
+
+    with aioresponses.aioresponses() as aiohttp_mock:
+        aiohttp_mock.post(
+            f"{api_url}{permission_query_path}",
+            payload={"result": False},
+        )
+        allowed = await opa_provider.query_permissions(
+            resource, action, auth_info, raise_on_forbidden=False
+        )
+
+    assert allowed is False
+    listener.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_query_permissions_publish_failure_does_not_propagate(
+    api_url: str,
+    permission_query_path: str,
+    opa_provider: framework.utils.auth.providers.opa.Provider,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    resource = "/projects/project-name/functions/function-name"
+    action = mlrun.common.schemas.AuthorizationAction.create
+    auth_info = mlrun.common.schemas.AuthInfo(username="some-user")
+
+    def _boom(*_args, **_kwargs):
+        raise RuntimeError("listener broken")
+
+    monkeypatch.setattr(
+        framework.utils.auth.providers.opa, "_permission_denied_listener", _boom
+    )
+
+    with aioresponses.aioresponses() as aiohttp_mock:
+        aiohttp_mock.post(
+            f"{api_url}{permission_query_path}",
+            payload={"result": False},
+        )
+        # the caller must still get ErrForbidden even though publishing blew up
+        with pytest.raises(mlrun.errors.MLRunAccessDeniedError):
             await opa_provider.query_permissions(resource, action, auth_info)
 
 
@@ -468,3 +652,13 @@ def test_attach_resource_namespace(
         )
     )
     assert namespaced_resource_string == expected_resource_string
+
+
+def _mock_permission_denied_listener(
+    monkeypatch: pytest.MonkeyPatch,
+) -> unittest.mock.MagicMock:
+    listener = unittest.mock.MagicMock()
+    monkeypatch.setattr(
+        framework.utils.auth.providers.opa, "_permission_denied_listener", listener
+    )
+    return listener

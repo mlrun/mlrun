@@ -25,6 +25,8 @@ import mlrun
 import mlrun.common.schemas
 from mlrun.config import config
 
+from .base import is_response_start
+
 
 class UiClearCacheMiddleware:
     def __init__(
@@ -56,7 +58,7 @@ class UiClearCacheMiddleware:
 
         async def send_wrapper(message: Message) -> None:
             if (
-                message["type"] == "http.response.start"
+                is_response_start(message)
                 and ui_version
                 and ui_version != config.version
                 and not self._is_development_version()

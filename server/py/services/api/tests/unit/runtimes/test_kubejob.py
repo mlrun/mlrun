@@ -1128,13 +1128,14 @@ def my_func(context):
     ):
         mlrun.mlconf.httpdb.builder.docker_registry = "localhost:5000"
         with unittest.mock.patch(
-            "services.api.utils.builder.make_kaniko_pod", unittest.mock.MagicMock()
+            "services.api.utils.builder.kaniko.make_kaniko_pod",
+            unittest.mock.MagicMock(),
         ):
             runtime = self._generate_runtime()
             runtime.spec.build.base_image = "some/image"
             runtime.spec.build.commands = copy.deepcopy(commands)
             self.deploy(db, runtime, with_mlrun=with_mlrun)
-            dockerfile = services.api.utils.builder.make_kaniko_pod.call_args[1][
+            dockerfile = services.api.utils.builder.kaniko.make_kaniko_pod.call_args[1][
                 "dockertext"
             ]
             if expected_to_upgrade:
@@ -1154,7 +1155,7 @@ def my_func(context):
                         "\nRUN python -m pip install -r /empty/requirements.txt"
                     )
                     kaniko_pod_requirements = (
-                        services.api.utils.builder.make_kaniko_pod.call_args[1][
+                        services.api.utils.builder.kaniko.make_kaniko_pod.call_args[1][
                             "requirements"
                         ]
                     )
@@ -1247,7 +1248,8 @@ def my_func(context):
     ):
         mlrun.mlconf.httpdb.builder.docker_registry = "localhost:5000"
         with unittest.mock.patch(
-            "services.api.utils.builder.make_kaniko_pod", unittest.mock.MagicMock()
+            "services.api.utils.builder.kaniko.make_kaniko_pod",
+            unittest.mock.MagicMock(),
         ):
             runtime = self._generate_runtime()
             runtime.spec.build.base_image = "some/image"
@@ -1260,7 +1262,7 @@ def my_func(context):
             )
 
             self.deploy(db, runtime, with_mlrun=with_mlrun)
-            dockerfile = services.api.utils.builder.make_kaniko_pod.call_args[1][
+            dockerfile = services.api.utils.builder.kaniko.make_kaniko_pod.call_args[1][
                 "dockertext"
             ]
 
@@ -1269,7 +1271,9 @@ def my_func(context):
                 "\nRUN python -m pip install -r /empty/requirements.txt"
             )
             kaniko_pod_requirements = (
-                services.api.utils.builder.make_kaniko_pod.call_args[1]["requirements"]
+                services.api.utils.builder.kaniko.make_kaniko_pod.call_args[1][
+                    "requirements"
+                ]
             )
             if with_mlrun:
                 expected_str = f"\nRUN python -m pip install --upgrade pip{mlrun.mlconf.httpdb.builder.pip_version}"

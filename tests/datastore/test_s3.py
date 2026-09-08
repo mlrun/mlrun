@@ -274,3 +274,50 @@ class TestS3StoreAnonymousAccessFallback:
             mock_resource.meta.client.meta.events.register.call_args[0][0]
             == "choose-signer.s3.*"
         )
+
+
+class TestS3StoreGetStorageOptions:
+    """Tests for ML-13000: get_storage_options() (used by fsspec/s3fs, e.g. for
+    context.log_dataset) must mirror __init__'s signing decision, so that default
+    credentials (IAM roles, IRSA, etc.) are honored instead of forcing anonymous
+    (unsigned) access, which fails against SSE-KMS encrypted buckets.
+    """
+
+    def test_not_anonymous_when_default_credentials_available(self) -> None:
+        """When default credentials (e.g. IRSA on EKS) exist, storage options
+        must not force anonymous access, even though no explicit AWS keys or
+        S3_NON_ANONYMOUS were provided."""
+        with (
+            patch("mlrun.datastore.s3.DataStore.__init__", return_value=None),
+            patch("mlrun.datastore.s3.S3Store._get_secret_or_env", return_value=None),
+            patch("boto3.resource"),
+            patch(
+                "mlrun.datastore.s3.S3Store._has_default_credentials",
+                return_value=True,
+            ),
+        ):
+            store = S3Store(parent=None, schema="s3", name="test", endpoint="bucket")
+            store._sanitize_options = Mock(side_effect=lambda x: x)
+
+            storage_options = store.get_storage_options()
+
+        assert storage_options["anon"] is False
+
+    def test_anonymous_when_no_credentials_available(self) -> None:
+        """When no credentials are available through any provider, storage
+        options fall back to anonymous access."""
+        with (
+            patch("mlrun.datastore.s3.DataStore.__init__", return_value=None),
+            patch("mlrun.datastore.s3.S3Store._get_secret_or_env", return_value=None),
+            patch("boto3.resource"),
+            patch(
+                "mlrun.datastore.s3.S3Store._has_default_credentials",
+                return_value=False,
+            ),
+        ):
+            store = S3Store(parent=None, schema="s3", name="test", endpoint="bucket")
+            store._sanitize_options = Mock(side_effect=lambda x: x)
+
+            storage_options = store.get_storage_options()
+
+        assert storage_options["anon"] is True

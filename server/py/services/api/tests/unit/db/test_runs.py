@@ -14,7 +14,7 @@
 
 import time
 import unittest.mock
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlalchemy.dialects import mysql, postgresql, sqlite
@@ -639,6 +639,198 @@ class TestRuns(TestDatabaseBase):
             assert run_name == expected_name, (
                 f"Expected {expected_name}, got {run_name}"
             )
+
+    def test_list_runs_partitioned_no_max_partitions_has_explicit_order_by(self):
+        # _create_partitioned_query's max_partitions=0 branch (the one every "no
+        # filter" list_runs call hits) joins the ranked subquery onto the runs table.
+        # Without an outer ORDER BY, the result order is left up to the DB engine
+        # instead of following partition_sort_by/order.
+        #
+        # SQLite happens to preserve the window function's internal sort into the
+        # final join for this query shape regardless of whether the fix is present,
+        # so an end-to-end "is the returned row order correct" assertion can't
+        # actually distinguish fixed from broken here (verified: it passes either
+        # way). The real regression guard is inspecting the compiled SQL for an
+        # explicit ORDER BY - this is what MySQL's optimizer needs to produce a
+        # deterministic result, and it's what the fix actually adds.
+        project_name = "my-project"
+        query = self._db._find_runs(self._db_session, None, project_name)
+        partitioned_query = self._db._create_partitioned_query(
+            self._db_session,
+            query,
+            framework.db.sqldb.models.Run,
+            mlrun.common.schemas.RunPartitionByField.project_and_name,
+            rows_per_partition=5,
+            partition_sort_by=mlrun.common.schemas.SortField.updated,
+            partition_order=mlrun.common.schemas.OrderType.desc,
+        )
+        compiled_sql = str(partitioned_query.statement.compile(dialect=mysql.dialect()))
+        # The row_number() window function's own OVER(ORDER BY ...) clause always
+        # contains the substring "ORDER BY" - that's not what's under test. A
+        # second, outer-level ORDER BY (added by the fix) is what's needed for a
+        # deterministic final result, so assert on the count, not just presence.
+        assert compiled_sql.count("ORDER BY") >= 2, (
+            "expected an explicit outer ORDER BY on the partitioned query in "
+            f"addition to the window function's own OVER(ORDER BY ...), got: {compiled_sql}"
+        )
+
+        # End-to-end sanity check: still exercises the real list_runs() path and
+        # documents the intended behaviour, even though it can't fail on SQLite.
+        run_name = "run-same-name"
+        number_of_runs = 5
+        base_time = datetime(2026, 1, 1, tzinfo=UTC)
+        for counter in range(number_of_runs):
+            uid = f"uid-{counter}"
+            self._create_new_run(project=project_name, name=run_name, uid=uid)
+            self._db.update_db_object(
+                self._db_session,
+                framework.db.sqldb.models.Run,
+                filters={"uid": uid},
+                updated=base_time + timedelta(seconds=counter),
+            )
+
+        runs = self._db.list_runs(
+            self._db_session,
+            project=project_name,
+            partition_by=mlrun.common.schemas.RunPartitionByField.project_and_name,
+            partition_sort_by=mlrun.common.schemas.SortField.updated,
+            partition_order=mlrun.common.schemas.OrderType.desc,
+            rows_per_partition=number_of_runs,
+        )
+        assert len(runs) == number_of_runs
+        expected_uids = [f"uid-{i}" for i in range(number_of_runs - 1, -1, -1)]
+        actual_uids = [run["metadata"]["uid"] for run in runs]
+        assert actual_uids == expected_uids, (
+            f"Expected runs ordered newest-updated-first {expected_uids}, "
+            f"got {actual_uids}"
+        )
+
+    def test_list_runs_partitioned_with_max_partitions_has_explicit_order_by(self):
+        # The max_partitions>0 branch of _create_partitioned_query has the same
+        # missing-ORDER-BY gap as the max_partitions=0 branch. See the comment in
+        # test_list_runs_partitioned_no_max_partitions_has_explicit_order_by for why
+        # the compiled-SQL assertion, not row order, is the real regression guard.
+        project_name = "my-project"
+        query = self._db._find_runs(self._db_session, None, project_name)
+        partitioned_query = self._db._create_partitioned_query(
+            self._db_session,
+            query,
+            framework.db.sqldb.models.Run,
+            mlrun.common.schemas.RunPartitionByField.project_and_name,
+            rows_per_partition=2,
+            partition_sort_by=mlrun.common.schemas.SortField.updated,
+            partition_order=mlrun.common.schemas.OrderType.desc,
+            max_partitions=2,
+        )
+        compiled_sql = str(partitioned_query.statement.compile(dialect=mysql.dialect()))
+        # This branch already has two window functions pre-fix - row_number() and
+        # dense_rank() - each with its own OVER(ORDER BY ...), contributing 2
+        # occurrences of "ORDER BY" regardless of the fix. A third, outer-level
+        # ORDER BY (added by the fix) is what's needed for a deterministic final
+        # result, so assert on the count, not just presence.
+        assert compiled_sql.count("ORDER BY") >= 3, (
+            "expected an explicit outer ORDER BY on the partitioned query in "
+            "addition to the row_number()/dense_rank() window functions' own "
+            f"OVER(ORDER BY ...) clauses, got: {compiled_sql}"
+        )
+
+        # End-to-end sanity check: still exercises the real list_runs() path and
+        # documents the intended behaviour, even though it can't fail on SQLite.
+        base_time = datetime(2026, 1, 1, tzinfo=UTC)
+        partitions = [
+            ("run-oldest", 0),
+            ("run-newest", 20),
+            ("run-middle", 10),
+        ]
+        for run_name, offset_seconds in partitions:
+            for counter in range(2):
+                uid = f"{run_name}-uid-{counter}"
+                self._create_new_run(project=project_name, name=run_name, uid=uid)
+                self._db.update_db_object(
+                    self._db_session,
+                    framework.db.sqldb.models.Run,
+                    filters={"uid": uid},
+                    updated=base_time + timedelta(seconds=offset_seconds + counter),
+                )
+
+        runs = self._db.list_runs(
+            self._db_session,
+            project=project_name,
+            partition_by=mlrun.common.schemas.RunPartitionByField.project_and_name,
+            partition_sort_by=mlrun.common.schemas.SortField.updated,
+            partition_order=mlrun.common.schemas.OrderType.desc,
+            rows_per_partition=2,
+            max_partitions=2,
+        )
+        run_names = [run["metadata"]["name"] for run in runs]
+        # Partition *selection* (which partitions/rows survive max_partitions and
+        # rows_per_partition) is still ranked by partition_sort_by ("updated" here) -
+        # that's unaffected by list_runs's `sort` param, since it happens inside the
+        # subquery before any outer ORDER BY is applied.
+        assert set(run_names) == {"run-newest", "run-middle"}
+        assert len(runs) == 4
+        # But list_runs's own `sort` contract (default True: order by start_time) takes
+        # precedence over partition_sort_by for the *display* order of already-selected
+        # rows - partition_sort_by ("updated") only decided which rows survived, above.
+        # Runs were created oldest -> newest -> middle, so start_time descending is
+        # middle-1, middle-0, newest-1, newest-0 (oldest's partition didn't survive).
+        expected_order = [
+            "run-middle-uid-1",
+            "run-middle-uid-0",
+            "run-newest-uid-1",
+            "run-newest-uid-0",
+        ]
+        actual_order = [run["metadata"]["uid"] for run in runs]
+        assert actual_order == expected_order, (
+            f"Expected {expected_order}, got {actual_order}"
+        )
+
+    def test_list_runs_partitioned_sort_true_orders_by_start_time_not_partition_sort_by(
+        self,
+    ):
+        # ML-13004 reopen: the "no filter" default (server/py/services/api/crud/
+        # runs.py) sets partition_by=project_and_name, partition_sort_by=updated
+        # (with the default rows_per_partition=1, so distinctly-named runs all
+        # survive). list_runs's own `sort` param (default True) promises the
+        # *displayed* result is ordered by start_time regardless - partition_sort_by
+        # only decides which row wins *within* a partition (irrelevant here, one
+        # row per name), not the final order. Mirrors the naipi repro: runs finish
+        # (get `updated`) in a different order than they started.
+        project_name = "my-project"
+        base_time = datetime(2026, 1, 1, tzinfo=UTC)
+        run_names_by_updated_offset = [
+            ("run-a", 30),
+            ("run-b", 10),
+            ("run-c", 20),
+        ]
+        for run_name, updated_offset_seconds in run_names_by_updated_offset:
+            uid = f"{run_name}-uid"
+            self._create_new_run(project=project_name, name=run_name, uid=uid)
+            self._db.update_db_object(
+                self._db_session,
+                framework.db.sqldb.models.Run,
+                filters={"uid": uid},
+                updated=base_time + timedelta(seconds=updated_offset_seconds),
+            )
+
+        runs = self._db.list_runs(
+            self._db_session,
+            project=project_name,
+            partition_by=mlrun.common.schemas.RunPartitionByField.project_and_name,
+            partition_sort_by=mlrun.common.schemas.SortField.updated,
+            partition_order=mlrun.common.schemas.OrderType.desc,
+        )
+        assert len(runs) == 3
+        # Created run-a, run-b, run-c in that order (ascending start_time), so
+        # descending start_time order is run-c, run-b, run-a. If partition_sort_by
+        # ("updated") leaked into display order it would instead be run-a (30s),
+        # run-c (20s), run-b (10s).
+        expected_order = ["run-c-uid", "run-b-uid", "run-a-uid"]
+        actual_order = [run["metadata"]["uid"] for run in runs]
+        assert actual_order == expected_order, (
+            f"Expected start_time-ordered {expected_order}, got {actual_order} "
+            "(partition_sort_by leaking into display order?)"
+        )
 
     def test_list_runs_with_missing_milliseconds_in_timestamp(self):
         self._create_new_run(project="my-project")

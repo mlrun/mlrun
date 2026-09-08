@@ -92,6 +92,13 @@ $(GO_PKG_DIR)/%.pb.go: $(PROTO_DIR)/%.proto
 		--go-grpc_out=$(GO_OUT_DIR) \
 		--go-grpc_opt=require_unimplemented_servers=false \
 		$<
+	@# strip the protoc compiler version stamp: it differs across local/CI/Docker toolchains
+	@# and would otherwise make the checked-in generated sources non-reproducible.
+	@# protoc-gen-go places output under a path derived from the proto's go_package option
+	@# (not necessarily $(GO_PKG_DIR)), so locate the freshly generated files by name instead.
+	@find $(GO_OUT_DIR) -name '$*.pb.go' -o -name '$*_grpc.pb.go' | while read -r f; do \
+		sed '/protoc[[:space:]][[:space:]]*v[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*[[:space:]]*$$/d' "$$f" > "$$f.tmp" && mv "$$f.tmp" "$$f"; \
+	done
 
 $(PY_OUT_DIR)/%_pb2.py $(PY_OUT_DIR)/%_pb2_grpc.py: $(PROTO_DIR)/%.proto
 	@mkdir -p $(PY_OUT_DIR)

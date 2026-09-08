@@ -522,9 +522,8 @@ async def delete_model_endpoints_metrics_values(
         Query(pattern=mm_constants.APP_NAME_REGEX.pattern, alias="application-name"),
     ],
     endpoint_id: Annotated[
-        list[str] | None,
+        list[EndpointIDAnnotation] | None,
         Query(
-            pattern=mm_constants.MODEL_ENDPOINT_ID_PATTERN,
             alias="endpoint-id",
             description=(
                 "The unique id of the model endpoint. If none is provided, the metrics "

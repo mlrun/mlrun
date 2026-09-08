@@ -43,6 +43,7 @@ import framework.utils.time_window_tracker
 import services.alerts.crud
 import services.alerts.initial_data
 import services.api.crud
+import services.api.utils.events.permission_denied
 from framework.routers import (
     alert_activations,
     alert_template,
@@ -539,6 +540,11 @@ class Service(framework.service.Service):
             )
 
         return alert_activation
+
+    async def _custom_setup_service(self):
+        # Standalone alerts (not hydra-mounted into the api service) never runs
+        # services.api.main's setup, so this process needs its own registration.
+        services.api.utils.events.permission_denied.register_for_opa_provider()
 
     async def _move_service_to_online(self):
         if not get_project_member():

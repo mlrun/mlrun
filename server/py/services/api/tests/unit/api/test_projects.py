@@ -1833,11 +1833,9 @@ def test_project_image_builder_validation(
     # store project request to save the parameters
     response = client.put(f"projects/{project.metadata.name}", json=project.dict())
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY.value
-    assert (
-        '{"detail":[{"loc":["body","spec","build","requirements"],'
-        '"msg":"value is not a valid list","type":"type_error.list"}]}'
-        in str(response.content.decode())
-    )
+    error_detail = response.json()["detail"][0]
+    assert error_detail["loc"] == ["body", "spec", "build", "requirements"]
+    assert error_detail["type"] == "list_type"
 
     # bypass the validation
     corrupted_project_name = "corrupted_project"
@@ -2031,7 +2029,7 @@ def _create_resources_of_all_kinds(
         entities={
             "kind": mlrun.common.schemas.alert.EventEntityKind.MODEL_ENDPOINT_RESULT,
             "project": project,
-            "ids": [1234],
+            "ids": ["1234"],
         },
         trigger={"events": [mlrun.common.schemas.alert.EventKind.DATA_DRIFT_DETECTED]},
         notifications=[{"notification": notification.to_dict()}],

@@ -13,31 +13,12 @@
 # limitations under the License.
 
 
-import pydantic.v1
+# Facade re-exporting the ``_shared`` layer and the active model face, preserving the
+# ``mlrun.common.schemas.k8s`` import path.
+from ._dispatch import USE_V2_SCHEMAS as _USE_V2
+from ._shared.k8s import *  # noqa: F401,F403
 
-import mlrun.common.types
-
-
-class ResourceSpec(pydantic.v1.BaseModel):
-    cpu: str | None
-    memory: str | None
-    gpu: str | None
-
-
-class Resources(pydantic.v1.BaseModel):
-    requests: ResourceSpec = ResourceSpec()
-    limits: ResourceSpec = ResourceSpec()
-
-
-class NodeSelectorOperator(mlrun.common.types.StrEnum):
-    """
-    A node selector operator is the set of operators that can be used in a node selector requirement
-    https://github.com/kubernetes/api/blob/b754a94214be15ffc8d648f9fe6481857f1fc2fe/core/v1/types.go#L2765
-    """
-
-    node_selector_op_in = "In"
-    node_selector_op_not_in = "NotIn"
-    node_selector_op_exists = "Exists"
-    node_selector_op_does_not_exist = "DoesNotExist"
-    node_selector_op_gt = "Gt"
-    node_selector_op_lt = "Lt"
+if _USE_V2:
+    from ._v2.k8s import *  # noqa: F401,F403
+else:
+    from ._v1.k8s import *  # noqa: F401,F403

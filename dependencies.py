@@ -55,7 +55,7 @@ def extra_requirements() -> dict[str, list[str]]:
             "gcsfs>=2025.5.1, <=2025.7.0",
         ],
         "kafka": [
-            "kafka-python~=2.1.0",
+            "kafka-python~=2.3.2",
             # because confluent kafka supports avro format by default
             "avro~=1.11",
         ],
@@ -84,7 +84,7 @@ def extra_requirements() -> dict[str, list[str]]:
     extras_require.update(
         {
             "dev-postgres": ["pytest-mock-resources[postgres]~=2.12"],
-            "kfp18": ["mlrun_pipelines_kfp_v1_8[kfp]~=0.7.0"],
+            "kfp18": ["mlrun_pipelines_kfp_v1_8[kfp]~=0.8.0"],
             "mlflow": ["mlflow~=3.0"],
             "ig4": ["iguazio~=0.2.1"],
             # TODO uncomment when KFP 1.8 support is removed

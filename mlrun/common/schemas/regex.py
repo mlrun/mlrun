@@ -12,13 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import mlrun.common.types
 
-
-class RegexMatchModes(mlrun.common.types.StrEnum):
-    """Regex match modes"""
-
-    # all regexes must match
-    all = "all"
-    # any of the regexes must match
-    any = "any"
+# Facade re-exporting the ``_shared`` layer, preserving the
+# ``mlrun.common.schemas.regex`` import path.
+from ._shared.regex import *  # noqa: F401,F403

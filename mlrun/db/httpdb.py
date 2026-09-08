@@ -3389,7 +3389,7 @@ class HTTPRunDB(RunDBInterface):
 
     def _orca_direct_mode(self) -> bool:
         """Whether project CUD should bypass the MLRun API and talk to Orca directly - the SDK
-        side of the enterprise (IG4/Orca-led) project-sync mechanism (ML-12903). MLRun's own API
+        side of the enterprise (IG4/Orca-led) project-sync mechanism. MLRun's own API
         remains the transport for everyone else: CE, enterprise deployments where Orca's
         address isn't configured client-side yet, and deployments where the API server hasn't
         (yet) cut project-sync leadership over to Orca - ``projects_leader`` is synced from the

@@ -267,7 +267,7 @@ class TestOrcaProjectsClient:
 
         # only touches description and adds one label - owner, annotations, and the existing
         # "team" label must survive the merge untouched (Orca's PATCH is full-replace, not
-        # merge, so a naive pass-through of this partial patch would wipe them - see orca#1059).
+        # merge, so a naive pass-through of this partial patch would wipe them).
         patch_body = {
             "metadata": {"labels": {"env": "prod"}},
             "spec": {"description": "new desc"},
@@ -416,9 +416,9 @@ class TestHTTPRunDBOrcaGate:
             getattr(db, method_name)(*call_args)
             assert not mock_api_call.called
 
-        # HTTPRunDB itself has no wait_for_completion knob (ML-12903: no known SDK caller
-        # needs async project creation, and exposing it would only work in this one mode) -
-        # it always asks the Orca client to block until the operation settles.
+        # HTTPRunDB itself has no wait_for_completion knob - no known SDK caller needs async
+        # project creation, and exposing it would only work in this one mode - so it always
+        # asks the Orca client to block until the operation settles.
         orca_method = getattr(fake_client, orca_method_name)
         orca_method.assert_called_once()
         assert orca_method.call_args.kwargs["wait_for_completion"] is True

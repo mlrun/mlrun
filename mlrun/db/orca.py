@@ -194,7 +194,7 @@ class OrcaProjectsClient:
         """Patch (partial update) a project directly in Orca.
 
         Orca's ``PATCH`` is full-replace, not merge (same required fields, same semantics as its
-        ``PUT`` - see orca SDK PR #1059), unlike MLRun's own ``patch_project``, which merges only
+        ``PUT``), unlike MLRun's own ``patch_project``, which merges only
         the given fields into the existing stored project. To preserve that partial-patch
         contract, this reads the project's current common-set fields from Orca first, merges
         ``project``'s changes into them the same way MLRun's own server does

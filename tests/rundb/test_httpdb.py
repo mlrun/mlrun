@@ -699,8 +699,8 @@ def test_connect_invokes_init_token_provider_from_env():
 
 def test_connect_syncs_projects_leader_from_client_spec():
     """``connect()`` syncs the server's project-sync leader, so ``_orca_direct_mode()`` can
-    tell whether the API server has actually cut project CUD over to Orca (ML-12903) - the SDK
-    has no other way to observe that.
+    tell whether the API server has actually cut project CUD over to Orca - the SDK has no
+    other way to observe that.
     """
     mlrun.mlconf.httpdb.projects.leader = "mlrun"
     server_cfg = {"version": mlrun.mlconf.version, "projects_leader": "orca"}

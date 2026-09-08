@@ -73,7 +73,7 @@ class OrcaProjectsOrchestrator:
     def create(
         self, project: orca_projects.ProjectLike
     ) -> tuple[requests.Response, uuid.UUID | str]:
-        """``POST`` a new project - always async per the HLD (no synchronous-create case).
+        """``POST`` a new project - always async (no synchronous-create case).
 
         :return: The raw response, and the minted ``op_id``.
         """
@@ -91,8 +91,7 @@ class OrcaProjectsOrchestrator:
         self, name: str, project: orca_projects.ProjectLike
     ) -> tuple[requests.Response, uuid.UUID | str]:
         """``PUT`` a project's desired state. Resolves the CAS witness (``prev_op_id``) first
-        if the caller didn't supply one. May settle synchronously (200) or asynchronously (202)
-        per the HLD.
+        if the caller didn't supply one. May settle synchronously (200) or asynchronously (202).
 
         :return: The raw response, and the ``op_id`` this update minted.
         """
@@ -177,8 +176,8 @@ class OrcaProjectsOrchestrator:
         self, name: str, project: orca_projects.ProjectLike
     ) -> uuid.UUID | str | None:
         # The CAS witness Orca requires for an update is the last op_id the caller observed; if
-        # the caller didn't supply one, read the current state from Orca first (matches the
-        # HLD's "client reads the project, then PUT/PATCH with prev_op_id" contract). A missing
+        # the caller didn't supply one, read the current state from Orca first (client reads
+        # the project, then PUT/PATCH with prev_op_id). A missing
         # project (an upsert-create case: PUT on a project that doesn't exist yet) has no prior
         # op_id to CAS against - fall through with None.
         prev_op_id = getattr(getattr(project, "status", None), "op_id", None)

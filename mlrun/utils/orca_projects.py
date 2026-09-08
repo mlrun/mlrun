@@ -31,7 +31,7 @@ PROJECT_ENDPOINT_TEMPLATE = "v1/projects/projects/{name}"
 ACTION_EXECUTIONS_ENDPOINT = "v1/trackable-actions/executions"
 
 # The project-sync driver publishes a "sync-project" trackable action, keyed by op_id as its
-# correlation_id, on the "projects" subdomain's ActionRunner - see orca SDK PR #1059.
+# correlation_id, on the "projects" subdomain's ActionRunner.
 PROJECT_SYNC_ACTION_TYPE = "sync-project"
 PROJECT_SYNC_SUBDOMAIN = "projects"
 

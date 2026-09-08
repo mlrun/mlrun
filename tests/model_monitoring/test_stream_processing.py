@@ -12,10 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import datetime
 import json
 import os
 import unittest.mock
 
+import pandas as pd
+import pyarrow.parquet as pq
 import pytest
 import storey
 
@@ -35,6 +38,7 @@ from mlrun.model_monitoring.stream_processing import (
     _HTTP_ERROR_KEY,
     EventStreamProcessor,
     HTTPAckResponder,
+    ProcessBeforeParquet,
     ProcessEndpointEvent,
     ProcessHTTPEvent,
     TriggerRouter,
@@ -701,6 +705,178 @@ class TestProcessEndpointEvent:
             request={"inputs": [[1.0, 2.0]]}, resp={"outputs": [[0.8]]}
         )
         assert result.body is None
+
+
+class TestProcessBeforeParquet:
+    """ProcessBeforeParquet.do() must emit events with a Parquet-stable schema.
+
+    On a schema-less endpoint the first event carries feature_names=None and later
+    events carry the names MapFeatureNames generated, so the Parquet target inferred
+    Arrow type null for one file and list<string> for the next. Reading the partition
+    then failed with ArrowNotImplementedError depending on file discovery order
+    (ML-12998). The same applies to the dict-shaped columns, whose inferred struct
+    type varies with the keys present.
+    """
+
+    _TIMESTAMP = datetime.datetime(2026, 8, 11, 20, 37, 9, tzinfo=datetime.UTC)
+
+    @classmethod
+    def _event(
+        cls,
+        feature_names: list[str] | None,
+        label_names: list[str] | None,
+        labels: dict | None = None,
+        metrics: dict | None = None,
+        entities: dict | None = None,
+    ) -> dict:
+        """Build an event shaped like the one MapFeatureNames emits."""
+        return {
+            EventFieldType.ENDPOINT_ID: "ep-1",
+            EventFieldType.ENDPOINT_NAME: "my-model",
+            EventFieldType.TIMESTAMP: cls._TIMESTAMP,
+            EventFieldType.REQUEST_ID: "req-1",
+            EventFieldType.LATENCY: 5.0,
+            EventFieldType.FEATURES: [1.0, 2.0],
+            EventFieldType.NAMED_FEATURES: {"f0": 1.0, "f1": 2.0},
+            EventFieldType.PREDICTION: [0.8],
+            EventFieldType.NAMED_PREDICTIONS: {"p0": 0.8},
+            EventFieldType.FEATURE_NAMES: feature_names,
+            EventFieldType.LABEL_NAMES: label_names,
+            EventFieldType.LABELS: labels,
+            EventFieldType.METRICS: metrics,
+            EventFieldType.ENTITIES: entities,
+            "f0": 1.0,
+            "f1": 2.0,
+            "p0": 0.8,
+        }
+
+    @classmethod
+    def _schema_less_event(cls) -> dict:
+        """First event on an endpoint created without input/output schema."""
+        return cls._event(feature_names=None, label_names=None)
+
+    @classmethod
+    def _schema_resolved_event(cls) -> dict:
+        """Later event, after MapFeatureNames persisted the generated names."""
+        return cls._event(feature_names=["f0", "f1"], label_names=["p0"])
+
+    @pytest.mark.parametrize(
+        "feature_names,label_names",
+        [(None, None), (["f0", "f1"], ["p0"])],
+        ids=["schema_less", "schema_resolved"],
+    )
+    def test_transient_fields_are_removed(self, feature_names, label_names):
+        result = ProcessBeforeParquet().do(
+            self._event(feature_names=feature_names, label_names=label_names)
+        )
+
+        # feature_names/label_names are consumed by MapFeatureNames and must not
+        # reach the target - they are what flips between null and list<string>.
+        for key in [
+            EventFieldType.FEATURE_NAMES,
+            EventFieldType.LABEL_NAMES,
+            EventFieldType.FEATURES,
+            EventFieldType.NAMED_FEATURES,
+            EventFieldType.PREDICTION,
+            EventFieldType.NAMED_PREDICTIONS,
+        ]:
+            assert key not in result
+
+        # The mapped name-value pairs are what the target actually stores.
+        assert result["f0"] == 1.0
+        assert result["p0"] == 0.8
+
+    @pytest.mark.parametrize(
+        "labels,metrics,entities",
+        [
+            (None, None, None),
+            ({}, {}, {}),
+            ({"l1": "a"}, {"m1": 1.0}, {"e1": "x"}),
+        ],
+        ids=["none", "empty", "populated"],
+    )
+    def test_dict_fields_are_serialized(self, labels, metrics, entities):
+        result = ProcessBeforeParquet().do(
+            self._event(
+                feature_names=["f0", "f1"],
+                label_names=["p0"],
+                labels=labels,
+                metrics=metrics,
+                entities=entities,
+            )
+        )
+
+        for key, original in [
+            (EventFieldType.LABELS, labels),
+            (EventFieldType.METRICS, metrics),
+            (EventFieldType.ENTITIES, entities),
+        ]:
+            assert isinstance(result[key], str), key
+            assert json.loads(result[key]) == (original or {}), key
+
+    def test_entities_are_still_split_into_columns(self):
+        result = ProcessBeforeParquet().do(
+            self._event(
+                feature_names=["f0", "f1"], label_names=["p0"], entities={"e1": "x"}
+            )
+        )
+
+        assert result["e1"] == "x"
+
+    def test_parquet_schema_is_stable_across_flushes(self, tmp_path):
+        """The end-to-end reproduction: two flushes must stay readable as one dataset.
+
+        max_events=1 forces a file per event, mirroring the reported run where the
+        two events were flushed separately and landed in the same hour partition.
+        """
+        target_dir = tmp_path / "parquet"
+
+        flow = storey.build_flow(
+            [
+                storey.SyncEmitSource(key_field=EventFieldType.ENDPOINT_ID),
+                ProcessBeforeParquet(),
+                # Mirrors apply_parquet_target() in the monitoring serving graph.
+                storey.ParquetTarget(
+                    path=str(target_dir),
+                    index_cols=[EventFieldType.ENDPOINT_ID],
+                    partition_cols=["$key", "$year", "$month", "$day", "$hour"],
+                    time_field=EventFieldType.TIMESTAMP,
+                    infer_columns_from_data=True,
+                    max_events=1,
+                ),
+            ]
+        )
+
+        controller = flow.run()
+        controller.emit(self._schema_less_event())
+        controller.emit(self._schema_resolved_event())
+        controller.terminate()
+        controller.await_termination()
+
+        partition_dirs = {
+            path.parent for path in target_dir.rglob("*.parquet") if path.is_file()
+        }
+        assert len(partition_dirs) == 1, (
+            f"expected both events in one partition, got {partition_dirs}"
+        )
+        partition_dir = partition_dirs.pop()
+        files = sorted(partition_dir.glob("*.parquet"))
+        assert len(files) == 2, "expected one file per event"
+
+        # PyArrow adopts the schema of whichever file it discovers first and casts the
+        # rest to it. Asserting the per-file schemas match is what makes this test
+        # deterministic: reading the directory only failed when the null-typed file
+        # happened to sort first, which is what made the reported failure intermittent.
+        schemas = [pq.read_schema(file) for file in files]
+        assert schemas[0].equals(schemas[1]), (
+            f"parquet files disagree on schema:\n{schemas[0]}\nvs\n{schemas[1]}"
+        )
+
+        df = pd.read_parquet(partition_dir)
+
+        assert len(df) == 2
+        assert EventFieldType.FEATURE_NAMES not in df.columns
+        assert EventFieldType.LABEL_NAMES not in df.columns
 
 
 class _MockContext:

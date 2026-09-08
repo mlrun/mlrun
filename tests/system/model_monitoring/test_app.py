@@ -2647,6 +2647,32 @@ class TestHTTPIngest(TestMLRunSystemModelMonitoring):
         fn.deploy()
         return fn
 
+    def _deploy_schema_less_ingest_fn(
+        self, endpoint_name: str
+    ) -> mlrun.runtimes.RemoteRuntime:
+        """Deploy an ingest function whose endpoint is registered with no schema.
+
+        Without input/output schema the stream pod cannot name the features until
+        MapFeatureNames generates them, which is the precondition for ML-12998.
+        """
+        fn = mlrun.new_function(
+            name="http-ingest-schema-less-fn",
+            project=self.project_name,
+            kind="remote",
+        )
+        fn.with_code(
+            from_file=str(Path(__file__).parent / "assets" / "http_ingest_handler.py")
+        )
+        fn.setup_model_monitoring(
+            general_model_endpoint_instructions=ModelEndpointInstruction(
+                name=endpoint_name,
+            ),
+        )
+        if self.image is not None:
+            fn.spec.image = self.image
+        fn.deploy()
+        return fn
+
     def _deploy_monitoring_app(self) -> None:
         app_fn = self.project.set_model_monitoring_function(
             func=str(Path(__file__).parent / "assets" / "application.py"),
@@ -2660,23 +2686,27 @@ class TestHTTPIngest(TestMLRunSystemModelMonitoring):
     # Helpers
     # ------------------------------------------------------------------
 
-    def _get_endpoint_id(self) -> str:
+    def _get_endpoint_id(self, name: str | None = None) -> str:
+        name = name or self.model_endpoint_name
         endpoints = self.run_db.list_model_endpoints(
             project=self.project_name,
-            names=self.model_endpoint_name,
+            names=name,
         ).endpoints
-        assert endpoints, f"No endpoint found with name {self.model_endpoint_name!r}"
+        assert endpoints, f"No endpoint found with name {name!r}"
         return endpoints[0].metadata.uid
 
     def _invoke_ingest_fn(
         self,
         fn: mlrun.runtimes.RemoteRuntime,
         num_endpoints: int = 1,
+        inputs_format: str = "named",
     ) -> None:
         """Invoke the Nuclio function and assert all events were accepted (HTTP 202)."""
         result = fn.invoke(
             path="/",
-            body=json.dumps({"num_events": self.num_events}),
+            body=json.dumps(
+                {"num_events": self.num_events, "inputs_format": inputs_format}
+            ),
         )
         self._logger.info(
             "Nuclio function invoked, events pushed from pod",
@@ -2803,6 +2833,101 @@ class TestHTTPIngest(TestMLRunSystemModelMonitoring):
             condition_check=check_app_results,
             initial_wait=initial_wait,
             condition_description="monitoring app to write results for HTTP-ingested events",
+        )
+
+    def test_http_ingest_schema_less_produces_app_results(self) -> None:
+        """Schema-less endpoint + two HTTP batches must still yield app results (ML-12998).
+
+        The endpoint is registered without an input/output schema and the events are
+        pushed as plain lists, so the stream pod cannot name the features. The first
+        batch therefore reaches the Parquet target with no schema, and the second —
+        after MapFeatureNames generated and persisted f0..f3 — reaches it with a list
+        of names. Those two batches used to be written as Arrow null and list<string>
+        for the same column, so reading the partition raised ArrowNotImplementedError
+        and the monitoring application produced a result row for only one of the two
+        windows.
+        """
+        endpoint_name = "http-ingest-schema-less-ep"
+
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            fn_future = executor.submit(
+                self._deploy_schema_less_ingest_fn, endpoint_name
+            )
+            app_future = executor.submit(self._deploy_monitoring_app)
+        fn = fn_future.result()
+        app_future.result()
+
+        time.sleep(5)
+
+        endpoint_id = self._get_endpoint_id(endpoint_name)
+        self._logger.info("Schema-less USER_EP created", endpoint_id=endpoint_id)
+
+        mep = self.run_db.get_model_endpoint(
+            name=endpoint_name,
+            project=self.project_name,
+            endpoint_id=endpoint_id,
+            tsdb_metrics=False,
+        )
+        assert not mep.spec.feature_names, (
+            f"Endpoint should start without a schema, got {mep.spec.feature_names}"
+        )
+
+        # First batch — the endpoint has no schema yet.
+        self._invoke_ingest_fn(fn, inputs_format="list")
+
+        # Let the first batch flush to its own Parquet file before the names resolve,
+        # so the two batches land in separate files within the same partition.
+        flush_wait = (
+            mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs
+            + self._external_stream_delay
+            + 30
+        )
+        self._logger.info("Waiting for the first batch to flush", seconds=flush_wait)
+        time.sleep(flush_wait)
+
+        mep = self.run_db.get_model_endpoint(
+            name=endpoint_name,
+            project=self.project_name,
+            endpoint_id=endpoint_id,
+            tsdb_metrics=False,
+        )
+        assert mep.spec.feature_names == [f"f{i}" for i in range(4)], (
+            f"Expected generated feature names, got {mep.spec.feature_names}"
+        )
+        assert mep.spec.label_names == ["p0"], (
+            f"Expected generated label names, got {mep.spec.label_names}"
+        )
+
+        # Second batch — the generated names are now on the endpoint, so these events
+        # carry a schema where the first batch carried none.
+        self._invoke_ingest_fn(fn, inputs_format="list")
+
+        initial_wait = (
+            2 * self.app_interval_seconds
+            + mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs
+            + mlrun.mlconf.model_endpoint_monitoring.writer_graph.flush_after_seconds
+            + self._external_stream_delay
+        )
+
+        tsdb = mlrun.model_monitoring.get_tsdb_connector(
+            project=self.project_name, profile=self.mm_tsdb_profile
+        )
+
+        def check_app_results() -> None:
+            # The app can only write a result row if reading sample_df succeeded,
+            # which requires both Parquet files to share a schema.
+            df = tsdb.get_results_metadata(endpoint_id=endpoint_id)
+            assert not df.empty, "No application results in TSDB yet"
+            assert NoCheckDemoMonitoringApp.NAME in df.application_name.values, (
+                f"Expected app {NoCheckDemoMonitoringApp.NAME!r} not found in TSDB results"
+            )
+
+        self.wait_for_condition(
+            condition_check=check_app_results,
+            initial_wait=initial_wait,
+            condition_description=(
+                "monitoring app to write results for schema-less HTTP-ingested events"
+            ),
         )
 
     def test_http_ingest_multiple_endpoints(self) -> None:

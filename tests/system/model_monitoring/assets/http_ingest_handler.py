@@ -23,7 +23,13 @@ When invoked the handler pushes prediction events for every registered
 endpoint, demonstrating the USER_EP ingest flow from inside a pod.
 
 Expected request body (JSON):
-    {"num_events": <int>}   # optional, defaults to 1
+    {"num_events": <int>}       # optional, defaults to 1
+    {"inputs_format": <str>}    # optional, "named" (default) or "list"
+
+``inputs_format="list"`` sends inputs/outputs as plain lists of floats. The stream
+pod cannot infer names from a list, so on an endpoint created without an
+input/output schema the events carry no schema until MapFeatureNames generates
+and persists f0../p0 names.
 """
 
 import json
@@ -41,6 +47,18 @@ _ENDPOINTS_MAP: dict[str, str] = json.loads(os.environ.get("MODEL_ENDPOINTS_MAP"
 _uid_to_name: dict[str, str] = {uid: name for name, uid in _ENDPOINTS_MAP.items()}
 if _ENDPOINT_UID and _ENDPOINT_UID not in _uid_to_name:
     _uid_to_name[_ENDPOINT_UID] = _ENDPOINT_NAME
+
+
+def _build_inputs_and_outputs(i: int, inputs_format: str) -> tuple:
+    """Return (inputs, outputs) for event *i* in the requested payload format."""
+    if inputs_format == "list":
+        return [float(i), float(i + 1), float(i + 2), float(i + 3)], [float(i % 2)]
+    return {
+        "age": float(i),
+        "income": float(i + 1),
+        "credit_score": float(i + 2),
+        "balance": float(i + 3),
+    }, {"approved": float(i % 2)}
 
 
 def _all_endpoint_uids() -> list[str]:
@@ -73,6 +91,7 @@ def handler(context, event):
         body = json.loads(body) if body else {}
     body = body or {}
     num_events = int(body.get("num_events", 1))
+    inputs_format = body.get("inputs_format", "named")
 
     monitoring_url = _MONITORING_URL.rstrip("/")
 
@@ -97,16 +116,12 @@ def handler(context, event):
     pushed = 0
     for endpoint_id in endpoint_uids:
         for i in range(num_events):
+            inputs, outputs = _build_inputs_and_outputs(i, inputs_format)
             payload = {
                 "model_endpoint_uid": endpoint_id,
                 "model_endpoint_name": _uid_to_name.get(endpoint_id, ""),
-                "inputs": {
-                    "age": float(i),
-                    "income": float(i + 1),
-                    "credit_score": float(i + 2),
-                    "balance": float(i + 3),
-                },
-                "outputs": {"approved": float(i % 2)},
+                "inputs": inputs,
+                "outputs": outputs,
             }
             resp = requests.post(monitoring_url, json=payload, timeout=10)
             context.logger.info(

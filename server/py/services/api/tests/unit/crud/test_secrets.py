@@ -951,7 +951,10 @@ def test_list_secret_tokens_returns_tokens():
     )
 
 
-def test_delete_secret_token_success(mock_iguazio_client):
+def test_delete_secret_token_success(mock_iguazio_client, monkeypatch):
+    monkeypatch.setattr(
+        framework.utils.clients.iguazio.v4, "resolve_orca_version", lambda: "1.0.0"
+    )
     request_headers = {
         mlrun.common.schemas.HeaderNames.authorization: f"{mlrun.common.schemas.AuthorizationHeaderPrefixes.bearer}123",
     }
@@ -1091,7 +1094,10 @@ def test_delete_secret_token_orca_below_threshold_still_revokes(
     )
 
 
-def test_delete_secret_token_not_found(mock_iguazio_client):
+def test_delete_secret_token_not_found(mock_iguazio_client, monkeypatch):
+    monkeypatch.setattr(
+        framework.utils.clients.iguazio.v4, "resolve_orca_version", lambda: "1.0.0"
+    )
     auth_info = mlrun.common.schemas.AuthInfo(
         username="dummy-user", user_id="user-id-123"
     )
@@ -1112,7 +1118,10 @@ def test_delete_secret_token_not_found(mock_iguazio_client):
     assert result.username == auth_info.username
 
 
-def test_delete_secret_token_iguazio_failure(mock_iguazio_client):
+def test_delete_secret_token_iguazio_failure(mock_iguazio_client, monkeypatch):
+    monkeypatch.setattr(
+        framework.utils.clients.iguazio.v4, "resolve_orca_version", lambda: "1.0.0"
+    )
     auth_info = mlrun.common.schemas.AuthInfo(
         username="dummy-user", user_id="user-id-123"
     )
@@ -1131,7 +1140,10 @@ def test_delete_secret_token_iguazio_failure(mock_iguazio_client):
         )
 
 
-def test_delete_secret_token_k8s_delete_failure(mock_iguazio_client):
+def test_delete_secret_token_k8s_delete_failure(mock_iguazio_client, monkeypatch):
+    monkeypatch.setattr(
+        framework.utils.clients.iguazio.v4, "resolve_orca_version", lambda: "1.0.0"
+    )
     auth_info = mlrun.common.schemas.AuthInfo(
         username="dummy-user", user_id="user-id-123"
     )

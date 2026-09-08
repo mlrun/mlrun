@@ -694,6 +694,9 @@ class HTTPRunDB(RunDBInterface):
                 server_cfg.get("authentication_mode")
                 or config.httpdb.authentication.mode
             )
+            config.httpdb.projects.leader = (
+                server_cfg.get("projects_leader") or config.httpdb.projects.leader
+            )
 
             config.httpdb.authorization.namespaces.mlrun = (
                 server_cfg.get("authorization_namespaces_mlrun")
@@ -3387,10 +3390,17 @@ class HTTPRunDB(RunDBInterface):
     def _orca_direct_mode(self) -> bool:
         """Whether project CUD should bypass the MLRun API and talk to Orca directly - the SDK
         side of the enterprise (IG4/Orca-led) project-sync mechanism (ML-12903). MLRun's own API
-        remains the transport for everyone else: CE, and enterprise deployments where Orca's
-        address isn't configured client-side yet.
+        remains the transport for everyone else: CE, enterprise deployments where Orca's
+        address isn't configured client-side yet, and deployments where the API server hasn't
+        (yet) cut project-sync leadership over to Orca - ``projects_leader`` is synced from the
+        server's own ``httpdb.projects.leader`` via ``connect()``'s client-spec, since that's
+        the one fact the client can't determine on its own.
         """
-        return bool(mlrun.mlconf.is_iguazio_v4_mode() and mlrun.mlconf.iguazio_api_url)
+        return bool(
+            mlrun.mlconf.is_iguazio_v4_mode()
+            and mlrun.mlconf.iguazio_api_url
+            and mlrun.mlconf.httpdb.projects.leader == "orca"
+        )
 
     def _orca_projects_client_instance(self) -> mlrun.db.orca.OrcaProjectsClient:
         if self._orca_projects_client is None:

@@ -369,6 +369,23 @@ def test_client_spec_kfp_default_workflow_timeout(
     assert response.json()["kfp_default_workflow_timeout"] == "3600"
 
 
+def test_client_spec_includes_projects_leader_when_not_default(
+    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+) -> None:
+    services.api.api.endpoints.client_spec.get_cached_client_spec.cache_clear()
+
+    response = client.get("client-spec")
+    assert response.status_code == http.HTTPStatus.OK.value
+    assert response.json()["projects_leader"] is None
+
+    mlrun.mlconf.httpdb.projects.leader = "orca"
+    services.api.api.endpoints.client_spec.get_cached_client_spec.cache_clear()
+
+    response = client.get("client-spec")
+    assert response.status_code == http.HTTPStatus.OK.value
+    assert response.json()["projects_leader"] == "orca"
+
+
 def test_client_spec_does_not_include_oauth_config_when_not_iguazio_v4_mode(
     db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
 ) -> None:

@@ -697,6 +697,19 @@ def test_connect_invokes_init_token_provider_from_env():
         db.connect()
 
 
+def test_connect_syncs_projects_leader_from_client_spec():
+    """``connect()`` syncs the server's project-sync leader, so ``_orca_direct_mode()`` can
+    tell whether the API server has actually cut project CUD over to Orca (ML-12903) - the SDK
+    has no other way to observe that.
+    """
+    mlrun.mlconf.httpdb.projects.leader = "mlrun"
+    server_cfg = {"version": mlrun.mlconf.version, "projects_leader": "orca"}
+    with _mock_httpdb_connect(server_cfg):
+        db = HTTPRunDB("http://some-server:1919")
+        db.connect()
+    assert mlrun.mlconf.httpdb.projects.leader == "orca"
+
+
 def test_connect_preserves_explicit_credentials_in_iguazio_v4(monkeypatch):
     """
     Explicit ``Credentials(token=...)`` own auth for the instance: ``connect()``

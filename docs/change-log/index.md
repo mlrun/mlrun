@@ -1626,7 +1626,8 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-12078|When Model-monitoring is enabled with V3io configured as default artifact storage, each model-endpoint creates 25 directories per day. |Run a daily cron job to delete parquet partition directories older than a week.|v1.11.0|
 |ML-12185|A split graph with a collector as a merge step does not fail deployment nor invoke and produce a false response. |Do not use the collector step as the merge step.|v1.11.0|
 |ML-12378|When using HTTP streaming, async does not work but works in the same manner as sync.|NA|v1.11.0|
-|ML-12573|In rare, high-stress situations, TSDB records are lost on Kafka rebalance. |Set a constant number of stream pod replicas and document the Kafka rebalance handling.|v1.11.0|
+|ML-12573|In rare, high-stress situations, TSDB records are lost on Kafka rebalance. |Set a constant number of stream pod replicas and document the Kafka rebalance handling.| NA |v1.12.0|
+|ML-12996|When trying to access the parquet data of a model endpoint in GCS, the model monitoring user application intermittently fails with a `FileNotFoundError`. As a consequence, drift is not detected for several Model Endpoints (MEPs) even though the endpoints continue to be invoked.|NA  |v1.12.0|
 
 ## Limitations
 

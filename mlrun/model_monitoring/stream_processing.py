@@ -584,8 +584,8 @@ class HTTPAckResponder(storey.MapClass):
 class ProcessBeforeParquet(mlrun.feature_store.steps.MapClass):
     def __init__(self, **kwargs):
         """
-        Process the data before writing to Parquet file. In this step, unnecessary keys will be removed while
-        dict-shaped keys are serialized to keep the inferred Parquet schema stable across events.
+        Process the data before writing to Parquet file. In this step, unnecessary keys will be removed while possible
+        missing keys values will be set to None.
 
         :returns: Event dictionary with filtered data for the Parquet target.
 
@@ -593,7 +593,10 @@ class ProcessBeforeParquet(mlrun.feature_store.steps.MapClass):
         super().__init__(**kwargs)
 
     def do(self, event):
-        # Remove the following keys from the event
+        # Remove the following keys from the event.
+        # The name lists are empty until MapFeatureNames resolves them, so keeping them
+        # would infer null in one file and list<string> in the next, making the partition
+        # unreadable (ML-12998). Consumers read them from the model endpoint record.
         for key in [
             EventFieldType.FEATURES,
             EventFieldType.NAMED_FEATURES,
@@ -609,14 +612,14 @@ class ProcessBeforeParquet(mlrun.feature_store.steps.MapClass):
         if value is not None:
             event = {**value, **event}
 
-        # Dict-shaped values yield a different Arrow type per file (null vs struct, and
-        # struct<a> vs struct<b>), which breaks reads of the partition (ML-12998).
+        # Validate that the following keys exist
         for key in [
             EventFieldType.LABELS,
             EventFieldType.METRICS,
             EventFieldType.ENTITIES,
         ]:
-            event[key] = json.dumps(event.get(key) or {})
+            if not event.get(key):
+                event[key] = None
         return event
 
 

@@ -49,6 +49,7 @@ from mlrun.common.schemas.model_monitoring.model_endpoints import (
     ModelEndpointDriftValues,
     ModelEndpointInstruction,
     ModelEndpointMonitoringMetric,
+    ModelEndpointMonitoringResultValues,
 )
 from mlrun.datastore.datastore_profile import (
     DatastoreProfile,
@@ -2738,6 +2739,33 @@ class TestHTTPIngest(TestMLRunSystemModelMonitoring):
             status=result.get("bad_payload_status"),
         )
 
+    def _app_result_window_timestamps(self, tsdb, endpoint_id: str) -> set[datetime]:
+        """Return the distinct window timestamps the monitoring app wrote results for.
+
+        ``get_results_metadata`` has no window dimension, so the result values have to
+        be read to tell one window from two.
+        """
+        metrics = self.run_db.get_model_endpoint_monitoring_metrics(
+            project=self.project_name, endpoint_id=endpoint_id, type="results"
+        )
+        if not metrics:
+            return set()
+        end = datetime.now(tz=UTC)
+        results = tsdb.read_metrics_data(
+            endpoint_id=endpoint_id,
+            start=end - timedelta(hours=1),
+            end=end,
+            metrics=metrics,
+            type="results",
+            with_result_extra_data=False,
+        )
+        return {
+            point.timestamp
+            for result in results
+            if isinstance(result, ModelEndpointMonitoringResultValues)
+            for point in result.values
+        }
+
     def _check_tsdb_has_data(self, endpoint_id: str) -> None:
         tsdb = mlrun.model_monitoring.get_tsdb_connector(
             project=self.project_name, profile=self.mm_tsdb_profile
@@ -2915,11 +2943,18 @@ class TestHTTPIngest(TestMLRunSystemModelMonitoring):
 
         def check_app_results() -> None:
             # The app can only write a result row if reading sample_df succeeded,
-            # which requires both Parquet files to share a schema.
+            # which requires both Parquet files to share a schema. The bug produced a
+            # row for one of the two windows, so requiring a single row would pass
+            # against it - assert both windows are present.
             df = tsdb.get_results_metadata(endpoint_id=endpoint_id)
             assert not df.empty, "No application results in TSDB yet"
             assert NoCheckDemoMonitoringApp.NAME in df.application_name.values, (
                 f"Expected app {NoCheckDemoMonitoringApp.NAME!r} not found in TSDB results"
+            )
+            window_timestamps = self._app_result_window_timestamps(tsdb, endpoint_id)
+            assert len(window_timestamps) >= 2, (
+                f"Expected results for both ingest windows, got "
+                f"{len(window_timestamps)}: {sorted(window_timestamps)}"
             )
 
         self.wait_for_condition(

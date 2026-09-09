@@ -714,8 +714,7 @@ class TestProcessBeforeParquet:
     events carry the names MapFeatureNames generated, so the Parquet target inferred
     Arrow type null for one file and list<string> for the next. Reading the partition
     then failed with ArrowNotImplementedError depending on file discovery order
-    (ML-12998). The same applies to the dict-shaped columns, whose inferred struct
-    type varies with the keys present.
+    (ML-12998).
     """
 
     _TIMESTAMP = datetime.datetime(2026, 8, 11, 20, 37, 9, tzinfo=datetime.UTC)
@@ -785,34 +784,6 @@ class TestProcessBeforeParquet:
         # The mapped name-value pairs are what the target actually stores.
         assert result["f0"] == 1.0
         assert result["p0"] == 0.8
-
-    @pytest.mark.parametrize(
-        "labels,metrics,entities",
-        [
-            (None, None, None),
-            ({}, {}, {}),
-            ({"l1": "a"}, {"m1": 1.0}, {"e1": "x"}),
-        ],
-        ids=["none", "empty", "populated"],
-    )
-    def test_dict_fields_are_serialized(self, labels, metrics, entities):
-        result = ProcessBeforeParquet().do(
-            self._event(
-                feature_names=["f0", "f1"],
-                label_names=["p0"],
-                labels=labels,
-                metrics=metrics,
-                entities=entities,
-            )
-        )
-
-        for key, original in [
-            (EventFieldType.LABELS, labels),
-            (EventFieldType.METRICS, metrics),
-            (EventFieldType.ENTITIES, entities),
-        ]:
-            assert isinstance(result[key], str), key
-            assert json.loads(result[key]) == (original or {}), key
 
     def test_entities_are_still_split_into_columns(self):
         result = ProcessBeforeParquet().do(

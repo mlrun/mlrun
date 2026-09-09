@@ -16,6 +16,9 @@ These instructions install the community edition {{ ceversion }}, which currentl
 - [Uninstalling the chart](#uninstalling-the-chart)
 - [Upgrading the chart](#upgrading-the-chart)
 
+See also
+- [Configure OTel](./mlrun-ce-installation-notes.md#configure-otel) for details on using the OpenTelemetry Operator to bring metrics and distributed tracing to your ML workloads.
+
 ## Prerequisites
 
 - Access to a Kubernetes cluster, version >=1.34. To install MLRun on your cluster, you must have administrator permissions. 

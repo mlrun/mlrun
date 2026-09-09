@@ -121,6 +121,14 @@ jobs:
         git config user.email "github-actions[bot]@users.noreply.github.com"
         BASE_SHA="${{ inputs.pr_base_sha }}"
 
+        # Guard against an unresolved base SHA (e.g. "null" from a transient API
+        # error upstream) so it surfaces as a clear infra error rather than a
+        # misleading "fetch failed" / "merge conflict".
+        if ! [[ "${BASE_SHA}" =~ ^[0-9a-f]{40}$ ]]; then
+          echo "::error::Invalid base SHA '${BASE_SHA}' for PR #${{ inputs.pr_number }}; the base branch HEAD was not resolved (likely a transient API/rate-limit error). Re-run the smoke tests."
+          exit 1
+        fi
+
         git fetch origin "${BASE_SHA}"
         if ! git merge "${BASE_SHA}" --no-edit; then
           echo "::error::Merge of ${BASE_SHA} into PR #${{ inputs.pr_number }} failed due to conflicts. Please merge or rebase your branch locally and push."

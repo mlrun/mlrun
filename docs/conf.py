@@ -258,6 +258,9 @@ linkcheck_ignore = [
     "https://mlopslive.slack.com",
     # ignore links to kubernetes.io, since they often block the traffic
     r"https://kubernetes.io/.*",
+    # iguazio docs and Slack return 403 to CI crawlers
+    r"https://www\.iguazio\.com/docs/.*",
+    r"https://mlopslive\.slack\.com.*",
 ]
 
 # -- Autosummary -------------------------------------------------------------

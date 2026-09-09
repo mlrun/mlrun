@@ -16,6 +16,7 @@ import asyncio
 import collections
 import datetime
 import time
+import typing
 import uuid
 
 import fastapi.concurrency
@@ -33,6 +34,7 @@ from mlrun.utils import logger, retry_until_successful
 
 import framework.db.session
 import framework.utils.auth.verifier
+import framework.utils.background_tasks
 import framework.utils.clients.messaging
 import framework.utils.clients.nuclio
 import framework.utils.clients.service_account_token as service_account_token
@@ -1252,16 +1254,23 @@ class Projects(
         self,
         name: str,
         op_id: uuid.UUID,
-    ) -> None:
+    ) -> tuple[typing.Callable | None, str] | None:
         """
-        Validates and, if valid, synchronously purges this project's resources and its
-        row (via the existing cascading `delete_project`). Deliberately blocking, per
-        Orca's requirement: the endpoint (`projects_follower.py`) awaits this call and
-        only responds once cleanup has actually finished — no background task, no early
-        202. A retry with the same op_id (e.g. after a dropped connection) re-runs the
-        deletion rather than skipping it — see the note on `validate_call` below — which
-        is what makes blocking-and-retrying safe: `delete_project`/`delete_project_resources`
-        are themselves idempotent-safe to call again on partially-cleaned-up resources.
+        Validates and, if valid, schedules (or reuses) this project's resource-deletion
+        background task rather than purging inline — the row stays (`state=deleting`)
+        until the task's own cascading `delete_project` call finishes and removes it.
+        Returns `None` if the project is already gone (no-op per the contract);
+        otherwise the `(callable, task_name)` pair for the endpoint to schedule via
+        FastAPI's `BackgroundTasks` (`callable` is `None` when an active task for this
+        project already exists and is simply reused — same dedup as a same-`op_id` retry
+        while the task is still running).
+
+        Deliberately does not reuse `framework.api.utils.get_or_create_project_deletion_background_task`:
+        that helper's actual deletion step goes through
+        `framework.utils.singletons.project_member.get_project_member()`, which exists for
+        MLRun's own leader/follower selection (local delete vs. forward-to-leader over
+        HTTP) and would forward to Orca again here — wrong, since Orca has already
+        decided by the time it calls this hook, so MLRun must always purge locally.
         """
         session = framework.db.session.create_session()
         try:
@@ -1269,7 +1278,7 @@ class Projects(
                 session, name, for_update=True
             )
             if existing is None:
-                return  # already fully removed: no-op per the contract
+                return None  # already fully removed: no-op per the contract
             # check_same_op (used for commit_create/commit_delete) never returns
             # ReplayOutcome.replay — a matching op_id always means "apply".
             follower_contract.validate_call(
@@ -1278,9 +1287,54 @@ class Projects(
                 stored_op_id=existing.status.op_id,
                 incoming_op_id=op_id,
             )
+        finally:
+            framework.db.session.close_session(session)
+
+        handler = framework.utils.background_tasks.InternalBackgroundTasksHandler()
+        kind = framework.utils.background_tasks.BackgroundTaskKinds.project_deletion.format(
+            name
+        )
+        try:
+            task = handler.get_active_background_task_by_kind(
+                kind, raise_on_not_found=True
+            )
+            return None, task.metadata.name
+        except mlrun.errors.MLRunNotFoundError:
+            logger.debug(
+                "Existing project-deletion background task not found, creating new one",
+                project=name,
+            )
+
+        try:
+            return handler.create_background_task(
+                kind,
+                mlrun.mlconf.background_tasks.default_timeouts.operations.delete_project,
+                self._purge_follower_project_resources,
+                str(uuid.uuid4()),
+                project=existing,
+            )
+        except mlrun.errors.MLRunConflictError:
+            # Lost the race: another call created the task between our check above and
+            # this call. Reuse it rather than surfacing a 409 for what is, from the
+            # caller's perspective, the same idempotent outcome as finding it active.
+            task = handler.get_active_background_task_by_kind(
+                kind, raise_on_not_found=True
+            )
+            return None, task.metadata.name
+
+    def _purge_follower_project_resources(
+        self, project: mlrun.common.schemas.Project
+    ) -> None:
+        """
+        Background-task body for `commit_delete_project`: runs on its own DB session,
+        since the request-scoped session it validated against is already closed by the
+        time this executes.
+        """
+        session = framework.db.session.create_session()
+        try:
             self.delete_project(
                 session,
-                name,
+                project.metadata.name,
                 deletion_strategy=mlrun.common.schemas.DeletionStrategy.cascading,
             )
         finally:

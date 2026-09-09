@@ -580,6 +580,8 @@ class HuggingFaceProfile(DatastoreProfile):
     task: str | None = None
     token: str | None = None
     endpoint: str | None = None
+    cache_dir: str | None = None
+    hf_home: str | None = None
     device: typing.Union[int, str] | None = None
     device_map: typing.Union[str, dict[str, typing.Union[int, str]], None] = None
     trust_remote_code: bool = None
@@ -591,6 +593,8 @@ class HuggingFaceProfile(DatastoreProfile):
             "HF_TASK": self.task,
             "HF_TOKEN": self.token,
             "HF_ENDPOINT": self.endpoint,
+            "HF_HUB_CACHE": self.cache_dir,
+            "HF_HOME": self.hf_home,
             "HF_DEVICE": self.device,
             "HF_DEVICE_MAP": self.device_map,
             "HF_TRUST_REMOTE_CODE": self.trust_remote_code,

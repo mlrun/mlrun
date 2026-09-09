@@ -100,12 +100,17 @@ class _FakeStreamer:
 
 
 @pytest.mark.parametrize("cred_mode", ["profile", "secrets"])
-def test_snapshot_download_called_with_all_params(cred_mode):
+def test_snapshot_download_called_with_all_params(cred_mode, monkeypatch):
     """
     Verifies that all expected parameters are forwarded correctly to snapshot_download,
     and that endpoint is NOT present in client_options (pipeline kwargs).
     Runs for both profile-based and direct secrets-dict credential modes.
     """
+    monkeypatch.setenv("HOME", "/home/test")
+    monkeypatch.delenv("HF_HUB_CACHE", raising=False)
+    monkeypatch.delenv("HF_HOME", raising=False)
+    monkeypatch.delenv("XDG_CACHE_HOME", raising=False)
+
     fake_token = "fake-token"
     fake_endpoint = "https://my-custom-hub.example.com"
     model_name = "fake-org/fake-model"
@@ -149,6 +154,7 @@ def test_snapshot_download_called_with_all_params(cred_mode):
             token=fake_token,
             endpoint=fake_endpoint,
             max_workers=fake_max_workers,
+            cache_dir=None,
         )
 
     provider = cast(HuggingFaceProvider, provider)
@@ -166,12 +172,42 @@ def test_snapshot_download_called_with_all_params(cred_mode):
     assert provider.options["model_kwargs"] == {"torch_dtype": "float16"}
 
 
+@pytest.mark.parametrize(
+    "environment, expected_cache_dir",
+    [
+        ({"HF_HUB_CACHE": "/custom/hub"}, "/custom/hub"),
+        ({"HF_HOME": "/custom/huggingface"}, "/custom/huggingface/hub"),
+        (
+            {"XDG_CACHE_HOME": "/custom/cache"},
+            "/custom/cache/huggingface/hub",
+        ),
+        ({"HOME": "/"}, "/tmp/huggingface/hub"),
+        ({"HOME": "/home/test"}, None),
+    ],
+)
+def test_huggingface_cache_dir(environment, expected_cache_dir, monkeypatch):
+    monkeypatch.setattr("tempfile.gettempdir", lambda: "/tmp")
+    for variable_name in ("HOME", "HF_HUB_CACHE", "HF_HOME", "XDG_CACHE_HOME"):
+        monkeypatch.delenv(variable_name, raising=False)
+    for variable_name, value in environment.items():
+        monkeypatch.setenv(variable_name, value)
+
+    provider = _make_provider()
+
+    assert provider._get_cache_dir() == expected_cache_dir
+
+
 @pytest.mark.parametrize("cred_mode", ["profile", "secrets"])
-def test_client_options_defaults(cred_mode):
+def test_client_options_defaults(cred_mode, monkeypatch):
     """
     Verifies that when no optional params are provided,
     client_options fall back to their expected defaults.
     """
+    monkeypatch.setenv("HOME", "/home/test")
+    monkeypatch.delenv("HF_HUB_CACHE", raising=False)
+    monkeypatch.delenv("HF_HOME", raising=False)
+    monkeypatch.delenv("XDG_CACHE_HOME", raising=False)
+
     model_name = "fake-org/fake-model"
     profile_name = "test-hf-defaults-profile"
 
@@ -193,6 +229,7 @@ def test_client_options_defaults(cred_mode):
             token=None,
             endpoint=None,
             max_workers=None,
+            cache_dir=None,
         )
 
     provider = cast(HuggingFaceProvider, provider)

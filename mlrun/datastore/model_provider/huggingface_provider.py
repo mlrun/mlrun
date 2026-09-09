@@ -11,6 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import os
+import tempfile
 import threading
 from typing import TYPE_CHECKING, Any, Optional, Union
 
@@ -133,9 +135,28 @@ class HuggingFaceProvider(ModelProvider):
                 token=self._get_secret_or_env("HF_TOKEN") or None,
                 endpoint=self._get_secret_or_env("HF_ENDPOINT") or None,
                 max_workers=int(max_workers) if max_workers is not None else None,
+                cache_dir=self._get_cache_dir(),
             )
         except ImportError as exc:
             raise ImportError("huggingface_hub package is not installed") from exc
+
+    def _get_cache_dir(self) -> str | None:
+        cache_dir = self._get_secret_or_env("HF_HUB_CACHE")
+        if cache_dir:
+            return cache_dir
+
+        huggingface_home = self._get_secret_or_env("HF_HOME")
+        if huggingface_home:
+            return os.path.join(huggingface_home, "hub")
+
+        xdg_cache_home = self._get_secret_or_env("XDG_CACHE_HOME")
+        if xdg_cache_home:
+            return os.path.join(xdg_cache_home, "huggingface", "hub")
+
+        if os.path.expanduser("~") == os.path.sep:
+            return os.path.join(tempfile.gettempdir(), "huggingface", "hub")
+
+        return None
 
     def _response_handler(
         self,
@@ -237,7 +258,7 @@ class HuggingFaceProvider(ModelProvider):
         try:
             from transformers import pipeline, AutoModelForCausalLM  # noqa
             from transformers import AutoTokenizer  # noqa
-            from transformers.pipelines.base import Pipeline  # noqa
+            from transformers.pipelines.base import Pipeline
 
             self.options["model_kwargs"] = self.options.get("model_kwargs", {})
             self.options["model_kwargs"]["local_files_only"] = True

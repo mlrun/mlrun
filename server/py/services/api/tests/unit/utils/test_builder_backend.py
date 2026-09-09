@@ -97,6 +97,151 @@ def test_build_image_build_request_carries_raw_unrouted_source(monkeypatch):
     assert "refs/heads" not in request.source
 
 
+def test_build_image_falls_back_to_static_security_context_when_enrichment_disabled(
+    monkeypatch,
+):
+    # even with enrichment disabled, a function may already carry a static non-root
+    # security context (e.g. a cluster-wide default) that will govern the job pod's
+    # actual runtime uid/gid - the build must chown the baked source dir to match it,
+    # or the pod won't be able to write into its own working directory.
+    monkeypatch.setattr(
+        config.function.spec.security_context,
+        "enrichment_mode",
+        mlrun.common.schemas.SecurityContextEnrichmentModes.disabled.value,
+    )
+
+    captured = {}
+
+    def _capture_request(self, request):
+        captured["request"] = request
+        return unittest.mock.MagicMock()
+
+    monkeypatch.setattr(
+        services.api.utils.builder.KanikoBackend, "make_build_pod", _capture_request
+    )
+    monkeypatch.setattr(
+        config.httpdb.builder,
+        "docker_registry",
+        "default.docker.registry/default-repository",
+    )
+    _patch_k8s_helper(monkeypatch)
+
+    function = mlrun.new_function(
+        "some-function",
+        "some-project",
+        "some-tag",
+        image="mlrun/mlrun",
+        kind=RuntimeKinds.job,
+    )
+    function.spec.build.source = "/path/some-source.tar.gz"
+    function.spec.security_context = client.V1SecurityContext(
+        run_as_user=1000, run_as_group=1000, run_as_non_root=True
+    )
+    services.api.utils.builder.build_runtime(
+        mlrun.common.schemas.AuthInfo(),
+        function,
+    )
+
+    request = captured["request"]
+    assert request.user_unix_id == 1000
+    assert request.enriched_group_id == 1000
+
+
+def test_build_image_static_security_context_uid_only_still_chowns(monkeypatch):
+    # a static security context may pin only the uid, leaving the group to the
+    # image's own default - the chown must still fire (using the uid as the group
+    # too), since POSIX owner permissions only need the uid to match.
+    monkeypatch.setattr(
+        config.function.spec.security_context,
+        "enrichment_mode",
+        mlrun.common.schemas.SecurityContextEnrichmentModes.disabled.value,
+    )
+
+    captured = {}
+
+    def _capture_request(self, request):
+        captured["request"] = request
+        return unittest.mock.MagicMock()
+
+    monkeypatch.setattr(
+        services.api.utils.builder.KanikoBackend, "make_build_pod", _capture_request
+    )
+    monkeypatch.setattr(
+        config.httpdb.builder,
+        "docker_registry",
+        "default.docker.registry/default-repository",
+    )
+    _patch_k8s_helper(monkeypatch)
+
+    function = mlrun.new_function(
+        "some-function",
+        "some-project",
+        "some-tag",
+        image="mlrun/mlrun",
+        kind=RuntimeKinds.job,
+    )
+    function.spec.build.source = "/path/some-source.tar.gz"
+    function.spec.security_context = client.V1SecurityContext(run_as_user=1000)
+    services.api.utils.builder.build_runtime(
+        mlrun.common.schemas.AuthInfo(),
+        function,
+    )
+
+    request = captured["request"]
+    assert request.user_unix_id == 1000
+    assert request.enriched_group_id == 1000
+
+
+def test_build_image_no_uid_fallback_when_no_static_security_context(monkeypatch):
+    # the common/default case: enrichment disabled and no static security context
+    # configured. An *unconfigured* cluster default decodes to "{}" (not None) via
+    # mlconf.get_default_function_security_context(), and stays an unconverted plain
+    # dict rather than a V1SecurityContext instance - the exact shape that motivated
+    # the attribute-safe getattr() in the fix. No chown target, matching today's
+    # shipped behaviour.
+    monkeypatch.setattr(
+        config.function.spec.security_context,
+        "enrichment_mode",
+        mlrun.common.schemas.SecurityContextEnrichmentModes.disabled.value,
+    )
+
+    captured = {}
+
+    def _capture_request(self, request):
+        captured["request"] = request
+        return unittest.mock.MagicMock()
+
+    monkeypatch.setattr(
+        services.api.utils.builder.KanikoBackend, "make_build_pod", _capture_request
+    )
+    monkeypatch.setattr(
+        config.httpdb.builder,
+        "docker_registry",
+        "default.docker.registry/default-repository",
+    )
+    _patch_k8s_helper(monkeypatch)
+
+    function = mlrun.new_function(
+        "some-function",
+        "some-project",
+        "some-tag",
+        image="mlrun/mlrun",
+        kind=RuntimeKinds.job,
+    )
+    function.spec.build.source = "/path/some-source.tar.gz"
+    function.spec.security_context = {}
+    assert not isinstance(function.spec.security_context, client.V1SecurityContext)
+
+    services.api.utils.builder.build_runtime(
+        mlrun.common.schemas.AuthInfo(),
+        function,
+    )
+
+    request = captured["request"]
+    assert request.user_unix_id is None
+    assert request.enriched_group_id is None
+
+
 def _patch_k8s_helper(monkeypatch):
     get_k8s_helper_mock = unittest.mock.Mock()
     get_k8s_helper_mock.create_pod = unittest.mock.Mock(
@@ -792,6 +937,21 @@ def test_buildah_backend_routes_remote_source_through_fetch_init_container(sourc
     assert "ADD ./source /home/mlrun_code" in _decoded_dockerfile(pod)
 
 
+def test_buildah_backend_chowns_fetch_source_populated_dir():
+    # the fetch-source init container gets no matching security context, so it clones as its
+    # image's default user (root), not the build container's non-root uid - the chown here is a
+    # real ownership change, not a no-op like the baked-source case below.
+    pod = _make_buildah_backend_pod(
+        source="git://github.com/some-org/some-repo.git#main",
+        user_unix_id=1000,
+        enriched_group_id=1000,
+    )
+
+    assert _init_container_by_name(pod, "fetch-source") is not None
+    assert "ADD --chown=1000:1000 ./source /home/mlrun_code" in _decoded_dockerfile(pod)
+    assert "RUN chown" not in _decoded_dockerfile(pod)
+
+
 def test_buildah_backend_mounts_v3io_source():
     # v3io keeps its existing FUSE-mount mechanism (shared with Kaniko via
     # base.mount_v3io_source) rather than being routed through the fetch-source init container.
@@ -837,12 +997,18 @@ def test_buildah_backend_chowns_source_dir_when_security_context_enriched():
     # enrichment enabled must chown the baked source dir to the job pod's runtime uid/gid, or a
     # non-root job pod can't write into it at runtime. Buildah was silently skipping this
     # (unlike Kaniko, which already threads user_unix_id/enriched_group_id through).
+    #
+    # ownership is now set via `ADD --chown` at copy time rather than a separate `RUN chown -R`
+    # (see make_dockerfile) - here it's a no-op since the build container already owns the source.
     pod = _make_buildah_backend_pod(
         source="/opt/baked-in-source",
         user_unix_id=1000,
         enriched_group_id=1000,
     )
-    assert "RUN chown -R 1000:1000 /home/mlrun_code" in _decoded_dockerfile(pod)
+    assert (
+        "ADD --chown=1000:1000 /opt/baked-in-source /home/mlrun_code"
+        in _decoded_dockerfile(pod)
+    )
 
 
 def test_buildah_backend_no_chown_when_security_context_not_enriched():

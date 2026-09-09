@@ -31,7 +31,7 @@ jobs:
       actions: read
     steps:
       - name: Download coverage artifact
-        uses: dawidd6/action-download-artifact@b6e2e70617bc3265edd6dab6c906732b2f1ae151
+        uses: dawidd6/action-download-artifact@d63b86af1b34672e53c440b1b83979861906bad7
         with:
           name: coverage-markdown-report
           workflow_conclusion: success

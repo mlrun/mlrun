@@ -16,6 +16,7 @@ import pytest
 
 import mlrun
 import mlrun.errors
+import mlrun.k8s_utils
 from mlrun import new_function, new_task
 from mlrun.common.types import AuthenticationMode
 from tests.conftest import tag_test, verify_state
@@ -92,3 +93,14 @@ def test_dask_run_raises_in_iguazio_v4(monkeypatch):
         mlrun.errors.MLRunBadRequestError, match="not supported on this system"
     ):
         new_function(kind="dask").run(handler=my_func)
+
+
+@pytest.mark.parametrize("in_cluster", [True, False])
+def test_dask_use_remote_reflects_in_cluster_detection(monkeypatch, in_cluster):
+    monkeypatch.setattr(
+        mlrun.k8s_utils, "is_running_in_kubernetes_pod", lambda: in_cluster
+    )
+
+    function = new_function(kind="dask")
+
+    assert function.use_remote is not in_cluster

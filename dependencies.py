@@ -55,7 +55,7 @@ def extra_requirements() -> dict[str, list[str]]:
             "gcsfs>=2025.5.1, <=2025.7.0",
         ],
         "kafka": [
-            "kafka-python~=2.1.0",
+            "kafka-python~=2.3.2",
             # because confluent kafka supports avro format by default
             "avro~=1.11",
         ],

@@ -141,6 +141,7 @@ class HuggingFaceProvider(ModelProvider):
             raise ImportError("huggingface_hub package is not installed") from exc
 
     def _get_cache_dir(self) -> str | None:
+        """Resolve the Hugging Face cache directory, including a writable fallback."""
         cache_dir = self._get_secret_or_env("HF_HUB_CACHE")
         if cache_dir:
             return cache_dir
@@ -153,6 +154,8 @@ class HuggingFaceProvider(ModelProvider):
         if xdg_cache_home:
             return os.path.join(xdg_cache_home, "huggingface", "hub")
 
+        # A container user without a provisioned home can resolve to "/", making
+        # the default Hugging Face cache under "/.cache" unwritable.
         if os.path.expanduser("~") == os.path.sep:
             return os.path.join(tempfile.gettempdir(), "huggingface", "hub")
 

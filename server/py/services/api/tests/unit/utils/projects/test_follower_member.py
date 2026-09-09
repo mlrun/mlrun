@@ -801,6 +801,71 @@ def test_is_followers_sync_ready_reflects_event(
     projects_follower._followers_sync_ready.set()
 
 
+def test_ensure_project_open_for_resource_creation_blocks_while_startup_sync_pending(
+    projects_follower: framework.utils.projects.follower.Member,
+):
+    projects_follower._followers_sync_ready.clear()
+    try:
+        with pytest.raises(mlrun.errors.MLRunPreconditionFailedError):
+            projects_follower.ensure_project_open_for_resource_creation(
+                None, "some-project"
+            )
+    finally:
+        projects_follower._followers_sync_ready.set()
+
+
+@pytest.mark.parametrize(
+    "state",
+    [
+        mlrun.common.schemas.ProjectState.creating,
+        mlrun.common.schemas.ProjectState.deleting,
+    ],
+)
+def test_ensure_project_open_for_resource_creation_blocks_non_online_project(
+    db: sqlalchemy.orm.Session,
+    projects_follower: framework.utils.projects.follower.Member,
+    nop_leader: framework.utils.projects.remotes.leader.Member,
+    state,
+):
+    project = _generate_project(state=state)
+    projects_follower.create_project(db, project)
+    with pytest.raises(mlrun.errors.MLRunPreconditionFailedError):
+        projects_follower.ensure_project_open_for_resource_creation(
+            db, project.metadata.name
+        )
+
+
+def test_ensure_project_open_for_resource_creation_allows_online_project(
+    db: sqlalchemy.orm.Session,
+    projects_follower: framework.utils.projects.follower.Member,
+    nop_leader: framework.utils.projects.remotes.leader.Member,
+):
+    project = _generate_project(state=mlrun.common.schemas.ProjectState.online)
+    projects_follower.create_project(db, project)
+    projects_follower.ensure_project_open_for_resource_creation(
+        db, project.metadata.name
+    )  # must not raise
+
+
+def test_ensure_project_open_for_resource_creation_allows_unset_state(
+    projects_follower: framework.utils.projects.follower.Member,
+    monkeypatch,
+):
+    # a project with no recorded state (pre-dates the 2PC follower interface) is treated as
+    # online, not blocked - an explicit product decision, not a default we can second-guess.
+    legacy_project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name="legacy-project"),
+        spec=mlrun.common.schemas.ProjectSpec(),
+        status=mlrun.common.schemas.ProjectStatus(state=None),
+    )
+    monkeypatch.setattr(
+        projects_follower, "get_project", lambda *args, **kwargs: legacy_project
+    )
+    projects_follower.ensure_project_open_for_resource_creation(
+        None, "legacy-project"
+    )  # must not raise
+
+
 def _generate_project(
     name="project-name",
     description="some description",

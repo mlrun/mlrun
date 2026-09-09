@@ -45,12 +45,6 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 |-------|----------------------------------------------------------------------------|
 |ML-12736|The MLRun API service was upgraded and now uses KFP 2 instead of 1.8.|
 
-### Closed issues
-| ID    |Description                                                                 |
-|-------|----------------------------------------------------------------------------|
-|ML-12573
-
-
 (v1120)=
 ## v1.12.0
 
@@ -1585,17 +1579,18 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-12078|When Model-monitoring is enabled with V3io configured as default artifact storage, each model-endpoint creates 25 directories per day. |Run a daily cron job to delete parquet partition directories older than a week.|v1.11.0|
 |ML-12185|A split graph with a collector as a merge step does not fail deployment nor invoke and produce a false response. |Do not use the collector step as the merge step.|v1.11.0|
 |ML-12378|When using HTTP streaming, async does not work but works in the same manner as sync.|NA|v1.11.0|
-|ML-12458|Schedules only work with UTC timezone.|Use UTC instead of other timezones.|V1.11.0|
+|ML-12458|Schedules only work with UTC timezone.|Use UTC instead of other timezones.|v1.11.0|
+|ML-12573|On Kafka rebalance, some TSDB records are lost. |v1.12.0|
 
 ## Limitations
 
-| ID     |Description                                                                                                                                 |Workaround |Opened in|
-|---------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------|     
+| ID     |Description                                         |Workaround             |Opened in|
+|---------|---------------------------------------------------|-----------------------|---------|     
 |ML-1278|Users do not automatically have access rights to the project data of the projects they are members of.    | Assign the user access permission for the project folder.             | v0.8.0   |
-|ML-2014|Model deployment returns ResourceNotFoundException (Nuclio error that Service <name> is invalid.)                                                                                    |Verify that all `metadata.labels` values are 63 characters or less. See the [Kubernetes limitation](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set).                                                                                                                        |v1.0.0    |
-|ML-3520|MLRun does not decompress large Kubeflow pipelines.                                                                                                                                 |NA                                                                                                                                                                                                                                                                                                                              |v1.3.0    |
-|ML-3731|When trying to identify a failed step in a workflow with `mlrun.get_run_db().list_pipelines('project-name')`, the returned error is `None`.                                          |To see the error, use `mlrun.db.get_pipelines()` instead.                                                                                                                                                                                                 |v1.3.0|
-|ML-3743|Setting AWS credentials as project secret cause a build failure on EKS configured with ECR.                                                                                          |When using an ECR as the external container registry, make sure that the project secrets AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY have read/write access to ECR, as described in the [platform documentation](https://www.iguazio.com/docs/latest-release/services/app-services/docker-registry/#create-off-cluster-registry)|v1.3.0 |
+|ML-2014|Model deployment returns ResourceNotFoundException (Nuclio error that Service <name> is invalid.)    |Verify that all `metadata.labels` values are 63 characters or less. See the [Kubernetes limitation](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set).  |v1.0.0    |
+|ML-3520|MLRun does not decompress large Kubeflow pipelines.   |NA    |v1.3.0    |
+|ML-3731|When trying to identify a failed step in a workflow with `mlrun.get_run_db().list_pipelines('project-name')`, the returned error is `None`.   |To see the error, use `mlrun.db.get_pipelines()` instead.   |v1.3.0|
+|ML-3743|Setting AWS credentials as project secret cause a build failure on EKS configured with ECR. |When using an ECR as the external container registry, make sure that the project secrets AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY have read/write access to ECR, as described in the [platform documentation](https://www.iguazio.com/docs/latest-release/services/app-services/docker-registry/#create-off-cluster-registry)|v1.3.0 |
 |ML-4386|Notifications of local runs aren't persisted. | NA | v1.5.0|
 |ML-4767|When using mlrun-gpu image, use PyTorch versions up to and including than 2.0.1, but not higher.       | You can build your own images with newer CUDA for a later release of PyTorch. |                 v1.5.0|   
 |ML-4907|MLRun Client does not support Win OS.                                                 | Use WSL instead. | v1.3.0 | 

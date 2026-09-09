@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import datetime
+import threading
 import typing
 import unittest.mock
 from typing import get_args, get_type_hints
@@ -614,6 +615,13 @@ def _assert_list_projects(
 
 
 def test_initialize_with_orca_leader(monkeypatch):
+    # Avoid a real background thread hitting a nonexistent host on every retry for the rest of
+    # the test session: initialize() fires the followers-sync trigger in the background.
+    monkeypatch.setattr(
+        framework.utils.clients.iguazio.v4.Client,
+        "trigger_followers_sync",
+        lambda self: None,
+    )
     monkeypatch.setattr(mlrun.mlconf.httpdb.projects, "leader", "orca")
     monkeypatch.setattr(
         mlrun.mlconf.httpdb.projects, "periodic_sync_interval", "0 seconds"
@@ -624,6 +632,9 @@ def test_initialize_with_orca_leader(monkeypatch):
     assert isinstance(
         projects_follower._leader_client, framework.utils.clients.iguazio.v4.Client
     )
+    # the mocked trigger_followers_sync succeeds immediately, so the background thread should
+    # flip this ready within a short wait.
+    assert projects_follower._followers_sync_ready.wait(timeout=2)
     projects_follower.shutdown()
 
 
@@ -633,6 +644,35 @@ def test_initialize_with_orca_leader_requires_api_url(monkeypatch):
     projects_follower = framework.utils.projects.follower.Member()
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
         projects_follower.initialize()
+
+
+def test_followers_sync_ready_set_immediately_for_non_orca_leader(
+    projects_follower: framework.utils.projects.follower.Member,
+):
+    # the `projects_follower` fixture uses leader="nop" - there is no leader-driven startup
+    # sweep for this leader kind, so nothing should ever block on it.
+    assert projects_follower._followers_sync_ready.is_set()
+
+
+def test_trigger_followers_sync_in_background_does_not_block_and_retries(monkeypatch):
+    monkeypatch.setattr(framework.utils.projects.follower.time, "sleep", lambda _: None)
+    calls = {"n": 0}
+
+    class FlakyLeaderClient:
+        def trigger_followers_sync(self):
+            calls["n"] += 1
+            if calls["n"] < 2:
+                raise RuntimeError("transient failure")
+
+    member = object.__new__(framework.utils.projects.follower.Member)
+    member._followers_sync_ready = threading.Event()
+    member._periodic_sync_interval_seconds = 0
+    member._leader_client = FlakyLeaderClient()
+
+    member._trigger_followers_sync_in_background()  # must return immediately
+
+    assert member._followers_sync_ready.wait(timeout=2)
+    assert calls["n"] == 2
 
 
 def _generate_project(

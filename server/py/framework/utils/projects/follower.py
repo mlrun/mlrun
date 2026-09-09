@@ -13,6 +13,8 @@
 # limitations under the License.
 
 import datetime
+import threading
+import time
 import traceback
 
 import humanfriendly
@@ -58,6 +60,9 @@ class Member(
             == "enabled"
         )
         self._sync_session = None
+        # Set immediately for every leader kind except orca, which has its own leader-driven
+        # startup sweep (Follower Contract HLD checklist item 10) that this event gates on.
+        self._followers_sync_ready = threading.Event()
         self._leader_client: framework.utils.projects.remotes.leader.Member
         if self._leader_name == "iguazio":
             self._leader_client = framework.utils.clients.iguazio.v3.Client()
@@ -81,6 +86,10 @@ class Member(
             mlrun.mlconf.httpdb.projects.periodic_sync_interval
         )
         self._synced_until_datetime = None
+        if self._leader_name == "orca":
+            self._trigger_followers_sync_in_background()
+        else:
+            self._followers_sync_ready.set()
         # run one sync to start off on the right foot and fill out the cache but don't fail initialization on it
         if self._should_sync:
             try:
@@ -311,6 +320,35 @@ class Member(
         return await services.api.crud.Projects().get_project_summary(
             db_session, name, auth_info
         )
+
+    def _trigger_followers_sync_in_background(self):
+        # Runs on every replica independently (chief and workers alike): each process gates its
+        # own request-serving on its own view of readiness, so there's no need for cross-process
+        # signaling here. Orca's reconciliation sweep is idempotent to re-trigger, so a redundant
+        # call from another replica is harmless.
+        # Floored so a `periodic_sync_interval` of 0 (used elsewhere to disable the unrelated
+        # legacy periodic sync) can't turn this into a tight retry loop against the leader.
+        retry_interval_seconds = max(self._periodic_sync_interval_seconds, 5)
+
+        def _run():
+            while not self._followers_sync_ready.is_set():
+                try:
+                    self._leader_client.trigger_followers_sync()
+                except Exception as exc:
+                    logger.warning(
+                        "Followers-sync trigger against the leader failed; new resource "
+                        "creation stays blocked on this replica until the next retry",
+                        exc=err_to_str(exc),
+                        traceback=traceback.format_exc(),
+                        retry_in_seconds=retry_interval_seconds,
+                    )
+                    time.sleep(retry_interval_seconds)
+                else:
+                    self._followers_sync_ready.set()
+
+        threading.Thread(
+            target=_run, name="mlrun-followers-sync-trigger", daemon=True
+        ).start()
 
     @framework.utils.helpers.ensure_running_on_chief
     def _start_periodic_sync(self):

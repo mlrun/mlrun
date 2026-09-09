@@ -594,9 +594,6 @@ class ProcessBeforeParquet(mlrun.feature_store.steps.MapClass):
 
     def do(self, event):
         # Remove the following keys from the event.
-        # The name lists are empty until MapFeatureNames resolves them, so keeping them
-        # would infer null in one file and list<string> in the next, making the partition
-        # unreadable (ML-12998). Consumers read them from the model endpoint record.
         for key in [
             EventFieldType.FEATURES,
             EventFieldType.NAMED_FEATURES,

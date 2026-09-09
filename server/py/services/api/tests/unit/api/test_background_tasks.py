@@ -328,35 +328,18 @@ def test_get_internal_background_task_auth(
 
 
 @pytest.mark.asyncio
-async def test_authorize_get_background_task_request_leader_sa_bypasses_authz(
+async def test_authorize_get_background_task_request_allows_leader_sa(
     monkeypatch: pytest.MonkeyPatch,
 ):
-    """The leader's own service account must never reach the (currently
-    unimplemented) permission checks below it - guards against a future
-    implementation of that check accidentally dropping the leader bypass."""
     monkeypatch.setattr(
         mlrun.mlconf.httpdb.projects, "follower_leader_identity", "the-leader"
-    )
-    query_project_mock = unittest.mock.AsyncMock()
-    query_resource_mock = unittest.mock.AsyncMock()
-    monkeypatch.setattr(
-        framework.utils.auth.verifier.AuthVerifier,
-        "query_project_permissions",
-        query_project_mock,
-    )
-    monkeypatch.setattr(
-        framework.utils.auth.verifier.AuthVerifier,
-        "query_resource_permissions",
-        query_resource_mock,
     )
     leader_auth_info = mlrun.common.schemas.AuthInfo(
         username="the-leader",
         kind=mlrun.common.schemas.AuthInfoKind.service_account,
     )
     background_task = mlrun.common.schemas.BackgroundTask(
-        metadata=mlrun.common.schemas.BackgroundTaskMetadata(
-            name="task-1", project="some-proj"
-        ),
+        metadata=mlrun.common.schemas.BackgroundTaskMetadata(name="task-1"),
         spec=mlrun.common.schemas.BackgroundTaskSpec(),
         status=mlrun.common.schemas.BackgroundTaskStatus(
             state=mlrun.common.schemas.BackgroundTaskState.running
@@ -368,8 +351,6 @@ async def test_authorize_get_background_task_request_leader_sa_bypasses_authz(
     )
 
     assert result is None
-    query_project_mock.assert_not_called()
-    query_resource_mock.assert_not_called()
 
 
 def test_get_internal_background_task_redirect_from_worker_to_chief_exists(

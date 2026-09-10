@@ -1018,6 +1018,108 @@ def test_orca_format_as_leader_project_not_implemented(iguazio_client):
         iguazio_client.format_as_leader_project(_generate_igv4_project())
 
 
+@pytest.mark.parametrize("iguazio_client", [("v4", "sync")], indirect=True)
+def test_trigger_followers_sync_polls_until_succeeded(
+    api_url: str,
+    iguazio_client,
+    fast_orca_poll,
+    mock_service_account_auth_headers,
+    requests_mock: requests_mock_package.Mocker,
+):
+    correlation_id = str(uuid.uuid4())
+    requests_mock.post(
+        f"{api_url}/api/v1/projects/followers/sync",
+        json={"correlationId": correlation_id, "follower": "mlrun"},
+        status_code=202,
+    )
+    requests_mock.get(
+        f"{api_url}/api/v1/trackable-actions/executions",
+        [
+            {"json": _action_execution_list_body("running")},
+            {"json": _action_execution_list_body("succeeded")},
+        ],
+    )
+
+    iguazio_client.trigger_followers_sync()  # must not raise
+
+    # this is a boot-time, no-user-in-the-loop call - it must authenticate as MLRun's own
+    # service account, never a relayed user identity.
+    post_request = requests_mock.request_history[0]
+    assert (
+        post_request.headers["Authorization"]
+        == mock_service_account_auth_headers["Authorization"]
+    )
+
+
+@pytest.mark.parametrize("iguazio_client", [("v4", "sync")], indirect=True)
+def test_trigger_followers_sync_missing_op_id_raises(
+    api_url: str,
+    iguazio_client,
+    fast_orca_poll,
+    mock_service_account_auth_headers,
+    requests_mock: requests_mock_package.Mocker,
+):
+    requests_mock.post(
+        f"{api_url}/api/v1/projects/followers/sync",
+        json={},
+        status_code=202,
+    )
+
+    with pytest.raises(mlrun.errors.MLRunRuntimeError, match="correlationId"):
+        iguazio_client.trigger_followers_sync()
+
+
+@pytest.mark.parametrize("iguazio_client", [("v4", "sync")], indirect=True)
+def test_trigger_followers_sync_poll_timeout_raises(
+    api_url: str,
+    iguazio_client,
+    fast_orca_poll,
+    mock_service_account_auth_headers,
+    requests_mock: requests_mock_package.Mocker,
+):
+    correlation_id = str(uuid.uuid4())
+    requests_mock.post(
+        f"{api_url}/api/v1/projects/followers/sync",
+        json={"correlationId": correlation_id, "follower": "mlrun"},
+        status_code=202,
+    )
+    # never reaches a terminal state
+    requests_mock.get(
+        f"{api_url}/api/v1/trackable-actions/executions",
+        json=_action_execution_list_body("running"),
+    )
+
+    with pytest.raises(mlrun.errors.MLRunRetryExhaustedError):
+        iguazio_client.trigger_followers_sync()
+
+
+@pytest.mark.parametrize("iguazio_client", [("v4", "sync")], indirect=True)
+def test_trigger_followers_sync_action_failed_raises_without_retrying(
+    api_url: str,
+    iguazio_client,
+    fast_orca_poll,
+    mock_service_account_auth_headers,
+    requests_mock: requests_mock_package.Mocker,
+):
+    correlation_id = str(uuid.uuid4())
+    requests_mock.post(
+        f"{api_url}/api/v1/projects/followers/sync",
+        json={"correlationId": correlation_id, "follower": "mlrun"},
+        status_code=202,
+    )
+    requests_mock.get(
+        f"{api_url}/api/v1/trackable-actions/executions",
+        json=_action_execution_list_body("failed"),
+    )
+
+    with pytest.raises(mlrun.errors.MLRunRetryExhaustedError):
+        iguazio_client.trigger_followers_sync()
+
+    # a failed action is fatal - it should stop polling immediately, not retry until timeout
+    get_requests = [r for r in requests_mock.request_history if r.method == "GET"]
+    assert len(get_requests) == 1
+
+
 def _generate_igv4_httpx_exception(
     error_message: str,
     status_code: int,

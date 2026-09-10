@@ -41,6 +41,16 @@ class Member(abc.ABC):
     def shutdown(self):
         pass
 
+    def is_followers_sync_ready(self) -> bool:
+        """
+        Whether this follower's boot-time leader-driven sync (Follower Contract HLD checklist
+        item 10) has reached a terminal state. True by default: MLRun-as-leader (CE) has no
+        such window. Overridden by follower.Member. Safe to call on any deployment mode - the
+        followers-sync-status endpoint calls this polymorphically without knowing which one is
+        running.
+        """
+        return True
+
     def ensure_project(
         self,
         db_session: sqlalchemy.orm.Session,

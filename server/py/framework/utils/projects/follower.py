@@ -12,7 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
 import datetime
+import threading
+import time
 import traceback
 
 import humanfriendly
@@ -34,6 +37,7 @@ from mlrun.utils import logger
 import framework.db.session
 import framework.utils.auth.verifier
 import framework.utils.background_tasks
+import framework.utils.clients.chief
 import framework.utils.clients.iguazio.v3
 import framework.utils.clients.iguazio.v4
 import framework.utils.helpers
@@ -58,6 +62,9 @@ class Member(
             == "enabled"
         )
         self._sync_session = None
+        # Set immediately for every leader kind except orca, which has its own leader-driven
+        # startup sweep (Follower Contract HLD checklist item 10) that this event gates on.
+        self._followers_sync_ready = threading.Event()
         self._leader_client: framework.utils.projects.remotes.leader.Member
         if self._leader_name == "iguazio":
             self._leader_client = framework.utils.clients.iguazio.v3.Client()
@@ -81,6 +88,21 @@ class Member(
             mlrun.mlconf.httpdb.projects.periodic_sync_interval
         )
         self._synced_until_datetime = None
+        if self._leader_name == "orca":
+            # Only the chief actually triggers Orca's sweep - one trigger per boot event, not
+            # one per replica. Workers converge on the same readiness signal by asking the
+            # chief (see _wait_for_chief_followers_sync_in_background), matching how project
+            # state itself is chief-synced and shared via the DB rather than duplicated
+            # per-process (see _should_sync/_start_periodic_sync below).
+            if (
+                mlrun.mlconf.httpdb.clusterization.role
+                == mlrun.common.schemas.ClusterizationRole.chief
+            ):
+                self._trigger_followers_sync_in_background()
+            else:
+                self._wait_for_chief_followers_sync_in_background()
+        else:
+            self._followers_sync_ready.set()
         # run one sync to start off on the right foot and fill out the cache but don't fail initialization on it
         if self._should_sync:
             try:
@@ -108,6 +130,9 @@ class Member(
         logger.info("Shutting down projects leader")
         if self._should_sync:
             self._stop_periodic_sync()
+
+    def is_followers_sync_ready(self) -> bool:
+        return self._followers_sync_ready.is_set()
 
     def create_project(
         self,
@@ -311,6 +336,65 @@ class Member(
         return await services.api.crud.Projects().get_project_summary(
             db_session, name, auth_info
         )
+
+    def _trigger_followers_sync_in_background(self):
+        # Chief-only (see the call site in initialize()): one trigger per boot event against
+        # the leader, not one per replica. Workers converge on the resulting readiness via
+        # _wait_for_chief_followers_sync_in_background instead of triggering their own,
+        # independent sweep.
+        # Floored so a `periodic_sync_interval` of 0 (used elsewhere to disable the unrelated
+        # legacy periodic sync) can't turn this into a tight retry loop against the leader.
+        retry_interval_seconds = max(self._periodic_sync_interval_seconds, 5)
+
+        def _run():
+            while not self._followers_sync_ready.is_set():
+                try:
+                    self._leader_client.trigger_followers_sync()
+                except Exception as exc:
+                    logger.warning(
+                        "Followers-sync trigger against the leader failed; new resource "
+                        "creation stays blocked on this replica until the next retry",
+                        exc=err_to_str(exc),
+                        traceback=traceback.format_exc(),
+                        retry_in_seconds=retry_interval_seconds,
+                    )
+                    time.sleep(retry_interval_seconds)
+                else:
+                    self._followers_sync_ready.set()
+
+        threading.Thread(
+            target=_run, name="mlrun-followers-sync-trigger", daemon=True
+        ).start()
+
+    def _wait_for_chief_followers_sync_in_background(self):
+        # Worker-only (see the call site in initialize()): asks the chief whether its trigger
+        # has completed instead of independently triggering Orca. Once the chief says ready,
+        # this stops asking - readiness is monotonic, so there's nothing to re-check later.
+        retry_interval_seconds = max(self._periodic_sync_interval_seconds, 5)
+
+        def _run():
+            while not self._followers_sync_ready.is_set():
+                try:
+                    ready = asyncio.run(
+                        framework.utils.clients.chief.Client().is_followers_sync_ready()
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        "Failed asking the chief whether followers-sync is ready; new "
+                        "resource creation stays blocked on this replica until the next retry",
+                        exc=err_to_str(exc),
+                        traceback=traceback.format_exc(),
+                        retry_in_seconds=retry_interval_seconds,
+                    )
+                else:
+                    if ready:
+                        self._followers_sync_ready.set()
+                        return
+                time.sleep(retry_interval_seconds)
+
+        threading.Thread(
+            target=_run, name="mlrun-followers-sync-wait-for-chief", daemon=True
+        ).start()
 
     @framework.utils.helpers.ensure_running_on_chief
     def _start_periodic_sync(self):

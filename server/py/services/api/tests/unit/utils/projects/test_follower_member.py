@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import datetime
+import threading
 import typing
 import unittest.mock
 from typing import get_args, get_type_hints
@@ -29,6 +30,7 @@ import mlrun.utils
 
 import framework.db.sqldb.models
 import framework.utils.background_tasks
+import framework.utils.clients.chief
 import framework.utils.clients.iguazio.v4
 import framework.utils.projects.follower
 import framework.utils.projects.remotes.leader
@@ -614,6 +616,14 @@ def _assert_list_projects(
 
 
 def test_initialize_with_orca_leader(monkeypatch):
+    # Avoid a real background thread hitting a nonexistent host on every retry for the rest of
+    # the test session: initialize() fires the followers-sync trigger in the background. This
+    # test runs as chief (the default role), so it exercises the direct-trigger path.
+    monkeypatch.setattr(
+        framework.utils.clients.iguazio.v4.Client,
+        "trigger_followers_sync",
+        lambda self: None,
+    )
     monkeypatch.setattr(mlrun.mlconf.httpdb.projects, "leader", "orca")
     monkeypatch.setattr(
         mlrun.mlconf.httpdb.projects, "periodic_sync_interval", "0 seconds"
@@ -624,6 +634,41 @@ def test_initialize_with_orca_leader(monkeypatch):
     assert isinstance(
         projects_follower._leader_client, framework.utils.clients.iguazio.v4.Client
     )
+    # the mocked trigger_followers_sync succeeds immediately, so the background thread should
+    # flip this ready within a short wait.
+    assert projects_follower._followers_sync_ready.wait(timeout=2)
+    projects_follower.shutdown()
+
+
+def test_initialize_with_orca_leader_worker_delegates_to_chief(monkeypatch):
+    # A worker must never trigger its own sweep against Orca - only ask the chief.
+    monkeypatch.setattr(
+        mlrun.mlconf.httpdb.clusterization,
+        "role",
+        mlrun.common.schemas.ClusterizationRole.worker,
+    )
+    monkeypatch.setattr(mlrun.mlconf.httpdb.projects, "leader", "orca")
+    monkeypatch.setattr(
+        mlrun.mlconf.httpdb.projects, "periodic_sync_interval", "0 seconds"
+    )
+    monkeypatch.setattr(mlrun.mlconf, "iguazio_api_url", "http://orca-api-url:8080")
+    trigger_calls = {"n": 0}
+    monkeypatch.setattr(
+        framework.utils.clients.iguazio.v4.Client,
+        "trigger_followers_sync",
+        lambda self: trigger_calls.__setitem__("n", trigger_calls["n"] + 1),
+    )
+    monkeypatch.setattr(
+        framework.utils.clients.chief.Client,
+        "is_followers_sync_ready",
+        unittest.mock.AsyncMock(return_value=True),
+    )
+    projects_follower = framework.utils.projects.follower.Member()
+    projects_follower.initialize()
+    assert projects_follower._followers_sync_ready.wait(timeout=2)
+    assert trigger_calls["n"] == 0, (
+        "a worker must never trigger its own sweep against Orca"
+    )
     projects_follower.shutdown()
 
 
@@ -633,6 +678,68 @@ def test_initialize_with_orca_leader_requires_api_url(monkeypatch):
     projects_follower = framework.utils.projects.follower.Member()
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
         projects_follower.initialize()
+
+
+def test_followers_sync_ready_set_immediately_for_non_orca_leader(
+    projects_follower: framework.utils.projects.follower.Member,
+):
+    # the `projects_follower` fixture uses leader="nop" - there is no leader-driven startup
+    # sweep for this leader kind, so nothing should ever block on it.
+    assert projects_follower._followers_sync_ready.is_set()
+
+
+def test_trigger_followers_sync_in_background_does_not_block_and_retries(monkeypatch):
+    monkeypatch.setattr(framework.utils.projects.follower.time, "sleep", lambda _: None)
+    calls = {"n": 0}
+
+    class FlakyLeaderClient:
+        def trigger_followers_sync(self):
+            calls["n"] += 1
+            if calls["n"] < 2:
+                raise RuntimeError("transient failure")
+
+    member = object.__new__(framework.utils.projects.follower.Member)
+    member._followers_sync_ready = threading.Event()
+    member._periodic_sync_interval_seconds = 0
+    member._leader_client = FlakyLeaderClient()
+
+    member._trigger_followers_sync_in_background()  # must return immediately
+
+    assert member._followers_sync_ready.wait(timeout=2)
+    assert calls["n"] == 2
+
+
+def test_wait_for_chief_followers_sync_in_background_does_not_block_and_retries(
+    monkeypatch,
+):
+    monkeypatch.setattr(framework.utils.projects.follower.time, "sleep", lambda _: None)
+    calls = {"n": 0}
+
+    class FakeChiefClient:
+        async def is_followers_sync_ready(self):
+            calls["n"] += 1
+            return calls["n"] >= 2  # chief says "not ready" once, then "ready"
+
+    monkeypatch.setattr(
+        framework.utils.clients.chief.Client, "__new__", lambda cls: FakeChiefClient()
+    )
+    member = object.__new__(framework.utils.projects.follower.Member)
+    member._followers_sync_ready = threading.Event()
+    member._periodic_sync_interval_seconds = 0
+
+    member._wait_for_chief_followers_sync_in_background()  # must return immediately
+
+    assert member._followers_sync_ready.wait(timeout=2)
+    assert calls["n"] == 2
+
+
+def test_is_followers_sync_ready_reflects_event(
+    projects_follower: framework.utils.projects.follower.Member,
+):
+    assert projects_follower.is_followers_sync_ready() is True
+    projects_follower._followers_sync_ready.clear()
+    assert projects_follower.is_followers_sync_ready() is False
+    projects_follower._followers_sync_ready.set()
 
 
 def _generate_project(

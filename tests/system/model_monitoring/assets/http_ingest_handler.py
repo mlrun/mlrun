@@ -25,11 +25,16 @@ endpoint, demonstrating the USER_EP ingest flow from inside a pod.
 Expected request body (JSON):
     {"num_events": <int>}       # optional, defaults to 1
     {"inputs_format": <str>}    # optional, "named" (default) or "list"
+    {"timestamp": <str>}        # optional ISO-8601 event time; stream pod defaults to now
 
 ``inputs_format="list"`` sends inputs/outputs as plain lists of floats. The stream
 pod cannot infer names from a list, so on an endpoint created without an
 input/output schema the events carry no schema until MapFeatureNames generates
 and persists f0../p0 names.
+
+``timestamp`` pins the event time, which is what the Parquet target partitions on.
+Tests that need two batches in the same hourly partition pass it explicitly instead
+of relying on wall-clock time.
 """
 
 import json
@@ -92,6 +97,7 @@ def handler(context, event):
     body = body or {}
     num_events = int(body.get("num_events", 1))
     inputs_format = body.get("inputs_format", "named")
+    timestamp = body.get("timestamp")
 
     monitoring_url = _MONITORING_URL.rstrip("/")
 
@@ -123,6 +129,8 @@ def handler(context, event):
                 "inputs": inputs,
                 "outputs": outputs,
             }
+            if timestamp:
+                payload["timestamp"] = timestamp
             resp = requests.post(monitoring_url, json=payload, timeout=10)
             context.logger.info(
                 f"Stream pod response for event {i} endpoint {endpoint_id}: "

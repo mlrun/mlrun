@@ -2701,12 +2701,21 @@ class TestHTTPIngest(TestMLRunSystemModelMonitoring):
         fn: mlrun.runtimes.RemoteRuntime,
         num_endpoints: int = 1,
         inputs_format: str = "named",
+        timestamp: str | None = None,
     ) -> None:
-        """Invoke the Nuclio function and assert all events were accepted (HTTP 202)."""
+        """Invoke the Nuclio function and assert all events were accepted (HTTP 202).
+
+        :param timestamp: Optional ISO-8601 event time to stamp every event with. When
+                          omitted the stream pod stamps the events with its own clock.
+        """
         result = fn.invoke(
             path="/",
             body=json.dumps(
-                {"num_events": self.num_events, "inputs_format": inputs_format}
+                {
+                    "num_events": self.num_events,
+                    "inputs_format": inputs_format,
+                    "timestamp": timestamp,
+                }
             ),
         )
         self._logger.info(
@@ -2874,6 +2883,11 @@ class TestHTTPIngest(TestMLRunSystemModelMonitoring):
         for the same column, so reading the partition raised ArrowNotImplementedError
         and the monitoring application produced a result row for only one of the two
         windows.
+
+        Both batches are stamped with explicit timestamps one app window apart, because the
+        Parquet target partitions on event time: relying on the wall-clock wait between the
+        batches would let an hour boundary split them into separate partitions, where the
+        schemas never meet and the unfixed code passes.
         """
         endpoint_name = "http-ingest-schema-less-ep"
 
@@ -2900,11 +2914,19 @@ class TestHTTPIngest(TestMLRunSystemModelMonitoring):
             f"Endpoint should start without a schema, got {mep.spec.feature_names}"
         )
 
-        # First batch — the endpoint has no schema yet.
-        self._invoke_ingest_fn(fn, inputs_format="list")
+        # Starting at :59 would push the second timestamp into the next hour.
+        while datetime.now(tz=UTC).minute == 59:
+            time.sleep(1)
+        first_timestamp = datetime.now(tz=UTC)
+        second_timestamp = first_timestamp + timedelta(minutes=self.app_interval)
+        assert first_timestamp.hour == second_timestamp.hour
 
-        # Let the first batch flush to its own Parquet file before the names resolve,
-        # so the two batches land in separate files within the same partition.
+        # First batch — the endpoint has no schema yet.
+        self._invoke_ingest_fn(
+            fn, inputs_format="list", timestamp=first_timestamp.isoformat()
+        )
+
+        # The first batch must flush to its own file before the names resolve.
         flush_wait = (
             mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs
             + self._external_stream_delay
@@ -2926,9 +2948,10 @@ class TestHTTPIngest(TestMLRunSystemModelMonitoring):
             f"Expected generated label names, got {mep.spec.label_names}"
         )
 
-        # Second batch — the generated names are now on the endpoint, so these events
-        # carry a schema where the first batch carried none.
-        self._invoke_ingest_fn(fn, inputs_format="list")
+        # Second batch — the generated names are now on the endpoint, so these carry a schema.
+        self._invoke_ingest_fn(
+            fn, inputs_format="list", timestamp=second_timestamp.isoformat()
+        )
 
         initial_wait = (
             2 * self.app_interval_seconds
@@ -2942,10 +2965,12 @@ class TestHTTPIngest(TestMLRunSystemModelMonitoring):
         )
 
         def check_app_results() -> None:
-            # The app can only write a result row if reading sample_df succeeded,
-            # which requires both Parquet files to share a schema. The bug produced a
-            # row for one of the two windows, so requiring a single row would pass
-            # against it - assert both windows are present.
+            """Assert the app wrote a result for both ingest windows.
+
+            A result row is only written when reading sample_df succeeded, which requires
+            both Parquet files to share a schema. The bug still produced a row for one of
+            the two windows, so requiring a single row would pass against it.
+            """
             df = tsdb.get_results_metadata(endpoint_id=endpoint_id)
             assert not df.empty, "No application results in TSDB yet"
             assert NoCheckDemoMonitoringApp.NAME in df.application_name.values, (

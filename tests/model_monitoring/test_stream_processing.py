@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
 import datetime
 import json
 import os
@@ -25,6 +26,7 @@ import storey
 import mlrun
 import mlrun.model_monitoring
 from mlrun.common.schemas.model_monitoring.constants import (
+    EndpointType,
     EventFieldType,
     NuclioMonitoringEnvVars,
 )
@@ -38,6 +40,7 @@ from mlrun.model_monitoring.stream_processing import (
     _HTTP_ERROR_KEY,
     EventStreamProcessor,
     HTTPAckResponder,
+    MapFeatureNames,
     ProcessBeforeParquet,
     ProcessEndpointEvent,
     ProcessHTTPEvent,
@@ -707,57 +710,144 @@ class TestProcessEndpointEvent:
         assert result.body is None
 
 
-class TestProcessBeforeParquet:
-    """ProcessBeforeParquet.do() must emit events with a Parquet-stable schema.
+_TIMESTAMP = datetime.datetime(2026, 8, 11, 20, 37, 9, tzinfo=datetime.UTC)
+_ENDPOINT_ID = "ep-1"
 
-    On a schema-less endpoint the first event carries feature_names=None and later
-    events carry the names MapFeatureNames generated, so the Parquet target inferred
-    Arrow type null for one file and list<string> for the next. Reading the partition
-    then failed with ArrowNotImplementedError depending on file discovery order
-    (ML-12998).
+
+def _map_feature_names_step(
+    feature_names: list[str], label_names: list[str]
+) -> MapFeatureNames:
+    """Build a MapFeatureNames step with warm caches, so do() takes no DB path."""
+    step = MapFeatureNames(project="test-project")
+    step.feature_names[_ENDPOINT_ID] = feature_names
+    step.label_columns[_ENDPOINT_ID] = label_names
+    step.endpoint_type[_ENDPOINT_ID] = EndpointType.USER_EP.value
+    step.first_request[_ENDPOINT_ID] = True
+    return step
+
+
+def _raw_event(
+    features: list[float],
+    prediction: list[float],
+    feature_names: list[str] | None,
+    label_names: list[str] | None,
+    labels: dict | None = None,
+    metrics: dict | None = None,
+    entities: dict | None = None,
+) -> dict:
+    """Build an event shaped like the one ProcessEndpointEvent emits."""
+    return {
+        EventFieldType.ENDPOINT_ID: _ENDPOINT_ID,
+        EventFieldType.ENDPOINT_NAME: "my-model",
+        EventFieldType.TIMESTAMP: _TIMESTAMP,
+        EventFieldType.REQUEST_ID: "req-1",
+        EventFieldType.LATENCY: 5.0,
+        EventFieldType.FEATURES: features,
+        EventFieldType.PREDICTION: prediction,
+        EventFieldType.FEATURE_NAMES: feature_names,
+        EventFieldType.LABEL_NAMES: label_names,
+        EventFieldType.LABELS: labels,
+        EventFieldType.METRICS: metrics,
+        EventFieldType.ENTITIES: entities,
+    }
+
+
+class TestMapFeatureNames:
+    """MapFeatureNames.do() consumes the schema metadata rather than forwarding it.
+
+    feature_names/label_names only feed the name-value mapping. Leaving them on the
+    event made the Parquet target infer Arrow type null for the first schema-less event
+    and list<string> for the next one, so reading the partition failed with
+    ArrowNotImplementedError depending on file discovery order (ML-12998).
     """
 
-    _TIMESTAMP = datetime.datetime(2026, 8, 11, 20, 37, 9, tzinfo=datetime.UTC)
+    async def test_schema_metadata_is_consumed(self):
+        step = _map_feature_names_step(["f0", "f1"], ["p0"])
 
-    @classmethod
-    def _event(
-        cls,
+        result = await step.do(
+            _raw_event(
+                [1.0, 2.0], [0.8], feature_names=["f0", "f1"], label_names=["p0"]
+            )
+        )
+
+        assert EventFieldType.FEATURE_NAMES not in result
+        assert EventFieldType.LABEL_NAMES not in result
+        assert result["f0"] == 1.0
+        assert result["p0"] == 0.8
+
+    async def test_feature_named_like_the_metadata_is_preserved(self):
+        """A feature literally named `feature_names` keeps its value.
+
+        The metadata is removed before the mapping, so the feature's own value lands on the
+        key instead of being overwritten by - and then dropped with - the metadata.
+        """
+        step = _map_feature_names_step([EventFieldType.FEATURE_NAMES], ["p0"])
+
+        result = await step.do(
+            _raw_event(
+                [42.0],
+                [0.8],
+                feature_names=[EventFieldType.FEATURE_NAMES],
+                label_names=["p0"],
+            )
+        )
+
+        assert result[EventFieldType.FEATURE_NAMES] == 42.0
+        assert ProcessBeforeParquet().do(result)[EventFieldType.FEATURE_NAMES] == 42.0
+
+    async def test_label_named_like_the_metadata_is_preserved(self):
+        step = _map_feature_names_step(["f0"], [EventFieldType.LABEL_NAMES])
+
+        result = await step.do(
+            _raw_event(
+                [1.0],
+                [0.8],
+                feature_names=["f0"],
+                label_names=[EventFieldType.LABEL_NAMES],
+            )
+        )
+
+        assert result[EventFieldType.LABEL_NAMES] == 0.8
+        assert ProcessBeforeParquet().do(result)[EventFieldType.LABEL_NAMES] == 0.8
+
+
+class TestProcessBeforeParquet:
+    """ProcessBeforeParquet.do() must emit events with a Parquet-stable schema."""
+
+    @staticmethod
+    def _mapped_event(
         feature_names: list[str] | None,
         label_names: list[str] | None,
-        labels: dict | None = None,
-        metrics: dict | None = None,
         entities: dict | None = None,
     ) -> dict:
-        """Build an event shaped like the one MapFeatureNames emits."""
-        return {
-            EventFieldType.ENDPOINT_ID: "ep-1",
-            EventFieldType.ENDPOINT_NAME: "my-model",
-            EventFieldType.TIMESTAMP: cls._TIMESTAMP,
-            EventFieldType.REQUEST_ID: "req-1",
-            EventFieldType.LATENCY: 5.0,
-            EventFieldType.FEATURES: [1.0, 2.0],
-            EventFieldType.NAMED_FEATURES: {"f0": 1.0, "f1": 2.0},
-            EventFieldType.PREDICTION: [0.8],
-            EventFieldType.NAMED_PREDICTIONS: {"p0": 0.8},
-            EventFieldType.FEATURE_NAMES: feature_names,
-            EventFieldType.LABEL_NAMES: label_names,
-            EventFieldType.LABELS: labels,
-            EventFieldType.METRICS: metrics,
-            EventFieldType.ENTITIES: entities,
-            "f0": 1.0,
-            "f1": 2.0,
-            "p0": 0.8,
-        }
+        """Build an event shaped like the one MapFeatureNames emits.
+
+        *feature_names* and *label_names* are the metadata carried by the event before
+        the mapping - None on a schema-less endpoint, and the generated names once
+        MapFeatureNames persisted them.
+        """
+        step = _map_feature_names_step(["f0", "f1"], ["p0"])
+        return asyncio.run(
+            step.do(
+                _raw_event(
+                    [1.0, 2.0],
+                    [0.8],
+                    feature_names=feature_names,
+                    label_names=label_names,
+                    entities=entities,
+                )
+            )
+        )
 
     @classmethod
     def _schema_less_event(cls) -> dict:
         """First event on an endpoint created without input/output schema."""
-        return cls._event(feature_names=None, label_names=None)
+        return cls._mapped_event(feature_names=None, label_names=None)
 
     @classmethod
     def _schema_resolved_event(cls) -> dict:
         """Later event, after MapFeatureNames persisted the generated names."""
-        return cls._event(feature_names=["f0", "f1"], label_names=["p0"])
+        return cls._mapped_event(feature_names=["f0", "f1"], label_names=["p0"])
 
     @pytest.mark.parametrize(
         "feature_names,label_names",
@@ -766,14 +856,10 @@ class TestProcessBeforeParquet:
     )
     def test_transient_fields_are_removed(self, feature_names, label_names):
         result = ProcessBeforeParquet().do(
-            self._event(feature_names=feature_names, label_names=label_names)
+            self._mapped_event(feature_names=feature_names, label_names=label_names)
         )
 
-        # feature_names/label_names are consumed by MapFeatureNames and must not
-        # reach the target - they are what flips between null and list<string>.
         for key in [
-            EventFieldType.FEATURE_NAMES,
-            EventFieldType.LABEL_NAMES,
             EventFieldType.FEATURES,
             EventFieldType.NAMED_FEATURES,
             EventFieldType.PREDICTION,
@@ -781,13 +867,17 @@ class TestProcessBeforeParquet:
         ]:
             assert key not in result
 
+        # These are what flip between null and list<string>.
+        assert EventFieldType.FEATURE_NAMES not in result
+        assert EventFieldType.LABEL_NAMES not in result
+
         # The mapped name-value pairs are what the target actually stores.
         assert result["f0"] == 1.0
         assert result["p0"] == 0.8
 
     def test_entities_are_still_split_into_columns(self):
         result = ProcessBeforeParquet().do(
-            self._event(
+            self._mapped_event(
                 feature_names=["f0", "f1"], label_names=["p0"], entities={"e1": "x"}
             )
         )
@@ -799,6 +889,11 @@ class TestProcessBeforeParquet:
 
         max_events=1 forces a file per event, mirroring the reported run where the
         two events were flushed separately and landed in the same hour partition.
+
+        PyArrow adopts the schema of whichever file it discovers first and casts the rest
+        to it, so reading the directory only failed when the null-typed file happened to
+        sort first - which is what made the reported failure intermittent. Asserting the
+        per-file schemas match instead is what makes this test deterministic.
         """
         target_dir = tmp_path / "parquet"
 
@@ -834,10 +929,6 @@ class TestProcessBeforeParquet:
         files = sorted(partition_dir.glob("*.parquet"))
         assert len(files) == 2, "expected one file per event"
 
-        # PyArrow adopts the schema of whichever file it discovers first and casts the
-        # rest to it. Asserting the per-file schemas match is what makes this test
-        # deterministic: reading the directory only failed when the null-typed file
-        # happened to sort first, which is what made the reported failure intermittent.
         schemas = [pq.read_schema(file) for file in files]
         assert schemas[0].equals(schemas[1]), (
             f"parquet files disagree on schema:\n{schemas[0]}\nvs\n{schemas[1]}"

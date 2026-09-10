@@ -2884,10 +2884,8 @@ class TestHTTPIngest(TestMLRunSystemModelMonitoring):
         and the monitoring application produced a result row for only one of the two
         windows.
 
-        Both batches are stamped with explicit timestamps one app window apart, because the
-        Parquet target partitions on event time: relying on the wall-clock wait between the
-        batches would let an hour boundary split them into separate partitions, where the
-        schemas never meet and the unfixed code passes.
+        The Parquet target partitions on event time, so both batches are stamped one app
+        window apart to keep them in the same hourly partition.
         """
         endpoint_name = "http-ingest-schema-less-ep"
 
@@ -2967,9 +2965,8 @@ class TestHTTPIngest(TestMLRunSystemModelMonitoring):
         def check_app_results() -> None:
             """Assert the app wrote a result for both ingest windows.
 
-            A result row is only written when reading sample_df succeeded, which requires
-            both Parquet files to share a schema. The bug still produced a row for one of
-            the two windows, so requiring a single row would pass against it.
+            A row is only written when reading sample_df succeeded, which requires both
+            Parquet files to share a schema. One window alone does not prove it.
             """
             df = tsdb.get_results_metadata(endpoint_id=endpoint_id)
             assert not df.empty, "No application results in TSDB yet"

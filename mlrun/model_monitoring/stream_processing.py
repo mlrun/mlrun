@@ -870,10 +870,7 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
         the event should have key-value pairs of (feature name: feature value).
 
         The feature_names and label_names metadata is consumed here and removed before the values are mapped.
-        It must not reach the Parquet target, where its inferred type flips between null and list<string> once
-        the names are generated (ML-12998), and removing it before the mapping preserves a feature or label
-        actually named `feature_names`/`label_names`, whose value would otherwise be dropped along with it.
-
+        It should not reach the Parquet target so it won't be part of it columns schema.
         :param project:                 Project name.
         :param infer_columns_from_data: If true and features or labels names were not found, then try to
                                         retrieve them from data that was stored in the previous events of

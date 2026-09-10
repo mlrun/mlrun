@@ -680,6 +680,16 @@ with ctx:
             "spec.executor.serviceAccount",
             runtime.spec.service_account or "sparkapp",
         )
+        # The driver needs Kubernetes API access to create and manage executors.
+        # Enable token automount explicitly in case the service account disables it.
+        update_in(
+            job,
+            "spec.driver.template.spec",
+            {
+                "automountServiceAccountToken": True,
+                "containers": [{"name": "spark-kubernetes-driver"}],
+            },
+        )
         # Spark's pod-template loader NPEs without a named executor container.
         # Keep the template minimal and only disable token automount.
         update_in(

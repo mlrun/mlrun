@@ -15,7 +15,9 @@
 import importlib.util
 import pathlib
 
-_path = pathlib.Path(__file__).resolve().parents[2] / "mlrun" / "utils" / "coverage_demo.py"
+_path = (
+    pathlib.Path(__file__).resolve().parents[2] / "mlrun" / "utils" / "coverage_demo.py"
+)
 spec = importlib.util.spec_from_file_location("mlrun.utils.coverage_demo", _path)
 _mod = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(_mod)

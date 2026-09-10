@@ -627,7 +627,7 @@ class Secrets(
         Delete a stored offline token for a user and its corresponding Kubernetes secret.
 
         This method performs two actions:
-        1. (Only if Oris < 2.1.1) - Calls the Iguazio management service to revoke the Keycloak session itself
+        1. (Only if Orca < 2.1.0) - Calls the Iguazio management service to revoke the Keycloak session itself
         2. Removes the Kubernetes secret associated with the token.
 
         :param token_name:

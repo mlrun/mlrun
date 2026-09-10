@@ -127,6 +127,7 @@ async def create_pipeline(
     request: fastapi.Request,
     experiment_name: str = fastapi.Query("", alias="experiment"),
     run_name: str = fastapi.Query("", alias="run"),
+    namespace: typing.Optional[str] = fastapi.Query(None),
     auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
         framework.api.deps.authenticate_request
     ),
@@ -137,6 +138,7 @@ async def create_pipeline(
         experiment_name=experiment_name,
         run_name=run_name,
         project=project,
+        namespace=namespace,
     )
     return response
 

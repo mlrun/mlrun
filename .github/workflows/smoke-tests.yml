@@ -71,6 +71,8 @@ jobs:
         id: resolve
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HEAD_OWNER: ${{ github.event.workflow_run.head_repository.owner.login }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
         run: |
           # workflow_dispatch: always run; resolve PR number from input
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
@@ -89,8 +91,6 @@ jobs:
               exit 0
             fi
 
-            HEAD_OWNER="${{ github.event.workflow_run.head_repository.owner.login }}"
-            HEAD_BRANCH="${{ github.event.workflow_run.head_branch }}"
             PR_NUM=$(curl -sS \
               -H "Authorization: token ${GITHUB_TOKEN}" \
               -H "Accept: application/vnd.github+json" \

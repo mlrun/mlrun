@@ -131,6 +131,14 @@ make fmt
 
 * System tests - see dedicated section below
 
+## Patch code to remote Iguazio system
+
+* Deploy current code to a remote system
+    ```shell script
+    make patch-remote
+    ```
+    See [automation/patch_igz/README.md](../automation/patch_igz/README.md) for detailed instructions and prerequisites.
+
 ## Pull requests
 
 * **Title**

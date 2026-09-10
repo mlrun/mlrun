@@ -206,6 +206,10 @@ install-automation-requirements: ## Install automation-requirements relevant for
 		$(MLRUN_PIP_NO_CACHE_FLAG) \
 		-r automation/requirements.txt
 
+.PHONY: patch-remote
+patch-remote: ## Deploy local code on a remote system (see automation/patch_igz/README.md)
+	./automation/patch_igz/patch_remote.py
+
 .PHONY: install-docs-requirements
 install-docs-requirements: ## Install all requirements needed for compiling mlrun docs
 	$(MLRUN_PYTHON_VENV_PIP_INSTALL) --upgrade $(MLRUN_PIP_NO_CACHE_FLAG) pip~=$(MLRUN_PIP_VERSION)

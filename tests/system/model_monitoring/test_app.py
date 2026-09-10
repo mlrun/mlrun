@@ -2701,12 +2701,13 @@ class TestHTTPIngest(TestMLRunSystemModelMonitoring):
         fn: mlrun.runtimes.RemoteRuntime,
         num_endpoints: int = 1,
         inputs_format: str = "named",
-        timestamp: str | None = None,
+        timestamp: datetime | None = None,
     ) -> None:
         """Invoke the Nuclio function and assert all events were accepted (HTTP 202).
 
-        :param timestamp: Optional ISO-8601 event time to stamp every event with. When
-                          omitted the stream pod stamps the events with its own clock.
+        :param timestamp: Optional event time to stamp every event with, serialized the
+                          way the stream pod serializes its own default. When omitted the
+                          stream pod stamps the events with its own clock.
         """
         result = fn.invoke(
             path="/",
@@ -2714,7 +2715,9 @@ class TestHTTPIngest(TestMLRunSystemModelMonitoring):
                 {
                     "num_events": self.num_events,
                     "inputs_format": inputs_format,
-                    "timestamp": timestamp,
+                    "timestamp": timestamp.isoformat(sep=" ", timespec="microseconds")
+                    if timestamp
+                    else None,
                 }
             ),
         )
@@ -2920,9 +2923,7 @@ class TestHTTPIngest(TestMLRunSystemModelMonitoring):
         assert first_timestamp.hour == second_timestamp.hour
 
         # First batch — the endpoint has no schema yet.
-        self._invoke_ingest_fn(
-            fn, inputs_format="list", timestamp=first_timestamp.isoformat()
-        )
+        self._invoke_ingest_fn(fn, inputs_format="list", timestamp=first_timestamp)
 
         # The first batch must flush to its own file before the names resolve.
         flush_wait = (
@@ -2947,9 +2948,7 @@ class TestHTTPIngest(TestMLRunSystemModelMonitoring):
         )
 
         # Second batch — the generated names are now on the endpoint, so these carry a schema.
-        self._invoke_ingest_fn(
-            fn, inputs_format="list", timestamp=second_timestamp.isoformat()
-        )
+        self._invoke_ingest_fn(fn, inputs_format="list", timestamp=second_timestamp)
 
         initial_wait = (
             2 * self.app_interval_seconds

@@ -19,6 +19,7 @@ import typing
 import uuid
 from collections import defaultdict
 
+import semver
 from fastapi.concurrency import run_in_threadpool
 
 import mlrun.auth.utils
@@ -48,6 +49,12 @@ class SecretsClientType(enum.StrEnum):
     hub = "hub"
     notifications = "notifications"
     datastore_profiles = "datastore-profiles"
+
+
+# TODO: Update to 2.1.1 during ML-13070
+# The first Orca release that ships RevokeOfflineSession and self-revokes the
+# Keycloak session before calling this endpoint.
+MIN_ORCA_VERSION_WITH_SELF_REVOKE = "2.1.0"
 
 
 class Secrets(
@@ -551,7 +558,8 @@ class Secrets(
         :param request_headers: Request headers for authenticating with Iguazio.
         :param skip_revocation: If True, skip revoking the token via Iguazio and only delete
                                 the K8s secret. Used in bulk delete during user deletion flow
-                                since tokens are invalidated when the user is deleted anyway.
+                                since tokens are invalidated when the user is deleted anyway,
+                                and once Orca is recent enough to already own revocation itself.
         :raises mlrun.errors.MLRunNotFoundError: If the token is not found.
         :raises mlrun.errors.MLRunRuntimeError: If K8s deletion fails after revocation.
         """
@@ -586,6 +594,29 @@ class Secrets(
             )
             raise mlrun.errors.MLRunRuntimeError(err_msg) from exc
 
+    def _orca_owns_revocation(self) -> bool:
+        """
+        Returns whether the Orca deployment paired with this cluster already revokes the
+        Keycloak session itself before calling this endpoint. Orca's version is resolved once
+        via its own info API (see framework.utils.clients.iguazio.v4.resolve_orca_version).
+        A missing or unparseable version is treated as a recent Orca, since an older Orca
+        predates this version check entirely and would otherwise never resolve to one.
+        """
+        orca_version = framework.utils.clients.iguazio.v4.resolve_orca_version()
+        if not orca_version:
+            return True
+        try:
+            parsed_version = semver.VersionInfo.parse(orca_version)
+            parsed_version = semver.VersionInfo.parse(
+                f"{parsed_version.major}.{parsed_version.minor}.{parsed_version.patch}"
+            )
+        except ValueError:
+            logger.warning("Unable to parse Orca version", orca_version=orca_version)
+            return True
+        return parsed_version >= semver.VersionInfo.parse(
+            MIN_ORCA_VERSION_WITH_SELF_REVOKE
+        )
+
     def delete_secret_token(
         self,
         token_name: str,
@@ -596,7 +627,7 @@ class Secrets(
         Delete a stored offline token for a user and its corresponding Kubernetes secret.
 
         This method performs two actions:
-        1. Calls the Iguazio management service to revoke the offline token.
+        1. (Only if Orca < 2.1.0) - Calls the Iguazio management service to revoke the Keycloak session itself
         2. Removes the Kubernetes secret associated with the token.
 
         :param token_name:
@@ -630,6 +661,7 @@ class Secrets(
                 token_name=token_name,
                 iguazio_client=iguazio_client,
                 request_headers=auth_info.request_headers,
+                skip_revocation=self._orca_owns_revocation(),
             )
         except mlrun.errors.MLRunNotFoundError:
             logger.warning(

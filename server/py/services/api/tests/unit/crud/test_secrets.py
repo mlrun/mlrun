@@ -27,6 +27,7 @@ import mlrun.common.schemas
 import mlrun.errors
 import mlrun.runtimes.base
 
+import framework.utils.clients.iguazio.v4
 import services.api.crud
 import services.api.tests.unit.conftest
 
@@ -950,7 +951,10 @@ def test_list_secret_tokens_returns_tokens():
     )
 
 
-def test_delete_secret_token_success(mock_iguazio_client):
+def test_delete_secret_token_success(mock_iguazio_client, monkeypatch):
+    monkeypatch.setattr(
+        framework.utils.clients.iguazio.v4, "resolve_orca_version", lambda: "1.0.0"
+    )
     request_headers = {
         mlrun.common.schemas.HeaderNames.authorization: f"{mlrun.common.schemas.AuthorizationHeaderPrefixes.bearer}123",
     }
@@ -986,7 +990,114 @@ def test_delete_secret_token_success(mock_iguazio_client):
     )
 
 
-def test_delete_secret_token_not_found(mock_iguazio_client):
+@pytest.mark.parametrize(
+    "resolved_version,min_version",
+    [
+        ("999.0.0", "2.1.1"),  # plain release, well past the threshold
+        # PR/dev build: pre-release and build metadata are stripped before comparing, so only
+        # major.minor.patch matters - a PR build cut from a release at the threshold still skips.
+        ("2.1.0-pr-921.1.20260818115106", "2.1.0"),
+        # Unresolvable (unreachable, unconfigured, or unparseable): an old Orca predates this
+        # version check entirely and would never resolve to a version either, so this is
+        # treated as a recent Orca rather than blocking revocation from ever being skipped.
+        ("", "2.1.1"),
+    ],
+)
+def test_delete_secret_token_recent_orca_skips_revocation(
+    mock_iguazio_client, monkeypatch, resolved_version, min_version
+):
+    """
+    A recent-enough (or unresolvable) Orca is the source of truth for offline-token revocation
+    and revokes the Keycloak session itself before calling this endpoint, so it must not
+    trigger a redundant revoke here - it should only delete the K8s secret. Orca's version is
+    resolved once via its own info API, never trusted from the (spoofable) caller.
+    """
+    monkeypatch.setattr(
+        services.api.crud.secrets, "MIN_ORCA_VERSION_WITH_SELF_REVOKE", min_version
+    )
+    monkeypatch.setattr(
+        framework.utils.clients.iguazio.v4,
+        "resolve_orca_version",
+        lambda: resolved_version,
+    )
+    auth_info = mlrun.common.schemas.AuthInfo(
+        username="dummy-user", user_id="user-id-123"
+    )
+    token_name = "my-token"
+
+    mock_secrets_provider = unittest.mock.Mock()
+    services.api.crud.Secrets().secrets_provider = mock_secrets_provider
+    mock_secrets_provider.delete_user_token_secret = unittest.mock.Mock()
+
+    result = services.api.crud.Secrets().delete_secret_token(
+        token_name=token_name,
+        username=auth_info.username,
+        auth_info=auth_info,
+    )
+
+    assert result.deleted is True
+    assert result.username == auth_info.username
+
+    mock_secrets_provider.get_user_token_secret_value.assert_not_called()
+    mock_iguazio_client.revoke_offline_token.assert_not_called()
+    mock_secrets_provider.delete_user_token_secret.assert_called_once_with(
+        user_id=auth_info.user_id, token_name=token_name
+    )
+
+
+@pytest.mark.parametrize(
+    "resolved_version,min_version",
+    [
+        ("1.2.0", "5.0.0"),  # predates ORIS-4151's self-revoke behavior
+        # PR/dev build below the threshold even after stripping pre-release/build metadata.
+        ("2.1.0-pr-921.1.20260818115106", "2.1.1"),
+    ],
+)
+def test_delete_secret_token_orca_below_threshold_still_revokes(
+    mock_iguazio_client, monkeypatch, resolved_version, min_version
+):
+    """
+    A resolvable Orca version that's too old (even after stripping pre-release/build metadata)
+    must still go through the normal revoke-then-delete flow.
+    """
+    monkeypatch.setattr(
+        services.api.crud.secrets, "MIN_ORCA_VERSION_WITH_SELF_REVOKE", min_version
+    )
+    monkeypatch.setattr(
+        framework.utils.clients.iguazio.v4,
+        "resolve_orca_version",
+        lambda: resolved_version,
+    )
+    auth_info = mlrun.common.schemas.AuthInfo(
+        username="dummy-user", user_id="user-id-123"
+    )
+    token_name = "my-token"
+    fake_token = "jwt-token-123"
+
+    mock_secrets_provider = unittest.mock.Mock()
+    services.api.crud.Secrets().secrets_provider = mock_secrets_provider
+    mock_secrets_provider.get_user_token_secret_value.return_value = fake_token
+    mock_secrets_provider.delete_user_token_secret = unittest.mock.Mock()
+
+    result = services.api.crud.Secrets().delete_secret_token(
+        token_name=token_name,
+        username=auth_info.username,
+        auth_info=auth_info,
+    )
+
+    assert result.deleted is True
+    mock_iguazio_client.revoke_offline_token.assert_called_once_with(
+        fake_token, auth_info.request_headers
+    )
+    mock_secrets_provider.delete_user_token_secret.assert_called_once_with(
+        user_id=auth_info.user_id, token_name=token_name
+    )
+
+
+def test_delete_secret_token_not_found(mock_iguazio_client, monkeypatch):
+    monkeypatch.setattr(
+        framework.utils.clients.iguazio.v4, "resolve_orca_version", lambda: "1.0.0"
+    )
     auth_info = mlrun.common.schemas.AuthInfo(
         username="dummy-user", user_id="user-id-123"
     )
@@ -1007,7 +1118,10 @@ def test_delete_secret_token_not_found(mock_iguazio_client):
     assert result.username == auth_info.username
 
 
-def test_delete_secret_token_iguazio_failure(mock_iguazio_client):
+def test_delete_secret_token_iguazio_failure(mock_iguazio_client, monkeypatch):
+    monkeypatch.setattr(
+        framework.utils.clients.iguazio.v4, "resolve_orca_version", lambda: "1.0.0"
+    )
     auth_info = mlrun.common.schemas.AuthInfo(
         username="dummy-user", user_id="user-id-123"
     )
@@ -1026,7 +1140,10 @@ def test_delete_secret_token_iguazio_failure(mock_iguazio_client):
         )
 
 
-def test_delete_secret_token_k8s_delete_failure(mock_iguazio_client):
+def test_delete_secret_token_k8s_delete_failure(mock_iguazio_client, monkeypatch):
+    monkeypatch.setattr(
+        framework.utils.clients.iguazio.v4, "resolve_orca_version", lambda: "1.0.0"
+    )
     auth_info = mlrun.common.schemas.AuthInfo(
         username="dummy-user", user_id="user-id-123"
     )

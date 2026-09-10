@@ -57,12 +57,13 @@ jobs:
       - name: Get PR number
         id: pr
         shell: bash
-        env:
-          REPO: ${{ github.repository }}
-          HEAD_OWNER: ${{ github.event.workflow_run.head_repository.owner.login }}
-          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
         run: |
           set -euo pipefail
+
+          # Define variables for readability
+          REPO="${{ github.repository }}"
+          HEAD_OWNER="${{ github.event.workflow_run.head_repository.owner.login }}"
+          HEAD_BRANCH="${{ github.event.workflow_run.head_branch }}"
 
           echo "Searching for PR from $HEAD_OWNER:$HEAD_BRANCH in $REPO..."
 

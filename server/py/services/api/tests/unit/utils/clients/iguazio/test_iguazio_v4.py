@@ -1026,10 +1026,10 @@ def test_trigger_followers_sync_polls_until_succeeded(
     mock_service_account_auth_headers,
     requests_mock: requests_mock_package.Mocker,
 ):
-    op_id = str(uuid.uuid4())
+    correlation_id = str(uuid.uuid4())
     requests_mock.post(
         f"{api_url}/api/v1/projects/followers/sync",
-        json={"opId": op_id},
+        json={"correlationId": correlation_id, "follower": "mlrun"},
         status_code=202,
     )
     requests_mock.get(
@@ -1065,7 +1065,7 @@ def test_trigger_followers_sync_missing_op_id_raises(
         status_code=202,
     )
 
-    with pytest.raises(mlrun.errors.MLRunRuntimeError, match="op_id"):
+    with pytest.raises(mlrun.errors.MLRunRuntimeError, match="correlationId"):
         iguazio_client.trigger_followers_sync()
 
 
@@ -1077,10 +1077,10 @@ def test_trigger_followers_sync_poll_timeout_raises(
     mock_service_account_auth_headers,
     requests_mock: requests_mock_package.Mocker,
 ):
-    op_id = str(uuid.uuid4())
+    correlation_id = str(uuid.uuid4())
     requests_mock.post(
         f"{api_url}/api/v1/projects/followers/sync",
-        json={"opId": op_id},
+        json={"correlationId": correlation_id, "follower": "mlrun"},
         status_code=202,
     )
     # never reaches a terminal state
@@ -1101,10 +1101,10 @@ def test_trigger_followers_sync_action_failed_raises_without_retrying(
     mock_service_account_auth_headers,
     requests_mock: requests_mock_package.Mocker,
 ):
-    op_id = str(uuid.uuid4())
+    correlation_id = str(uuid.uuid4())
     requests_mock.post(
         f"{api_url}/api/v1/projects/followers/sync",
-        json={"opId": op_id},
+        json={"correlationId": correlation_id, "follower": "mlrun"},
         status_code=202,
     )
     requests_mock.get(

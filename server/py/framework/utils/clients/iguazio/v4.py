@@ -55,13 +55,11 @@ PROJECT_SYNC_SUBDOMAIN = "projects"
 
 # Follower Contract HLD checklist item 10: a follower triggers this on its own boot, with its own
 # SA (not a user-identity relay), to have Orca run a full reconciliation sweep scoped to that
-# follower. NOTE: unlike PROJECTS_ENDPOINT/PROJECT_SYNC_ACTION_TYPE above, this endpoint and action
-# type are not yet implemented on orca's feature/project-sync branch (confirmed absent at the time
-# of writing) - the path matches the HLD's documented contract; the action type/subdomain are our
-# best construction from the existing "sync-project" naming convention, unverified against a real
-# implementation.
+# follower. Endpoint, action type ("follower-sync", not "sync-followers" - a naming-convention
+# guess that turned out wrong) and response shape (`correlationId`, not `opId`) confirmed live
+# against orca's feature/ORIS-3532-trigger branch.
 FOLLOWERS_SYNC_ENDPOINT = "v1/projects/followers/sync"
-FOLLOWERS_SYNC_ACTION_TYPE = "sync-followers"
+FOLLOWERS_SYNC_ACTION_TYPE = "follower-sync"
 FOLLOWERS_SYNC_SUBDOMAIN = "projects"
 
 
@@ -530,17 +528,16 @@ class Client(BaseClient, project_leader.Member):
             FOLLOWERS_SYNC_ENDPOINT,
             "Failed triggering Orca followers-sync",
         )
-        body = response.json()
-        # Unlike create/update/delete above (which assume the single verified `status.opId`
-        # shape from orca#1059), this endpoint doesn't exist on orca yet, so its response shape
-        # is unverified - checking both a top-level and a nested `opId` costs nothing and fails
-        # loudly (below) if neither matches, rather than guessing wrong silently.
-        op_id = body.get("opId") or body.get("status", {}).get("opId")
-        if not op_id:
+        # Response shape confirmed live against orca's feature/ORIS-3532-trigger branch:
+        # {"correlationId": "<uuid>", "follower": "mlrun", "status": {...}} - note this is
+        # `correlationId`, not `opId`; unlike a project's own op_id, this identifies the sweep
+        # run itself, which is what the trackable-action poll below keys on.
+        correlation_id = response.json().get("correlationId")
+        if not correlation_id:
             raise mlrun.errors.MLRunRuntimeError(
-                "Orca followers-sync response did not include an op_id"
+                "Orca followers-sync response did not include a correlationId"
             )
-        self._wait_for_followers_sync(op_id)
+        self._wait_for_followers_sync(correlation_id)
 
     def _send_self_authenticated_request(
         self,
@@ -566,10 +563,10 @@ class Client(BaseClient, project_leader.Member):
         kwargs.setdefault("timeout", 20)
         return self._send_request_to_api(method, path, error_message, **kwargs)
 
-    def _wait_for_followers_sync(self, op_id: str) -> None:
+    def _wait_for_followers_sync(self, correlation_id: str) -> None:
         self._logger.debug(
             "Waiting for Orca followers-sync action to reach a terminal state",
-            op_id=op_id,
+            correlation_id=correlation_id,
         )
         try:
             mlrun.utils.helpers.retry_until_successful(
@@ -578,19 +575,19 @@ class Client(BaseClient, project_leader.Member):
                 self._logger,
                 False,
                 self._verify_followers_sync_terminal,
-                op_id,
+                correlation_id,
                 fatal_exceptions=(_OrcaActionFailedError,),
             )
         except _OrcaActionFailedError as exc:
             raise mlrun.errors.MLRunRuntimeError(str(exc)) from exc
 
-    def _verify_followers_sync_terminal(self, op_id: str) -> None:
+    def _verify_followers_sync_terminal(self, correlation_id: str) -> None:
         response = self._send_self_authenticated_request(
             mlrun.common.types.HTTPMethod.GET,
             ACTION_EXECUTIONS_ENDPOINT,
             "Failed getting Orca followers-sync action execution",
             params={
-                "correlationId": str(op_id),
+                "correlationId": str(correlation_id),
                 "actionType": FOLLOWERS_SYNC_ACTION_TYPE,
                 "subdomain": FOLLOWERS_SYNC_SUBDOMAIN,
                 "limit": 1,
@@ -599,16 +596,17 @@ class Client(BaseClient, project_leader.Member):
         items = response.json().get("items", [])
         if not items:
             raise mlrun.errors.MLRunRuntimeError(
-                f"No Orca followers-sync action observed yet (op_id={op_id})"
+                f"No Orca followers-sync action observed yet (correlation_id={correlation_id})"
             )
         state = items[0].get("status", {}).get("state")
         if state == "failed":
             raise _OrcaActionFailedError(
-                f"Orca followers-sync action (op_id={op_id}) failed"
+                f"Orca followers-sync action (correlation_id={correlation_id}) failed"
             )
         if state != "succeeded":
             raise mlrun.errors.MLRunRuntimeError(
-                f"Orca followers-sync action (op_id={op_id}) is still in progress (state={state})"
+                f"Orca followers-sync action (correlation_id={correlation_id}) is still in "
+                f"progress (state={state})"
             )
 
     @staticmethod

@@ -128,7 +128,7 @@ See: **Docs:** [Ingest and process data](https://docs.mlrun.org/en/stable/data-p
 
 ### Develop and train models
 
-MLRun allows you to easily build ML pipelines that take data from various sources or the Feature Store and process it, train models at scale with multiple parameters, test models, tracks each experiments, register, version and deploy models, etc. MLRun provides scalable built-in or custom model training services, integrate with any framework and can work with 3rd party training/auto-ML services. You can also bring your own pre-trained model and use it in the pipeline.
+MLRun allows you to easily build ML pipelines that take data from various sources or the Feature Store and process it, train models at scale with multiple parameters, test models, track each experiments, register, version and deploy models, etc. MLRun provides scalable built-in or custom model training services, integrates with any framework and can work with 3rd party training/auto-ML services. You can also bring your own pre-trained model and use it in the pipeline.
 
 **Docs:** [Develop and train models](https://docs.mlrun.org/en/stable/development/index.html), [Model Training and Tracking](https://docs.mlrun.org/en/stable/development/model-training-tracking.html), [Batch Runs and Workflows](https://docs.mlrun.org/en/stable/concepts/runs-workflows.html)
 **Tutorials:** [Train, compare, and register models](https://docs.mlrun.org/en/stable/tutorials/02-model-training.html), [Automated ML Pipeline](https://docs.mlrun.org/en/stable/tutorials/04-pipeline.html)

@@ -26,7 +26,6 @@ import storey
 import mlrun
 import mlrun.model_monitoring
 from mlrun.common.schemas.model_monitoring.constants import (
-    EndpointType,
     EventFieldType,
     NuclioMonitoringEnvVars,
 )
@@ -715,15 +714,27 @@ _ENDPOINT_ID = "ep-1"
 
 
 def _map_feature_names_step(
-    feature_names: list[str], label_names: list[str]
+    monkeypatch: pytest.MonkeyPatch,
+    feature_names: list[str],
+    label_names: list[str],
 ) -> MapFeatureNames:
-    """Build a MapFeatureNames step with warm caches, so do() takes no DB path."""
-    step = MapFeatureNames(project="test-project")
-    step.feature_names[_ENDPOINT_ID] = feature_names
-    step.label_columns[_ENDPOINT_ID] = label_names
-    step.endpoint_type[_ENDPOINT_ID] = EndpointType.USER_EP.value
-    step.first_request[_ENDPOINT_ID] = True
-    return step
+    """Build a MapFeatureNames step whose endpoint record comes from a mocked DB.
+
+    first_request is set so the step has nothing to write back to the record.
+    """
+    endpoint = mlrun.common.schemas.ModelEndpoint(
+        metadata=mlrun.common.schemas.ModelEndpointMetadata(
+            name="my-model", project="test-project"
+        ),
+        spec=mlrun.common.schemas.ModelEndpointSpec(
+            feature_names=feature_names, label_names=label_names
+        ),
+        status=mlrun.common.schemas.ModelEndpointStatus(first_request=_TIMESTAMP),
+    )
+    mock_db = unittest.mock.MagicMock()
+    mock_db.get_model_endpoint.return_value = endpoint
+    monkeypatch.setattr(mlrun.db, "get_run_db", lambda *a, **kw: mock_db)
+    return MapFeatureNames(project="test-project")
 
 
 def _raw_event(
@@ -755,14 +766,12 @@ def _raw_event(
 class TestMapFeatureNames:
     """MapFeatureNames.do() consumes the schema metadata rather than forwarding it.
 
-    feature_names/label_names only feed the name-value mapping. Leaving them on the
-    event made the Parquet target infer Arrow type null for the first schema-less event
-    and list<string> for the next one, so reading the partition failed with
-    ArrowNotImplementedError depending on file discovery order (ML-12998).
+    feature_names and label_names only feed the name-value mapping. Left on the event, the
+    Parquet target infers null for an empty one and list<string> for a resolved one.
     """
 
-    async def test_schema_metadata_is_consumed(self):
-        step = _map_feature_names_step(["f0", "f1"], ["p0"])
+    async def test_schema_metadata_is_consumed(self, monkeypatch):
+        step = _map_feature_names_step(monkeypatch, ["f0", "f1"], ["p0"])
 
         result = await step.do(
             _raw_event(
@@ -775,13 +784,11 @@ class TestMapFeatureNames:
         assert result["f0"] == 1.0
         assert result["p0"] == 0.8
 
-    async def test_feature_named_like_the_metadata_is_preserved(self):
-        """A feature literally named `feature_names` keeps its value.
-
-        The metadata is removed before the mapping, so the feature's own value lands on the
-        key instead of being overwritten by - and then dropped with - the metadata.
-        """
-        step = _map_feature_names_step([EventFieldType.FEATURE_NAMES], ["p0"])
+    async def test_feature_named_like_the_metadata_is_preserved(self, monkeypatch):
+        """A feature named `feature_names` keeps its own value."""
+        step = _map_feature_names_step(
+            monkeypatch, [EventFieldType.FEATURE_NAMES], ["p0"]
+        )
 
         result = await step.do(
             _raw_event(
@@ -795,8 +802,10 @@ class TestMapFeatureNames:
         assert result[EventFieldType.FEATURE_NAMES] == 42.0
         assert ProcessBeforeParquet().do(result)[EventFieldType.FEATURE_NAMES] == 42.0
 
-    async def test_label_named_like_the_metadata_is_preserved(self):
-        step = _map_feature_names_step(["f0"], [EventFieldType.LABEL_NAMES])
+    async def test_label_named_like_the_metadata_is_preserved(self, monkeypatch):
+        step = _map_feature_names_step(
+            monkeypatch, ["f0"], [EventFieldType.LABEL_NAMES]
+        )
 
         result = await step.do(
             _raw_event(
@@ -816,17 +825,17 @@ class TestProcessBeforeParquet:
 
     @staticmethod
     def _mapped_event(
+        monkeypatch: pytest.MonkeyPatch,
         feature_names: list[str] | None,
         label_names: list[str] | None,
         entities: dict | None = None,
     ) -> dict:
-        """Build an event shaped like the one MapFeatureNames emits.
+        """Build an event by running a raw one through MapFeatureNames.
 
-        *feature_names* and *label_names* are the metadata carried by the event before
-        the mapping - None on a schema-less endpoint, and the generated names once
-        MapFeatureNames persisted them.
+        feature_names and label_names are the metadata on the event before the mapping:
+        None on a schema-less endpoint, the generated names once persisted.
         """
-        step = _map_feature_names_step(["f0", "f1"], ["p0"])
+        step = _map_feature_names_step(monkeypatch, ["f0", "f1"], ["p0"])
         return asyncio.run(
             step.do(
                 _raw_event(
@@ -840,23 +849,29 @@ class TestProcessBeforeParquet:
         )
 
     @classmethod
-    def _schema_less_event(cls) -> dict:
+    def _schema_less_event(cls, monkeypatch: pytest.MonkeyPatch) -> dict:
         """First event on an endpoint created without input/output schema."""
-        return cls._mapped_event(feature_names=None, label_names=None)
+        return cls._mapped_event(monkeypatch, feature_names=None, label_names=None)
 
     @classmethod
-    def _schema_resolved_event(cls) -> dict:
+    def _schema_resolved_event(cls, monkeypatch: pytest.MonkeyPatch) -> dict:
         """Later event, after MapFeatureNames persisted the generated names."""
-        return cls._mapped_event(feature_names=["f0", "f1"], label_names=["p0"])
+        return cls._mapped_event(
+            monkeypatch, feature_names=["f0", "f1"], label_names=["p0"]
+        )
 
     @pytest.mark.parametrize(
         "feature_names,label_names",
         [(None, None), (["f0", "f1"], ["p0"])],
         ids=["schema_less", "schema_resolved"],
     )
-    def test_transient_fields_are_removed(self, feature_names, label_names):
+    def test_transient_fields_are_removed(
+        self, monkeypatch, feature_names, label_names
+    ):
         result = ProcessBeforeParquet().do(
-            self._mapped_event(feature_names=feature_names, label_names=label_names)
+            self._mapped_event(
+                monkeypatch, feature_names=feature_names, label_names=label_names
+            )
         )
 
         for key in [
@@ -875,25 +890,24 @@ class TestProcessBeforeParquet:
         assert result["f0"] == 1.0
         assert result["p0"] == 0.8
 
-    def test_entities_are_still_split_into_columns(self):
+    def test_entities_are_still_split_into_columns(self, monkeypatch):
         result = ProcessBeforeParquet().do(
             self._mapped_event(
-                feature_names=["f0", "f1"], label_names=["p0"], entities={"e1": "x"}
+                monkeypatch,
+                feature_names=["f0", "f1"],
+                label_names=["p0"],
+                entities={"e1": "x"},
             )
         )
 
         assert result["e1"] == "x"
 
-    def test_parquet_schema_is_stable_across_flushes(self, tmp_path):
-        """The end-to-end reproduction: two flushes must stay readable as one dataset.
+    def test_parquet_schema_is_stable_across_flushes(self, monkeypatch, tmp_path):
+        """Two flushes must stay readable as one dataset.
 
-        max_events=1 forces a file per event, mirroring the reported run where the
-        two events were flushed separately and landed in the same hour partition.
-
-        PyArrow adopts the schema of whichever file it discovers first and casts the rest
-        to it, so reading the directory only failed when the null-typed file happened to
-        sort first - which is what made the reported failure intermittent. Asserting the
-        per-file schemas match instead is what makes this test deterministic.
+        max_events=1 forces a file per event, so both land in the same hour partition.
+        PyArrow adopts the schema of the first file it discovers and casts the rest to it,
+        so the per-file schemas are compared directly to keep this deterministic.
         """
         target_dir = tmp_path / "parquet"
 
@@ -914,8 +928,8 @@ class TestProcessBeforeParquet:
         )
 
         controller = flow.run()
-        controller.emit(self._schema_less_event())
-        controller.emit(self._schema_resolved_event())
+        controller.emit(self._schema_less_event(monkeypatch))
+        controller.emit(self._schema_resolved_event(monkeypatch))
         controller.terminate()
         controller.await_termination()
 

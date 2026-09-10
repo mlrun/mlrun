@@ -117,7 +117,6 @@ def test_snapshot_download_called_with_all_params(cred_mode, monkeypatch):
     profile_name = "test-hf-profile"
     fake_max_workers = 4
     fake_cache_dir = "/custom/huggingface/hub"
-    fake_hf_home = "/custom/huggingface"
 
     if cred_mode == "profile":
         profile = HuggingFaceProfile(
@@ -131,7 +130,6 @@ def test_snapshot_download_called_with_all_params(cred_mode, monkeypatch):
             model_kwargs={"torch_dtype": "float16"},
             max_workers=fake_max_workers,
             cache_dir=fake_cache_dir,
-            hf_home=fake_hf_home,
         )
         register_temporary_client_datastore_profile(profile)
         url = f"ds://{profile_name}/{model_name}"
@@ -148,7 +146,6 @@ def test_snapshot_download_called_with_all_params(cred_mode, monkeypatch):
             "HF_MODEL_KWARGS": {"torch_dtype": "float16"},
             "HF_MAX_WORKERS": fake_max_workers,
             "HF_HUB_CACHE": fake_cache_dir,
-            "HF_HOME": fake_hf_home,
         }
 
     with unittest.mock.patch("huggingface_hub.snapshot_download") as mock_snapshot:
@@ -178,15 +175,29 @@ def test_snapshot_download_called_with_all_params(cred_mode, monkeypatch):
     assert provider.options["model_kwargs"] == {"torch_dtype": "float16"}
 
 
-def test_huggingface_profile_cache_fields():
+def test_huggingface_profile_cache_fields(monkeypatch):
+    monkeypatch.delenv("HF_HUB_CACHE", raising=False)
+    monkeypatch.delenv("HF_HOME", raising=False)
+
+    profile_name = "test-hf-cache-profile"
     profile = HuggingFaceProfile(
-        name="test-hf-cache-profile",
+        name=profile_name,
         cache_dir="/custom/huggingface/hub",
         hf_home="/custom/huggingface",
     )
+    register_temporary_client_datastore_profile(profile)
 
     assert profile.secrets()["HF_HUB_CACHE"] == "/custom/huggingface/hub"
     assert profile.secrets()["HF_HOME"] == "/custom/huggingface"
+
+    with unittest.mock.patch("huggingface_hub.snapshot_download"):
+        provider = mlrun.get_model_provider(
+            url=f"ds://{profile_name}/fake-org/fake-model",
+            secrets={},
+        )
+
+    assert provider._get_secret_or_env("HF_HUB_CACHE") == "/custom/huggingface/hub"
+    assert provider._get_secret_or_env("HF_HOME") == "/custom/huggingface"
 
 
 @pytest.mark.parametrize(

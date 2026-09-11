@@ -305,12 +305,16 @@ class Projects(
             session, name
         )
 
-        # wait for nuclio to delete the project as well, so it won't create new resources after we delete them
-        logger.debug(
-            "Waiting for nuclio project deletion",
-            project_name=name,
-        )
-        self._wait_for_nuclio_project_deletion(name, session, auth_info)
+        # When Orca is the project leader, it deletes the Nuclio project itself and
+        # owns verifying that deletion - MLRun-as-follower has no visibility into Orca's
+        # timing for that call and must not block on it here.
+        if mlrun.mlconf.httpdb.projects.leader != "orca":
+            # wait for nuclio to delete the project as well, so it won't create new resources after we delete them
+            logger.debug(
+                "Waiting for nuclio project deletion",
+                project_name=name,
+            )
+            self._wait_for_nuclio_project_deletion(name, session, auth_info)
 
         # Delete MM resources
         model_monitoring_deleter.delete()

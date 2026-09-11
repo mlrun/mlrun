@@ -452,6 +452,75 @@ def test_wait_for_nuclio_project_deletion_keeps_user_auth_when_not_iguazio_v4(
     assert polled_auth_info is user_auth_info
 
 
+@pytest.fixture
+def patched_delete_project_resources_dependencies(
+    monkeypatch: pytest.MonkeyPatch,
+) -> unittest.mock.MagicMock:
+    """Stub every side effect of ``delete_project_resources`` except the Nuclio
+    deletion wait, so tests can isolate the leader-mode gate around it. Returns
+    the ``_wait_for_nuclio_project_deletion`` mock."""
+    monkeypatch.setattr(mlrun.mlconf, "kfp_url", "")
+    monkeypatch.setattr(mlrun.mlconf.log_collector, "mode", "legacy")
+    monkeypatch.setattr(mlrun.mlconf.services.hydra, "services", "*")
+    monkeypatch.setattr(mlrun.mlconf, "namespace", "")
+
+    monkeypatch.setattr(
+        "services.api.utils.singletons.scheduler.get_scheduler",
+        lambda: unittest.mock.MagicMock(),
+    )
+    monkeypatch.setattr("services.api.crud.RuntimeResources", unittest.mock.MagicMock())
+    monkeypatch.setattr("services.api.crud.Logs", unittest.mock.MagicMock())
+    monkeypatch.setattr("services.alerts.crud.Alerts", unittest.mock.MagicMock())
+    monkeypatch.setattr(
+        "services.api.crud.model_monitoring.ModelMonitoringResourcesDeleter",
+        unittest.mock.MagicMock(),
+    )
+    monkeypatch.setattr(
+        "framework.utils.singletons.db.get_db", lambda: unittest.mock.MagicMock()
+    )
+
+    wait_mock = unittest.mock.MagicMock()
+    monkeypatch.setattr(
+        projects_crud.Projects, "_wait_for_nuclio_project_deletion", wait_mock
+    )
+    return wait_mock
+
+
+def test_delete_project_resources_waits_for_nuclio_when_mlrun_is_leader(
+    reset_projects_singleton: None,
+    patched_delete_project_resources_dependencies: unittest.mock.MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """CE (leader=mlrun): MLRun's own leader.py triggers the real Nuclio delete,
+    so waiting here to confirm it actually happened is still correct."""
+    monkeypatch.setattr(mlrun.mlconf.httpdb.projects, "leader", "mlrun")
+    wait_mock = patched_delete_project_resources_dependencies
+
+    projects_crud.Projects().delete_project_resources(
+        session=unittest.mock.MagicMock(), name="proj"
+    )
+
+    wait_mock.assert_called_once()
+
+
+def test_delete_project_resources_skips_nuclio_wait_when_orca_is_leader(
+    reset_projects_singleton: None,
+    patched_delete_project_resources_dependencies: unittest.mock.MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """Enterprise (leader=orca): Orca deletes the Nuclio project itself and owns
+    verifying that deletion - MLRun-as-follower has no visibility into Orca's
+    timing for that call and must not block on it here."""
+    monkeypatch.setattr(mlrun.mlconf.httpdb.projects, "leader", "orca")
+    wait_mock = patched_delete_project_resources_dependencies
+
+    projects_crud.Projects().delete_project_resources(
+        session=unittest.mock.MagicMock(), name="proj"
+    )
+
+    wait_mock.assert_not_called()
+
+
 # ----- 2PC follower hooks ---------------------------------------------------
 
 

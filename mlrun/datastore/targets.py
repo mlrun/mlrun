@@ -1368,7 +1368,7 @@ class NoSqlBaseTarget(BaseStoreTarget):
         if is_spark_dataframe(df):
             options = self.get_spark_options(key_column, timestamp_key)
             options.update(kwargs)
-            df = self.prepare_spark_df(df)
+            df = self.prepare_spark_df(df, key_column, timestamp_key, options)
             write_format = options.pop("format", None)
             write_spark_dataframe_with_options(
                 options, df, "overwrite", write_format=write_format

@@ -361,6 +361,17 @@ def test_ensure_project(
     )
 
 
+def test_ensure_project_open_for_resource_creation_is_noop_for_leader(
+    projects_leader: framework.utils.projects.leader.Member,
+):
+    # CE/leader mode drives project state directly and synchronously - there is no follower-side
+    # sync window to gate on, so this must never raise, even for a project that doesn't exist.
+    projects_leader.ensure_project_open_for_resource_creation(
+        None,
+        "project-name-does-not-exist",
+    )
+
+
 def test_store_project_creation(
     db: sqlalchemy.orm.Session,
     projects_leader: framework.utils.projects.leader.Member,

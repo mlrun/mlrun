@@ -19,6 +19,7 @@ import sqlalchemy.orm
 
 import mlrun.common.formatters
 import mlrun.common.schemas
+import mlrun.errors
 import mlrun.k8s_utils
 import mlrun.utils.singleton
 
@@ -40,6 +41,16 @@ class Member(abc.ABC):
     @abc.abstractmethod
     def shutdown(self):
         pass
+
+    def is_followers_sync_ready(self) -> bool:
+        """
+        Whether this follower's boot-time leader-driven sync (Follower Contract HLD checklist
+        item 10) has reached a terminal state. True by default: MLRun-as-leader (CE) has no
+        such window. Overridden by follower.Member. Safe to call on any deployment mode - the
+        followers-sync-status endpoint calls this polymorphically without knowing which one is
+        running.
+        """
+        return True
 
     def ensure_project(
         self,
@@ -77,6 +88,25 @@ class Member(abc.ABC):
         verifier = framework.utils.auth.verifier.AuthVerifier()
         if verifier.is_project_owner(auth_info, project):
             verifier.add_allowed_project_for_owner(name, auth_info)
+
+    def ensure_project_open_for_resource_creation(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        name: str,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
+    ) -> None:
+        """
+        Raise if new logical resource creation (functions, API gateways, ...) should be
+        blocked for this project right now. No-op by default: MLRun-as-leader (CE) drives
+        project state directly and synchronously, so there is no window where a project sits
+        non-online while a caller might race to create resources against it. Overridden by
+        follower.Member, whose project state is a derived, asynchronously-updated copy of the
+        leader's.
+
+        :param db_session: DB session.
+        :param name: Project name.
+        :param auth_info: The auth info of the request.
+        """
 
     @abc.abstractmethod
     def create_project(

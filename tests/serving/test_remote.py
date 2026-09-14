@@ -16,7 +16,7 @@ import re
 import time
 from http import HTTPStatus
 from typing import cast
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 from urllib.parse import urlparse
 
 import pytest
@@ -528,3 +528,48 @@ def test_invoke_non_json_content_type_returns_bytes(
 
     result = nuclio_fn.invoke("/", method="GET")
     assert result == b"plain text"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("verify", "expected_ssl"), [(True, None), (False, False)])
+async def test_remote_step_async_request_follows_http_verify(
+    monkeypatch, verify, expected_ssl
+):
+    from mlrun.serving.remote import RemoteStep
+
+    step = RemoteStep(url="https://example.com", method="POST")
+    step._client_session = MagicMock()
+    step._client_session.request = AsyncMock(
+        return_value=MagicMock(status=HTTPStatus.OK)
+    )
+    step._get_event_or_body = MagicMock(return_value={})
+    step._generate_request = MagicMock(
+        return_value=("POST", "https://example.com", {}, b"", {})
+    )
+    monkeypatch.setattr(mlrun.mlconf.httpdb.http, "verify", verify)
+
+    await step._process_event(MagicMock())
+
+    assert step._client_session.request.call_args.kwargs["ssl"] is expected_ssl
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("verify", "expected_ssl"), [(True, None), (False, False)])
+async def test_batch_http_requests_follows_http_verify(
+    monkeypatch, verify, expected_ssl
+):
+    from mlrun.serving.remote import BatchHttpRequests
+
+    step = BatchHttpRequests(url="https://example.com", method="POST")
+    step._client_session = MagicMock()
+    response = MagicMock(status=HTTPStatus.OK, headers={})
+    response.read = AsyncMock(return_value=b"")
+    request_context = MagicMock()
+    request_context.__aenter__ = AsyncMock(return_value=response)
+    request_context.__aexit__ = AsyncMock(return_value=None)
+    step._client_session.request.return_value = request_context
+    monkeypatch.setattr(mlrun.mlconf.httpdb.http, "verify", verify)
+
+    await step._submit("POST", "https://example.com", {}, b"")
+
+    assert step._client_session.request.call_args.kwargs["ssl"] is expected_ssl

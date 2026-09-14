@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
 import datetime
 import threading
 import typing
@@ -32,6 +33,7 @@ import framework.db.sqldb.models
 import framework.utils.background_tasks
 import framework.utils.clients.chief
 import framework.utils.clients.iguazio.v4
+import framework.utils.periodic
 import framework.utils.projects.follower
 import framework.utils.projects.remotes.leader
 import framework.utils.singletons.db
@@ -615,10 +617,11 @@ def _assert_list_projects(
     )
 
 
-def test_initialize_with_orca_leader(monkeypatch):
-    # Avoid a real background thread hitting a nonexistent host on every retry for the rest of
-    # the test session: initialize() fires the followers-sync trigger in the background. This
-    # test runs as chief (the default role), so it exercises the direct-trigger path.
+@pytest.mark.asyncio
+async def test_initialize_with_orca_leader(monkeypatch):
+    # start() registers the followers-sync trigger as a periodic function (see
+    # _start_periodic_followers_sync_trigger). This test runs as chief (the default role), so
+    # it exercises the direct-trigger path.
     monkeypatch.setattr(
         framework.utils.clients.iguazio.v4.Client,
         "trigger_followers_sync",
@@ -634,13 +637,20 @@ def test_initialize_with_orca_leader(monkeypatch):
     assert isinstance(
         projects_follower._leader_client, framework.utils.clients.iguazio.v4.Client
     )
-    # the mocked trigger_followers_sync succeeds immediately, so the background thread should
-    # flip this ready within a short wait.
-    assert projects_follower._followers_sync_ready.wait(timeout=2)
+    assert not projects_follower._followers_sync_ready.is_set()
+    projects_follower.start()
+    # the mocked trigger_followers_sync succeeds immediately, so the periodic function's first
+    # (immediate) run should flip this ready.
+    for _ in range(50):
+        if projects_follower._followers_sync_ready.is_set():
+            break
+        await asyncio.sleep(0.01)
+    assert projects_follower._followers_sync_ready.is_set()
     projects_follower.shutdown()
 
 
-def test_initialize_with_orca_leader_worker_delegates_to_chief(monkeypatch):
+@pytest.mark.asyncio
+async def test_initialize_with_orca_leader_worker_delegates_to_chief(monkeypatch):
     # A worker must never trigger its own sweep against Orca - only ask the chief.
     monkeypatch.setattr(
         mlrun.mlconf.httpdb.clusterization,
@@ -665,7 +675,12 @@ def test_initialize_with_orca_leader_worker_delegates_to_chief(monkeypatch):
     )
     projects_follower = framework.utils.projects.follower.Member()
     projects_follower.initialize()
-    assert projects_follower._followers_sync_ready.wait(timeout=2)
+    projects_follower.start()
+    for _ in range(50):
+        if projects_follower._followers_sync_ready.is_set():
+            break
+        await asyncio.sleep(0.01)
+    assert projects_follower._followers_sync_ready.is_set()
     assert trigger_calls["n"] == 0, (
         "a worker must never trigger its own sweep against Orca"
     )
@@ -688,49 +703,93 @@ def test_followers_sync_ready_set_immediately_for_non_orca_leader(
     assert projects_follower._followers_sync_ready.is_set()
 
 
-def test_trigger_followers_sync_in_background_does_not_block_and_retries(monkeypatch):
-    monkeypatch.setattr(framework.utils.projects.follower.time, "sleep", lambda _: None)
+def test_trigger_followers_sync_sets_ready_and_cancels_on_success(monkeypatch):
     calls = {"n": 0}
 
-    class FlakyLeaderClient:
+    class SucceedingLeaderClient:
         def trigger_followers_sync(self):
             calls["n"] += 1
-            if calls["n"] < 2:
-                raise RuntimeError("transient failure")
 
-    member = object.__new__(framework.utils.projects.follower.Member)
-    member._followers_sync_ready = threading.Event()
-    member._periodic_sync_interval_seconds = 0
-    member._leader_client = FlakyLeaderClient()
-
-    member._trigger_followers_sync_in_background()  # must return immediately
-
-    assert member._followers_sync_ready.wait(timeout=2)
-    assert calls["n"] == 2
-
-
-def test_wait_for_chief_followers_sync_in_background_does_not_block_and_retries(
-    monkeypatch,
-):
-    monkeypatch.setattr(framework.utils.projects.follower.time, "sleep", lambda _: None)
-    calls = {"n": 0}
-
-    class FakeChiefClient:
-        async def is_followers_sync_ready(self):
-            calls["n"] += 1
-            return calls["n"] >= 2  # chief says "not ready" once, then "ready"
-
+    cancel_calls = []
     monkeypatch.setattr(
-        framework.utils.clients.chief.Client, "__new__", lambda cls: FakeChiefClient()
+        framework.utils.periodic,
+        "cancel_periodic_function",
+        lambda name: cancel_calls.append(name),
     )
     member = object.__new__(framework.utils.projects.follower.Member)
     member._followers_sync_ready = threading.Event()
-    member._periodic_sync_interval_seconds = 0
+    member._leader_client = SucceedingLeaderClient()
 
-    member._wait_for_chief_followers_sync_in_background()  # must return immediately
+    member._trigger_followers_sync()
 
-    assert member._followers_sync_ready.wait(timeout=2)
-    assert calls["n"] == 2
+    assert calls["n"] == 1
+    assert member._followers_sync_ready.is_set()
+    assert cancel_calls == ["_trigger_followers_sync"]
+
+
+def test_trigger_followers_sync_leaves_pending_on_failure(monkeypatch):
+    # Backoff-with-logging on failure is delegated entirely to
+    # framework.utils.periodic.run_function_periodically's wrapper: this function must simply
+    # let the exception propagate (not swallow/retry it itself) and must not flip readiness.
+    class FlakyLeaderClient:
+        def trigger_followers_sync(self):
+            raise RuntimeError("transient failure")
+
+    member = object.__new__(framework.utils.projects.follower.Member)
+    member._followers_sync_ready = threading.Event()
+    member._leader_client = FlakyLeaderClient()
+
+    with pytest.raises(RuntimeError, match="transient failure"):
+        member._trigger_followers_sync()
+
+    assert not member._followers_sync_ready.is_set()
+
+
+@pytest.mark.asyncio
+async def test_wait_for_chief_followers_sync_sets_ready_and_cancels_when_ready(
+    monkeypatch,
+):
+    class ReadyChiefClient:
+        async def is_followers_sync_ready(self):
+            return True
+
+    monkeypatch.setattr(
+        framework.utils.clients.chief.Client, "__new__", lambda cls: ReadyChiefClient()
+    )
+    cancel_calls = []
+    monkeypatch.setattr(
+        framework.utils.periodic,
+        "cancel_periodic_function",
+        lambda name: cancel_calls.append(name),
+    )
+    member = object.__new__(framework.utils.projects.follower.Member)
+    member._followers_sync_ready = threading.Event()
+
+    await member._wait_for_chief_followers_sync()
+
+    assert member._followers_sync_ready.is_set()
+    assert cancel_calls == ["_wait_for_chief_followers_sync"]
+
+
+@pytest.mark.asyncio
+async def test_wait_for_chief_followers_sync_stays_pending_when_chief_not_ready(
+    monkeypatch,
+):
+    class NotReadyChiefClient:
+        async def is_followers_sync_ready(self):
+            return False
+
+    monkeypatch.setattr(
+        framework.utils.clients.chief.Client,
+        "__new__",
+        lambda cls: NotReadyChiefClient(),
+    )
+    member = object.__new__(framework.utils.projects.follower.Member)
+    member._followers_sync_ready = threading.Event()
+
+    await member._wait_for_chief_followers_sync()
+
+    assert not member._followers_sync_ready.is_set()
 
 
 def test_is_followers_sync_ready_reflects_event(

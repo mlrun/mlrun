@@ -224,6 +224,19 @@ class Client(
                 **(await chief_response.json())
             )
 
+    async def is_followers_sync_ready(self) -> bool:
+        """
+        Asks the chief whether its own followers-sync trigger (Follower Contract HLD checklist
+        item 10) has reached a terminal state yet, so a worker can converge on the same
+        readiness signal instead of independently triggering its own sweep against the leader.
+        """
+        async with self._send_request_to_api(
+            method="GET",
+            path="followers-sync-status",
+        ) as chief_response:
+            body = await chief_response.json()
+            return body["ready"]
+
     async def store_alert_template(
         self, name: str, request: fastapi.Request, json: dict
     ) -> fastapi.Response:

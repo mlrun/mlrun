@@ -1344,24 +1344,27 @@ class TestSpark3Runtime(services.api.tests.unit.runtimes.base.TestRuntimeBase):
             f"Actual volumes: {volumes}"
         )
 
-    def test_executor_service_account_token_not_mounted(
+    def test_service_account_token_mounting(
         self, db: sqlalchemy.orm.Session, k8s_secrets_mock
     ):
-        """Executor pods must not mount the service-account token."""
+        """Driver pods must mount the service-account token, while executors must not."""
         runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime()
         self.execute_function(runtime)
 
         body = self._get_custom_object_creation_body()
 
+        driver_template_spec = body["spec"]["driver"]["template"]["spec"]
+        assert driver_template_spec["automountServiceAccountToken"] is True, (
+            "Driver SA token must be mounted"
+        )
+        assert driver_template_spec["containers"] == [
+            {"name": "spark-kubernetes-driver"}
+        ], "Driver template must name the Spark driver container"
+
         executor_template_spec = body["spec"]["executor"]["template"]["spec"]
         assert executor_template_spec["automountServiceAccountToken"] is False, (
             "Executor SA token must not be mounted"
         )
-        # The named container prevents Spark's pod-template loader from failing.
         assert executor_template_spec["containers"] == [
             {"name": "spark-kubernetes-executor"}
         ], "Executor template must name the spark executor container"
-        # Driver keeps its token, so no token-disabling pod template is added.
-        assert "template" not in body["spec"]["driver"], (
-            "Driver must keep its SA token (no token-disabling pod template)"
-        )

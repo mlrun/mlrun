@@ -593,8 +593,7 @@ class ProcessBeforeParquet(mlrun.feature_store.steps.MapClass):
         super().__init__(**kwargs)
 
     def do(self, event):
-        logger.info("ProcessBeforeParquet1", event=event)
-        # Remove the following keys from the event
+        # Remove the following keys from the event.
         for key in [
             EventFieldType.FEATURES,
             EventFieldType.NAMED_FEATURES,
@@ -616,7 +615,6 @@ class ProcessBeforeParquet(mlrun.feature_store.steps.MapClass):
         ]:
             if not event.get(key):
                 event[key] = None
-        logger.info("ProcessBeforeParquet2", event=event)
         return event
 
 
@@ -871,6 +869,8 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
         Validating feature names and label columns and map each feature to its value. In the end of this step,
         the event should have key-value pairs of (feature name: feature value).
 
+        The feature_names and label_names metadata is consumed here and removed before the values are mapped.
+        It should not reach the Parquet target so it won't be part of it columns schema.
         :param project:                 Project name.
         :param infer_columns_from_data: If true and features or labels names were not found, then try to
                                         retrieve them from data that was stored in the previous events of
@@ -1032,6 +1032,10 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
                 attributes=attributes_to_update,
                 endpoint_name=event[EventFieldType.ENDPOINT_NAME],
             )
+
+        # Consumed above - must not reach the Parquet target.
+        event.pop(EventFieldType.FEATURE_NAMES, None)
+        event.pop(EventFieldType.LABEL_NAMES, None)
 
         # Add feature_name:value pairs along with a mapping dictionary of all of these pairs
         feature_names = self.feature_names[endpoint_id]

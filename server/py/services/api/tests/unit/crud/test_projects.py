@@ -486,14 +486,16 @@ def patched_delete_project_resources_dependencies(
     return wait_mock
 
 
-def test_delete_project_resources_waits_for_nuclio_when_mlrun_is_leader(
+def test_delete_project_resources_waits_for_nuclio_when_self_leading_with_nuclio_follower(
     reset_projects_singleton: None,
     patched_delete_project_resources_dependencies: unittest.mock.MagicMock,
     monkeypatch: pytest.MonkeyPatch,
 ):
-    """CE (leader=mlrun): MLRun's own leader.py triggers the real Nuclio delete,
-    so waiting here to confirm it actually happened is still correct."""
+    """CE (leader=mlrun, nuclio configured as a follower): MLRun's own leader.py
+    triggers the real Nuclio delete, so waiting here to confirm it actually
+    happened is correct."""
     monkeypatch.setattr(mlrun.mlconf.httpdb.projects, "leader", "mlrun")
+    monkeypatch.setattr(mlrun.mlconf.httpdb.projects, "followers", "nuclio")
     wait_mock = patched_delete_project_resources_dependencies
 
     projects_crud.Projects().delete_project_resources(
@@ -510,8 +512,30 @@ def test_delete_project_resources_skips_nuclio_wait_when_orca_is_leader(
 ):
     """Enterprise (leader=orca): Orca deletes the Nuclio project itself and owns
     verifying that deletion - MLRun-as-follower has no visibility into Orca's
-    timing for that call and must not block on it here."""
+    timing for that call and must not block on it here. Nuclio is still listed as
+    a follower here to isolate that it's the leader check causing the skip, not an
+    empty followers list."""
     monkeypatch.setattr(mlrun.mlconf.httpdb.projects, "leader", "orca")
+    monkeypatch.setattr(mlrun.mlconf.httpdb.projects, "followers", "nuclio")
+    wait_mock = patched_delete_project_resources_dependencies
+
+    projects_crud.Projects().delete_project_resources(
+        session=unittest.mock.MagicMock(), name="proj"
+    )
+
+    wait_mock.assert_not_called()
+
+
+def test_delete_project_resources_skips_nuclio_wait_when_nuclio_not_a_follower(
+    reset_projects_singleton: None,
+    patched_delete_project_resources_dependencies: unittest.mock.MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """Self-leading alone isn't enough: if nuclio isn't configured as one of
+    MLRun's own followers, nothing in this flow triggers a real Nuclio delete
+    either, so the wait must not run."""
+    monkeypatch.setattr(mlrun.mlconf.httpdb.projects, "leader", "mlrun")
+    monkeypatch.setattr(mlrun.mlconf.httpdb.projects, "followers", "")
     wait_mock = patched_delete_project_resources_dependencies
 
     projects_crud.Projects().delete_project_resources(

@@ -1486,6 +1486,28 @@ class Config:
         # determine is Nuclio service is detected, when the nuclio_version is not set
         return bool(mlrun.mlconf.nuclio_version)
 
+    def get_configured_project_followers(self) -> list[str]:
+        """Parse ``httpdb.projects.followers`` - the followers MLRun's own project
+        leader fans project CRUD out to. "MLRun's own followers" is not a concept
+        that exists under an external leader (orca, iguazio, ...) - that leader's
+        own followers are separate and external, so this is empty there.
+
+        :return: the configured follower names, e.g. ``["nuclio"]``.
+        """
+        if mlrun.mlconf.httpdb.projects.leader not in ["mlrun", "nop-self-leader"]:
+            return []
+        followers = mlrun.mlconf.httpdb.projects.followers
+        return followers.split(",") if followers else []
+
+    def is_project_follower_configured(self, follower_name: str) -> bool:
+        """Whether ``follower_name`` is one of MLRun's own leader-driven project
+        followers. Always False under an external leader (orca, iguazio, ...).
+
+        :param follower_name: name of the follower to check for, e.g. ``"nuclio"``.
+        :return: True if configured as a follower.
+        """
+        return follower_name in mlrun.mlconf.get_configured_project_followers()
+
     def is_nuclio_function_authentication_enabled(self) -> bool:
         """Return True when the platform has function-level (behind-Service) authentication enabled."""
         return bool(mlrun.mlconf.httpdb.nuclio.function_authentication_enabled)

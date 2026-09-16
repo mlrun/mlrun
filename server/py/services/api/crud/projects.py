@@ -305,10 +305,12 @@ class Projects(
             session, name
         )
 
-        # When Orca is the project leader, it deletes the Nuclio project itself and
-        # owns verifying that deletion - MLRun-as-follower has no visibility into Orca's
-        # timing for that call and must not block on it here.
-        if mlrun.mlconf.httpdb.projects.leader != "orca":
+        # Only wait if MLRun's own leader-driven fan-out is the thing that just
+        # triggered the real Nuclio delete. Under any external leader (orca, iguazio,
+        # ...) that leader owns triggering and confirming the Nuclio deletion itself -
+        # MLRun-as-follower has no visibility into that system's timing for it and
+        # must not block on it here.
+        if mlrun.mlconf.is_project_follower_configured("nuclio"):
             # wait for nuclio to delete the project as well, so it won't create new resources after we delete them
             logger.debug(
                 "Waiting for nuclio project deletion",

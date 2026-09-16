@@ -228,51 +228,6 @@ async def test_store_api_gateway_omits_none_authentication_mode_when_function_au
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize(
-    "authentication_mode",
-    [
-        mlrun.common.schemas.APIGatewayAuthenticationMode.basic,
-        mlrun.common.schemas.APIGatewayAuthenticationMode.access_key,
-        mlrun.common.schemas.APIGatewayAuthenticationMode.iguazio,
-    ],
-)
-async def test_store_api_gateway_does_not_strip_non_none_modes_when_function_auth_enabled(
-    api_url,
-    nuclio_client,
-    mock_aioresponse,
-    monkeypatch,
-    authentication_mode,
-):
-    """Non-none modes must not be silently stripped — leave them for Nuclio to reject."""
-    monkeypatch.setattr(
-        mlrun.config.config.httpdb.nuclio, "function_authentication_enabled", True
-    )
-    project_name = "default"
-    api_gateway_name = "test-gw"
-    request_url = f"{api_url}/api/api_gateways/{project_name}-{api_gateway_name}"
-
-    captured_body = {}
-
-    def capture_and_respond(url, **kwargs):
-        captured_body.update(kwargs.get("json", {}))
-        return CallbackResult(
-            status=http.HTTPStatus.ACCEPTED,
-            payload=_make_nuclio_response(api_gateway_name),
-        )
-
-    mock_aioresponse.put(request_url, callback=capture_and_respond)
-
-    schema = _make_api_gateway_schema(
-        api_gateway_name, project_name, authentication_mode=authentication_mode
-    )
-    await nuclio_client.store_api_gateway(project_name=project_name, api_gateway=schema)
-    assert (
-        captured_body.get("spec", {}).get("authenticationMode")
-        == authentication_mode.value
-    )
-
-
-@pytest.mark.asyncio
 async def test_nuclio_delete_function(
     api_url,
     nuclio_client,

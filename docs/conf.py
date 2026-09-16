@@ -256,7 +256,7 @@ linkcheck_ignore = [
     "https://docs.confident-ai.com/docs/metrics-contextual-relevancy",
     "https://docs.confident-ai.com/docs/metrics-faithfulness",
     "https://mlopslive.slack.com",
-    r"http:\/\/www.iguazio.com\/docs\/latest-release\/.*"
+    r"http://www.iguazio.com/docs/latest-release/.*" 
     # ignore links to kubernetes.io, since they often block the traffic
     r"https://kubernetes.io/.*",
 ]

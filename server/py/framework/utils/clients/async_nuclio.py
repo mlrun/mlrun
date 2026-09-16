@@ -18,6 +18,7 @@ from http import HTTPStatus
 
 import aiohttp
 
+import mlrun
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 import mlrun.errors
@@ -298,4 +299,10 @@ class Client:
     ) -> mlrun.common.schemas.APIGateway:
         self._set_iguazio_labels(api_gateway, project_name)
         api_gateway.enrich_mlrun_names()
+        if (
+            mlrun.mlconf.is_nuclio_function_authentication_enabled()
+            and api_gateway.spec.authenticationMode
+            == mlrun.common.schemas.APIGatewayAuthenticationMode.none
+        ):
+            api_gateway.spec.authenticationMode = None
         return api_gateway

@@ -613,6 +613,7 @@ class Pipelines(
         data: bytes,
         arguments: dict | None = None,
         auth_info: mlrun.common.schemas.AuthInfo | None = None,
+        namespace: str = fastapi.Query(mlrun.mlconf.namespace),
     ):
         if arguments is None:
             arguments = {}

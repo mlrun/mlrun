@@ -13,14 +13,54 @@
 # limitations under the License.
 
 import os
+import re
 from os.path import expanduser
+from urllib.parse import urlparse
+
+import mlrun.errors
 
 from ..config import config as mlconf
 from .helpers import logger
 
+# Azure Key Vault names: 3-24 chars, start with a letter, end with a letter or
+# digit, and otherwise only letters, digits, and hyphens.
+# https://learn.microsoft.com/en-us/azure/key-vault/general/about-keys-secrets-certificates#vault-name-and-object-name
+_AZURE_VAULT_NAME_PATTERN = re.compile(r"^[A-Za-z][A-Za-z0-9-]{1,22}[A-Za-z0-9]$")
+
+
+def build_azure_vault_url(vault_name: str) -> str:
+    """Build the Azure Key Vault URL after validating the vault name.
+
+    Rejects names that can change the URL host (for example ``evil.com/x``),
+    which would otherwise turn ``https://{name}.vault.azure.net`` into a
+    request to an attacker-controlled host.
+
+    :param vault_name: Azure Key Vault name interpolated into the URL template.
+    :return: Vault URL from the configured template.
+    """
+    if not vault_name or not _AZURE_VAULT_NAME_PATTERN.fullmatch(vault_name):
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "Invalid Azure Key Vault name. Names must be 3-24 characters, "
+            "start with a letter, end with a letter or digit, and contain "
+            "only letters, digits, and hyphens."
+        )
+    url = mlconf.secret_stores.azure_vault.url.format(name=vault_name)
+    parsed = urlparse(url)
+    hostname_labels = (parsed.hostname or "").split(".")
+    hostname_matches_vault = hostname_labels[0] == vault_name.lower()
+    if parsed.scheme not in ("https", "http") or not hostname_matches_vault:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "Azure Key Vault URL hostname does not match the validated vault name"
+        )
+    return url
+
 
 class AzureVaultStore:
     def __init__(self, vault_name):
+        self._vault_name = vault_name
+        self._url = build_azure_vault_url(vault_name)
+        self._client = None
+
         try:
             from azure.identity import EnvironmentCredential
             from azure.keyvault.secrets import SecretClient
@@ -28,10 +68,6 @@ class AzureVaultStore:
             raise ImportError(
                 "Azure key-vault libraries not installed, run pip install mlrun[azure-key-vault]"
             ) from exc
-
-        self._vault_name = vault_name
-        self._url = mlconf.secret_stores.azure_vault.url.format(name=vault_name)
-        self._client = None
 
         tenant_id = self._get_secret_file_contents("tenant_id")
         client_id = self._get_secret_file_contents("client_id")

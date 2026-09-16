@@ -33,6 +33,22 @@ from mlrun.utils import logger
 from .function import min_nuclio_versions, validate_basic_auth_creds
 
 
+def _resolve_authentication_mode(
+    mode: schemas.APIGatewayAuthenticationMode | None,
+) -> schemas.APIGatewayAuthenticationMode | None:
+    """Return None only when mode is 'none' and function auth is enabled.
+
+    Non-none modes are left as-is so Nuclio can reject them explicitly,
+    preserving defense-in-depth rather than silently downgrading auth.
+    """
+    if (
+        mlrun.mlconf.is_nuclio_function_authentication_enabled()
+        and mode == schemas.APIGatewayAuthenticationMode.none
+    ):
+        return None
+    return mode
+
+
 def validate_authentication(
     authentication_mode: schemas.APIGatewayAuthenticationMode | None,
     authentication_creds: tuple[str, str] | None,
@@ -725,8 +741,10 @@ class APIGateway(ModelObj):
                 description=self.spec.description,
                 host=self.spec.host,
                 path=self.spec.path,
-                authenticationMode=schemas.APIGatewayAuthenticationMode.from_str(
-                    self.spec.authentication.authentication_mode
+                authenticationMode=_resolve_authentication_mode(
+                    schemas.APIGatewayAuthenticationMode.from_str(
+                        self.spec.authentication.authentication_mode
+                    )
                 ),
                 upstreams=upstreams,
             ),

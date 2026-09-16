@@ -138,12 +138,14 @@ def append_secret_authfile_init_container(pod, authfile_path: str) -> None:
     one need to merge into that file, which a secret-backed volume mount doesn't allow. Runs first,
     so those merges land on top of the secret's own entries.
 
-    Chmods the copy to be world-writable: init containers get no explicit security context (see
+    Chmods the copy group-writable: init containers get no explicit security context (see
     :class:`~framework.utils.singletons.k8s.BasePod`), so this container's own UID depends entirely
     on ``buildah_image``'s default user, which needn't match the main container's (fixed to 1000 -
     see ``_caps_security_context`` in buildah.py) or any other credential-exchange init container's.
     Every subsequent writer merges into this same file, so it must stay writable regardless of which
-    UID wrote it last.
+    UID wrote it last - the pod's ``fsGroup`` (see ``make_buildah_pod``) makes every writer's file
+    group-owned by the same GID no matter its own UID, so group-write is enough without resorting to
+    world-writable.
 
     :param pod: The Buildah build pod being constructed.
     :param authfile_path: Where to copy the secret's docker-config content to.
@@ -157,7 +159,7 @@ def append_secret_authfile_init_container(pod, authfile_path: str) -> None:
         command=["/bin/sh", "-c"],
         args=[
             f"cp {shlex.quote(SECRET_AUTHFILE_PATH)} {shlex.quote(authfile_path)} && "
-            f"chmod 0666 {shlex.quote(authfile_path)}"
+            f"chmod 0660 {shlex.quote(authfile_path)}"
         ],
         name=_COPY_SECRET_AUTHFILE_INIT_CONTAINER_NAME,
     )

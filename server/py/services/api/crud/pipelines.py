@@ -613,6 +613,7 @@ class Pipelines(
         data: bytes,
         arguments: dict | None = None,
         auth_info: mlrun.common.schemas.AuthInfo | None = None,
+        namespace: str = fastapi.Query(mlrun.mlconf.namespace),
     ):
         if arguments is None:
             arguments = {}
@@ -666,7 +667,7 @@ class Pipelines(
         try:
             kfp_client = self._initialize_kfp_client()
             experiment = mlrun_pipelines.models.PipelineExperiment(
-                kfp_client.create_experiment(name=experiment_name)
+                kfp_client.create_experiment(name=experiment_name, namespace=namespace)
             )
             run = mlrun_pipelines.models.PipelineRun(
                 kfp_client.run_pipeline(

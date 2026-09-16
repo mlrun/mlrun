@@ -1271,6 +1271,12 @@ class Projects(
         MLRun's own leader/follower selection (local delete vs. forward-to-leader over
         HTTP) and would forward to Orca again here — wrong, since Orca has already
         decided by the time it calls this hook, so MLRun must always purge locally.
+
+        The active-task check and creation happen under the same row lock as the CAS
+        check above (released only in `finally`), so two concurrent calls for the same
+        project can't race to create the task: the second call always sees the first
+        call's finished result (task registered, or already gone) rather than an
+        in-between state.
         """
         session = framework.db.session.create_session()
         try:
@@ -1287,25 +1293,22 @@ class Projects(
                 stored_op_id=existing.status.op_id,
                 incoming_op_id=op_id,
             )
-        finally:
-            framework.db.session.close_session(session)
 
-        handler = framework.utils.background_tasks.InternalBackgroundTasksHandler()
-        kind = framework.utils.background_tasks.BackgroundTaskKinds.project_deletion.format(
-            name
-        )
-        try:
-            task = handler.get_active_background_task_by_kind(
-                kind, raise_on_not_found=True
+            handler = framework.utils.background_tasks.InternalBackgroundTasksHandler()
+            kind = framework.utils.background_tasks.BackgroundTaskKinds.project_deletion.format(
+                name
             )
-            return None, task.metadata.name
-        except mlrun.errors.MLRunNotFoundError:
-            logger.debug(
-                "Existing project-deletion background task not found, creating new one",
-                project=name,
-            )
+            try:
+                task = handler.get_active_background_task_by_kind(
+                    kind, raise_on_not_found=True
+                )
+                return None, task.metadata.name
+            except mlrun.errors.MLRunNotFoundError:
+                logger.debug(
+                    "Existing project-deletion background task not found, creating new one",
+                    project=name,
+                )
 
-        try:
             return handler.create_background_task(
                 kind,
                 mlrun.mlconf.background_tasks.default_timeouts.operations.delete_project,
@@ -1313,14 +1316,8 @@ class Projects(
                 str(uuid.uuid4()),
                 project=existing,
             )
-        except mlrun.errors.MLRunConflictError:
-            # Lost the race: another call created the task between our check above and
-            # this call. Reuse it rather than surfacing a 409 for what is, from the
-            # caller's perspective, the same idempotent outcome as finding it active.
-            task = handler.get_active_background_task_by_kind(
-                kind, raise_on_not_found=True
-            )
-            return None, task.metadata.name
+        finally:
+            framework.db.session.close_session(session)
 
     def _purge_follower_project_resources(
         self, project: mlrun.common.schemas.Project

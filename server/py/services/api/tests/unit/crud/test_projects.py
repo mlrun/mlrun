@@ -916,45 +916,6 @@ def test_commit_delete_project_schedules_new_background_task(
     assert kind_arg == "project.deletion.proj"
 
 
-def test_commit_delete_project_create_race_reuses_winners_task(
-    reset_projects_singleton: None,
-    patched_db_session: unittest.mock.MagicMock,
-    monkeypatch: pytest.MonkeyPatch,
-):
-    """Two concurrent calls can both see "no active task" and both reach
-    create_background_task; the loser gets MLRunConflictError from the handler. That
-    must be folded into the reuse path (same idempotent outcome as finding it active
-    up front), not surfaced as an uncaught 409."""
-    op_id = uuid.UUID(int=1)
-    existing = _make_follower_snapshot(
-        op_id, mlrun.common.schemas.ProjectState.deleting
-    )
-    monkeypatch.setattr(
-        projects_crud.Projects,
-        "get_follower_project_snapshot",
-        lambda *a, **k: existing,
-    )
-    handler_mock = unittest.mock.MagicMock()
-    winners_task = unittest.mock.MagicMock()
-    winners_task.metadata.name = "winners-task"
-    handler_mock.get_active_background_task_by_kind.side_effect = [
-        mlrun.errors.MLRunNotFoundError("no active task"),  # initial check
-        winners_task,  # re-fetch after losing the create race
-    ]
-    handler_mock.create_background_task.side_effect = mlrun.errors.MLRunConflictError(
-        "already running"
-    )
-    monkeypatch.setattr(
-        "framework.utils.background_tasks.InternalBackgroundTasksHandler",
-        lambda: handler_mock,
-    )
-
-    task, task_name = projects_crud.Projects().commit_delete_project("proj", op_id)
-
-    assert task is None
-    assert task_name == "winners-task"
-
-
 def test_purge_follower_project_resources_uses_cascading_strategy(
     patched_db_session: unittest.mock.MagicMock,
     monkeypatch: pytest.MonkeyPatch,

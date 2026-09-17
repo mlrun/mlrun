@@ -66,6 +66,8 @@ RUN rm -rf \
     /var/lib/apt/lists/* \
     /tmp/mlrun
 
+WORKDIR /mlrun
+
 ARG MLRUN_GIT_COMMIT
 LABEL org.opencontainers.image.revision=$MLRUN_GIT_COMMIT
 

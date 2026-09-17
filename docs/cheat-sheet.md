@@ -712,14 +712,6 @@ addr = serve.deploy()
 
 Docs: [Batch inference](./deployment/batch_inference.ipynb)
 
-```python
-batch_inference = mlrun.import_function("hub://batch_inference")
-batch_run = project.run_function(
-    batch_inference,
-    inputs={"dataset": prediction_set_path},
-    params={"model": model_artifact.uri},
-)
-```
 
 ## Model monitoring and drift detection
 Docs: {ref}`model-monitoring-overview`, [Batch inference](./deployment/batch_inference.ipynb) 

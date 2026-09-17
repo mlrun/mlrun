@@ -3,8 +3,10 @@
 # Running the model monitoring application
 
 This page explains how to run your model monitoring application on demand, as a "batch"
-application, using MLRun's `evaluate` and `to_job` methods on existing model endpoint data.
-This allows you to execute your application's monitoring logic as an MLRun job, either
+application, and it describes exporting results and metrics via OTel.
+
+Use MLRun's `evaluate` and `to_job` methods on existing model endpoint data to run a model monitoring application:
+this allows you to execute your application's monitoring logic as an MLRun job, either
 locally or remotely, with flexible input and configuration options, including writing the
 outputs to the databases.
 
@@ -18,7 +20,8 @@ You can also import model monitoring applications from the [MLRun hub](https://w
 **In this section**
 
 - [Overview](#overview)
-- [Usage](#usage)
+- [Export results and metrics via OTel](#export-results-and-metrics-via-otel)
+- [Model monitoring application usage](#model-monitoring-application-usage)
 - [Lag detection alerts](#lag-detection-alerts)
 
 ## Overview
@@ -35,7 +38,25 @@ directly to customize the job configuration.
 After testing your application with external data, as described in {ref}`testing-application-evaluate`,
 you can run it on the actual model endpoint data and write the outputs with `write_output=True`.
 
-## Usage
+## Export results and metrics via OTel
+You can export the model monitoring results and metrics (that are sent to the MLRun TSDB) to the default system OTel collector.
+When configured, the results and metrics returned by `do_tracking()` in every monitoring window
+are exported via OTLP to your [configured endpoint](../server-cfg/server-metrics.md#set-the-shared-otlp-endpoint).
+
+Each result exposes two fixed gauges. The name is a label, not part of the metric (keeps the instrument cardinality bounded to two):
+- mlrun.model_monitoring.result → scraped as mlrun_model_monitoring_result (one per result)
+- mlrun.model_monitoring.metric → scraped as mlrun_model_monitoring_metric (one per metric)
+
+**Shared labels**: `project`, `app.name`, `function.name`, `endpoint.uid`, `endpoint.name` </br>
+**Result only**: `result.name`, `result.kind`, `result.status` </br>
+**Metric only**: `metric.name`
+
+(OTLP→Prometheus turns dots into underscores, e.g. result_name.)
+
+To export results:
+1. Enable export to OTel collection for the project by setting `otlp_enabled=True` when you run {py:meth}`~mlrun.projects.MlrunProject.enable_model_monitoring`.
+
+## Model monitoring application usage
 
 First, list the model endpoints and choose the ones you want to monitor:
 
@@ -126,6 +147,10 @@ data written by the application (identified with `func_name`) for the specified 
 
 The `"skip_overlap"` value allows to pass potential overlaps, but with a later start time for the new
 data (ignoring the overlap data) so that it coincides with the `start` time of the already written data.
+
+### Additional OTel configuration
+- To add a step that exports metrics from your serving graph, see {ref}`otel-export-step`.
+- To disable exporting metrics per model monitoring application, set the parameter `otlp_enabled=False` in {py:meth}`~mlrun.projects.MlrunProject.set_model_monitoring_function`.
 
 ## Lag detection alerts
 

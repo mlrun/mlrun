@@ -341,6 +341,13 @@ feature_set.ingest(..., run_config=run_config)
   file. This option should be used for local development where AWS credentials already exist (created by `aws` CLI, for
   example)
   
+```{note}
+Setting an endpoint lets one S3 datastore configuration target any S3-compatible object store, including Amazon S3,
+Backblaze B2, Cloudflare R2, and MinIO. Use `AWS_ENDPOINT_URL_S3`, or the `endpoint_url` parameter of
+`DatastoreProfileS3`, with a value such as `https://your-s3-endpoint.example.com`. Credentials and bucket paths are
+configured the same way regardless of the endpoint.
+```
+
 ### S3 datastore profile
 
 ```python

@@ -139,6 +139,7 @@ class BaseStep(ModelObj):
         "on_error",
         "max_iterations",
         "cycle_from",
+        "function",
     ]
     _default_fields_to_strip = _default_fields_to_strip_from_step
 
@@ -148,6 +149,7 @@ class BaseStep(ModelObj):
         after: list | None = None,
         shape: str | None = None,
         max_iterations: int | None = None,
+        function: str | None = None,
     ):
         self.name = name
         self._parent = None
@@ -163,6 +165,8 @@ class BaseStep(ModelObj):
         )
         self._max_iterations = max_iterations
         self.cycle_from = []
+        self.function = function
+        self._should_init = True  # flag to control whether to initialize object
 
     def get_shape(self):
         """graphviz shape"""
@@ -302,12 +306,31 @@ class BaseStep(ModelObj):
 
         return self
 
-    def init_object(self, context, namespace, mode="sync", reset=False, **extra_kwargs):
-        """init the step class"""
+    def init_object(
+        self,
+        context,
+        namespace: str,
+        mode: str = "sync",
+        reset: bool = False,
+        engine: str = "async",
+        **extra_kwargs,
+    ):
         self.context = context
+        # determine if this step should be initialized
+        self._should_init = self._is_local_function(context)
 
-    def _is_local_function(self, context, current_function=None):
-        return True
+    def _is_local_function(self, context, current_function=None) -> bool:
+        # detect if the class is local (and should be initialized)
+        current_function = current_function or get_current_function(context)
+        if current_function == "*":
+            return True
+        if not self.function and not current_function:
+            return True
+        if (
+            self.function and self.function == "*"
+        ) or self.function == current_function:
+            return True
+        return False
 
     def get_children(self):
         """get child steps (for router/flow)"""
@@ -741,7 +764,6 @@ class TaskStep(BaseStep):
         "class_args",
         "handler",
         "skip_context",
-        "function",
         "shape",
         "full_event",
         "responder",
@@ -768,11 +790,10 @@ class TaskStep(BaseStep):
         | None = schemas.ModelEndpointCreationStrategy.SKIP,
         endpoint_type: schemas.EndpointType | None = schemas.EndpointType.NODE_EP,
     ):
-        super().__init__(name, after)
+        super().__init__(name, after, function=function)
         self.class_name = class_name
         self.class_args = class_args or {}
         self.handler = handler
-        self.function = function
         self._handler = None
         self._outlets_selector = None
         self._object = None
@@ -823,31 +844,23 @@ class TaskStep(BaseStep):
             if hasattr(self._object, "select_outlets"):
                 self._outlets_selector = self._object.select_outlets
 
-    def init_object(self, context, namespace, mode="sync", reset=False, **extra_kwargs):
-        self.context = context
+    def init_object(
+        self,
+        context,
+        namespace: str,
+        mode: str = "sync",
+        reset: bool = False,
+        engine: str = "async",
+        **extra_kwargs,
+    ):
+        super().init_object(context, namespace, mode, reset, engine, **extra_kwargs)
+        if not self._should_init:
+            # skip further initialization for non-local functions
+            return
         self._async_object = None
-        if not self._is_local_function(context):
-            # skip init of non local functions
-            return
-
-        if self.handler and not self.class_name:
-            # link to function
-            if callable(self.handler):
-                self._handler = self.handler
-                self.handler = self.handler.__name__
-            else:
-                self._handler = get_function(self.handler, namespace)
-            args = signature(self._handler).parameters
-            if args and "context" in list(args.keys()):
-                self._inject_context = True
-            self._set_error_handler()
-            return
-
-        self._class_object, self.class_name = self.get_step_class_object(
-            namespace=namespace
-        )
-
-        self._init_class_object_and_handler(namespace, reset, **extra_kwargs)
+        self.set_class_object_or_handler(namespace)
+        if self._class_object:
+            self._init_class_object_and_handler(namespace, reset, **extra_kwargs)
 
         self._set_error_handler()
         if mode != "skip":
@@ -888,18 +901,22 @@ class TaskStep(BaseStep):
                 class_object = get_class(class_name or self._default_class, namespace)
         return class_object, class_name
 
-    def _is_local_function(self, context, current_function=None) -> bool:
-        # detect if the class is local (and should be initialized)
-        current_function = current_function or get_current_function(context)
-        if current_function == "*":
-            return True
-        if not self.function and not current_function:
-            return True
-        if (
-            self.function and self.function == "*"
-        ) or self.function == current_function:
-            return True
-        return False
+    def set_class_object_or_handler(self, namespace) -> None:
+        if self.handler and not self.class_name:
+            # link to function
+            if callable(self.handler):
+                self._handler = self.handler
+                self.handler = self.handler.__name__
+            else:
+                self._handler = get_function(self.handler, namespace)
+            args = signature(self._handler).parameters
+            if args and "context" in list(args.keys()):
+                self._inject_context = True
+            self._class_object = None
+        else:
+            self._class_object, self.class_name = self.get_step_class_object(
+                namespace=namespace
+            )
 
     @property
     def async_object(self):
@@ -1168,18 +1185,26 @@ class RouterStep(TaskStep):
         for key in routes:
             del self._routes[key]
 
-    def init_object(self, context, namespace, mode="sync", reset=False, **extra_kwargs):
+    def init_object(
+        self,
+        context,
+        namespace: str,
+        mode: str = "sync",
+        reset: bool = False,
+        engine: str = "async",
+        **extra_kwargs,
+    ):
         if not self.routes:
             raise mlrun.errors.MLRunRuntimeError(
                 "You have to add models to the router step before initializing it"
             )
-        if not self._is_local_function(context):
-            return
-
         self.class_args = self.class_args or {}
         super().init_object(
             context, namespace, "skip", reset=reset, routes=self._routes, **extra_kwargs
         )
+        if not self._should_init:
+            # skip further initialization for non-local functions
+            return
 
         for route in self._routes.values():
             if self.function and not route.function:
@@ -2498,11 +2523,7 @@ class ModelRunnerStep(MonitoredStep):
         self.max_threads = max_threads
         self.pool_factor = pool_factor
 
-    def init_object(self, context, namespace, mode="sync", reset=False, **extra_kwargs):
-        self.context = context
-        if not self._is_local_function(context):
-            # skip init of non local functions
-            return
+    def _init_class_object_and_handler(self, namespace, reset, **extra_kwargs):
         model_selector, model_selector_params = self.class_args.get(
             "model_selector", (None, None)
         )
@@ -2551,7 +2572,7 @@ class ModelRunnerStep(MonitoredStep):
                 model_name
             )
             model._streaming_enabled = getattr(
-                getattr(context, "server", None), "streaming", False
+                getattr(self.context, "server", None), "streaming", False
             )
             model_objects.append(model)
         self._async_object = ModelRunner(
@@ -2560,7 +2581,7 @@ class ModelRunnerStep(MonitoredStep):
             execution_mechanism_by_runnable_name=execution_mechanism_by_model_name,
             shared_proxy_mapping=self._shared_proxy_mapping or None,
             name=self.name,
-            context=context,
+            context=self.context,
             max_processes=self.max_processes,
             max_threads=self.max_threads,
             pool_factor=self.pool_factor,
@@ -2660,9 +2681,20 @@ class QueueStep(BaseStep, StepToDict):
         self._stream = None
         self._async_object = None
 
-    def init_object(self, context, namespace, mode="sync", reset=False, **extra_kwargs):
-        self.context = context
-        if self.path:
+    def init_object(
+        self,
+        context,
+        namespace: str,
+        mode: str = "sync",
+        reset: bool = False,
+        engine: str = "async",
+        **extra_kwargs,
+    ):
+        super().init_object(context, namespace, mode, reset, engine, **extra_kwargs)
+        if not self._should_init:
+            # skip further initialization for non-local functions
+            return
+        if engine == "sync" and self.path:
             self._stream = get_stream_pusher(
                 self.path,
                 shards=self.shards,
@@ -2924,15 +2956,26 @@ class FlowStep(BaseStep):
     def __iter__(self):
         yield from self._steps.keys()
 
-    def init_object(self, context, namespace, mode="sync", reset=False, **extra_kwargs):
-        """initialize graph objects and classes"""
-        self.context = context
+    def init_object(
+        self,
+        context,
+        namespace: str,
+        mode: str = "sync",
+        reset: bool = False,
+        engine: str = "async",
+        **extra_kwargs,
+    ):
+        super().init_object(context, namespace, mode, reset, engine, **extra_kwargs)
+        if not self._should_init:
+            # skip further initialization for non-local functions
+            return
+        self._init_shared_resources(namespace=namespace)
         self._insert_all_error_handlers()
         self.check_and_process_graph()
 
         for step in self.steps.values():
             step.set_parent(self)
-            step.init_object(context, namespace, mode, reset=reset)
+            step.init_object(context, namespace, mode, reset=reset, engine=self.engine)
         self._set_error_handler()
         self._post_init(mode)
 
@@ -3135,7 +3178,7 @@ class FlowStep(BaseStep):
         """create the streams used in this flow"""
         for step in self.get_children():
             if step.kind == StepKinds.queue:
-                step.init_object(self.context, None)
+                step.init_object(self.context, None, engine=self.engine)
 
     def list_child_functions(self):
         """return a list of child function names referred to in the steps"""
@@ -3297,6 +3340,12 @@ class FlowStep(BaseStep):
 
     def supports_termination(self):
         return self.engine != "sync"
+
+    def _init_shared_resources(
+        self,
+        namespace: str | None = None,
+    ):
+        pass
 
 
 class RootFlowStep(FlowStep):
@@ -3534,8 +3583,7 @@ class RootFlowStep(FlowStep):
         self.shared_max_threads = max_threads
         self.pool_factor = pool_factor
 
-    def init_object(self, context, namespace, mode="sync", reset=False, **extra_kwargs):
-        self.context = context
+    def _init_shared_resources(self, namespace: str | None = None):
         if self.shared_models:
             self.context.executor = storey.flow.RunnableExecutor(
                 max_processes=self.shared_max_processes,
@@ -3569,7 +3617,6 @@ class RootFlowStep(FlowStep):
                 self.context.executor.add_runnable(
                     model, self._shared_models_mechanism[model.name]
                 )
-        super().init_object(context, namespace, mode, reset=reset, **extra_kwargs)
 
     @property
     def model_endpoints_names(self) -> list[str]:
@@ -3656,6 +3703,9 @@ class RootFlowStep(FlowStep):
             if isinstance(step, mlrun.serving.MonitoredStep)
         }
 
+    def _is_local_function(self, context, current_function=None) -> bool:
+        return True
+
 
 class HubTaskStep(TaskStep):
     """hub task execution step, runs a class or handler from a hub"""
@@ -3715,12 +3765,7 @@ class HubTaskStep(TaskStep):
         finally:
             shutil.rmtree(path, ignore_errors=True)
 
-    def init_object(self, context, namespace, mode="sync", reset=False, **extra_kwargs):
-        self.context = context
-        self._async_object = None
-        if not self._is_local_function(context):
-            return
-
+    def set_class_object_or_handler(self, namespace) -> None:
         with self.hub_step_tempdir() as local_path:  # self-cleaning tmp dir util
             hub_step = mlrun.get_hub_step(self.class_name, local_path=local_path)
             mod = hub_step.module()
@@ -3730,16 +3775,9 @@ class HubTaskStep(TaskStep):
             args = signature(self._handler).parameters
             if args and "context" in list(args.keys()):
                 self._inject_context = True
-            self._set_error_handler()
-            return
-
-        self._class_object = getattr(mod, hub_step.class_name)
-
-        self._init_class_object_and_handler(namespace, reset, **extra_kwargs)
-
-        self._set_error_handler()
-        if mode != "skip":
-            self._post_init(mode)
+            self._class_object = None
+        else:
+            self._class_object = getattr(mod, hub_step.class_name)
 
 
 classes_map = {

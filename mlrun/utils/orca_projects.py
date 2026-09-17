@@ -41,7 +41,7 @@ class OrcaActionFailedError(Exception):
 
 
 class ProjectMetadataLike(typing.Protocol):
-    """Structural shape of a project's ``metadata`` this module's wire functions need."""
+    """Structural shape of a project's ``metadata`` :func:`resolve_project_body` needs."""
 
     name: str | None
     labels: dict | None
@@ -49,14 +49,14 @@ class ProjectMetadataLike(typing.Protocol):
 
 
 class ProjectSpecLike(typing.Protocol):
-    """Structural shape of a project's ``spec`` this module's wire functions need."""
+    """Structural shape of a project's ``spec`` :func:`resolve_project_body` needs."""
 
     owner: str | None
     description: str | None
 
 
 class ProjectLike(typing.Protocol):
-    """Structural shape ``create_project_wire``/``update_project_wire`` need. Satisfied by
+    """Structural shape :func:`resolve_project_body` needs. Satisfied by
     :class:`~mlrun.projects.MlrunProject`, :class:`mlrun.common.schemas.Project`, and the
     ``types.SimpleNamespace`` :func:`mlrun.db.orca._as_project_like` builds from a dict - the
     three shapes MLRun's own project CUD API already accepts interchangeably.
@@ -73,16 +73,43 @@ class ProjectLike(typing.Protocol):
     spec: ProjectSpecLike
 
 
-def create_project_wire(project: ProjectLike) -> dict:
-    """Build Orca's flat CreateProjectOptions body: name is required, everything else - owner
-    included, Orca derives it from the authenticated caller when omitted - is optional.
+# Sentinel distinguishing "no prev_op_id argument given" (the create shape) from an explicit
+# prev_op_id=None (the update/patch shape's valid CAS witness for a project that doesn't exist
+# yet) - resolve_project_body() can't use None for both without losing that distinction.
+_NO_PREV_OP_ID = object()
 
-    :param project: The project to create.
-    :return: The JSON-serializable request body for Orca's ``POST /projects`` endpoint.
+
+def resolve_project_body(
+    project: ProjectLike, prev_op_id: uuid.UUID | str | None = _NO_PREV_OP_ID
+) -> dict:
+    """Build the flat request body Orca's create/update/patch endpoints expect.
+
+    Create (``POST``) has no CAS concept: only ``name`` is required, everything else - owner
+    included, Orca derives it from the authenticated caller when omitted - is optional. Update/
+    patch (``PUT``/``PATCH``) drop ``name`` (it's in the URL) but require ``prevOpId``/``owner``,
+    so a missing value is sent through as-is and surfaces as a real validation error from Orca -
+    ``None`` is still a valid witness there, for a PUT that upserts a project that doesn't exist
+    yet.
+
+    Pass ``prev_op_id`` (even ``None``) to get the update/patch shape; omit it entirely to get the
+    create shape. For example, ``resolve_project_body(project)`` returns
+    ``{"name": "p1", "owner": "u1"}``, while ``resolve_project_body(project, op_id)`` returns
+    ``{"prevOpId": "...", "owner": "u1"}``.
+
+    :param project: The project's desired state.
+    :param prev_op_id: The CAS witness for an update/patch - the ``op_id`` last observed by the
+        caller. Omit for a create.
+    :return: The JSON-serializable request body.
     """
-    wire = {"name": project.metadata.name}
-    if project.spec.owner:
-        wire["owner"] = project.spec.owner
+    if prev_op_id is _NO_PREV_OP_ID:
+        wire = {"name": project.metadata.name}
+        if project.spec.owner:
+            wire["owner"] = project.spec.owner
+    else:
+        wire = {
+            "prevOpId": str(prev_op_id) if prev_op_id else None,
+            "owner": project.spec.owner,
+        }
     if project.spec.description:
         wire["description"] = project.spec.description
     if project.metadata.labels:
@@ -92,29 +119,7 @@ def create_project_wire(project: ProjectLike) -> dict:
     return wire
 
 
-def update_project_wire(project: ProjectLike, prev_op_id: uuid.UUID | None) -> dict:
-    """Build Orca's flat UpdateProjectOptions body: prevOpId/owner are required by Orca's contract,
-    so a missing value is sent through as-is and surfaces as a real validation error from Orca.
-
-    :param project: The project's desired state to update to.
-    :param prev_op_id: The CAS witness - the ``op_id`` last observed by the caller, or ``None``
-        for a PUT that upserts a project that doesn't exist yet.
-    :return: The JSON-serializable request body for Orca's ``PUT``/``PATCH /projects/{name}``.
-    """
-    wire = {
-        "prevOpId": str(prev_op_id) if prev_op_id else None,
-        "owner": project.spec.owner,
-    }
-    if project.spec.description:
-        wire["description"] = project.spec.description
-    if project.metadata.labels:
-        wire["labels"] = project.metadata.labels
-    if project.metadata.annotations:
-        wire["annotations"] = project.metadata.annotations
-    return wire
-
-
-def project_from_wire(body: dict) -> mlrun.common.schemas.Project:
+def to_mlproject(body: dict) -> mlrun.common.schemas.Project:
     """Parse an Orca project response body. Orca's wire format is camelCase (the SDK schemas
     camelize every field), so this can't just pydantic-validate the body directly - op_id/updated_at
     need explicit remapping.

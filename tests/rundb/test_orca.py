@@ -313,7 +313,7 @@ class TestOrcaProjectsClient:
         )
 
         # a failed action is fatal - it should stop polling immediately, not retry until
-        # timeout: OrcaProjectsOrchestrator.wait_for_op passes OrcaActionFailedError as a
+        # timeout: ProjectsOrchestrator.wait_for_op passes OrcaActionFailedError as a
         # fatal_exception, so retry_until_successful wraps it in MLRunRetryExhaustedError
         # instead of retrying.
         with pytest.raises(mlrun.errors.MLRunRetryExhaustedError):
@@ -344,9 +344,9 @@ class TestOrcaProjectsClient:
 
 
 class TestHTTPRunDBOrcaGate:
-    """HTTPRunDB.create_project/store_project/patch_project/delete_project gate on
-    _orca_direct_mode() and delegate to OrcaProjectsClient - or fall through to the legacy
-    MLRun-API path unchanged - depending on it.
+    """HTTPRunDB.create_project/store_project/patch_project/delete_project resolve a projects
+    client via _resolve_projects_client() and delegate to it - or fall through to the legacy
+    MLRun-API path unchanged when it returns None.
     """
 
     @pytest.fixture
@@ -357,7 +357,7 @@ class TestHTTPRunDBOrcaGate:
         mlrun.mlconf.httpdb.authentication.mode = "none"
         mlrun.mlconf.iguazio_api_url = ""
         mlrun.mlconf.httpdb.projects.leader = "mlrun"
-        assert db._orca_direct_mode() is False
+        assert db._resolve_projects_client() is None
 
         with unittest.mock.patch.object(db, "api_call") as mock_api_call:
             mock_api_call.return_value.status_code = 200
@@ -367,13 +367,13 @@ class TestHTTPRunDBOrcaGate:
             db.create_project(_mlrun_project("gated"))
             assert mock_api_call.called
 
-    def test_orca_direct_mode_without_configured_url_falls_through(self, db):
+    def test_resolve_projects_client_without_configured_url_falls_through(self, db):
         mlrun.mlconf.httpdb.authentication.mode = "iguazio-v4"
         mlrun.mlconf.iguazio_api_url = ""
         mlrun.mlconf.httpdb.projects.leader = "orca"
-        assert db._orca_direct_mode() is False
+        assert db._resolve_projects_client() is None
 
-    def test_orca_direct_mode_requires_leader_orca(self, db):
+    def test_resolve_projects_client_requires_leader_orca(self, db):
         # is_iguazio_v4_mode()/iguazio_api_url alone aren't enough - both are also true for a
         # v4-auth deployment that hasn't cut project-sync leadership over to Orca yet (they're
         # already used for e.g. oauth token endpoints regardless of leader). Only the server's
@@ -381,7 +381,7 @@ class TestHTTPRunDBOrcaGate:
         mlrun.mlconf.httpdb.authentication.mode = "iguazio-v4"
         mlrun.mlconf.iguazio_api_url = ORCA_API_URL
         mlrun.mlconf.httpdb.projects.leader = "mlrun"
-        assert db._orca_direct_mode() is False
+        assert db._resolve_projects_client() is None
 
     @pytest.mark.parametrize(
         "method_name,args,orca_method_name,orca_args",
@@ -391,16 +391,16 @@ class TestHTTPRunDBOrcaGate:
             ("delete_project", ("gated",), "delete_project", ("gated",)),
         ],
     )
-    def test_orca_direct_mode_delegates_and_skips_api_call(
+    def test_resolve_projects_client_delegates_and_skips_api_call(
         self, db, method_name, args, orca_method_name, orca_args
     ):
         mlrun.mlconf.httpdb.authentication.mode = "iguazio-v4"
         mlrun.mlconf.iguazio_api_url = ORCA_API_URL
         mlrun.mlconf.httpdb.projects.leader = "orca"
-        assert db._orca_direct_mode() is True
+        assert db._resolve_projects_client() is not None
 
         fake_client = unittest.mock.Mock()
-        db._orca_projects_client = fake_client
+        db._projects_client = fake_client
 
         project = _mlrun_project("gated")
         call_args = (
@@ -423,13 +423,13 @@ class TestHTTPRunDBOrcaGate:
         orca_method.assert_called_once()
         assert orca_method.call_args.kwargs["wait_for_completion"] is True
 
-    def test_orca_direct_mode_patch_project_coerces_patch_mode(self, db):
+    def test_resolve_projects_client_patch_project_coerces_patch_mode(self, db):
         mlrun.mlconf.httpdb.authentication.mode = "iguazio-v4"
         mlrun.mlconf.iguazio_api_url = ORCA_API_URL
         mlrun.mlconf.httpdb.projects.leader = "orca"
 
         fake_client = unittest.mock.Mock()
-        db._orca_projects_client = fake_client
+        db._projects_client = fake_client
 
         db.patch_project("gated", {"spec": {"description": "d"}}, patch_mode="additive")
 
@@ -441,7 +441,7 @@ class TestHTTPRunDBOrcaGate:
 
     def test_get_project_is_not_gated(self, db):
         # get_project is explicitly out of scope for this ticket (reads stay on the legacy
-        # MLRun-API path) - it must not check _orca_direct_mode at all.
+        # MLRun-API path) - it must not call _resolve_projects_client() at all.
         mlrun.mlconf.httpdb.authentication.mode = "iguazio-v4"
         mlrun.mlconf.iguazio_api_url = ORCA_API_URL
         mlrun.mlconf.httpdb.projects.leader = "orca"

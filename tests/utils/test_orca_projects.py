@@ -30,16 +30,16 @@ def _project(owner=None, description=None, labels=None, annotations=None):
     )
 
 
-def test_create_project_wire_minimal():
-    assert orca_projects.create_project_wire(_project()) == {"name": "p1"}
+def test_resolve_project_body_create_minimal():
+    assert orca_projects.resolve_project_body(_project()) == {"name": "p1"}
 
 
-def test_create_project_wire_does_not_leak_mlrun_only_spec_fields():
+def test_resolve_project_body_create_does_not_leak_mlrun_only_spec_fields():
     # a real MlrunProject carries ~20 MLRun-specific spec fields (functions, artifacts,
     # workflows, build, ...) that aren't part of Orca's contract (the common set only:
-    # name/labels/annotations/owner/description). create_project_wire/update_project_wire only
-    # ever read the common-set attributes by name, so passing the richer MlrunProject object
-    # directly (as mlrun/db/orca.py does) must never leak those extra fields onto the wire.
+    # name/labels/annotations/owner/description). resolve_project_body only ever reads the
+    # common-set attributes by name, so passing the richer MlrunProject object directly (as
+    # mlrun/db/orca.py does) must never leak those extra fields onto the wire.
     project = mlrun.projects.project.MlrunProject(
         metadata=mlrun.projects.project.ProjectMetadata(name="p1"),
         spec=mlrun.projects.project.ProjectSpec(
@@ -49,18 +49,18 @@ def test_create_project_wire_does_not_leak_mlrun_only_spec_fields():
             source="git://example.com/repo.git",
         ),
     )
-    wire = orca_projects.create_project_wire(project)
+    wire = orca_projects.resolve_project_body(project)
     assert wire == {"name": "p1", "owner": "jsmith"}
 
 
-def test_create_project_wire_full():
+def test_resolve_project_body_create_full():
     project = _project(
         owner="jsmith",
         description="desc",
         labels={"a": "b"},
         annotations={"c": "d"},
     )
-    assert orca_projects.create_project_wire(project) == {
+    assert orca_projects.resolve_project_body(project) == {
         "name": "p1",
         "owner": "jsmith",
         "description": "desc",
@@ -70,21 +70,21 @@ def test_create_project_wire_full():
 
 
 @pytest.mark.parametrize("prev_op_id", [uuid.uuid4(), None])
-def test_update_project_wire_prev_op_id(prev_op_id):
+def test_resolve_project_body_update_prev_op_id(prev_op_id):
     project = _project(owner="jsmith")
-    wire = orca_projects.update_project_wire(project, prev_op_id)
+    wire = orca_projects.resolve_project_body(project, prev_op_id)
     assert wire["prevOpId"] == (str(prev_op_id) if prev_op_id else None)
     assert wire["owner"] == "jsmith"
 
 
-def test_project_from_wire_round_trip():
+def test_to_mlproject_round_trip():
     op_id = uuid.uuid4()
     body = {
         "metadata": {"name": "p1", "labels": {"a": "b"}, "annotations": {"c": "d"}},
         "spec": {"owner": "jsmith", "description": "desc"},
         "status": {"state": "online", "opId": str(op_id), "updatedAt": None},
     }
-    project = orca_projects.project_from_wire(body)
+    project = orca_projects.to_mlproject(body)
     assert project.metadata.name == "p1"
     assert project.metadata.labels == {"a": "b"}
     assert project.metadata.annotations == {"c": "d"}

@@ -392,11 +392,11 @@ class Client(BaseClient, project_leader.Member):
 
     def _orca_orchestrator(
         self, auth_info: mlrun.common.schemas.AuthInfo
-    ) -> orca_client.OrcaProjectsOrchestrator:
+    ) -> orca_client.ProjectsOrchestrator:
         # auth_info changes per call (this relays the acting user's identity), so a fresh
         # orchestrator is built per call rather than cached on self like _session/
         # _poll_interval_seconds - it's a cheap object holding no I/O state of its own.
-        return orca_client.OrcaProjectsOrchestrator(
+        return orca_client.ProjectsOrchestrator(
             lambda method, path, error_message, **kwargs: self._send_project_request(
                 method, path, error_message, auth_info, **kwargs
             ),

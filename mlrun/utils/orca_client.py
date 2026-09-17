@@ -11,18 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Shared orchestration for Orca's project-sync operations.
-
-The sequence of requests create/update/patch/delete/get make, and how each polls to a terminal
-state - shared between MLRun's server-side Orca leader-proxy
-(``server/py/framework/utils/clients/iguazio/v4.py``) and MLRun's SDK-direct-to-Orca client
-(``mlrun/db/orca.py``), so neither maintains its own copy of "what request to make when". The
-two callers only differ in how they actually send an authenticated request - the SDK uses its
-own held credentials, the leader-proxy relays the acting user's identity - so that's the one
-thing each supplies via :class:`RequestSender`. See :mod:`mlrun.utils.orca_projects` for the
-wire protocol these requests carry.
-"""
-
 import types
 import typing
 import uuid
@@ -39,7 +27,7 @@ import mlrun.utils.orca_projects as orca_projects
 class RequestSender(typing.Protocol):
     """Sends one authenticated request to an Orca endpoint and returns the response, having
     already applied the caller's own status-code-to-exception mapping. Each caller of
-    :class:`OrcaProjectsOrchestrator` supplies its own - see
+    :class:`ProjectsOrchestrator` supplies its own - see
     ``mlrun.db.orca.OrcaProjectsClient._send_request`` (SDK, own credentials) and
     ``server/py/framework/utils/clients/iguazio/v4.py``'s ``Client._send_project_request``
     (server, relays the acting user's identity).
@@ -50,7 +38,7 @@ class RequestSender(typing.Protocol):
     ) -> requests.Response: ...
 
 
-class OrcaProjectsOrchestrator:
+class ProjectsOrchestrator:
     """The sequence of Orca requests behind create/update/patch/delete/get, and how each polls
     to completion. Returns raw pieces (responses, op_ids, schema objects) rather than any one
     caller's own public return contract - callers adapt those into whatever shape their own
@@ -78,12 +66,12 @@ class OrcaProjectsOrchestrator:
         :return: The raw response, and the minted ``op_id``.
         """
         name = project.metadata.name
-        self._logger.debug("Creating project in Orca", project=name)
+        self._logger.debug("Creating project", project=name)
         response = self._send_request(
             "POST",
             orca_projects.PROJECTS_ENDPOINT,
             f"Failed creating project {name} in Orca",
-            json=orca_projects.create_project_wire(project),
+            json=orca_projects.resolve_project_body(project),
         )
         return response, response.json()["status"]["opId"]
 
@@ -96,12 +84,12 @@ class OrcaProjectsOrchestrator:
         :return: The raw response, and the ``op_id`` this update minted.
         """
         prev_op_id = self.resolve_prev_op_id(name, project)
-        self._logger.debug("Updating project in Orca", name=name, prev_op_id=prev_op_id)
+        self._logger.debug("Updating project", name=name, prev_op_id=prev_op_id)
         response = self._send_request(
             "PUT",
             orca_projects.PROJECT_ENDPOINT_TEMPLATE.format(name=name),
             f"Failed updating project {name} in Orca",
-            json=orca_projects.update_project_wire(project, prev_op_id),
+            json=orca_projects.resolve_project_body(project, prev_op_id),
         )
         return response, response.json()["status"]["opId"]
 
@@ -124,7 +112,7 @@ class OrcaProjectsOrchestrator:
             "PATCH",
             orca_projects.PROJECT_ENDPOINT_TEMPLATE.format(name=name),
             f"Failed patching project {name} in Orca",
-            json=orca_projects.update_project_wire(merged, current.status.op_id),
+            json=orca_projects.resolve_project_body(merged, current.status.op_id),
         )
         return response, response.json()["status"]["opId"]
 
@@ -132,7 +120,7 @@ class OrcaProjectsOrchestrator:
         """``DELETE`` a project. Callers handle any deletion-strategy short-circuit themselves
         before calling this - Orca's ``DeleteProjectOptions`` has no strategy concept yet.
         """
-        self._logger.debug("Deleting project in Orca", name=name)
+        self._logger.debug("Deleting project", name=name)
         return self._send_request(
             "DELETE",
             orca_projects.PROJECT_ENDPOINT_TEMPLATE.format(name=name),
@@ -146,7 +134,7 @@ class OrcaProjectsOrchestrator:
             orca_projects.PROJECT_ENDPOINT_TEMPLATE.format(name=name),
             f"Failed getting project {name} from Orca",
         )
-        return orca_projects.project_from_wire(response.json())
+        return orca_projects.to_mlproject(response.json())
 
     def settle(
         self,
@@ -168,7 +156,7 @@ class OrcaProjectsOrchestrator:
         if not wait_for_completion:
             return None
         if response.status_code != requests.codes.accepted:
-            return orca_projects.project_from_wire(response.json())
+            return orca_projects.to_mlproject(response.json())
         self.wait_for_op(name, op_id)
         return self.get(name)
 
@@ -227,6 +215,15 @@ def _merge_for_patch(
     project: orca_projects.ProjectLike,
     patch_mode: mlrun.common.schemas.PatchMode,
 ) -> orca_projects.ProjectLike:
+    """Merge ``project``'s changes into ``current``'s common-set fields, since Orca's ``PATCH``
+    is full-replace rather than merge - sending ``project`` as-is would wipe out every field it
+    didn't set.
+
+    For example, patching ``current`` (``labels={"team": "ds"}, owner="jsmith"``) with
+    ``project`` (``labels={"env": "prod"}``) under ``patch_mode=additive`` returns
+    ``labels={"team": "ds", "env": "prod"}, owner="jsmith"`` - the existing label and owner both
+    survive, only the new label is added.
+    """
     merged_common = {
         "labels": dict(current.metadata.labels or {}),
         "annotations": dict(current.metadata.annotations or {}),

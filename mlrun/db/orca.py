@@ -11,18 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""SDK-direct client for Orca's user-facing project endpoints.
-
-In enterprise (IG4/Orca-led) deployments, this bypasses the MLRun API entirely for project
-create/update/patch/delete: it calls Orca with the SDK's own user credentials (Orca authorizes
-the user itself, via OPA), then polls to a terminal state the same way MLRun's own backward-
-compatibility proxy does server-side (``server/py/framework/utils/clients/iguazio/v4.py``,
-mlrun#10043). The actual request sequencing (what to call, in what order, how to poll) lives in
-:mod:`mlrun.utils.orca_client`, shared with that server-side proxy - this module only supplies
-the SDK-specific pieces: how to send an authenticated request, and how to translate results into
-the SDK's own public return types.
-"""
-
 import types
 import typing
 import uuid
@@ -48,34 +36,6 @@ ProjectInput = typing.Union[
 ]
 
 
-def _as_project_like(project: ProjectInput) -> orca_projects.ProjectLike:
-    """Normalize ``project`` into something with ``.metadata``/``.spec`` attribute access - the
-    shape :mod:`mlrun.utils.orca_projects`'s wire functions expect.
-
-    A dict input may be partial (``patch_project``'s body only carries the changed fields, and
-    never ``metadata.name`` - that comes from the separate ``name`` argument), so missing fields
-    become ``None`` rather than raising - matching the wire functions' own
-    ``if project.spec.owner:``-style optional-field handling.
-    """
-    if not isinstance(project, dict):
-        return project
-    metadata = project.get("metadata") or {}
-    spec = project.get("spec") or {}
-    status = project.get("status") or {}
-    return types.SimpleNamespace(
-        metadata=types.SimpleNamespace(
-            name=metadata.get("name"),
-            labels=metadata.get("labels"),
-            annotations=metadata.get("annotations"),
-        ),
-        spec=types.SimpleNamespace(
-            owner=spec.get("owner"),
-            description=spec.get("description"),
-        ),
-        status=types.SimpleNamespace(op_id=status.get("op_id") or status.get("opId")),
-    )
-
-
 class OrcaProjectsClient:
     """Talks to Orca's user-facing project endpoints directly, using the credentials of the
     :class:`~mlrun.db.httpdb.HTTPRunDB` instance it is attached to - the same credentials that
@@ -92,7 +52,7 @@ class OrcaProjectsClient:
             ),
             verbose=True,
         )
-        self._orchestrator = orca_client.OrcaProjectsOrchestrator(
+        self._orchestrator = orca_client.ProjectsOrchestrator(
             self._send_request,
             mlrun.utils.logger,
             poll_interval_seconds=humanfriendly.parse_timespan(
@@ -284,3 +244,31 @@ class OrcaProjectsClient:
         # status-code-to-exception mapping raise_for_status already gives for free.
         mlrun.errors.raise_for_status(response, error_message)
         return response
+
+
+def _as_project_like(project: ProjectInput) -> orca_projects.ProjectLike:
+    """Normalize ``project`` into something with ``.metadata``/``.spec`` attribute access - the
+    shape :func:`mlrun.utils.orca_projects.resolve_project_body` expects.
+
+    A dict input may be partial (``patch_project``'s body only carries the changed fields, and
+    never ``metadata.name`` - that comes from the separate ``name`` argument), so missing fields
+    become ``None`` rather than raising - matching that function's own
+    ``if project.spec.owner:``-style optional-field handling.
+    """
+    if not isinstance(project, dict):
+        return project
+    metadata = project.get("metadata") or {}
+    spec = project.get("spec") or {}
+    status = project.get("status") or {}
+    return types.SimpleNamespace(
+        metadata=types.SimpleNamespace(
+            name=metadata.get("name"),
+            labels=metadata.get("labels"),
+            annotations=metadata.get("annotations"),
+        ),
+        spec=types.SimpleNamespace(
+            owner=spec.get("owner"),
+            description=spec.get("description"),
+        ),
+        status=types.SimpleNamespace(op_id=status.get("op_id") or status.get("opId")),
+    )

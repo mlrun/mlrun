@@ -137,7 +137,7 @@ class HTTPRunDB(RunDBInterface):
     def __init__(self, url, *, credentials: "mlrun.client.Credentials | None" = None):
         self.server_version = ""
         self.session = None
-        self._orca_projects_client = None
+        self._projects_client = None
         self._wait_for_project_terminal_state_retry_interval = 3
         self._wait_for_background_task_terminal_state_retry_interval = 3
         self._wait_for_project_deletion_interval = 3
@@ -3387,26 +3387,6 @@ class HTTPRunDB(RunDBInterface):
             for project_dict in response.json()["projects"]
         ]
 
-    def _orca_direct_mode(self) -> bool:
-        """Whether project CUD should bypass the MLRun API and talk to Orca directly - the SDK
-        side of the enterprise (IG4/Orca-led) project-sync mechanism. MLRun's own API
-        remains the transport for everyone else: CE, enterprise deployments where Orca's
-        address isn't configured client-side yet, and deployments where the API server hasn't
-        (yet) cut project-sync leadership over to Orca - ``projects_leader`` is synced from the
-        server's own ``httpdb.projects.leader`` via ``connect()``'s client-spec, since that's
-        the one fact the client can't determine on its own.
-        """
-        return bool(
-            mlrun.mlconf.is_iguazio_v4_mode()
-            and mlrun.mlconf.iguazio_api_url
-            and mlrun.mlconf.httpdb.projects.leader == "orca"
-        )
-
-    def _orca_projects_client_instance(self) -> mlrun.db.orca.OrcaProjectsClient:
-        if self._orca_projects_client is None:
-            self._orca_projects_client = mlrun.db.orca.OrcaProjectsClient(self)
-        return self._orca_projects_client
-
     def get_project(self, name: str) -> "mlrun.MlrunProject":
         """Get details for a specific project."""
 
@@ -3434,10 +3414,9 @@ class HTTPRunDB(RunDBInterface):
               this mode while related resources exist, the operation will fail.
             - ``cascade`` - Automatically delete all related resources when deleting the project.
         """
-        if self._orca_direct_mode():
-            self._orca_projects_client_instance().delete_project(
-                name, wait_for_completion=True
-            )
+        projects_client = self._resolve_projects_client()
+        if projects_client is not None:
+            projects_client.delete_project(name, wait_for_completion=True)
             return
 
         headers = {
@@ -3476,8 +3455,9 @@ class HTTPRunDB(RunDBInterface):
         project: Union[dict, mlrun.projects.MlrunProject, mlrun.common.schemas.Project],
     ) -> mlrun.projects.MlrunProject:
         """Store a project in the DB. This operation will overwrite existing project of the same name if exists."""
-        if self._orca_direct_mode():
-            return self._orca_projects_client_instance().update_project(
+        projects_client = self._resolve_projects_client()
+        if projects_client is not None:
+            return projects_client.update_project(
                 name, project, wait_for_completion=True
             )
 
@@ -3512,8 +3492,9 @@ class HTTPRunDB(RunDBInterface):
         :param patch_mode: The strategy for merging the changes with the existing object. Can be either ``replace``
             or ``additive``.
         """
-        if self._orca_direct_mode():
-            return self._orca_projects_client_instance().patch_project(
+        projects_client = self._resolve_projects_client()
+        if projects_client is not None:
+            return projects_client.patch_project(
                 name,
                 project,
                 patch_mode=mlrun.common.schemas.PatchMode(patch_mode),
@@ -3533,10 +3514,9 @@ class HTTPRunDB(RunDBInterface):
         project: Union[dict, mlrun.projects.MlrunProject, mlrun.common.schemas.Project],
     ) -> mlrun.projects.MlrunProject:
         """Create a new project. A project with the same name must not exist prior to creation."""
-        if self._orca_direct_mode():
-            return self._orca_projects_client_instance().create_project(
-                project, wait_for_completion=True
-            )
+        projects_client = self._resolve_projects_client()
+        if projects_client is not None:
+            return projects_client.create_project(project, wait_for_completion=True)
 
         if isinstance(project, mlrun.common.schemas.Project):
             project = project.dict()
@@ -3555,6 +3535,23 @@ class HTTPRunDB(RunDBInterface):
         if response.status_code == http.HTTPStatus.ACCEPTED:
             return self._wait_for_project_to_reach_terminal_state(project_name)
         return mlrun.projects.MlrunProject.from_dict(response.json())
+
+    def _resolve_projects_client(self) -> mlrun.db.orca.OrcaProjectsClient | None:
+        """Resolve the client project CUD should delegate to instead of this API, or ``None`` to
+        keep going through this API as usual. Some enterprise deployments run project CUD through
+        a separate management service instead - ``projects_leader`` is synced from the server's
+        own ``httpdb.projects.leader`` via ``connect()``'s client-spec, since that's the one fact
+        this client can't determine on its own.
+        """
+        if not (
+            mlrun.mlconf.is_iguazio_v4_mode()
+            and mlrun.mlconf.iguazio_api_url
+            and mlrun.mlconf.httpdb.projects.leader == "orca"
+        ):
+            return None
+        if self._projects_client is None:
+            self._projects_client = mlrun.db.orca.OrcaProjectsClient(self)
+        return self._projects_client
 
     def _wait_for_project_to_reach_terminal_state(
         self, project_name: str

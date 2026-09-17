@@ -40,6 +40,7 @@ import mlrun.common.schemas
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.common.schemas.model_monitoring.model_endpoints as mm_endpoints
 import mlrun.common.types
+import mlrun.db.orca
 import mlrun.k8s_utils
 import mlrun.platforms
 import mlrun.projects
@@ -136,6 +137,7 @@ class HTTPRunDB(RunDBInterface):
     def __init__(self, url, *, credentials: "mlrun.client.Credentials | None" = None):
         self.server_version = ""
         self.session = None
+        self._projects_client = None
         self._wait_for_project_terminal_state_retry_interval = 3
         self._wait_for_background_task_terminal_state_retry_interval = 3
         self._wait_for_project_deletion_interval = 3
@@ -280,36 +282,10 @@ class HTTPRunDB(RunDBInterface):
                 ("params", params),
                 ("data", body),
                 ("json", json),
-                ("headers", headers),
             )
             if value is not None
         }
-
-        if self.user:
-            kw["auth"] = (self.user, self.password)
-        elif self.token_provider:
-            token = self.token_provider.get_token()
-            if token:
-                # Iguazio auth doesn't support passing token through bearer, so use cookie instead
-                if self.token_provider.is_iguazio_session():
-                    session_cookie = f'j:{{"sid": "{token}"}}'
-                    cookies = {
-                        "session": session_cookie,
-                    }
-                    kw["cookies"] = cookies
-                else:
-                    if (
-                        mlrun.common.schemas.HeaderNames.authorization
-                        not in kw.setdefault("headers", {})
-                    ):
-                        kw["headers"].update(
-                            {
-                                mlrun.common.schemas.HeaderNames.authorization: (
-                                    mlrun.common.schemas.AuthorizationHeaderPrefixes.bearer
-                                    + token
-                                )
-                            }
-                        )
+        kw.update(self._auth_request_kwargs(headers))
 
         if mlrun.common.schemas.HeaderNames.client_version not in kw.setdefault(
             "headers", {}
@@ -374,6 +350,45 @@ class HTTPRunDB(RunDBInterface):
             mlrun.errors.raise_for_status(response, error)
 
         return response
+
+    def _auth_request_kwargs(self, headers: dict | None = None) -> dict:
+        """Build the auth-related request kwargs (``auth``/``cookies``/``headers``) for the
+        credentials this instance was configured with. Shared by calls to MLRun's own API
+        (``api_call``) and, in enterprise mode, calls made directly to Orca - which trusts the
+        same IG4 session/token (see :class:`mlrun.db.orca.OrcaProjectsClient`).
+
+        :param headers: Extra headers to merge the auth header into, if any.
+        :return: Request kwargs (a subset of ``auth``/``cookies``/``headers``) to pass to
+            ``requests``.
+        """
+        kw = {}
+        if headers is not None:
+            kw["headers"] = headers
+        if self.user:
+            kw["auth"] = (self.user, self.password)
+        elif self.token_provider:
+            token = self.token_provider.get_token()
+            if token:
+                # Iguazio auth doesn't support passing token through bearer, so use cookie instead
+                if self.token_provider.is_iguazio_session():
+                    session_cookie = f'j:{{"sid": "{token}"}}'
+                    kw["cookies"] = {
+                        "session": session_cookie,
+                    }
+                else:
+                    if (
+                        mlrun.common.schemas.HeaderNames.authorization
+                        not in kw.setdefault("headers", {})
+                    ):
+                        kw["headers"].update(
+                            {
+                                mlrun.common.schemas.HeaderNames.authorization: (
+                                    mlrun.common.schemas.AuthorizationHeaderPrefixes.bearer
+                                    + token
+                                )
+                            }
+                        )
+        return kw
 
     def paginated_api_call(
         self,
@@ -678,6 +693,9 @@ class HTTPRunDB(RunDBInterface):
             config.httpdb.authentication.mode = (
                 server_cfg.get("authentication_mode")
                 or config.httpdb.authentication.mode
+            )
+            config.httpdb.projects.leader = (
+                server_cfg.get("projects_leader") or config.httpdb.projects.leader
             )
 
             config.httpdb.authorization.namespaces.mlrun = (
@@ -3396,6 +3414,10 @@ class HTTPRunDB(RunDBInterface):
               this mode while related resources exist, the operation will fail.
             - ``cascade`` - Automatically delete all related resources when deleting the project.
         """
+        projects_client = self._resolve_projects_client()
+        if projects_client is not None:
+            projects_client.delete_project(name, wait_for_completion=True)
+            return
 
         headers = {
             mlrun.common.schemas.HeaderNames.deletion_strategy: deletion_strategy
@@ -3433,6 +3455,11 @@ class HTTPRunDB(RunDBInterface):
         project: Union[dict, mlrun.projects.MlrunProject, mlrun.common.schemas.Project],
     ) -> mlrun.projects.MlrunProject:
         """Store a project in the DB. This operation will overwrite existing project of the same name if exists."""
+        projects_client = self._resolve_projects_client()
+        if projects_client is not None:
+            return projects_client.update_project(
+                name, project, wait_for_completion=True
+            )
 
         path = f"projects/{name}"
         error_message = f"Failed storing project {name}"
@@ -3465,6 +3492,14 @@ class HTTPRunDB(RunDBInterface):
         :param patch_mode: The strategy for merging the changes with the existing object. Can be either ``replace``
             or ``additive``.
         """
+        projects_client = self._resolve_projects_client()
+        if projects_client is not None:
+            return projects_client.patch_project(
+                name,
+                project,
+                patch_mode=mlrun.common.schemas.PatchMode(patch_mode),
+                wait_for_completion=True,
+            )
 
         path = f"projects/{name}"
         headers = {mlrun.common.schemas.HeaderNames.patch_mode: patch_mode}
@@ -3479,6 +3514,9 @@ class HTTPRunDB(RunDBInterface):
         project: Union[dict, mlrun.projects.MlrunProject, mlrun.common.schemas.Project],
     ) -> mlrun.projects.MlrunProject:
         """Create a new project. A project with the same name must not exist prior to creation."""
+        projects_client = self._resolve_projects_client()
+        if projects_client is not None:
+            return projects_client.create_project(project, wait_for_completion=True)
 
         if isinstance(project, mlrun.common.schemas.Project):
             project = project.dict()
@@ -3497,6 +3535,23 @@ class HTTPRunDB(RunDBInterface):
         if response.status_code == http.HTTPStatus.ACCEPTED:
             return self._wait_for_project_to_reach_terminal_state(project_name)
         return mlrun.projects.MlrunProject.from_dict(response.json())
+
+    def _resolve_projects_client(self) -> mlrun.db.orca.OrcaProjectsClient | None:
+        """Resolve the client project CUD should delegate to instead of this API, or ``None`` to
+        keep going through this API as usual. Some enterprise deployments run project CUD through
+        a separate management service instead - ``projects_leader`` is synced from the server's
+        own ``httpdb.projects.leader`` via ``connect()``'s client-spec, since that's the one fact
+        this client can't determine on its own.
+        """
+        if not (
+            mlrun.mlconf.is_iguazio_v4_mode()
+            and mlrun.mlconf.iguazio_api_url
+            and mlrun.mlconf.httpdb.projects.leader == "orca"
+        ):
+            return None
+        if self._projects_client is None:
+            self._projects_client = mlrun.db.orca.OrcaProjectsClient(self)
+        return self._projects_client
 
     def _wait_for_project_to_reach_terminal_state(
         self, project_name: str

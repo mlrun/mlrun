@@ -94,7 +94,6 @@ def test_default_image_and_effective_version_agree_for_spark3_and_spark4(
         explicit_version=runtime.spec.spark_version,
         image=runtime.spec.image,
         base_image=runtime.spec.build.base_image,
-        use_default_image=runtime.spec.use_default_image,
     )
 
     assert (
@@ -118,7 +117,6 @@ def test_generated_default_image_derives_version_from_platform_tag(
         explicit_version=runtime.spec.spark_version,
         image=runtime.spec.image,
         base_image=runtime.spec.build.base_image,
-        use_default_image=runtime.spec.use_default_image,
     )
     assert resolution.effective_version == "4.2.0"
 
@@ -132,7 +130,6 @@ def test_built_function_derives_version_from_base_image_over_opaque_final_image(
         explicit_version=runtime.spec.spark_version,
         image=runtime.spec.image,
         base_image=runtime.spec.build.base_image,
-        use_default_image=runtime.spec.use_default_image,
     )
     assert resolution.effective_version == "3.5.5"
     assert resolution.provenance_image == _BUILT_FUNCTION_BASE_IMAGE
@@ -147,7 +144,6 @@ def test_custom_opaque_image_with_no_version_source_fails():
             explicit_version=runtime.spec.spark_version,
             image=runtime.spec.image,
             base_image=runtime.spec.build.base_image,
-            use_default_image=runtime.spec.use_default_image,
         )
 
 
@@ -160,7 +156,6 @@ def test_explicit_matching_image_version_pair_is_preserved():
         explicit_version=runtime.spec.spark_version,
         image=runtime.spec.image,
         base_image=runtime.spec.build.base_image,
-        use_default_image=runtime.spec.use_default_image,
     )
     assert resolution.effective_version == "4.2.0"
 
@@ -175,7 +170,6 @@ def test_explicit_version_cannot_reuse_platform_default_image_from_other_major()
             explicit_version=runtime.spec.spark_version,
             image=runtime.spec.image,
             base_image=runtime.spec.build.base_image,
-            use_default_image=runtime.spec.use_default_image,
         )
 
 

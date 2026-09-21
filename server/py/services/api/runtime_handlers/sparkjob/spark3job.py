@@ -454,7 +454,6 @@ with ctx:
             explicit_version=runtime.spec.spark_version,
             image=runtime.spec.image,
             base_image=runtime.spec.build.base_image,
-            use_default_image=runtime.spec.use_default_image,
         )
 
     @staticmethod
@@ -868,5 +867,4 @@ with ctx:
             explicit_version=runtime.spec.spark_version,
             image=runtime.spec.image,
             base_image=runtime.spec.build.base_image,
-            use_default_image=runtime.spec.use_default_image,
         ).effective_version

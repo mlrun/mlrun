@@ -89,7 +89,6 @@ def resolve_spark_version(
     explicit_version: str | None,
     image: str | None,
     base_image: str | None,
-    use_default_image: bool,
 ) -> SparkVersionResolution:
     """
     Resolve and validate the Spark version for a SparkApplication.
@@ -97,7 +96,6 @@ def resolve_spark_version(
     :param explicit_version: User-provided Spark version.
     :param image: Runtime image before default assignment.
     :param base_image: Build base image.
-    :param use_default_image: Whether the generated default image is enabled.
     :return: The effective version and its image provenance.
     :raises mlrun.errors.MLRunInvalidArgumentError: If no version can be resolved or the
         explicit and image-derived major versions differ.
@@ -106,7 +104,6 @@ def resolve_spark_version(
         explicit_version=explicit_version,
         image=image,
         base_image=base_image,
-        use_default_image=use_default_image,
     )
     if resolution.effective_version is None:
         if resolution.provenance_image:
@@ -149,7 +146,6 @@ def _resolve_spark_version_provenance(
     explicit_version: str | None,
     image: str | None,
     base_image: str | None,
-    use_default_image: bool,
 ) -> SparkVersionResolution:
     configured_image_reference = _configured_spark_image_reference()
     if base_image:
@@ -160,8 +156,13 @@ def _resolve_spark_version_provenance(
         provenance_image = image
         provenance_version = extract_spark_version_from_image(image)
     else:
+        # Partial platform configuration selects no image, so it carries no provenance.
         provenance_image = configured_image_reference
-        provenance_version = _leading_semver_prefix(config.spark_app_image_tag)
+        provenance_version = (
+            _leading_semver_prefix(config.spark_app_image_tag)
+            if configured_image_reference
+            else None
+        )
 
     return SparkVersionResolution(
         effective_version=explicit_version or provenance_version,
@@ -171,9 +172,10 @@ def _resolve_spark_version_provenance(
 
 
 def _configured_spark_image_reference() -> str:
+    # Both halves are required to name an image, matching Spark3Runtime._default_image.
     if config.spark_app_image and config.spark_app_image_tag:
         return f"{config.spark_app_image}:{config.spark_app_image_tag}"
-    return config.spark_app_image or config.spark_app_image_tag
+    return ""
 
 
 def _spark_version_major(version: str) -> str | None:

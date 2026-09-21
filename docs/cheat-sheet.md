@@ -292,6 +292,10 @@ spark.deploy()  # build image
 spark.run(output_path="/User")  # run spark job
 ```
 
+MLRun derives the Spark version it declares from the image supplying Spark (build/base image,
+image tag, or the platform's configured Spark image); set `spark.spec.spark_version` explicitly
+if the image's tag carries no recognizable version.
+
 #### Databricks Runtime
 
 ```python

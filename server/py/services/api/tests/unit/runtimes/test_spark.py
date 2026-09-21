@@ -1434,9 +1434,6 @@ class TestSpark3Runtime(services.api.tests.unit.runtimes.base.TestRuntimeBase):
     def test_spark_version_resolved_from_generated_default_image(
         self, db: sqlalchemy.orm.Session, k8s_secrets_mock, spark_platform_image_config
     ):
-        # regression guard for the _validate_sparkjob-before-image-mutation ordering (§2.3):
-        # a use_default_image run must resolve from spark_app_image_tag, not the (as yet
-        # unassigned) untagged default image, and must not fail.
         mlrun.mlconf.spark_app_image = (
             "mckinsey-ig4-next-gen-docker-local.jfrog.io/spark-app"
         )
@@ -1454,8 +1451,6 @@ class TestSpark3Runtime(services.api.tests.unit.runtimes.base.TestRuntimeBase):
     def test_spark_version_resolved_from_built_function_base_image(
         self, db: sqlalchemy.orm.Session, k8s_secrets_mock
     ):
-        # the built function's final image tag describes the build, not the bundled Spark -
-        # the version must come from spec.build.base_image instead.
         mlrun.mlconf.httpdb.builder.docker_registry = "test_registry"
         runtime = mlrun.runtimes.Spark3Runtime()
         runtime.spec.image = ".sparkjob-from-github:latest"

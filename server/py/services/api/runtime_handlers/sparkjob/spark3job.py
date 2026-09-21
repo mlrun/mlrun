@@ -449,8 +449,7 @@ with ctx:
                 "Sparkjob must contain driver requests"
             )
 
-        # resolve and validate the Spark version before spec.image is assigned a default,
-        # so a bad configuration fails before any SparkApplication is created
+        # Validate before assigning the default image.
         mlrun.runtimes.utils.resolve_spark_version(
             explicit_version=runtime.spec.spark_version,
             image=runtime.spec.image,

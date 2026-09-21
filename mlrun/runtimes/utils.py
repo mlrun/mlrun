@@ -66,12 +66,11 @@ def resolve_spark_operator_version():
 
 
 class SparkVersionResolution(typing.NamedTuple):
-    # the version to declare on the SparkApplication: the explicit version when set,
-    # otherwise the provenance version. None when neither is available.
+    # Explicit version, or the version derived from provenance.
     effective_version: str | None
-    # the image/tag reference the provenance version (if any) was extracted from
+    # Image reference used to derive provenance_version.
     provenance_image: str | None
-    # the Spark version extracted from provenance_image, or None if it is opaque
+    # Version derived from provenance_image.
     provenance_version: str | None
 
 
@@ -79,14 +78,8 @@ def extract_spark_version_from_image(image: str) -> str | None:
     """
     Extract the leading major.minor.patch Spark version from a Docker image reference's tag.
 
-    Only the tag's leading ``<major>.<minor>.<patch>`` prefix is parsed and validated as a
-    semantic version - qualifiers after it (build metadata, scala/java suffixes, etc.) are
-    ignored rather than required to be semver-legal, since Docker tags allow a wider charset
-    than semver does.
-
-    :param image: a full image reference, e.g. ``"iguazio/spark-app:3.5.5-b697"``.
-    :return: the leading semantic version (e.g. ``"3.5.5"``), or None if the reference has no
-        tag, or the tag does not start with a valid major.minor.patch version.
+    :param image: A Docker image reference.
+    :return: The leading semantic version, or None when the tag has none.
     """
     _, tag = _split_image_reference(image)
     return _leading_semver_prefix(tag)
@@ -99,23 +92,15 @@ def resolve_spark_version(
     use_default_image: bool,
 ) -> SparkVersionResolution:
     """
-    Resolve the Spark version to declare on a SparkApplication, deriving it from the image
-    that actually supplied Spark when no explicit version is set, and validating an explicit
-    version against that provenance when both are available.
+    Resolve and validate the Spark version for a SparkApplication.
 
-    Provenance is resolved, in order, from: a built function's ``spec.build.base_image``, a
-    user-supplied prebuilt ``spec.image``, or - when MLRun selects the image itself - the
-    platform's configured ``spark_app_image_tag``.
-
-    :param explicit_version: the user-set ``spec.spark_version``, if any.
-    :param image: the user-set ``spec.image``, before MLRun assigns a default.
-    :param base_image: ``spec.build.base_image`` of a built function.
-    :param use_default_image: whether the function is configured to use the generated
-        default image.
-    :return: the resolution, for callers that also need the provenance details.
-    :raises mlrun.errors.MLRunInvalidArgumentError: no explicit version is set and the
-        provenance version could not be determined, or an explicit version's major release
-        does not match the provenance version's major release.
+    :param explicit_version: User-provided Spark version.
+    :param image: Runtime image before default assignment.
+    :param base_image: Build base image.
+    :param use_default_image: Whether the generated default image is enabled.
+    :return: The effective version and its image provenance.
+    :raises mlrun.errors.MLRunInvalidArgumentError: If no version can be resolved or the
+        explicit and image-derived major versions differ.
     """
     resolution = _resolve_spark_version_provenance(
         explicit_version=explicit_version,
@@ -126,17 +111,13 @@ def resolve_spark_version(
     if resolution.effective_version is None:
         if resolution.provenance_image:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "Could not resolve a Spark version: image/tag reference "
-                f"'{resolution.provenance_image}' does not carry a recognizable "
-                "major.minor.patch Spark version tag, and no explicit spec.spark_version was "
-                "set. Set spec.spark_version explicitly, or use an image tagged with the "
-                "Spark version it bundles "
-                "(e.g. '<image>:<major>.<minor>.<patch>...')."
+                f"Cannot resolve a Spark version from '{resolution.provenance_image}'. "
+                "Set spec.spark_version or use an image tag that starts with "
+                "<major>.<minor>.<patch>."
             )
         raise mlrun.errors.MLRunInvalidArgumentError(
-            "Could not resolve a Spark version: no image, base image, or platform "
-            "spark_app_image_tag configuration was found to derive it from, and no explicit "
-            "spec.spark_version was set. Set spec.spark_version explicitly."
+            "Cannot resolve a Spark version. Set spec.spark_version or configure "
+            "spark_app_image and spark_app_image_tag."
         )
 
     if explicit_version and resolution.provenance_version:
@@ -144,17 +125,14 @@ def resolve_spark_version(
         provenance_major = _spark_version_major(resolution.provenance_version)
         if explicit_major is None:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"spec.spark_version ({explicit_version}) does not start with a "
-                "recognizable Spark major release, so it cannot be validated against "
-                f"image '{resolution.provenance_image}'. Start it with the bundled Spark "
-                f"major release ({provenance_major})."
+                f"spec.spark_version ({explicit_version}) has no recognizable major version. "
+                f"Image '{resolution.provenance_image}' uses Spark {provenance_major}."
             )
         if explicit_major != provenance_major:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"spec.spark_version ({explicit_version}) major release does not match the "
-                f"Spark version bundled in image '{resolution.provenance_image}' "
-                f"({resolution.provenance_version}). Use a spec.spark_version matching the "
-                "image, or an image bundling the requested Spark major release."
+                f"spec.spark_version ({explicit_version}) does not match image "
+                f"'{resolution.provenance_image}' "
+                f"(Spark {resolution.provenance_version})."
             )
         if explicit_version != resolution.provenance_version:
             logger.warning(
@@ -175,15 +153,13 @@ def _resolve_spark_version_provenance(
 ) -> SparkVersionResolution:
     configured_image_reference = _configured_spark_image_reference()
     if base_image:
-        # a built function's final image tag describes the build, not the bundled Spark
+        # The final image tag identifies the build, not its Spark version.
         provenance_image = base_image
         provenance_version = extract_spark_version_from_image(base_image)
     elif image:
         provenance_image = image
         provenance_version = extract_spark_version_from_image(image)
     else:
-        # MLRun selects the configured platform image, directly or as the base for the
-        # generated default image, whose own reference carries no version tag.
         provenance_image = configured_image_reference
         provenance_version = _leading_semver_prefix(config.spark_app_image_tag)
 
@@ -222,14 +198,9 @@ def _leading_semver_prefix(tag: str | None) -> str | None:
 def _split_image_reference(
     image: str | None,
 ) -> tuple[str | None, str | None]:
-    """
-    Split a Docker image reference into (name, tag). The tag is None when the reference has
-    none - which a naive ``rsplit(":", 1)`` cannot tell apart from a registry host port, and
-    a naive ``split(":", 1)`` gets wrong when the host also carries a port.
-    """
+    """Split a Docker image reference into its name and optional tag."""
     if not image:
         return image, None
-    # a digest-pinned reference has no tag
     reference = image.split("@sha256:", 1)[0]
     last_slash = reference.rfind("/")
     colon_index = reference.find(":", last_slash + 1)

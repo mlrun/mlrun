@@ -143,15 +143,9 @@ Spark3Runtime.deploy_default_image()
 
 ### Spark version
 
-MLRun derives the `sparkVersion` declared on the SparkApplication from the image that actually
-supplies Spark, rather than from a fixed version. It resolves, in order: a built function's
-`spec.build.base_image`, a version-tagged `spec.image`, or - when MLRun selects the image itself
-(including with `use_default_image = True`) - the platform's configured Spark image tag.
+MLRun derives `sparkVersion` from `spec.build.base_image`, `spec.image`, or the configured platform image tag, in that order.
 
-If none of these carries a recognizable version - for example, a custom image whose tag carries no
-version - set `spec.spark_version` explicitly (e.g. `my_func.spec.spark_version = "3.5.6"`).
-Without an explicit version or a version-bearing image, submitting the function raises an error
-rather than silently defaulting to a fixed version.
+For images without a version tag, set `spec.spark_version` explicitly (for example, `my_func.spec.spark_version = "3.5.6"`). Otherwise, submission fails.
 
 Spark operator ingestion:
 ```python

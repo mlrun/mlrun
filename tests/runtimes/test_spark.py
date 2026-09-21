@@ -112,7 +112,6 @@ def test_generated_default_image_derives_version_from_platform_tag(
     mlrun.mlconf.spark_app_image = _SPARK4_REGISTRY_IMAGE
     mlrun.mlconf.spark_app_image_tag = _SPARK4_TAG
 
-    # the generated default image carries no tag of its own
     assert runtime.default_mlrun_image == ".spark-job-default-image"
 
     resolution = mlrun.runtimes.utils.resolve_spark_version(

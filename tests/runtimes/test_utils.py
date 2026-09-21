@@ -409,7 +409,6 @@ def test_resolve_run_user_template(output_path, owner, expected_output_path):
 @pytest.mark.parametrize(
     "image, expected_version",
     [
-        # real Spark 4 platform tag shape
         (
             "mckinsey-ig4-next-gen-docker-local.jfrog.io/spark-app:4.2.0-scala2.13-java25-ubuntu-1",
             "4.2.0",
@@ -418,31 +417,23 @@ def test_resolve_run_user_template(output_path, owner, expected_output_path):
             "mckinsey-ig4-next-gen-docker-local.jfrog.io/spark-app-cuda:4.2.0-scala2.13-java25-ubuntu-1",
             "4.2.0",
         ),
-        # real Spark 3 platform tag shape
         (
             "mckinsey-ig4-next-gen-docker-local.jfrog.io/spark-app:3.5.6-scala2.12-java17-ubuntu-1",
             "3.5.6",
         ),
-        # legacy built-function provenance shape
         ("iguazio/spark-app:3.5.5-b697", "3.5.5"),
-        # non-semver-legal qualifiers - leading prefix still resolves
         ("somereg/spark-app:4.2.0-scala2.13+jdk25", "4.2.0"),
         ("somereg/spark-app:4.2.0_scala2.13", "4.2.0"),
         ("somereg/spark-app:4.2.0-ubuntu_22.04", "4.2.0"),
         ("somereg/spark-app:4.2.0.1", "4.2.0"),
-        # opaque tag
         ("mlrun/mlrun:latest", None),
-        # no tag at all
         (".spark-job-default-image", None),
-        # registry host with a port is not mistaken for a tag
         (
             "localhost:5000/spark-app:4.2.0-scala2.13-java25-ubuntu-1",
             "4.2.0",
         ),
         ("localhost:5000/spark-app", None),
-        # digest-pinned reference has no tag
         ("registry:5000/spark-app@sha256:deadbeef", None),
-        # no image at all
         ("", None),
         (None, None),
     ],
@@ -485,7 +476,6 @@ def no_spark_platform_image_config():
 @pytest.mark.parametrize(
     "explicit_version, image, base_image, use_default_image, expected",
     [
-        # base_image branch - explicit unset, provenance parseable
         (
             None,
             _BUILT_FUNCTION_OPAQUE_IMAGE,
@@ -493,7 +483,6 @@ def no_spark_platform_image_config():
             False,
             ("3.5.5", _BUILT_FUNCTION_BASE_IMAGE, "3.5.5"),
         ),
-        # base_image branch - explicit set, provenance parseable (both present for comparison)
         (
             "3.5.5",
             _BUILT_FUNCTION_OPAQUE_IMAGE,
@@ -501,7 +490,6 @@ def no_spark_platform_image_config():
             False,
             ("3.5.5", _BUILT_FUNCTION_BASE_IMAGE, "3.5.5"),
         ),
-        # image branch - explicit unset, provenance parseable
         (
             None,
             _SPARK4_IMAGE,
@@ -509,7 +497,6 @@ def no_spark_platform_image_config():
             False,
             ("4.2.0", _SPARK4_IMAGE, "4.2.0"),
         ),
-        # image branch - explicit set, provenance opaque (accepted, no comparison possible)
         (
             "3.5.5",
             "mlrun/mlrun:latest",
@@ -517,7 +504,6 @@ def no_spark_platform_image_config():
             False,
             ("3.5.5", "mlrun/mlrun:latest", None),
         ),
-        # spark_app_image_tag branch (use_default_image=True) - explicit unset, parseable
         (
             None,
             None,
@@ -525,7 +511,6 @@ def no_spark_platform_image_config():
             True,
             ("4.2.0", _SPARK4_IMAGE, "4.2.0"),
         ),
-        # spark_app_image_tag branch (MLRun selects the platform image) - explicit unset, parseable
         (
             None,
             None,
@@ -678,7 +663,7 @@ def test_resolve_spark_version_rejects_lenient_other_major_explicit_version(
 ):
     with pytest.raises(
         mlrun.errors.MLRunInvalidArgumentError,
-        match="major release does not match",
+        match="does not match image",
     ):
         mlrun.runtimes.utils.resolve_spark_version(
             explicit_version=explicit_version,
@@ -702,7 +687,7 @@ def test_resolve_spark_version_preserves_explicit_version_without_provenance():
 def test_resolve_spark_version_rejects_unrecognizable_major_with_provenance():
     with pytest.raises(
         mlrun.errors.MLRunInvalidArgumentError,
-        match="does not start with a recognizable Spark major release",
+        match="has no recognizable major version",
     ):
         mlrun.runtimes.utils.resolve_spark_version(
             explicit_version="spark-four",

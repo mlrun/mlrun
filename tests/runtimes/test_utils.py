@@ -426,6 +426,8 @@ def test_resolve_run_user_template(output_path, owner, expected_output_path):
         ("somereg/spark-app:4.2.0_scala2.13", "4.2.0"),
         ("somereg/spark-app:4.2.0-ubuntu_22.04", "4.2.0"),
         ("somereg/spark-app:4.2.0.1", "4.2.0"),
+        # Legal Docker tag, but leading zeros are not valid SemVer.
+        ("somereg/spark-app:01.2.3-scala2.12", None),
         ("mlrun/mlrun:latest", None),
         (".spark-job-default-image", None),
         (

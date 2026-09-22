@@ -45,12 +45,12 @@ def get_frontend_spec(
     jobs_dashboard_url = None
     model_monitoring_dashboard_url = None
     session = auth_info.session
-    if mlrun.mlconf.is_ce_mode():
+    if session and is_iguazio_session_cookie(session):
         jobs_dashboard_url = _resolve_jobs_dashboard_url(session)
         model_monitoring_dashboard_url = _resolve_model_monitoring_dashboard_url(
             session
         )
-    if session and is_iguazio_session_cookie(session):
+    elif mlrun.mlconf.is_ce_mode():
         jobs_dashboard_url = _resolve_jobs_dashboard_url(session)
         model_monitoring_dashboard_url = _resolve_model_monitoring_dashboard_url(
             session

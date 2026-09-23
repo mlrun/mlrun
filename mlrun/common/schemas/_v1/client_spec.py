@@ -69,7 +69,9 @@ class ClientSpec(pydantic.v1.BaseModel):
     model_endpoint_monitoring_store_prefixes: dict[str, str] | None
     authentication_mode: str | None
     # The project-sync leader ("mlrun", "iguazio", "nop", or "orca") - lets the SDK know when
-    # it's safe to bypass the API and talk to Orca directly (see mlrun.db.orca).
+    # it's safe to bypass the API and talk to Orca directly (see mlrun.db.orca). None means
+    # "mlrun" - either an older server that doesn't report this field at all, or one whose own
+    # config is already at that default.
     projects_leader: str | None
     # Iguazio V4 OAuth token provider configuration
     oauth_internal_token_endpoint: str | None

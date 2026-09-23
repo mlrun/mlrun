@@ -168,7 +168,7 @@ class ProjectsOrchestrator:
         # the project, then PUT/PATCH with prev_op_id). A missing
         # project (an upsert-create case: PUT on a project that doesn't exist yet) has no prior
         # op_id to CAS against - fall through with None.
-        prev_op_id = getattr(getattr(project, "status", None), "op_id", None)
+        prev_op_id = project.status.op_id if project.status else None
         if prev_op_id:
             return prev_op_id
         try:
@@ -250,4 +250,5 @@ def _merge_for_patch(
             owner=merged_common["owner"],
             description=merged_common["description"],
         ),
+        status=None,
     )

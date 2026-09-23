@@ -55,8 +55,16 @@ class ProjectSpecLike(typing.Protocol):
     description: str | None
 
 
+class ProjectStatusLike(typing.Protocol):
+    """Structural shape of a project's ``status`` that
+    :meth:`~mlrun.utils.orca_client.ProjectsOrchestrator.resolve_prev_op_id` needs.
+    """
+
+    op_id: uuid.UUID | str | None
+
+
 class ProjectLike(typing.Protocol):
-    """Structural shape :func:`resolve_project_body` needs. Satisfied by
+    """Structural shape this package's Orca project-sync code needs. Satisfied by
     :class:`~mlrun.projects.MlrunProject`, :class:`mlrun.common.schemas.Project`, and the
     ``types.SimpleNamespace`` :func:`mlrun.db.orca._as_project_like` builds from a dict - the
     three shapes MLRun's own project CUD API already accepts interchangeably.
@@ -67,10 +75,15 @@ class ProjectLike(typing.Protocol):
     but the API server binds native pydantic-v2 (see ``mlrun.common.schemas._dispatch``) - CI
     guarantees the two faces have the same fields, but not that every pydantic-version-specific
     API behaves identically across them, so this avoids leaning on one at all.
+
+    ``status`` is optional - :func:`resolve_project_body` never reads it (a create has no CAS
+    witness yet); only :meth:`~mlrun.utils.orca_client.ProjectsOrchestrator.resolve_prev_op_id`
+    does, for a caller that already observed one.
     """
 
     metadata: ProjectMetadataLike
     spec: ProjectSpecLike
+    status: ProjectStatusLike | None
 
 
 # Sentinel distinguishing "no prev_op_id argument given" (the create shape) from an explicit

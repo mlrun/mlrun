@@ -141,8 +141,10 @@ def _merge_auth_entry(authfile_path: str, registry: str, auth: str) -> None:
         json.dump(doc, fh)
     # the previous writer's UID is never guaranteed to match this process's (init containers get no
     # explicit security context - see append_secret_authfile_init_container in the server-side
-    # registry_auth.py), so the file must stay writable for whoever merges into it next.
-    os.chmod(authfile_path, 0o666)
+    # registry_auth.py), so the file must stay writable for whoever merges into it next. The pod's
+    # fsGroup (see make_buildah_pod) makes every writer's file group-owned by the same GID
+    # regardless of its own UID, so group-write is enough - no need for world-writable.
+    os.chmod(authfile_path, 0o660)
 
 
 def _ecr_repo_name(dest: str) -> str:

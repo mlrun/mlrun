@@ -424,6 +424,33 @@ def test_validate_authentication_basic_requires_creds(monkeypatch):
         )
 
 
+def test_to_scheme_omits_authentication_mode_none_when_function_auth_enabled(
+    monkeypatch,
+):
+    """Only 'none' is normalized to None — non-none modes must remain so Nuclio rejects them."""
+    monkeypatch.setattr(
+        mlrun.mlconf.httpdb.nuclio, "function_authentication_enabled", True
+    )
+    api_gateway = _create_api_gateway("none")
+    scheme = api_gateway.to_scheme()
+    assert scheme.spec.authenticationMode is None
+
+
+def test_to_scheme_preserves_authentication_mode_when_function_auth_disabled(
+    monkeypatch,
+):
+    """When function auth is disabled, authenticationMode is serialized as normal."""
+    monkeypatch.setattr(
+        mlrun.mlconf.httpdb.nuclio, "function_authentication_enabled", False
+    )
+    api_gateway = _create_api_gateway("none")
+    scheme = api_gateway.to_scheme()
+    assert (
+        scheme.spec.authenticationMode
+        == mlrun.common.schemas.APIGatewayAuthenticationMode.none
+    )
+
+
 def _create_api_gateway(authentication_mode="none"):
     """Helper to create an API gateway with specified auth mode"""
     auth_map = {

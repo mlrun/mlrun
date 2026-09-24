@@ -40,6 +40,7 @@ import framework.utils.clients.iguazio.v3
 import framework.utils.clients.iguazio.v4
 import framework.utils.helpers
 import framework.utils.periodic
+import framework.utils.project_formats
 import framework.utils.projects.member as project_member
 import framework.utils.projects.remotes.leader
 import framework.utils.projects.remotes.nop_leader
@@ -270,6 +271,42 @@ class Member(
         if not projects:
             raise mlrun.errors.MLRunNotFoundError(f"Project {name} not found")
         return projects[0]
+
+    def ensure_project_open_for_resource_creation(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        name: str,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
+    ) -> None:
+        # Block new logical resource creation until this follower's own leader-driven startup
+        # sweep (orca only) reaches a terminal state.
+        if not self.is_followers_sync_ready():
+            raise mlrun.errors.MLRunPreconditionFailedError(
+                "MLRun is still syncing project state with the leader on startup; new "
+                "resource creation is temporarily blocked, retry shortly"
+            )
+        # Block new logical resource creation while this project's own sync-status isn't
+        # online. A project with no recorded state yet (pre-dates the 2PC follower interface)
+        # is treated as online, not blocked.
+        project = self.get_project(
+            db_session,
+            name,
+            auth_info=auth_info,
+            format_=framework.utils.project_formats.ProjectFormatCustomSelection(
+                [
+                    framework.utils.project_formats.ProjectFormatCustom.name,
+                    framework.utils.project_formats.ProjectFormatCustom.state,
+                ]
+            ),
+        )
+        if project.status.state in (
+            mlrun.common.schemas.ProjectState.creating,
+            mlrun.common.schemas.ProjectState.deleting,
+        ):
+            raise mlrun.errors.MLRunPreconditionFailedError(
+                f"Project {name} is {project.status.state.value}; new resource creation is "
+                "blocked until it reaches state 'online'"
+            )
 
     def get_project_owner(
         self,

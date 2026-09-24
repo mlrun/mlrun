@@ -610,13 +610,11 @@ class Client(BaseClient, project_leader.Member):
             raise exception_type(failure_message) from exc
 
     def _extract_ctx(self, response_body: dict) -> str | None:
-        # Also used for the Orca project calls via _send_project_request/_send_request_to_api. Orca is a
-        # separate Go service with an unverified error envelope (no live endpoints to check against yet) -
-        # this may not parse Orca's real error responses; revisit once Orca's contract is confirmed.
-        return response_body.get("status", {}).get("ctx")
+        # Also used for the Orca project calls via _send_project_request/_send_request_to_api.
+        return orca_projects.extract_error_details(response_body)[1]
 
     def _extract_error_message(self, response_body: dict) -> str | None:
-        return response_body.get("status", {}).get("errorMessage")
+        return orca_projects.extract_error_details(response_body)[0]
 
     @staticmethod
     def _parse_auth_response_data(

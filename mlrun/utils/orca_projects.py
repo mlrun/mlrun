@@ -21,6 +21,7 @@ import typing
 import uuid
 
 import mlrun.common.schemas
+import mlrun.common.types
 import mlrun.errors
 
 # Orca's project endpoints - reached via the same iguazio_api_url used for auth/token operations. The
@@ -34,6 +35,18 @@ ACTION_EXECUTIONS_ENDPOINT = "v1/trackable-actions/executions"
 # correlation_id, on the "projects" subdomain's ActionRunner.
 PROJECT_SYNC_ACTION_TYPE = "sync-project"
 PROJECT_SYNC_SUBDOMAIN = "projects"
+
+
+class ActionExecutionState(mlrun.common.types.StrEnum):
+    """Lifecycle state of one Orca Trackable Action execution - mirrors Orca's own
+    ``ActionExecutionState`` (``backend/subdomains/trackableactions/types/actionexecution.go``).
+    """
+
+    created = "created"
+    dispatched = "dispatched"
+    running = "running"
+    succeeded = "succeeded"
+    failed = "failed"
 
 
 class OrcaActionFailedError(Exception):
@@ -141,6 +154,19 @@ def extract_op_id(body: dict) -> uuid.UUID | str:
     return body["status"]["opId"]
 
 
+def extract_error_details(body: dict) -> tuple[str | None, str | None]:
+    """Pull ``errorMessage``/``ctx`` out of an Orca error response body's ``status`` envelope -
+    shared by every caller that talks to Orca (not just the projects ones), since it's Orca's
+    own generic error envelope (``BaseStatus`` in ``v1/common/message.proto``), not something
+    specific to the projects wire protocol.
+
+    :param body: The parsed JSON body of an error response.
+    :return: ``(error_message, ctx)``, either ``None`` if not present.
+    """
+    status = body.get("status", {})
+    return status.get("errorMessage"), status.get("ctx")
+
+
 def to_mlproject(body: dict) -> mlrun.common.schemas.Project:
     """Parse an Orca project response body. Orca's wire format is camelCase (the SDK schemas
     camelize every field), so this can't just pydantic-validate the body directly - op_id/updated_at
@@ -205,11 +231,11 @@ def verify_action_execution_terminal(
             f"No Orca sync-project action observed yet for project {name} (op_id={op_id})"
         )
     state = items[0].get("status", {}).get("state")
-    if state == "failed":
+    if state == ActionExecutionState.failed:
         raise OrcaActionFailedError(
             f"Orca sync-project action for project {name} (op_id={op_id}) failed"
         )
-    if state != "succeeded":
+    if state != ActionExecutionState.succeeded:
         raise mlrun.errors.MLRunRuntimeError(
             f"Orca sync-project action for project {name} (op_id={op_id}) is still in "
             f"progress (state={state})"

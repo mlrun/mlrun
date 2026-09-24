@@ -259,10 +259,12 @@ class OrcaProjectsClient:
                 f"{mlrun.errors.err_to_str(exc)}: {error_message}"
             ) from exc
         if not response.ok:
-            # Orca's error response body shape is unverified (no live endpoint to confirm
-            # against yet) - this may not parse Orca's real error responses; revisit once Orca's
-            # contract is confirmed.
-            orca_error_message, ctx = _extract_orca_error_details(response)
+            try:
+                orca_error_message, ctx = orca_projects.extract_error_details(
+                    response.json()
+                )
+            except Exception:
+                orca_error_message, ctx = None, None
             mlrun.utils.logger.warning(
                 error_message,
                 status_code=response.status_code,
@@ -300,20 +302,3 @@ def _as_project_like(project: ProjectInput) -> orca_projects.ProjectLike:
         ),
         status=types.SimpleNamespace(op_id=status.get("op_id") or status.get("opId")),
     )
-
-
-def _extract_orca_error_details(
-    response: requests.Response,
-) -> tuple[str | None, str | None]:
-    """Best-effort extraction of Orca's ``errorMessage``/``ctx`` from an error response body -
-    the same fields the server-side leader-proxy extracts for its own error handling.
-
-    :param response: The raw, already-errored HTTP response.
-    :return: ``(error_message, ctx)``, both ``None`` if the body doesn't parse as JSON or
-        doesn't carry them.
-    """
-    try:
-        status = response.json().get("status", {})
-    except Exception:
-        return None, None
-    return status.get("errorMessage"), status.get("ctx")

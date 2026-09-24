@@ -82,6 +82,16 @@ def test_extract_op_id():
     assert orca_projects.extract_op_id({"status": {"opId": op_id}}) == op_id
 
 
+def test_extract_error_details():
+    assert orca_projects.extract_error_details(
+        {"status": {"errorMessage": "boom", "ctx": "abc123"}}
+    ) == ("boom", "abc123")
+
+
+def test_extract_error_details_missing_fields():
+    assert orca_projects.extract_error_details({"status": {}}) == (None, None)
+
+
 def test_to_mlproject_round_trip():
     op_id = uuid.uuid4()
     body = {

@@ -206,14 +206,16 @@ class OrcaProjectsClient:
         :return: The operation's ``op_id`` if the delete is still converging and
             ``wait_for_completion`` is ``False``, otherwise ``None``.
         """
-        try:
-            response = self._orchestrator.delete(name)
-        except mlrun.errors.MLRunNotFoundError:
-            # Already gone - delete is idempotent, this is success, not a failure.
-            return None
+        response = self._orchestrator.delete(name)
         if response.status_code != requests.codes.accepted:
             return None
-        op_id = orca_projects.extract_op_id(response.json())
+        # Orca's delete is idempotent: a project that's already gone still gets a 202, just with
+        # no opId (nothing minted, nothing to converge on) rather than an error - extract_op_id
+        # would KeyError on that shape, so this checks for it explicitly rather than assuming
+        # every 202 carries one.
+        op_id = response.json().get("status", {}).get("opId")
+        if not op_id:
+            return None
         if not wait_for_completion:
             return op_id
         self._orchestrator.wait_for_op(name, op_id)

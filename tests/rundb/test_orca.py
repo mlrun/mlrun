@@ -301,15 +301,18 @@ class TestOrcaProjectsClient:
     def test_delete_project_already_gone_is_idempotent(
         self, requests_mock, orca_client
     ):
-        # deleting a project that's already gone is a no-op success, not a failure - matches
-        # the follower-side commit_delete_project's own idempotent contract.
+        # Orca's own delete is idempotent: a project that's already gone still gets a 202, just
+        # with no opId in the body (nothing minted, nothing to converge on) - not a 404.
         requests_mock.delete(
             f"{ORCA_API_URL}/api/v1/projects/projects/p7b",
-            json={"status": {"errorMessage": "not found"}},
-            status_code=404,
+            json={"status": {}},
+            status_code=202,
         )
 
         assert orca_client.delete_project("p7b") is None
+        assert len(requests_mock.request_history) == 1, (
+            "no opId means nothing to poll for"
+        )
 
     def test_delete_project_other_error_still_raises(self, requests_mock, orca_client):
         requests_mock.delete(

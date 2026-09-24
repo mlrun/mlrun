@@ -852,7 +852,7 @@ def test_ensure_project_open_for_resource_creation_allows_unset_state(
     monkeypatch,
 ):
     # a project with no recorded state (pre-dates the 2PC follower interface) is treated as
-    # online, not blocked - an explicit product decision, not a default we can second-guess.
+    # online, not blocked.
     legacy_project = mlrun.common.schemas.Project(
         metadata=mlrun.common.schemas.ProjectMetadata(name="legacy-project"),
         spec=mlrun.common.schemas.ProjectSpec(),

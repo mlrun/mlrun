@@ -382,6 +382,12 @@ class TestOrcaProjectsClient:
 
         assert mock_request.call_args.kwargs["timeout"] == 5
 
+    def test_session_retries_post(self, orca_client):
+        # Orca's project name is a unique key - a retry after the original create actually
+        # succeeded hits a 409 instead of creating a second project, so POST is safe to retry
+        # here (unlike the default-off session policy for arbitrary POSTs).
+        assert "POST" in orca_client._session._retry_methods
+
 
 class TestHTTPRunDBOrcaGate:
     """HTTPRunDB.create_project/store_project/patch_project/delete_project resolve a projects

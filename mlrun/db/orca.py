@@ -50,6 +50,10 @@ class OrcaProjectsClient:
                 mlrun.mlconf.httpdb.projects.retry_leader_request_on_exception
                 == mlrun.common.schemas.HTTPSessionRetryMode.enabled.value
             ),
+            # POST (create) is normally unsafe to retry blindly, but Orca's project name is a
+            # unique key - a retry after the original request actually succeeded hits a 409
+            # instead of creating a second project, so there's no duplicate-resource risk here.
+            retry_on_post=True,
             verbose=True,
         )
         self._orchestrator = orca_client.ProjectsOrchestrator(

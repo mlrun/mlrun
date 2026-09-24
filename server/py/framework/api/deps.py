@@ -77,6 +77,7 @@ def verify_api_state(request: Request):
             "healthz",
             # we want the workers to be able to pull chief state even if the state is offline
             "clusterization-spec",
+            "followers-sync-status",
         ]
         if not any(enabled_endpoint in path for enabled_endpoint in enabled_endpoints):
             raise mlrun.errors.MLRunPreconditionFailedError("API is in offline state")
@@ -95,6 +96,7 @@ def verify_api_state(request: Request):
             # clusterization purposes
             "client-spec",
             "clusterization-spec",
+            "followers-sync-status",
             # debug purposes
             "memory-reports",
             # allow authentication

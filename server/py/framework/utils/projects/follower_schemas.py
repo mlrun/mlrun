@@ -41,6 +41,15 @@ class FollowerProjectStatesPage(pydantic.BaseModel):
     next_cursor: str | None = None
 
 
+class FollowerCommitDeleteResponse(FollowerProjectState):
+    # Not part of the contract's documented response keys (name/op_id/sync_status) — the
+    # leader currently ignores unknown keys, so this is inert plumbing for a not-yet-built
+    # Orca-side change to poll delete-cleanup completion directly instead of via
+    # list_projects. Scoped to this one response, not FollowerProjectState, since every
+    # other op has no background task to report.
+    background_task_name: str | None = None
+
+
 class FollowerOpIdStatus(pydantic.BaseModel):
     op_id: uuid.UUID
 

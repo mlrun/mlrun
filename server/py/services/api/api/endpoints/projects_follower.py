@@ -138,13 +138,15 @@ async def prepare_delete_project(
 
 @router.delete(
     "/follower/projects/{name}",
-    response_model=follower_schemas.FollowerProjectState,
+    response_model=follower_schemas.FollowerCommitDeleteResponse,
 )
 async def commit_delete_project(
     name: str,
     body: follower_schemas.FollowerCommitDeleteRequest,
     request: fastapi.Request,
-) -> follower_schemas.FollowerProjectState:
+    background_tasks: fastapi.BackgroundTasks,
+    response: fastapi.Response,
+) -> follower_schemas.FollowerCommitDeleteResponse:
     # delete_project_resources deletes schedules, which run only on chief, so we
     # re-route to chief — same reason the legacy (non-follower) delete endpoint does.
     if (
@@ -162,19 +164,32 @@ async def commit_delete_project(
         )
 
     op_id = body.status.op_id
-    # Validates internally (CAS/ordering/state) and, on success, purges the project's
-    # resources and its row — a no-op if it's already gone (a previous call already
-    # removed it) or a genuine retry with the same op_id (e.g. after a dropped
-    # connection re-runs the purge rather than skipping it).
-    await mlrun.utils.run_in_threadpool(
+    # Validates internally (CAS/ordering/state) and, on success, schedules (or reuses)
+    # the project's resource-deletion background task — a no-op if the project is
+    # already gone (a previous call already removed it), or idempotently reuses an
+    # already-running task on a retry with the same op_id. The row stays present
+    # (state=deleting) until that task actually finishes.
+    result = await mlrun.utils.run_in_threadpool(
         services.api.crud.Projects().commit_delete_project, name, op_id
     )
-    # The row is gone at this point — sync_status reports the state it was in right
-    # before removal, matching every other op's {name, op_id, sync_status} response.
-    return follower_schemas.FollowerProjectState(
+    if result is None:
+        # Already fully removed — nothing left to purge.
+        response.status_code = fastapi.status.HTTP_200_OK
+        background_task_name = None
+    else:
+        task, background_task_name = result
+        if task is not None:
+            background_tasks.add_task(task)
+        response.status_code = fastapi.status.HTTP_202_ACCEPTED
+    # sync_status reports the state it was in right before removal, matching every
+    # other op's {name, op_id, sync_status} response. background_task_name is not part
+    # of the documented contract (the leader ignores unknown keys) — see
+    # FollowerCommitDeleteResponse.
+    return follower_schemas.FollowerCommitDeleteResponse(
         name=name,
         op_id=op_id,
         sync_status=mlrun.common.schemas.ProjectState.deleting,
+        background_task_name=background_task_name,
     )
 
 
@@ -203,3 +218,23 @@ async def list_project_states(
         ],
         next_cursor=next_cursor,
     )
+
+
+@router.get(
+    "/follower/projects/states/{name}",
+    response_model=follower_schemas.FollowerProjectState,
+)
+async def get_project_state(
+    name: str,
+    db_session: sqlalchemy.orm.Session = fastapi.Depends(
+        framework.api.deps.get_db_session
+    ),
+) -> follower_schemas.FollowerProjectState:
+    project = await mlrun.utils.run_in_threadpool(
+        services.api.crud.Projects().get_follower_project_snapshot,
+        db_session,
+        name,
+    )
+    if project is None:
+        raise mlrun.errors.MLRunNotFoundError(f"Project {name} not found")
+    return _to_follower_state(name, project)

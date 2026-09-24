@@ -190,17 +190,14 @@ class Client(
         self, name: str, request: fastapi.Request
     ) -> fastapi.Response:
         """
-        Re-routes the /follower/projects commit-delete call to chief. Blocks until
-        the full purge finishes, so the timeout needs to cover that, not the legacy
-        chief-proxy default.
+        Re-routes the /follower/projects commit-delete call to chief. The chief itself
+        returns once the deletion background task is scheduled (or reused), not once
+        the full purge finishes - a synchronous CAS/ordering/state validation and
+        background-task lookup, same order of work as the other follower 2PC hooks - so
+        this uses the default chief-proxy timeout rather than a special-cased one.
         """
         return await self._proxy_request_to_chief(
-            "DELETE",
-            f"follower/projects/{name}",
-            request,
-            timeout=int(
-                mlrun.mlconf.background_tasks.default_timeouts.operations.delete_project
-            ),
+            "DELETE", f"follower/projects/{name}", request
         )
 
     async def get_clusterization_spec(
@@ -223,6 +220,19 @@ class Client(
             return mlrun.common.schemas.ClusterizationSpec(
                 **(await chief_response.json())
             )
+
+    async def is_followers_sync_ready(self) -> bool:
+        """
+        Asks the chief whether its own followers-sync trigger (Follower Contract HLD checklist
+        item 10) has reached a terminal state yet, so a worker can converge on the same
+        readiness signal instead of independently triggering its own sweep against the leader.
+        """
+        async with self._send_request_to_api(
+            method="GET",
+            path="followers-sync-status",
+        ) as chief_response:
+            body = await chief_response.json()
+            return body["ready"]
 
     async def store_alert_template(
         self, name: str, request: fastapi.Request, json: dict

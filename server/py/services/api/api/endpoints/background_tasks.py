@@ -201,6 +201,11 @@ async def _authorize_get_background_task_request(
     background_task: mlrun.common.schemas.BackgroundTask,
     auth_info: mlrun.common.schemas.AuthInfo,
 ):
+    # The leader's own service account is always allowed to read background tasks.
+    leader_identity = mlrun.mlconf.httpdb.projects.follower_leader_identity
+    if auth_info.is_service_account() and auth_info.username == leader_identity:
+        return
+
     return
 
     # TODO: Check resource permissions for background tasks. We need to ensure that the user can read the project

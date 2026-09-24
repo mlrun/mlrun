@@ -298,6 +298,29 @@ class TestOrcaProjectsClient:
 
         assert orca_client.delete_project("p7") is None
 
+    def test_delete_project_already_gone_is_idempotent(
+        self, requests_mock, orca_client
+    ):
+        # deleting a project that's already gone is a no-op success, not a failure - matches
+        # the follower-side commit_delete_project's own idempotent contract.
+        requests_mock.delete(
+            f"{ORCA_API_URL}/api/v1/projects/projects/p7b",
+            json={"status": {"errorMessage": "not found"}},
+            status_code=404,
+        )
+
+        assert orca_client.delete_project("p7b") is None
+
+    def test_delete_project_other_error_still_raises(self, requests_mock, orca_client):
+        requests_mock.delete(
+            f"{ORCA_API_URL}/api/v1/projects/projects/p7c",
+            json={"status": {"errorMessage": "boom", "ctx": "abc123"}},
+            status_code=500,
+        )
+
+        with pytest.raises(mlrun.errors.MLRunInternalServerError, match="boom"):
+            orca_client.delete_project("p7c")
+
     def test_delete_project_action_failed_raises_without_retrying(
         self, requests_mock, orca_client
     ):
@@ -341,6 +364,20 @@ class TestOrcaProjectsClient:
         with pytest.raises(mlrun.errors.MLRunRetryExhaustedError) as exc_info:
             orca_client.create_project(_mlrun_project("p9"))
         assert "still in" in str(exc_info.value)
+
+    def test_send_request_uses_configured_timeout(self, requests_mock, orca_client):
+        mlrun.mlconf.httpdb.projects.iguazio_request_timeout = "5 seconds"
+        requests_mock.get(
+            f"{ORCA_API_URL}/api/v1/projects/projects/p10",
+            json=_project_wire_body("p10", str(uuid.uuid4()), "online"),
+        )
+
+        with unittest.mock.patch.object(
+            orca_client._session, "request", wraps=orca_client._session.request
+        ) as mock_request:
+            orca_client.get_project("p10")
+
+        assert mock_request.call_args.kwargs["timeout"] == 5
 
 
 class TestHTTPRunDBOrcaGate:

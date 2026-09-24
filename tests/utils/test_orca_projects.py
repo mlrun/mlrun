@@ -77,6 +77,11 @@ def test_resolve_project_body_update_prev_op_id(prev_op_id):
     assert wire["owner"] == "jsmith"
 
 
+def test_extract_op_id():
+    op_id = str(uuid.uuid4())
+    assert orca_projects.extract_op_id({"status": {"opId": op_id}}) == op_id
+
+
 def test_to_mlproject_round_trip():
     op_id = uuid.uuid4()
     body = {

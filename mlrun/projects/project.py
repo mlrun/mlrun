@@ -1325,11 +1325,8 @@ class ProjectStatus(ModelObj):
 
     @op_id.setter
     def op_id(self, op_id):
-        # normalized to str (not left as a uuid.UUID) so this round-trips through
-        # to_yaml()/to_dict() like every other MlrunProject field - yaml.safe_dump has no
-        # representer for UUID. A property (not just __init__ normalization) because
-        # ModelObj.from_dict() reconstructs via cls() + setattr() per field, bypassing
-        # __init__ entirely.
+        # str, not uuid.UUID - yaml.safe_dump can't serialize UUID, and ModelObj.from_dict()
+        # bypasses __init__ via setattr(), so normalizing here (not just in __init__) is required.
         self._op_id = str(op_id) if op_id else None
 
 

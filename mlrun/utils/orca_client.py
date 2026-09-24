@@ -73,7 +73,7 @@ class ProjectsOrchestrator:
             f"Failed creating project {name} in Orca",
             json=orca_projects.resolve_project_body(project),
         )
-        return response, response.json()["status"]["opId"]
+        return response, orca_projects.extract_op_id(response.json())
 
     def update(
         self, name: str, project: orca_projects.ProjectLike
@@ -91,7 +91,7 @@ class ProjectsOrchestrator:
             f"Failed updating project {name} in Orca",
             json=orca_projects.resolve_project_body(project, prev_op_id),
         )
-        return response, response.json()["status"]["opId"]
+        return response, orca_projects.extract_op_id(response.json())
 
     def patch(
         self,
@@ -107,14 +107,14 @@ class ProjectsOrchestrator:
         :return: The raw response, and the ``op_id`` this patch minted.
         """
         current = self.get(name)
-        merged = _merge_for_patch(current, project, patch_mode)
+        merged = self._merge_for_patch(current, project, patch_mode)
         response = self._send_request(
             "PATCH",
             orca_projects.PROJECT_ENDPOINT_TEMPLATE.format(name=name),
             f"Failed patching project {name} in Orca",
             json=orca_projects.resolve_project_body(merged, current.status.op_id),
         )
-        return response, response.json()["status"]["opId"]
+        return response, orca_projects.extract_op_id(response.json())
 
     def delete(self, name: str) -> requests.Response:
         """``DELETE`` a project. Callers handle any deletion-strategy short-circuit themselves
@@ -209,46 +209,46 @@ class ProjectsOrchestrator:
         )
         orca_projects.verify_action_execution_terminal(response.json(), name, op_id)
 
+    @staticmethod
+    def _merge_for_patch(
+        current: mlrun.common.schemas.Project,
+        project: orca_projects.ProjectLike,
+        patch_mode: mlrun.common.schemas.PatchMode,
+    ) -> orca_projects.ProjectLike:
+        """Merge ``project``'s changes into ``current``'s common-set fields, since Orca's
+        ``PATCH`` is full-replace rather than merge - sending ``project`` as-is would wipe out
+        every field it didn't set.
 
-def _merge_for_patch(
-    current: mlrun.common.schemas.Project,
-    project: orca_projects.ProjectLike,
-    patch_mode: mlrun.common.schemas.PatchMode,
-) -> orca_projects.ProjectLike:
-    """Merge ``project``'s changes into ``current``'s common-set fields, since Orca's ``PATCH``
-    is full-replace rather than merge - sending ``project`` as-is would wipe out every field it
-    didn't set.
-
-    For example, patching ``current`` (``labels={"team": "ds"}, owner="jsmith"``) with
-    ``project`` (``labels={"env": "prod"}``) under ``patch_mode=additive`` returns
-    ``labels={"team": "ds", "env": "prod"}, owner="jsmith"`` - the existing label and owner both
-    survive, only the new label is added.
-    """
-    merged_common = {
-        "labels": dict(current.metadata.labels or {}),
-        "annotations": dict(current.metadata.annotations or {}),
-        "owner": current.spec.owner,
-        "description": current.spec.description,
-    }
-    patch_common = {
-        "labels": project.metadata.labels,
-        "annotations": project.metadata.annotations,
-        "owner": project.spec.owner,
-        "description": project.spec.description,
-    }
-    patch_common = {k: v for k, v in patch_common.items() if v is not None}
-    mergedeep.merge(
-        merged_common, patch_common, strategy=patch_mode.to_mergedeep_strategy()
-    )
-    return types.SimpleNamespace(
-        metadata=types.SimpleNamespace(
-            name=current.metadata.name,
-            labels=merged_common["labels"],
-            annotations=merged_common["annotations"],
-        ),
-        spec=types.SimpleNamespace(
-            owner=merged_common["owner"],
-            description=merged_common["description"],
-        ),
-        status=None,
-    )
+        For example, patching ``current`` (``labels={"team": "ds"}, owner="jsmith"``) with
+        ``project`` (``labels={"env": "prod"}``) under ``patch_mode=additive`` returns
+        ``labels={"team": "ds", "env": "prod"}, owner="jsmith"`` - the existing label and owner
+        both survive, only the new label is added.
+        """
+        merged_common = {
+            "labels": dict(current.metadata.labels or {}),
+            "annotations": dict(current.metadata.annotations or {}),
+            "owner": current.spec.owner,
+            "description": current.spec.description,
+        }
+        patch_common = {
+            "labels": project.metadata.labels,
+            "annotations": project.metadata.annotations,
+            "owner": project.spec.owner,
+            "description": project.spec.description,
+        }
+        patch_common = {k: v for k, v in patch_common.items() if v is not None}
+        mergedeep.merge(
+            merged_common, patch_common, strategy=patch_mode.to_mergedeep_strategy()
+        )
+        return types.SimpleNamespace(
+            metadata=types.SimpleNamespace(
+                name=current.metadata.name,
+                labels=merged_common["labels"],
+                annotations=merged_common["annotations"],
+            ),
+            spec=types.SimpleNamespace(
+                owner=merged_common["owner"],
+                description=merged_common["description"],
+            ),
+            status=None,
+        )

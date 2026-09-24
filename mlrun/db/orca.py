@@ -114,8 +114,11 @@ class OrcaProjectsClient:
         """Update (``PUT``) a project directly in Orca.
 
         :param name: Name of the project to update.
-        :param project: The project's desired state - see :meth:`create_project`.
-        :param wait_for_completion: See :meth:`create_project`.
+        :param project: The project's desired state - a :class:`~mlrun.projects.MlrunProject`,
+            :class:`mlrun.common.schemas.Project`, or an equivalent dict.
+        :param wait_for_completion: Block until Orca's update operation reaches a terminal state
+            and return the resulting project. If ``False``, return the operation's ``op_id``
+            immediately instead.
         :return: The updated project, or the operation's ``op_id`` if ``wait_for_completion`` is
             ``False``.
         """
@@ -163,9 +166,17 @@ class OrcaProjectsClient:
 
         :param name: Name of the project to patch.
         :param project: The changes to apply - only the fields present are merged in.
-        :param patch_mode: The strategy for merging the changes with the existing object. Can be
-            either ``replace`` or ``additive``.
-        :param wait_for_completion: See :meth:`create_project`.
+        :param patch_mode: The strategy :mod:`mergedeep` uses where a field exists in both the
+            current and the incoming state: ``replace`` overwrites it outright; ``additive``
+            extends it instead, for collection-typed values (``list``/``set``/``tuple``). Orca's
+            own common-set fields merged here (``labels``/``annotations``/``owner``/
+            ``description``) are all plain strings or string-keyed dicts, not collections, so in
+            practice the two modes currently behave the same for this call - the same parameter
+            as MLRun's own ``patch_project``, which does merge collection-typed fields, is kept
+            here for a consistent API surface.
+        :param wait_for_completion: Block until Orca's patch operation reaches a terminal state
+            and return the resulting project. If ``False``, return the operation's ``op_id``
+            immediately instead.
         :return: The patched project, or the operation's ``op_id`` if ``wait_for_completion`` is
             ``False``.
         """
@@ -195,10 +206,14 @@ class OrcaProjectsClient:
         :return: The operation's ``op_id`` if the delete is still converging and
             ``wait_for_completion`` is ``False``, otherwise ``None``.
         """
-        response = self._orchestrator.delete(name)
+        try:
+            response = self._orchestrator.delete(name)
+        except mlrun.errors.MLRunNotFoundError:
+            # Already gone - delete is idempotent, this is success, not a failure.
+            return None
         if response.status_code != requests.codes.accepted:
             return None
-        op_id = response.json()["status"]["opId"]
+        op_id = orca_projects.extract_op_id(response.json())
         if not wait_for_completion:
             return op_id
         self._orchestrator.wait_for_op(name, op_id)
@@ -221,17 +236,15 @@ class OrcaProjectsClient:
     def _send_request(
         self, method: str, path: str, error_message: str, **kwargs
     ) -> requests.Response:
-        if not mlrun.mlconf.iguazio_api_url:
-            raise mlrun.errors.MLRunRuntimeError(
-                "Cannot talk to Orca directly: iguazio_api_url is not configured"
-            )
         url = f"{mlrun.mlconf.iguazio_api_url}/api/{path}"
         kwargs.update(self._run_db._auth_request_kwargs(kwargs.pop("headers", None)))
         try:
             response = self._session.request(
                 method,
                 url,
-                timeout=20,
+                timeout=humanfriendly.parse_timespan(
+                    mlrun.mlconf.httpdb.projects.iguazio_request_timeout
+                ),
                 verify=mlrun.mlconf.iguazio_api_ssl_verify,
                 **kwargs,
             )
@@ -239,9 +252,18 @@ class OrcaProjectsClient:
             raise mlrun.errors.MLRunRuntimeError(
                 f"{mlrun.errors.err_to_str(exc)}: {error_message}"
             ) from exc
-        # Orca's error response body shape is unverified (same caveat mlrun#10043 flagged for the
-        # server-side proxy), so this doesn't try to extract error details from it - just the
-        # status-code-to-exception mapping raise_for_status already gives for free.
+        if not response.ok:
+            # Orca's error response body shape is unverified (no live endpoint to confirm
+            # against yet) - this may not parse Orca's real error responses; revisit once Orca's
+            # contract is confirmed.
+            orca_error_message, ctx = _extract_orca_error_details(response)
+            mlrun.utils.logger.warning(
+                error_message,
+                status_code=response.status_code,
+                orca_error_message=orca_error_message,
+                ctx=ctx,
+            )
+            error_message = f"{error_message}: {orca_error_message}, ctx={ctx}"
         mlrun.errors.raise_for_status(response, error_message)
         return response
 
@@ -272,3 +294,20 @@ def _as_project_like(project: ProjectInput) -> orca_projects.ProjectLike:
         ),
         status=types.SimpleNamespace(op_id=status.get("op_id") or status.get("opId")),
     )
+
+
+def _extract_orca_error_details(
+    response: requests.Response,
+) -> tuple[str | None, str | None]:
+    """Best-effort extraction of Orca's ``errorMessage``/``ctx`` from an error response body -
+    the same fields the server-side leader-proxy extracts for its own error handling.
+
+    :param response: The raw, already-errored HTTP response.
+    :return: ``(error_message, ctx)``, both ``None`` if the body doesn't parse as JSON or
+        doesn't carry them.
+    """
+    try:
+        status = response.json().get("status", {})
+    except Exception:
+        return None, None
+    return status.get("errorMessage"), status.get("ctx")

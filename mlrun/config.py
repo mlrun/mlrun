@@ -564,6 +564,8 @@ default_config = {
             # giving up
             "iguazio_project_states_poll_interval": "2 seconds",
             "iguazio_project_states_poll_timeout": "300 seconds",
+            # when the leader is orca, the SDK's own per-request timeout for talking to Orca directly
+            "iguazio_request_timeout": "20 seconds",
             "summaries": {
                 # Number of days back to include when calculating the project pipeline summary.
                 "list_pipelines_time_period_in_days": 2,

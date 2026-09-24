@@ -115,21 +115,30 @@ def resolve_project_body(
     :return: The JSON-serializable request body.
     """
     if prev_op_id is _NO_PREV_OP_ID:
-        wire = {"name": project.metadata.name}
+        body = {"name": project.metadata.name}
         if project.spec.owner:
-            wire["owner"] = project.spec.owner
+            body["owner"] = project.spec.owner
     else:
-        wire = {
+        body = {
             "prevOpId": str(prev_op_id) if prev_op_id else None,
             "owner": project.spec.owner,
         }
     if project.spec.description:
-        wire["description"] = project.spec.description
+        body["description"] = project.spec.description
     if project.metadata.labels:
-        wire["labels"] = project.metadata.labels
+        body["labels"] = project.metadata.labels
     if project.metadata.annotations:
-        wire["annotations"] = project.metadata.annotations
-    return wire
+        body["annotations"] = project.metadata.annotations
+    return body
+
+
+def extract_op_id(body: dict) -> uuid.UUID | str:
+    """Pull the ``op_id`` a create/update/patch/delete response minted, from its parsed body.
+
+    :param body: The parsed JSON body of an Orca create/update/patch/delete response.
+    :return: The op_id.
+    """
+    return body["status"]["opId"]
 
 
 def to_mlproject(body: dict) -> mlrun.common.schemas.Project:

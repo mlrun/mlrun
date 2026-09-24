@@ -278,16 +278,16 @@ class Member(
         name: str,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ) -> None:
-        # Follower Contract HLD checklist item 10: block new logical resource creation until
-        # this follower's own leader-driven startup sweep (orca only) reaches a terminal state.
+        # Block new logical resource creation until this follower's own leader-driven startup
+        # sweep (orca only) reaches a terminal state.
         if not self.is_followers_sync_ready():
             raise mlrun.errors.MLRunPreconditionFailedError(
                 "MLRun is still syncing project state with the leader on startup; new "
                 "resource creation is temporarily blocked, retry shortly"
             )
-        # Checklist item 9: block new logical resource creation while this project's own
-        # sync-status isn't online. A project with no recorded state yet (pre-dates the 2PC
-        # follower interface) is treated as online, not blocked.
+        # Block new logical resource creation while this project's own sync-status isn't
+        # online. A project with no recorded state yet (pre-dates the 2PC follower interface)
+        # is treated as online, not blocked.
         project = self.get_project(
             db_session,
             name,

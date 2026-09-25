@@ -428,11 +428,7 @@ class Member(
     def _initialize_followers(self):
         leader_name = mlrun.mlconf.httpdb.projects.leader
         self._leader_follower = self._initialize_follower(leader_name)
-        followers = (
-            mlrun.mlconf.httpdb.projects.followers.split(",")
-            if mlrun.mlconf.httpdb.projects.followers
-            else []
-        )
+        followers = mlrun.mlconf.get_configured_project_followers()
         self._followers = {
             follower: self._initialize_follower(follower) for follower in followers
         }

@@ -1,8 +1,8 @@
 (change-log)=
 # Change log
 
-
-The change log lists updates per version, open issues, limitations, and deprecations:
+The change log lists updates per version, open issues, limitations, and deprecations.
+- [v1.13.0](#v1-13-0)
 - [v1.12.0](#v1-12-0)
 - [v1.11.0](#v1110)
 - [v1.10.3](#v1103) | [v1.10.2](#v1102) | [v1.10.1](#v1101) | [v1.10.0](#v1100)
@@ -26,6 +26,20 @@ Upgrading these MLRun dependencies spans several releases.  The upgrades are com
 - Pydantic: from version 1 to 2.
 
 See a full description of KFP, Python, and the workflow engines in {ref}`local-remote`. Specific changes are listed under the relevant versions.
+
+(v1-13-0)=
+## v1.13.0 (October 2026)
+
+### Metrics
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-10240|MLRun now records processing time, request/response body size, and (for list calls) the number of objects returned for every REST API call, as OpenTelemetry histograms, exported to Prometheus. See [REST call metrics](../server-cfg/server-metrics.md#rest-call-metrics).|
+
+### Runtimes
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-12427|Add support for buildah as container builder.|
+
 
 (v1-12-0)=
 ## v1.12.0 (September 2026)
@@ -1569,7 +1583,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-2030|Need a way to move artifacts from test to production Spark.           | To register artifact between different environments, e.g. dev and prod, upload your artifacts to a remote storage, e.g. S3. You can change the project artifact path using MLRun or MLRun UI. `project.artifact_path='s3:<bucket-name/..'`   | v1.0.0    |
 |ML-2201|No error message is raised when an MPI job is created but pods cannot be scheduled. | NA   |v1.0.0|
 |ML-2407|Kafka ingestion service on an empty feature set returns an error.      | Ingest a sample of the data manually. This creates the schema for the feature set, and then the ingestion service accepts new records.  |v1.1.0    |
-|[2621](https://github.com/mlrun/mlrun/issues/2621)| Running a workflow whose project has `init_git=True`, results in Project error| Run `git config --global --add safe.directory '*'` (can substitute specific directory for *). |v1.1.0    |
+|[2621](https://github.com/mlrun/mlrun/issues/2621)| Running a workflow whose project has `init_git=True`, results in Project error| Run `git config --global --add safe.directory '*'` (can substitute specific directory for *). |v1.1.0 |
 |ML-2489|Cannot pickle a class inside an mlrun function.  | Use cloudpickle instead of pickle.    |v1.2.0    |
 |ML-3081|The Monitor Workflows page does not present logs from the correct (Nuclio) deployment.| NA  |v1.2.1    |
 |ML-3294|Dask coredump during project deletion.| Before deleting a Dask project, verify that Dask was fully terminated.|v1.3.0 |
@@ -1626,7 +1640,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-12078|When Model-monitoring is enabled with V3io configured as default artifact storage, each model-endpoint creates 25 directories per day. |Run a daily cron job to delete parquet partition directories older than a week.|v1.11.0|
 |ML-12185|A split graph with a collector as a merge step does not fail deployment nor invoke and produce a false response. |Do not use the collector step as the merge step.|v1.11.0|
 |ML-12378|When using HTTP streaming, async does not work but works in the same manner as sync.|NA|v1.11.0|
-|ML-12573|In rare, high-stress situations, TSDB records are lost on Kafka rebalance. |Set a constant number of stream pod replicas and document the Kafka rebalance handling.| NA |v1.12.0|
+|ML-12573|In rare, high-stress situations, TSDB records are lost on Kafka rebalance. |Set a constant number of stream pod replicas and document the Kafka rebalance handling.| v1.12.0|
 |ML-12996|When trying to access the parquet data of a model endpoint in GCS, the model monitoring user application intermittently fails with a `FileNotFoundError`. As a consequence, drift is not detected for several Model Endpoints (MEPs) even though the endpoints continue to be invoked.|NA  |v1.12.0|
 
 ## Limitations

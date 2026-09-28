@@ -47,7 +47,7 @@ databricks-sdk~=0.20.0
 # Revisit once that's fixed upstream.
 sqlalchemy~=2.0.0
 dask==2024.8
-distributed==2024.8
+distributed==2026.1.0
 # TimescaleDB dependencies - optional for model monitoring
 psycopg[binary,pool]~=3.2
 storey[otel]

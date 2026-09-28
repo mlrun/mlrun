@@ -69,6 +69,7 @@ class TestAwsS3:
     bucket_name = env.get("bucket_name")
     access_key_id = env.get("AWS_ACCESS_KEY_ID")
     _secret_access_key = env.get("AWS_SECRET_ACCESS_KEY")
+    _session_token = env.get("AWS_SESSION_TOKEN")
     profile_name = "s3ds_profile"
     test_dir = "/test_mlrun_s3"
     run_dir = f"{test_dir}/run_{uuid.uuid4()}"
@@ -79,7 +80,11 @@ class TestAwsS3:
         with open(cls.test_file) as f:
             cls.test_string = f.read()
         cls._fs = fsspec.filesystem(
-            "s3", anon=False, key=cls.access_key_id, secret=cls._secret_access_key
+            "s3",
+            anon=False,
+            key=cls.access_key_id,
+            secret=cls._secret_access_key,
+            token=cls._session_token,
         )
 
     @classmethod
@@ -97,6 +102,7 @@ class TestAwsS3:
             name=self.profile_name,
             access_key_id=self.access_key_id,
             secret_key=self._secret_access_key,
+            session_token=self._session_token,
             bucket=self.bucket_name,
         )
         register_temporary_client_datastore_profile(self.profile)
@@ -104,6 +110,10 @@ class TestAwsS3:
     def teardown_method(self, method):
         os.environ["AWS_ACCESS_KEY_ID"] = self.access_key_id
         os.environ["AWS_SECRET_ACCESS_KEY"] = self._secret_access_key
+        if self._session_token:
+            os.environ["AWS_SESSION_TOKEN"] = self._session_token
+        else:
+            os.environ.pop("AWS_SESSION_TOKEN", None)
 
     @pytest.fixture(autouse=True)
     def setup_before_each_test(self, use_datastore_profile):
@@ -114,10 +124,15 @@ class TestAwsS3:
         if use_datastore_profile:
             os.environ["AWS_ACCESS_KEY_ID"] = "wrong_access_key"
             os.environ["AWS_SECRET_ACCESS_KEY"] = "wrong_token"
+            os.environ.pop("AWS_SESSION_TOKEN", None)
             self.prefix_path = f"ds://{self.profile_name}"
         else:
             os.environ["AWS_ACCESS_KEY_ID"] = self.access_key_id
             os.environ["AWS_SECRET_ACCESS_KEY"] = self._secret_access_key
+            if self._session_token:
+                os.environ["AWS_SESSION_TOKEN"] = self._session_token
+            else:
+                os.environ.pop("AWS_SESSION_TOKEN", None)
             self.prefix_path = f"s3://{self.bucket_name}"
         self._bucket_path = self.prefix_path
         self.run_dir_url = f"{self._bucket_path}{self.run_dir}"

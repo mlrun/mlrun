@@ -12,6 +12,7 @@ pytest-alembic~=0.11.0
 pytest-httpserver~=1.0
 pytest-timeout~=2.0
 pytest-mock-resources[mysql]~=2.12
+greenlet~=3.5  # pytest-mock-resources imports sqlalchemy.ext.asyncio unconditionally; SQLAlchemy 2.1+ no longer pulls this in automatically
 # pin to 4.10.0 to avoid issues with k3s compatibility
 testcontainers[k3s]~=4.10.0
 aioresponses~=0.7

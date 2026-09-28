@@ -8,7 +8,9 @@ humanfriendly~=10.0
 # starlette>=1.0.1 pinned directly (not just left to fastapi's transitive floor): CVE-2026-48710 BadHost fix.
 fastapi>=0.128,<1
 starlette>=1.0.1,<2
-sqlalchemy~=2.0
+# cap below 2.1: sqlalchemy-utils (even latest 0.42.1) breaks on 2.1's renamed ORM internals
+# Revisit once that's fixed upstream.
+sqlalchemy~=2.0.0
 sqlalchemy-utils~=0.41.2
 pymysql~=1.1
 psycopg2-binary~=2.9

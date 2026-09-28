@@ -29,6 +29,29 @@ from .utils import parse_s3_bucket_and_key
 __all__ = ["parse_s3_bucket_and_key"]
 
 
+class _BytesLikeStream(io.RawIOBase):
+    """Zero-copy file-like wrapper for bytes/bytearray for large S3 uploads.
+
+    Avoids the full in-memory copy that io.BytesIO would create — boto3 reads
+    one multipart chunk at a time into its own pre-allocated buffer.
+    """
+
+    def __init__(self, data):
+        self._view = memoryview(data)
+        self._pos = 0
+
+    def readable(self):
+        return True
+
+    def readinto(self, b):
+        n = len(b)
+        chunk = self._view[self._pos : self._pos + n]
+        n_read = len(chunk)
+        b[:n_read] = chunk
+        self._pos += n_read
+        return n_read
+
+
 class S3Store(DataStore):
     using_bucket = True
 
@@ -246,7 +269,8 @@ class S3Store(DataStore):
         if isinstance(data, str):
             data = data.encode()
         bucket, key = self.get_bucket_and_key(key)
-        self.s3.Bucket(bucket).upload_fileobj(io.BytesIO(data), key, Config=self.config)
+        stream = io.BufferedReader(_BytesLikeStream(data))
+        self.s3.Bucket(bucket).upload_fileobj(stream, key, Config=self.config)
 
     def stat(self, key):
         bucket, key = self.get_bucket_and_key(key)

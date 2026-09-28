@@ -296,6 +296,14 @@ class TestAwsS3:
         tested_dd_df = dt_dir.as_df(format=file_format, df_module=dd)
         dd.assert_eq(tested_dd_df, expected_dd_df)
 
+    def test_put_with_append(self):
+        data_item = mlrun.run.get_dataitem(self.object_url)
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError,
+            match="S3 does not support appending to objects",
+        ):
+            data_item.put(b"test", append=True)
+
     @pytest.mark.parametrize("data", [b"test", bytearray(b"test")])
     def test_put_types(self, data):
         data_item = mlrun.run.get_dataitem(self.object_url)
@@ -307,6 +315,13 @@ class TestAwsS3:
             match="Unable to put a value of type S3Store",
         ):
             data_item.put(123)
+
+    def test_large_put(self):
+        data_item = mlrun.run.get_dataitem(self.object_url)
+        data = os.urandom(1024 * 1024 * 30)  # 30MB, above the 25MB multipart threshold
+        data_item.put(data)
+        result = data_item.get()
+        assert result == data
 
     def test_large_upload(self):
         data_item = mlrun.run.get_dataitem(self.object_url)

@@ -135,6 +135,8 @@ def test_requirement_specifiers_convention():
         "pydantic": {">=1.10.15", ">=2,<3"},
         "nuclio-sdk": {">=0.5"},
         "scipy": {"~=1.16.3"},
+        # cap below 2.1: sqlalchemy-utils breaks on 2.1's renamed ORM internals
+        "sqlalchemy": {"~=2.0.0"},
         "docstring_parser": {"~=0.16"},
         "gitpython": {"~=3.1, >=3.1.41"},
         "jinja2": {"~=3.1, >=3.1.6"},

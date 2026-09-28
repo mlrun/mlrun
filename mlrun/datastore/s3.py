@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import io
 import time
 from urllib.parse import urlparse
 
@@ -237,9 +238,15 @@ class S3Store(DataStore):
             raise
 
     def put(self, key, data, append=False):
-        data, _ = self._prepare_put_data(data, append)
+        if append:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "S3 does not support appending to objects"
+            )
+        self._validate_put_data(data)
+        if isinstance(data, str):
+            data = data.encode()
         bucket, key = self.get_bucket_and_key(key)
-        self.s3.Object(bucket, key).put(Body=data)
+        self.s3.Bucket(bucket).upload_fileobj(io.BytesIO(data), key, Config=self.config)
 
     def stat(self, key):
         bucket, key = self.get_bucket_and_key(key)

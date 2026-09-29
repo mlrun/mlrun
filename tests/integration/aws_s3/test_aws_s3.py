@@ -89,7 +89,7 @@ class TestAwsS3:
 
     @classmethod
     def teardown_class(cls):
-        test_dir = f"{cls.test_dir}"
+        test_dir = f"{cls.bucket_name}{cls.test_dir}"
         if not cls._fs:
             return
         if cls._fs.exists(test_dir):

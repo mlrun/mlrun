@@ -76,6 +76,7 @@ class TestAwsS3(TestMLRunSystem):
         self._bucket_name = test_environment["AWS_BUCKET_NAME"]
         self._access_key_id = test_environment["AWS_ACCESS_KEY_ID"]
         self._secret_access_key = test_environment["AWS_SECRET_ACCESS_KEY"]
+        self._session_token = test_environment.get("AWS_SESSION_TOKEN")
         self._endpoint_url = test_environment.get("AWS_ENDPOINT_URL")
 
         object_sub_dir = f"dir_{uuid.uuid4()}"
@@ -94,6 +95,7 @@ class TestAwsS3(TestMLRunSystem):
             name="s3ds_profile_with_bucket",
             access_key_id=self._access_key_id,
             secret_key=self._secret_access_key,
+            session_token=self._session_token,
             bucket=self._bucket_name,
             endpoint_url=self._endpoint_url,
         )
@@ -104,6 +106,7 @@ class TestAwsS3(TestMLRunSystem):
             "s3",
             key=self._access_key_id,
             secret=self._secret_access_key,
+            token=self._session_token,
         )
         full_path = self.s3["s3"]["test_dir_path"]
         if s3_fs.exists(full_path):
@@ -120,6 +123,7 @@ class TestAwsS3(TestMLRunSystem):
             "s3",
             key=self._access_key_id,
             secret=self._secret_access_key,
+            token=self._session_token,
             endpoint_url=self._endpoint_url,
         )
         param = self.s3[url_type]
@@ -169,6 +173,7 @@ class TestAwsS3(TestMLRunSystem):
             "s3",
             key=self._access_key_id,
             secret=self._secret_access_key,
+            token=self._session_token,
             endpoint_url=self._endpoint_url,
         )
         param = self.s3["ds_with_bucket"]

@@ -46,6 +46,7 @@ if os.path.exists(config_file_path):
 # Used to test dataframe functionality (will be saved as csv)
 test_df_string = "col1,col2,col3\n1,2,3"
 
+# AWS_SESSION_TOKEN is optional
 credential_params = ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"]
 
 
@@ -396,7 +397,7 @@ class TestAwsS3:
     @pytest.mark.parametrize("fake_token", [None, "fake_token"])
     def test_wrong_credential_rm(self, use_datastore_profile, fake_token):
         os.environ.pop("AWS_SECRET_ACCESS_KEY")
-        os.environ.pop("AWS_ACCESS_KEY_ID")
+        os.environ.pop("AWS_SESSION_TOKEN", None)
 
         credentials_dict = (
             {"secret_key": fake_token, "access_key_id": self.access_key_id}
@@ -412,6 +413,7 @@ class TestAwsS3:
             if fake_token:
                 os.environ["AWS_SECRET_ACCESS_KEY"] = fake_token
                 os.environ["AWS_ACCESS_KEY_ID"] = self.access_key_id
+                os.environ.pop("AWS_SESSION_TOKEN", None)
 
         data_item = mlrun.run.get_dataitem(self.object_url)
         with pytest.raises(PermissionError):

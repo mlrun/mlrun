@@ -394,30 +394,43 @@ class TestAwsS3:
                             )
                         chunk_number += 1
 
-    @pytest.mark.parametrize("fake_token", [None, "fake_token"])
-    def test_wrong_credential_rm(self, use_datastore_profile, fake_token):
+    def test_wrong_credential_rm(self, use_datastore_profile):
         os.environ.pop("AWS_SECRET_ACCESS_KEY")
         os.environ.pop("AWS_SESSION_TOKEN", None)
 
-        credentials_dict = (
-            {"secret_key": fake_token, "access_key_id": self.access_key_id}
-            if fake_token
-            else {}
-        )
+        credentials_dict = {
+            "secret_key": "fake_token",
+            "access_key_id": self.access_key_id,
+        }
         if use_datastore_profile:
             self.profile = DatastoreProfileS3(
                 name=self.profile_name, bucket=self.bucket_name, **credentials_dict
             )
             register_temporary_client_datastore_profile(self.profile)
         else:
-            if fake_token:
-                os.environ["AWS_SECRET_ACCESS_KEY"] = fake_token
-                os.environ["AWS_ACCESS_KEY_ID"] = self.access_key_id
-                os.environ.pop("AWS_SESSION_TOKEN", None)
+            os.environ["AWS_SECRET_ACCESS_KEY"] = "fake_token"
+            os.environ["AWS_ACCESS_KEY_ID"] = self.access_key_id
 
         data_item = mlrun.run.get_dataitem(self.object_url)
         with pytest.raises(PermissionError):
             data_item.delete()
+
+    def test_missing_credential_rm(self, use_datastore_profile):
+        from botocore.exceptions import PartialCredentialsError
+
+        os.environ.pop("AWS_SECRET_ACCESS_KEY")
+        os.environ.pop("AWS_SESSION_TOKEN", None)
+
+        if use_datastore_profile:
+            self.profile = DatastoreProfileS3(
+                name=self.profile_name,
+                bucket=self.bucket_name,
+                access_key_id=self.access_key_id,
+            )
+            register_temporary_client_datastore_profile(self.profile)
+
+        with pytest.raises(PartialCredentialsError):
+            mlrun.run.get_dataitem(self.object_url)
 
     def test_rm_file_not_found(self):
         not_exist_url = f"{self.run_dir_url}/not_exist_file.txt"

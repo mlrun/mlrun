@@ -443,13 +443,21 @@ class Secrets(
         secret_tokens: list[mlrun.common.schemas.SecretToken],
         auth_info: mlrun.common.schemas.AuthInfo,
         force: bool = False,
+        username: str | None = None,
     ) -> mlrun.common.schemas.StoreSecretTokensResponse:
         """
         Validate and store offline tokens as Kubernetes secrets.
 
+        A trusted service-account caller (e.g. Orca acting on a user's behalf) may store a
+        token whose subject differs from its own identity; the target user's ``username`` is
+        then taken from the caller and their user_id from the token's own subject, rather than
+        from auth_info.
+
         :param secret_tokens: List of SecretToken objects to store.
         :param force: Whether to force update existing tokens.
-        :param auth_info: Authentication information of the user storing the tokens.
+        :param auth_info: Authentication information of the caller storing the tokens.
+        :param username: Target username, required when the caller is a service account and
+                         ignored otherwise (a regular user can only store their own token).
         :return: StoreSecretTokensResponse object with created, updated, and skipped tokens.
         """
         if not secret_tokens:
@@ -457,15 +465,20 @@ class Secrets(
                 "Failed to store secret tokens – no tokens provided"
             )
 
+        is_service_account = auth_info.is_service_account()
+
         logger.debug(
             "Storing secret tokens",
-            username=auth_info.username,
+            username=username if is_service_account else auth_info.username,
             token_count=len(secret_tokens),
+            is_service_account=is_service_account,
         )
 
         # Extract and validate tokens info
         tokens_values = mlrun.auth.utils.extract_and_validate_tokens_info(
-            secret_tokens=secret_tokens, authenticated_id=auth_info.user_id
+            secret_tokens=secret_tokens,
+            authenticated_id=auth_info.user_id,
+            bypass_ownership_check=is_service_account,
         )
 
         # TODO: move init iguazio_client (ML-11077)
@@ -481,8 +494,16 @@ class Secrets(
             expiration = token_info["token_exp"]
             issued_at = token_info["token_iat"]
 
+            if is_service_account:
+                target_user_id, target_username = self._resolve_store_target_user(
+                    token_info, username
+                )
+            else:
+                target_user_id, target_username = auth_info.user_id, auth_info.username
+
             action = self.secrets_provider.store_user_token_secret(
-                auth_info=auth_info,
+                user_id=target_user_id,
+                username=target_username,
                 token_name=token_name,
                 token=token,
                 expiration=expiration,
@@ -862,6 +883,26 @@ class Secrets(
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "secret token handling is only supported in enterprise where auth_info.username should always be filled"
             )
+
+    def _resolve_store_target_user(
+        self,
+        token_info: dict[str, typing.Any],
+        username: str | None,
+    ) -> tuple[str, str]:
+        """
+        Resolve the (user_id, username) a service-account-authenticated store targets. The
+        trusted caller supplies the target username; the user_id comes from the token's own
+        subject, which is the only place mlrun can source it from (the caller never sends it).
+        """
+        if not username:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "A service-account-authenticated store must provide the target user's "
+                "username"
+            )
+        # "sub" is always present here - extract_and_validate_tokens_info already rejects a
+        # token missing it before this is reached, regardless of bypass_ownership_check.
+        target_user_id = token_info.get("token_sub")
+        return target_user_id, username
 
     def _resolve_project_secret_key(
         self,

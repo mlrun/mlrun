@@ -79,7 +79,8 @@ class SecretProviderInterface(ABC):
     @abstractmethod
     def store_user_token_secret(
         self,
-        auth_info: mlrun.common.schemas.AuthInfo,
+        user_id: str,
+        username: str,
         token_name: str,
         token: str,
         expiration: int,
@@ -193,7 +194,8 @@ class InMemorySecretProvider(SecretProviderInterface):
 
     def store_user_token_secret(
         self,
-        auth_info: mlrun.common.schemas.AuthInfo,
+        user_id: str,
+        username: str,
         token_name: str,
         token: str,
         expiration: int,
@@ -201,13 +203,13 @@ class InMemorySecretProvider(SecretProviderInterface):
         force: bool = False,
         namespace: str | None = None,
     ) -> mlrun.common.schemas.SecretEventActions | None:
-        secret_name = self.resolve_user_token_secret_name(auth_info.user_id, token_name)
+        secret_name = self.resolve_user_token_secret_name(user_id, token_name)
         self.secrets_map[secret_name] = {
             "token": token,
             "expiration": datetime.fromtimestamp(expiration, tz=UTC),
             "issued_at": datetime.fromtimestamp(issued_at, tz=UTC),
-            "user_id": auth_info.user_id,
-            "username": auth_info.username,
+            "user_id": user_id,
+            "username": username,
             "token_name": token_name,
         }
         return mlrun.common.schemas.SecretEventActions.created

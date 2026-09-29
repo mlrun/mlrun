@@ -59,6 +59,12 @@ def aws_s3_configured(extra_params=None):
     for param in needed_params:
         if not env_params.get(param):
             return False
+    # AWS_SESSION_TOKEN is optional — if present in config, treat it as a regular credential param (pop, set, clean up)
+    if (
+        "AWS_SESSION_TOKEN" in env_params
+        and "AWS_SESSION_TOKEN" not in credential_params
+    ):
+        credential_params.append("AWS_SESSION_TOKEN")
     return True
 
 

@@ -46,6 +46,7 @@ if os.path.exists(config_file_path):
 # Used to test dataframe functionality (will be saved as csv)
 test_df_string = "col1,col2,col3\n1,2,3"
 
+# AWS_SESSION_TOKEN is optional
 credential_params = ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"]
 
 
@@ -58,6 +59,13 @@ def aws_s3_configured(extra_params=None):
     for param in needed_params:
         if not env_params.get(param):
             return False
+    # AWS_SESSION_TOKEN is optional — if present with a non-empty value in config,
+    # treat it as a regular credential param (pop, set, clean up)
+    if (
+        env_params.get("AWS_SESSION_TOKEN")
+        and "AWS_SESSION_TOKEN" not in credential_params
+    ):
+        credential_params.append("AWS_SESSION_TOKEN")
     return True
 
 
@@ -69,6 +77,7 @@ class TestAwsS3:
     bucket_name = env.get("bucket_name")
     access_key_id = env.get("AWS_ACCESS_KEY_ID")
     _secret_access_key = env.get("AWS_SECRET_ACCESS_KEY")
+    _session_token = env.get("AWS_SESSION_TOKEN")
     profile_name = "s3ds_profile"
     test_dir = "/test_mlrun_s3"
     run_dir = f"{test_dir}/run_{uuid.uuid4()}"
@@ -79,12 +88,16 @@ class TestAwsS3:
         with open(cls.test_file) as f:
             cls.test_string = f.read()
         cls._fs = fsspec.filesystem(
-            "s3", anon=False, key=cls.access_key_id, secret=cls._secret_access_key
+            "s3",
+            anon=False,
+            key=cls.access_key_id,
+            secret=cls._secret_access_key,
+            token=cls._session_token,
         )
 
     @classmethod
     def teardown_class(cls):
-        test_dir = f"{cls.test_dir}"
+        test_dir = f"{cls.bucket_name}{cls.test_dir}"
         if not cls._fs:
             return
         if cls._fs.exists(test_dir):
@@ -97,6 +110,7 @@ class TestAwsS3:
             name=self.profile_name,
             access_key_id=self.access_key_id,
             secret_key=self._secret_access_key,
+            session_token=self._session_token,
             bucket=self.bucket_name,
         )
         register_temporary_client_datastore_profile(self.profile)
@@ -104,6 +118,10 @@ class TestAwsS3:
     def teardown_method(self, method):
         os.environ["AWS_ACCESS_KEY_ID"] = self.access_key_id
         os.environ["AWS_SECRET_ACCESS_KEY"] = self._secret_access_key
+        if self._session_token:
+            os.environ["AWS_SESSION_TOKEN"] = self._session_token
+        else:
+            os.environ.pop("AWS_SESSION_TOKEN", None)
 
     @pytest.fixture(autouse=True)
     def setup_before_each_test(self, use_datastore_profile):
@@ -114,10 +132,15 @@ class TestAwsS3:
         if use_datastore_profile:
             os.environ["AWS_ACCESS_KEY_ID"] = "wrong_access_key"
             os.environ["AWS_SECRET_ACCESS_KEY"] = "wrong_token"
+            os.environ.pop("AWS_SESSION_TOKEN", None)
             self.prefix_path = f"ds://{self.profile_name}"
         else:
             os.environ["AWS_ACCESS_KEY_ID"] = self.access_key_id
             os.environ["AWS_SECRET_ACCESS_KEY"] = self._secret_access_key
+            if self._session_token:
+                os.environ["AWS_SESSION_TOKEN"] = self._session_token
+            else:
+                os.environ.pop("AWS_SESSION_TOKEN", None)
             self.prefix_path = f"s3://{self.bucket_name}"
         self._bucket_path = self.prefix_path
         self.run_dir_url = f"{self._bucket_path}{self.run_dir}"
@@ -296,6 +319,14 @@ class TestAwsS3:
         tested_dd_df = dt_dir.as_df(format=file_format, df_module=dd)
         dd.assert_eq(tested_dd_df, expected_dd_df)
 
+    def test_put_with_append(self):
+        data_item = mlrun.run.get_dataitem(self.object_url)
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError,
+            match="S3 does not support appending to objects",
+        ):
+            data_item.put(b"test", append=True)
+
     @pytest.mark.parametrize("data", [b"test", bytearray(b"test")])
     def test_put_types(self, data):
         data_item = mlrun.run.get_dataitem(self.object_url)
@@ -307,6 +338,13 @@ class TestAwsS3:
             match="Unable to put a value of type S3Store",
         ):
             data_item.put(123)
+
+    def test_large_put(self):
+        data_item = mlrun.run.get_dataitem(self.object_url)
+        data = os.urandom(1024 * 1024 * 30)  # 30MB, above the 25MB multipart threshold
+        data_item.put(data)
+        result = data_item.get()
+        assert result == data
 
     def test_large_upload(self):
         data_item = mlrun.run.get_dataitem(self.object_url)
@@ -363,29 +401,43 @@ class TestAwsS3:
                             )
                         chunk_number += 1
 
-    @pytest.mark.parametrize("fake_token", [None, "fake_token"])
-    def test_wrong_credential_rm(self, use_datastore_profile, fake_token):
+    def test_wrong_credential_rm(self, use_datastore_profile):
         os.environ.pop("AWS_SECRET_ACCESS_KEY")
-        os.environ.pop("AWS_ACCESS_KEY_ID")
+        os.environ.pop("AWS_SESSION_TOKEN", None)
 
-        credentials_dict = (
-            {"secret_key": fake_token, "access_key_id": self.access_key_id}
-            if fake_token
-            else {}
-        )
+        credentials_dict = {
+            "secret_key": "fake_token",
+            "access_key_id": self.access_key_id,
+        }
         if use_datastore_profile:
             self.profile = DatastoreProfileS3(
                 name=self.profile_name, bucket=self.bucket_name, **credentials_dict
             )
             register_temporary_client_datastore_profile(self.profile)
         else:
-            if fake_token:
-                os.environ["AWS_SECRET_ACCESS_KEY"] = fake_token
-                os.environ["AWS_ACCESS_KEY_ID"] = self.access_key_id
+            os.environ["AWS_SECRET_ACCESS_KEY"] = "fake_token"
+            os.environ["AWS_ACCESS_KEY_ID"] = self.access_key_id
 
         data_item = mlrun.run.get_dataitem(self.object_url)
         with pytest.raises(PermissionError):
             data_item.delete()
+
+    def test_missing_credential_rm(self, use_datastore_profile):
+        from botocore.exceptions import PartialCredentialsError
+
+        os.environ.pop("AWS_SECRET_ACCESS_KEY")
+        os.environ.pop("AWS_SESSION_TOKEN", None)
+
+        if use_datastore_profile:
+            self.profile = DatastoreProfileS3(
+                name=self.profile_name,
+                bucket=self.bucket_name,
+                access_key_id=self.access_key_id,
+            )
+            register_temporary_client_datastore_profile(self.profile)
+
+        with pytest.raises(PartialCredentialsError):
+            mlrun.run.get_dataitem(self.object_url)
 
     def test_rm_file_not_found(self):
         not_exist_url = f"{self.run_dir_url}/not_exist_file.txt"

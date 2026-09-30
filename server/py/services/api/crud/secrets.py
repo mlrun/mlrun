@@ -466,6 +466,11 @@ class Secrets(
             )
 
         is_service_account = auth_info.is_service_account()
+        if is_service_account and not username:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "A service-account-authenticated store must provide the target user's "
+                "username"
+            )
 
         logger.debug(
             "Storing secret tokens",
@@ -495,9 +500,9 @@ class Secrets(
             issued_at = token_info["token_iat"]
 
             if is_service_account:
-                target_user_id, target_username = self._resolve_store_target_user(
-                    token_info, username
-                )
+                # The caller supplies the username; the user_id can only come from the
+                # token's subject, since the caller never sends it.
+                target_user_id, target_username = token_info["token_sub"], username
             else:
                 target_user_id, target_username = auth_info.user_id, auth_info.username
 
@@ -883,26 +888,6 @@ class Secrets(
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "secret token handling is only supported in enterprise where auth_info.username should always be filled"
             )
-
-    def _resolve_store_target_user(
-        self,
-        token_info: dict[str, typing.Any],
-        username: str | None,
-    ) -> tuple[str, str]:
-        """
-        Resolve the (user_id, username) a service-account-authenticated store targets. The
-        trusted caller supplies the target username; the user_id comes from the token's own
-        subject, which is the only place mlrun can source it from (the caller never sends it).
-        """
-        if not username:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "A service-account-authenticated store must provide the target user's "
-                "username"
-            )
-        # "sub" is always present here - extract_and_validate_tokens_info already rejects a
-        # token missing it before this is reached, regardless of bypass_ownership_check.
-        target_user_id = token_info.get("token_sub")
-        return target_user_id, username
 
     def _resolve_project_secret_key(
         self,

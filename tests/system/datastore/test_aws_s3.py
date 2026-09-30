@@ -38,6 +38,7 @@ from tests.system.base import TestMLRunSystem
 test_environment = TestMLRunSystem._get_env_from_file()
 
 
+#  AWS_SESSION_TOKEN is optional, so we don't skip the test if it is not set.
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.skipif(
     not test_environment.get("AWS_ACCESS_KEY_ID"),

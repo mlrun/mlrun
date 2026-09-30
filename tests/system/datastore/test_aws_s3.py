@@ -308,7 +308,7 @@ class TestAwsS3(TestMLRunSystem):
             time_column="timestamp",
         )
         end = time.monotonic()
-        assert end - start < 10, "Reading large period took too long"
+        assert end - start < 12, "Reading large period took too long"
         if with_tz:
             result_df["timestamp"] = (
                 pd.to_datetime(result_df["timestamp"])

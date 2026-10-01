@@ -1460,7 +1460,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         """
         if user_id is None or username is None:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "secret token handling is only supported in enterprise where"
+                "secret token handling is only supported in enterprise where "
                 "user_id and username should always be filled"
             )
 

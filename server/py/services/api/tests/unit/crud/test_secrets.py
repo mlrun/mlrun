@@ -879,6 +879,96 @@ def test_store_secret_tokens_return_values(mock_iguazio_client):
     assert mock_iguazio_client.refresh_access_tokens.call_count == 1
 
 
+def test_store_secret_tokens_regular_user_ignores_supplied_username(
+    mock_iguazio_client,
+):
+    # A regular (non-service-account) caller may pass username, but it must be ignored: the
+    # token is always stored for the authenticated user, taken from auth_info.
+    token_payload = {"sub": "auth-user-id", "exp": 9999999999, "iat": 1}
+    secret_tokens = [
+        mlrun.common.schemas.SecretToken(
+            name="token1", token=_generate_token(token_payload)
+        ),
+    ]
+
+    mock_secrets_provider = unittest.mock.Mock()
+    services.api.crud.Secrets().secrets_provider = mock_secrets_provider
+    mock_secrets_provider.store_user_token_secret.return_value = (
+        mlrun.common.schemas.SecretEventActions.created
+    )
+
+    services.api.crud.Secrets().store_secret_tokens(
+        secret_tokens,
+        mlrun.common.schemas.AuthInfo(username="auth-user", user_id="auth-user-id"),
+        username="someone-else",
+    )
+
+    mock_secrets_provider.store_user_token_secret.assert_called_once()
+    _, kwargs = mock_secrets_provider.store_user_token_secret.call_args
+    assert kwargs["user_id"] == "auth-user-id"
+    assert kwargs["username"] == "auth-user"
+
+
+def test_store_secret_tokens_service_account_stores_for_different_user(
+    mock_iguazio_client,
+):
+    # The token carries no preferred_username claim: the target user's username comes from
+    # the caller, and only the user_id is taken from the token's subject.
+    token_payload = {"sub": "target-user-id", "exp": 9999999999, "iat": 1}
+    secret_tokens = [
+        mlrun.common.schemas.SecretToken(
+            name="token1", token=_generate_token(token_payload)
+        ),
+    ]
+
+    mock_secrets_provider = unittest.mock.Mock()
+    services.api.crud.Secrets().secrets_provider = mock_secrets_provider
+    mock_secrets_provider.store_user_token_secret.return_value = (
+        mlrun.common.schemas.SecretEventActions.created
+    )
+
+    services.api.crud.Secrets().store_secret_tokens(
+        secret_tokens,
+        mlrun.common.schemas.AuthInfo(
+            username="orca-sa",
+            user_id="orca-sa-id",
+            kind=mlrun.common.schemas.AuthInfoKind.service_account,
+        ),
+        username="target-user",
+    )
+
+    mock_secrets_provider.store_user_token_secret.assert_called_once()
+    _, kwargs = mock_secrets_provider.store_user_token_secret.call_args
+    assert kwargs["user_id"] == "target-user-id"
+    assert kwargs["username"] == "target-user"
+
+
+def test_store_secret_tokens_service_account_requires_username(mock_iguazio_client):
+    token_payload = {"sub": "target-user-id", "exp": 9999999999, "iat": 1}
+    secret_tokens = [
+        mlrun.common.schemas.SecretToken(
+            name="token1", token=_generate_token(token_payload)
+        ),
+    ]
+
+    mock_secrets_provider = unittest.mock.Mock()
+    services.api.crud.Secrets().secrets_provider = mock_secrets_provider
+
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match="must provide the target user's username",
+    ):
+        services.api.crud.Secrets().store_secret_tokens(
+            secret_tokens,
+            mlrun.common.schemas.AuthInfo(
+                username="orca-sa",
+                user_id="orca-sa-id",
+                kind=mlrun.common.schemas.AuthInfoKind.service_account,
+            ),
+        )
+    mock_secrets_provider.store_user_token_secret.assert_not_called()
+
+
 def test_store_secret_tokens_refresh_access_tokens_failure(mock_iguazio_client):
     mock_iguazio_client.refresh_access_tokens.side_effect = (
         mlrun.errors.MLRunUnauthorizedError("Refresh failed")

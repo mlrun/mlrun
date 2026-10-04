@@ -30,10 +30,13 @@ __all__ = ["parse_s3_bucket_and_key"]
 
 
 class _BytesLikeStream(io.RawIOBase):
-    """Zero-copy file-like wrapper for bytes/bytearray for large S3 uploads.
+    """Seekable, zero-copy file-like wrapper for bytes/bytearray.
 
-    Avoids the full in-memory copy that io.BytesIO would create — boto3 reads
-    one multipart chunk at a time into its own pre-allocated buffer.
+    Backed by a memoryview over the input buffer. Being seekable lets
+    s3transfer pick its seekable upload path: for sub-threshold payloads
+    the stream is passed straight to a single PUT (no BytesIO copy), and
+    multipart workers can seek to their chunk offset and read in parallel
+    rather than serializing on a shared reader.
     """
 
     def __init__(self, data):
@@ -42,6 +45,23 @@ class _BytesLikeStream(io.RawIOBase):
 
     def readable(self):
         return True
+
+    def seekable(self):
+        return True
+
+    def seek(self, offset, whence=io.SEEK_SET):
+        if whence == io.SEEK_SET:
+            self._pos = offset
+        elif whence == io.SEEK_CUR:
+            self._pos += offset
+        elif whence == io.SEEK_END:
+            self._pos = len(self._view) + offset
+        else:
+            raise ValueError(f"invalid whence: {whence}")
+        return self._pos
+
+    def tell(self):
+        return self._pos
 
     def readinto(self, b):
         n = len(b)

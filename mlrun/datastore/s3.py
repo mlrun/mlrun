@@ -225,15 +225,22 @@ class S3Store(DataStore):
         force_non_anonymous = self._get_secret_or_env("S3_NON_ANONYMOUS")
         profile = self._get_secret_or_env("AWS_PROFILE")
         endpoint_url = self._get_secret_or_env("AWS_ENDPOINT_URL_S3")
-        access_key_id = self._get_secret_or_env("AWS_ACCESS_KEY_ID")
-        secret = self._get_secret_or_env("AWS_SECRET_ACCESS_KEY")
-        token = self._get_secret_or_env("AWS_SESSION_TOKEN")
         token_file = self._get_secret_or_env("AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE")
 
         if self._temp_credentials:
             access_key_id = self._temp_credentials["AccessKeyId"]
             secret = self._temp_credentials["SecretAccessKey"]
             token = self._temp_credentials["SessionToken"]
+        elif profile:
+            # mirror __init__: profile owns credential resolution, don't
+            # leak env key/secret/token into s3fs options.
+            access_key_id = None
+            secret = None
+            token = None
+        else:
+            access_key_id = self._get_secret_or_env("AWS_ACCESS_KEY_ID")
+            secret = self._get_secret_or_env("AWS_SECRET_ACCESS_KEY")
+            token = self._get_secret_or_env("AWS_SESSION_TOKEN")
 
         storage_options = dict(
             anon=not (

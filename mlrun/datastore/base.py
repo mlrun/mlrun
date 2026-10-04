@@ -129,7 +129,9 @@ class DataStore(BaseRemoteClient):
 
     def _validate_put_data(self, data):
         if not isinstance(data, (bytes, bytearray, str)):
-            raise TypeError(f"Unable to put a value of type {type(self).__name__}")
+            raise TypeError(
+                f"Unable to put a value of type {type(data).__name__} to {type(self).__name__}"
+            )
 
     def _prepare_put_data(self, data, append=False):
         self._validate_put_data(data)

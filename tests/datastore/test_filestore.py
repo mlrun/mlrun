@@ -60,6 +60,6 @@ class TestFileStore:
 
             with pytest.raises(
                 TypeError,
-                match="Unable to put a value of type FileStore",
+                match="Unable to put a value of type int to FileStore",
             ):
                 data_item.put(123)

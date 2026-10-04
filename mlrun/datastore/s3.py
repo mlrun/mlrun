@@ -300,6 +300,8 @@ class S3Store(DataStore):
         if isinstance(data, str):
             data = data.encode()
         bucket, key = self.get_bucket_and_key(key)
+        # memoryview over a bytearray pins its buffer — the caller can't
+        # resize the bytearray until the stream is closed.
         with io.BufferedReader(_BytesLikeStream(data)) as stream:
             self.s3.Bucket(bucket).upload_fileobj(stream, key, Config=self.config)
 

@@ -17,7 +17,7 @@ from unittest.mock import Mock, patch
 import botocore.exceptions
 import pytest
 
-from mlrun.datastore.s3 import S3Store
+from mlrun.datastore.s3 import S3Store, _BytesLikeStream
 
 
 class TestS3StoreExceptionHandling:
@@ -57,7 +57,6 @@ class TestS3StoreExceptionHandling:
         # Mock required methods that might be called
         s3_store._get_parent_secret = Mock(return_value=None)
         s3_store._join = Mock(side_effect=lambda key: f"/{key}")
-        s3_store._prepare_put_data = Mock(return_value=(b"data", None))
         s3_store._sanitize_options = Mock(side_effect=lambda x: x)
 
         # Mock the boto3 resource
@@ -321,3 +320,26 @@ class TestS3StoreGetStorageOptions:
             storage_options = store.get_storage_options()
 
         assert storage_options["anon"] is True
+
+
+def test_bytes_like_stream_lifecycle():
+    """Smoke test for _BytesLikeStream: read, seek, memoryview pin, close release."""
+    data = bytearray(b"hello world")
+    stream = _BytesLikeStream(data)
+
+    assert stream.readable() and stream.seekable()
+
+    buf = bytearray(5)
+    assert stream.readinto(buf) == 5
+    assert bytes(buf) == b"hello"
+
+    stream.seek(6)
+    assert stream.readinto(buf) == 5
+    assert bytes(buf) == b"world"
+
+    # memoryview keeps the bytearray pinned until close()
+    with pytest.raises(BufferError):
+        data.append(ord("!"))
+    stream.close()
+    data.append(ord("!"))
+    assert bytes(data) == b"hello world!"

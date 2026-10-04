@@ -46,8 +46,12 @@ if os.path.exists(config_file_path):
 # Used to test dataframe functionality (will be saved as csv)
 test_df_string = "col1,col2,col3\n1,2,3"
 
-# AWS_SESSION_TOKEN is optional
 credential_params = ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"]
+# AWS_SESSION_TOKEN is optional (temp SSO/SAML creds). If the config
+# supplies a non-empty value, treat it as a regular credential param so
+# the per-method tests pop/set/clean it up alongside key and secret.
+if config.get("env", {}).get("AWS_SESSION_TOKEN"):
+    credential_params.append("AWS_SESSION_TOKEN")
 
 
 def aws_s3_configured(extra_params=None):
@@ -56,17 +60,7 @@ def aws_s3_configured(extra_params=None):
     extra_params = extra_params or []
     env_params = config.get("env", {})
     needed_params = ["bucket_name", *credential_params, *extra_params]
-    for param in needed_params:
-        if not env_params.get(param):
-            return False
-    # AWS_SESSION_TOKEN is optional — if present with a non-empty value in config,
-    # treat it as a regular credential param (pop, set, clean up)
-    if (
-        env_params.get("AWS_SESSION_TOKEN")
-        and "AWS_SESSION_TOKEN" not in credential_params
-    ):
-        credential_params.append("AWS_SESSION_TOKEN")
-    return True
+    return all(env_params.get(p) for p in needed_params)
 
 
 @pytest.mark.skipif(not aws_s3_configured(), reason="AWS S3 parameters not configured")

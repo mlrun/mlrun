@@ -101,7 +101,10 @@ class S3Store(DataStore):
         # If user asks to assume a role, this needs to go through the STS client and retrieve temporary creds
         if assume_role_arn:
             client = boto3.client(
-                "sts", aws_access_key_id=access_key_id, aws_secret_access_key=secret_key
+                "sts",
+                aws_access_key_id=access_key_id,
+                aws_secret_access_key=secret_key,
+                aws_session_token=session_token,
             )
             self._temp_credentials = client.assume_role(
                 RoleArn=assume_role_arn, RoleSessionName="assumeRoleSession"

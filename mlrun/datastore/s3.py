@@ -46,6 +46,13 @@ class _BytesLikeStream(io.RawIOBase):
     def readable(self):
         return True
 
+    def close(self):
+        view = self._view
+        if view is not None:
+            self._view = None
+            view.release()
+        super().close()
+
     def seekable(self):
         return True
 
@@ -300,8 +307,8 @@ class S3Store(DataStore):
         if isinstance(data, str):
             data = data.encode()
         bucket, key = self.get_bucket_and_key(key)
-        stream = io.BufferedReader(_BytesLikeStream(data))
-        self.s3.Bucket(bucket).upload_fileobj(stream, key, Config=self.config)
+        with io.BufferedReader(_BytesLikeStream(data)) as stream:
+            self.s3.Bucket(bucket).upload_fileobj(stream, key, Config=self.config)
 
     def stat(self, key):
         bucket, key = self.get_bucket_and_key(key)

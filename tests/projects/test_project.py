@@ -77,6 +77,19 @@ def test_setting_active_project_closes_previous_repository():
     previous_project.spec.repo.close.assert_called_once_with()
 
 
+def test_setting_same_project_active_does_not_close_repository():
+    project = unittest.mock.Mock()
+    project.metadata.name = "current-project"
+    mlrun.pipeline_context.set(project)
+
+    try:
+        mlrun.projects.project._set_as_current_active_project(project)
+    finally:
+        mlrun.pipeline_context.clear(with_project=True)
+
+    project.spec.repo.close.assert_not_called()
+
+
 def test_sync_functions(rundb_mock):
     project_name = "project-name"
     project = mlrun.new_project(project_name, save=False)

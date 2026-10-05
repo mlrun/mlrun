@@ -92,7 +92,10 @@ def test_mount_s3():
     )
     function.apply(
         mlrun.runtimes.mounts.mount_s3(
-            aws_access_key="xx", aws_secret_key="yy", endpoint_url="a.b"
+            aws_access_key="xx",
+            aws_secret_key="yy",
+            endpoint_url="a.b",
+            aws_session_token="zz",
         )
     )
     env_dict = {var["name"]: var["value"] for var in function.spec.env}
@@ -100,6 +103,7 @@ def test_mount_s3():
         "AWS_ENDPOINT_URL_S3": "a.b",
         "AWS_ACCESS_KEY_ID": "xx",
         "AWS_SECRET_ACCESS_KEY": "yy",
+        "AWS_SESSION_TOKEN": "zz",
     }
 
     function = mlrun.new_function(
@@ -116,6 +120,13 @@ def test_mount_s3():
         },
         "AWS_SECRET_ACCESS_KEY": {
             "secretKeyRef": {"key": "AWS_SECRET_ACCESS_KEY", "name": "s"}
+        },
+        "AWS_SESSION_TOKEN": {
+            "secretKeyRef": {
+                "key": "AWS_SESSION_TOKEN",
+                "name": "s",
+                "optional": True,
+            }
         },
     }
 

@@ -17,6 +17,7 @@ from unittest.mock import Mock, patch
 import botocore.exceptions
 import pytest
 
+import mlrun.errors
 from mlrun.datastore.s3 import S3Store, _BytesLikeStream
 
 
@@ -224,6 +225,52 @@ class TestS3StoreExceptionHandling:
         # Test with size=0 (should be treated as no size)
         range_header = S3Store.get_range(0, 50)
         assert range_header == "bytes=50-"
+
+    def test_put_wiring(self, s3_store: S3Store) -> None:
+        """Smoke test for put(): happy path + append/type guards.
+
+        put() is otherwise only exercised by AWS-gated integration tests;
+        this covers the upload_fileobj wiring, str->bytes encode, append
+        guard, and type validation in CI without needing AWS credentials.
+        """
+        # Capture upload_fileobj args before the stream's `with` block closes it.
+        captured: dict = {}
+
+        # boto3's upload_fileobj passes `Config=` as a PascalCase kwarg
+        # (AWS SDK convention), so the side-effect signature matches.
+        def capture(fileobj, key, Config=None):  # noqa: N803
+            captured["data"] = fileobj.read()
+            captured["key"] = key
+            captured["config"] = Config
+
+        s3_store.s3.Bucket.return_value.upload_fileobj.side_effect = capture
+
+        # bytes → upload_fileobj called with the right bucket, key, config, data
+        s3_store.put("some/key", b"hello")
+        s3_store.s3.Bucket.assert_called_with("test-bucket")
+        assert captured == {
+            "data": b"hello",
+            "key": "some/key",
+            "config": s3_store.config,
+        }
+
+        # str is encoded to bytes before upload
+        s3_store.put("some/key", "world")
+        assert captured["data"] == b"world"
+
+        # append=True raises before touching upload_fileobj
+        s3_store.s3.Bucket.return_value.upload_fileobj.reset_mock()
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError,
+            match="S3 does not support appending",
+        ):
+            s3_store.put("some/key", b"x", append=True)
+
+        # wrong type → TypeError naming the data type and the backend
+        with pytest.raises(
+            TypeError, match="Unable to put a value of type int to S3Store"
+        ):
+            s3_store.put("some/key", 123)
 
 
 class TestS3StoreAnonymousAccessFallback:

@@ -593,7 +593,7 @@ class ServingRuntime(nuclio_function.RemoteRuntime):
                     class_args,
                     name=key,
                     handler=handler,
-                    function=child_function,
+                    function=child_function or graph.function,
                     model_endpoint_creation_strategy=creation_strategy,
                     endpoint_type=schemas.EndpointType.LEAF_EP,
                 )

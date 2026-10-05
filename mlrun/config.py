@@ -853,9 +853,6 @@ default_config = {
         # which returns the version from the version.json file
         "release": "",
     },
-    "debug": {
-        "expose_internal_api_endpoints": False,
-    },
     "workflows": {
         "default_workflow_runner_name": "workflow-runner-{}",
         "concurrent_delete_worker_count": 20,

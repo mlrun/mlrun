@@ -502,6 +502,11 @@ class Secrets(
             if is_service_account:
                 # The caller supplies the username; the user_id can only come from the
                 # token's subject, since the caller never sends it.
+                # Note: a single SA call applies the same username to every token, while
+                # the user_id is taken per-token from its subject. This is correct only
+                # while callers send tokens for a single user per call (Orca sends exactly
+                # one). Supporting multiple subjects per call would require a per-token
+                # username.
                 target_user_id, target_username = token_info["token_sub"], username
             else:
                 target_user_id, target_username = auth_info.user_id, auth_info.username

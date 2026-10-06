@@ -282,7 +282,7 @@ class TestPrepareOTelEvent:
     BASE_ATTRS = {
         "project": PROJECT,
         "app.name": APP,
-        "function.name": FUNC_NAME,
+        "serving.function.name": FUNC_NAME,
         "endpoint.uid": EP_ID,
         "endpoint.name": EP_NAME,
     }
@@ -421,7 +421,7 @@ class TestPrepareOTelEvent:
         assert attrs == {
             "project": cls.PROJECT,
             "app.name": cls.APP,
-            "function.name": cls.FUNC_NAME,
+            "serving.function.name": cls.FUNC_NAME,
             "metric.name": "m",
         }
 

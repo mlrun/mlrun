@@ -119,11 +119,11 @@ def test_mint_ecr_authfile_merges_existing_entry(tmp_path, monkeypatch):
     assert auths[registry]["auth"] == "token"
     assert written["credHelpers"] == {"some.other.registry": "docker-credential-helper"}
 
-    # world-writable: the authfile may already have been written by a different init container
-    # (e.g. the secret-copy one) whose UID isn't guaranteed to match this process's, and a later
-    # writer (another init container, or the main container's GAR script) must still be able to
-    # merge into it.
-    assert stat.S_IMODE(authfile.stat().st_mode) == 0o666
+    # group-writable via the pod's fsGroup (see make_buildah_pod), not world-writable: the authfile
+    # may already have been written by a different init container (e.g. the secret-copy one) whose
+    # UID isn't guaranteed to match this process's, and a later writer (another init container, or
+    # the main container's GAR script) must still be able to merge into it via the shared group.
+    assert stat.S_IMODE(authfile.stat().st_mode) == 0o660
 
 
 def test_mint_ecr_authfile_overwrites_same_registry_entry(tmp_path, monkeypatch):
@@ -229,7 +229,7 @@ def test_mint_acr_authfile_merges_existing_entry(tmp_path, monkeypatch):
     decoded = base64.b64decode(auths[registry]["auth"]).decode()
     assert decoded == "00000000-0000-0000-0000-000000000000:my-refresh-token"
     assert written["credsStore"] == "desktop"
-    assert stat.S_IMODE(authfile.stat().st_mode) == 0o666
+    assert stat.S_IMODE(authfile.stat().st_mode) == 0o660
 
 
 def test_mint_acr_authfile_overwrites_same_registry_entry(tmp_path, monkeypatch):

@@ -426,16 +426,18 @@ def test_make_buildah_pod_tls_verify_disabled(monkeypatch):
 
 def test_make_buildah_pod_authfile_when_secret():
     buildah_pod = _make_buildah_pod(secret_name="my-docker-secret")
-    container = buildah_pod.pod.spec.containers[0]
+    pod = buildah_pod.pod
+    container = pod.spec.containers[0]
     assert "--authfile /auth/config.json" in container.args[0]
     env = {env_var.name: env_var.value for env_var in container.env}
     assert env["REGISTRY_AUTH_FILE"] == "/auth/config.json"
     mounted_secrets = {
-        volume.secret.secret_name
-        for volume in buildah_pod.pod.spec.volumes
-        if volume.secret
+        volume.secret.secret_name for volume in pod.spec.volumes if volume.secret
     }
     assert "my-docker-secret" in mounted_secrets
+    # no cloud provider involved - the secret is mounted directly as the authfile (read-only,
+    # never written to), so there's no cross-container write-sharing to need an fsGroup for.
+    assert pod.spec.security_context is None
 
 
 @pytest.mark.parametrize(
@@ -467,7 +469,9 @@ def test_make_buildah_pod_secret_and_cloud_provider_merge(registry, provider):
     assert copy_container.command == ["/bin/sh", "-c"]
     script = copy_container.args[0]
     assert "cp /auth-secret/config.json /auth/config.json" in script
-    assert "chmod 0666 /auth/config.json" in script
+    assert "chmod 0660 /auth/config.json" in script
+    # group-writable via the pod's fsGroup, not world-writable - see make_buildah_pod
+    assert pod.spec.security_context.fs_group == 1000
     # mounted read-only elsewhere - never directly at the shared authfile path (ML-12988)
     secret_mount = next(
         mount

@@ -62,7 +62,7 @@ def extra_requirements() -> dict[str, list[str]]:
         "rabbitmq": ["pika~=1.3"],
         "redis": ["redis~=4.3"],
         "databricks-sdk": ["databricks-sdk~=0.20.0"],
-        "sqlalchemy": ["sqlalchemy~=2.0"],
+        "sqlalchemy": ["sqlalchemy~=2.0.0"],
         "dask": [
             # Use ~= instead of >= to avoid installing newer versions of dask and distributed,
             # which can cause incompatibilities between the client and the Dask scheduler/worker.

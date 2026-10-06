@@ -163,7 +163,7 @@ class RemoteStep(storey.SendToHttp):
             kwargs["timeout"] = aiohttp.ClientTimeout(total=self.timeout)
         try:
             resp = await self._client_session.request(
-                method, url, headers=headers, data=body, ssl=False, **kwargs
+                method, url, headers=headers, data=body, ssl=_aiohttp_ssl(), **kwargs
             )
             if resp.status >= 500:
                 text = await resp.text()
@@ -415,7 +415,12 @@ class BatchHttpRequests(_ConcurrentJobExecution):
 
     async def _submit(self, method, url, headers, body):
         async with self._client_session.request(
-            method, url, headers=headers, data=body, ssl=False, **self._request_args
+            method,
+            url,
+            headers=headers,
+            data=body,
+            ssl=_aiohttp_ssl(),
+            **self._request_args,
         ) as future:
             if future.status >= 500:
                 text = await future.text()
@@ -462,6 +467,16 @@ class BatchHttpRequests(_ConcurrentJobExecution):
         ) and isinstance(data, str | bytes):
             data = json.loads(data)
         return data
+
+
+def _aiohttp_ssl() -> bool | None:
+    """Map ``httpdb.http.verify`` to aiohttp's ``ssl`` argument.
+
+    ``ssl=False`` skips certificate validation. ``ssl=None`` uses aiohttp's
+    default SSL context (verify). The sync RemoteStep path already honors the
+    same config via ``requests`` ``verify=``.
+    """
+    return None if mlrun.mlconf.httpdb.http.verify else False
 
 
 class MLRunAPIRemoteStep(RemoteStep):

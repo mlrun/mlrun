@@ -301,6 +301,15 @@ def make_buildah_pod(
         project_default_function_node_selector,
         auth_info,
     )
+    if push_cloud_provider or pull_cloud_provider:
+        # the registry-auth emptyDir gets written to by containers with no explicit (and thus
+        # inconsistent) UID - a pod-wide fsGroup makes kubelet chown it group-owned regardless of
+        # who wrote it, so every writer can merge into it via group access (see
+        # registry_auth.append_secret_authfile_init_container / mlrun.utils.registry_auth's
+        # _merge_auth_entry, which chmod it group-writable rather than world-writable for this).
+        extra_runtime_spec["security_context"] = client.V1PodSecurityContext(
+            fs_group=_BUILD_GID
+        )
 
     # stage the Dockerfile (and any inline code / requirements) into the context, then bud + push.
     # everything runs in one container: the buildah image ships bash + coreutils, so no separate

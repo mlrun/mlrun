@@ -486,11 +486,20 @@ class Secrets(
             bypass_ownership_check=is_service_account,
         )
 
-        # TODO: move init iguazio_client (ML-11077)
-        iguazio_client = framework.utils.clients.iguazio.v4.Client()
+        if is_service_account:
+            # The caller passed _authorize_service_account_store_secret_tokens, and Orca
+            # has already verified the user with Keycloak when minting the token.
+            logger.debug(
+                "Skipping offline token verification for an authorized service-account caller",
+                username=username,
+                token_count=len(secret_tokens),
+            )
+        else:
+            # TODO: move init iguazio_client (ML-11077)
+            iguazio_client = framework.utils.clients.iguazio.v4.Client()
 
-        # We validate the offline tokens by sending it to Iguazio for verification.
-        iguazio_client.refresh_access_tokens(secret_tokens)
+            # We validate the offline tokens by sending it to Iguazio for verification.
+            iguazio_client.refresh_access_tokens(secret_tokens)
 
         token_actions = defaultdict(list)
 

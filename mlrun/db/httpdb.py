@@ -29,6 +29,7 @@ from uuid import UUID
 import pydantic.v1
 import requests
 import semver
+from deprecated import deprecated
 from pydantic.v1 import parse_obj_as
 
 import mlrun
@@ -5462,13 +5463,21 @@ class HTTPRunDB(RunDBInterface):
             "stored per user. Use `store_secret_token` instead."
         )
 
+    # TODO: Remove in 1.15.0
+    @deprecated(
+        version="1.13.1",
+        reason="'list_secret_tokens' is deprecated in 1.13.1 and will be removed in 1.15.0. "
+        "Offline tokens are now managed by Orca, use the Iguazio SDK's 'list_offline_tokens()' instead.",
+        category=FutureWarning,
+    )
     @mlrun.utils.iguazio_v4_only
     def list_secret_tokens(
         self,
         username: str | None = None,
     ) -> mlrun.common.schemas.ListSecretTokensResponse:
         """
-        List secret tokens. Only system-administrators can list tokens for other users.
+        (deprecated) List secret tokens. Only system-administrators can list tokens for other users.
+        Use the Iguazio SDK's ``list_offline_tokens()`` instead.
 
         :param username: Optional; the username for which to list secret tokens.
                          Use ``"*"`` to list tokens for all users.
@@ -5504,12 +5513,22 @@ class HTTPRunDB(RunDBInterface):
 
         return mlrun.common.schemas.ListSecretTokensResponse(**response.json())
 
+    # TODO: Remove in 1.15.0
+    @deprecated(
+        version="1.13.1",
+        reason="'delete_secret_token' is deprecated in 1.13.1 and will be removed in 1.15.0. "
+        "Offline tokens are now managed by Orca, use the Iguazio SDK's 'revoke_offline_session()' instead, "
+        "which revokes the token and deletes its MLRun copy.",
+        category=FutureWarning,
+    )
     @mlrun.utils.iguazio_v4_only
     def delete_secret_token(
         self, token_name: str, username: str | None = None
     ) -> mlrun.common.schemas.DeleteSecretTokenResponse:
         """
-        Delete a secret token. Only system-administrators can delete tokens for other users.
+        (deprecated) Delete a secret token. Only system-administrators can delete tokens for other users.
+        With a recent Orca this only deletes MLRun's copy of the token and no longer revokes it. Use the
+        Iguazio SDK's ``revoke_offline_session()`` instead.
 
         :param token_name: The name of the token to delete.
         :param username: Optional; the username of the token owner.

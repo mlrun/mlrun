@@ -329,6 +329,13 @@ def test_auto_mount_s3():
                 "name": "minio-credentials",
             }
         },
+        "AWS_SESSION_TOKEN": {
+            "secretKeyRef": {
+                "key": "AWS_SESSION_TOKEN",
+                "name": "minio-credentials",
+                "optional": True,
+            }
+        },
     }
 
 

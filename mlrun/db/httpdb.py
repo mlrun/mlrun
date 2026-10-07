@@ -5556,15 +5556,25 @@ class HTTPRunDB(RunDBInterface):
             )
         return result
 
+    # TODO: Remove in 1.15.0
+    @deprecated(
+        version="1.13.1",
+        reason="'delete_secret_tokens' is deprecated in 1.13.1 and will be removed in 1.15.0. "
+        "Offline tokens are now managed by Orca, use the EcliptOS SDK's 'revoke_offline_session()' instead, "
+        "which revokes the token and deletes its MLRun copy.",
+        category=FutureWarning,
+    )
     @mlrun.utils.iguazio_v4_only
     def delete_secret_tokens(
         self, username: str | None = None
     ) -> mlrun.common.schemas.DeleteSecretTokensResponse:
         """
-        Delete the user's stored secret token, if one exists. Only system-administrators
-        can delete tokens for other users.
+        (deprecated) Delete the user's stored secret token, if one exists. This only deletes MLRun's
+        copy of the token and does not revoke it. Use the EcliptOS SDK's ``revoke_offline_session()``
+        instead.
 
-        A single token is stored per user, so this deletes that token when present.
+        Only system-administrators can delete tokens for other users. A single token is stored
+        per user, so this deletes that token when present.
 
         :param username: Optional; the username of the token owner. If None, deletes the
             caller's own token.

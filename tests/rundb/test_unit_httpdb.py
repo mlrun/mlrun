@@ -369,6 +369,11 @@ def test_restricted_methods_in_wrong_mode(monkeypatch, method_name):
     [
         ("list_secret_tokens", (), {"secret_tokens": []}),
         ("delete_secret_token", ("t1",), {"deleted": True, "username": "user"}),
+        (
+            "delete_secret_tokens",
+            (),
+            {"deleted_count": 1, "failed_tokens": [], "username": "user"},
+        ),
     ],
 )
 def test_deprecated_secret_token_methods_warn(

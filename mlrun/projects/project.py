@@ -6536,6 +6536,14 @@ class MlrunProject(ModelObj):
 
 
 def _set_as_current_active_project(project: MlrunProject):
+    previous_project = pipeline_context.project
+    if (
+        previous_project
+        and previous_project is not project
+        and previous_project.spec.repo
+    ):
+        previous_project.spec.repo.close()
+
     mlrun.mlconf.active_project = project.metadata.name
     pipeline_context.set(project)
 

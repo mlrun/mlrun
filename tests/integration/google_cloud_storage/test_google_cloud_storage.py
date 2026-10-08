@@ -408,7 +408,7 @@ class TestGoogleCloudStorage:
         assert result == b"test"
         with pytest.raises(
             TypeError,
-            match="Unable to put a value of type GoogleCloudStorageStore",
+            match="Unable to put a value of type int to GoogleCloudStorageStore",
         ):
             data_item.put(123)
 

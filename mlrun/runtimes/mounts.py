@@ -216,6 +216,7 @@ def mount_s3(
     prefix: str = "",
     aws_region: str | None = None,
     non_anonymous: bool = False,
+    aws_session_token: str | None = None,
 ) -> typing.Callable[["KubeResource"], "KubeResource"]:
     """Modifier function to add s3 env vars or secrets to container
 
@@ -227,12 +228,16 @@ def mount_s3(
     :param aws_region: Amazon region
     :param non_anonymous: use non-anonymous connection even if no credentials are provided
             (for authenticating externally, such as through IAM instance-roles)
+    :param aws_session_token: AWS_SESSION_TOKEN value — required alongside key
+            and secret when using temporary credentials (SSO/SAML/STS).
+            (default: env variable)
 
     """
 
-    if secret_name and (aws_access_key or aws_secret_key):
+    if secret_name and (aws_access_key or aws_secret_key or aws_session_token):
         raise MLRunInvalidArgumentError(
-            "Can use k8s_secret for credentials or specify them (aws_access_key, aws_secret_key) not both."
+            "Can use k8s_secret for credentials or specify them "
+            "(aws_access_key, aws_secret_key, aws_session_token) not both."
         )
 
     if not secret_name and (
@@ -249,6 +254,9 @@ def mount_s3(
     def _use_s3_cred(runtime: "KubeResource"):
         _access_key = aws_access_key or os.environ.get(prefix + "AWS_ACCESS_KEY_ID")
         _secret_key = aws_secret_key or os.environ.get(prefix + "AWS_SECRET_ACCESS_KEY")
+        _session_token = aws_session_token or os.environ.get(
+            prefix + "AWS_SESSION_TOKEN"
+        )
 
         _endpoint_url = endpoint_url or os.environ.get(prefix + "AWS_ENDPOINT_URL_S3")
 
@@ -290,9 +298,23 @@ def mount_s3(
                     }
                 },
             )
+            # optional=True so pods still start if the secret lacks a
+            # session token (long-lived creds don't need one).
+            _set_if_not_user_set(
+                f"{prefix}AWS_SESSION_TOKEN",
+                value_from={
+                    "secretKeyRef": {
+                        "name": secret_name,
+                        "key": "AWS_SESSION_TOKEN",
+                        "optional": True,
+                    }
+                },
+            )
         else:
             _set_if_not_user_set(f"{prefix}AWS_ACCESS_KEY_ID", _access_key)
             _set_if_not_user_set(f"{prefix}AWS_SECRET_ACCESS_KEY", _secret_key)
+            if _session_token:
+                _set_if_not_user_set(f"{prefix}AWS_SESSION_TOKEN", _session_token)
 
         return runtime
 

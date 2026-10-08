@@ -177,7 +177,7 @@ class TestDBFSStore:
         assert result == b"test"
         with pytest.raises(
             TypeError,
-            match="Unable to put a value of type DBFSStore",
+            match="Unable to put a value of type int to DBFSStore",
         ):
             data_item.put(123)
 

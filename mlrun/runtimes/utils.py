@@ -17,16 +17,19 @@ import hashlib
 import json
 import os
 import re
+import typing
 from io import StringIO
 from sys import stderr
 
 import pandas as pd
+import semver
 
 import mlrun
 import mlrun.common.constants
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
+import mlrun.errors
 import mlrun.utils.regex
 from mlrun.artifacts import TableArtifact
 from mlrun.config import config
@@ -60,6 +63,152 @@ def resolve_spark_operator_version():
         return int(regex.findall(config.spark_operator_version)[0])
     except Exception:
         raise ValueError("Failed to resolve spark operator's version")
+
+
+class SparkVersionResolution(typing.NamedTuple):
+    # Explicit version, or the version derived from provenance.
+    effective_version: str | None
+    # Image reference used to derive provenance_version.
+    provenance_image: str | None
+    # Version derived from provenance_image.
+    provenance_version: str | None
+
+
+def extract_spark_version_from_image(image: str) -> str | None:
+    """
+    Extract the leading major.minor.patch Spark version from a Docker image reference's tag.
+
+    :param image: A Docker image reference.
+    :return: The leading semantic version, or None when the tag has none.
+    """
+    _, tag = _split_image_reference(image)
+    return _leading_semver_prefix(tag)
+
+
+def resolve_spark_version(
+    explicit_version: str | None,
+    image: str | None,
+    base_image: str | None,
+) -> SparkVersionResolution:
+    """
+    Resolve and validate the Spark version for a SparkApplication.
+
+    :param explicit_version: User-provided Spark version.
+    :param image: Runtime image before default assignment.
+    :param base_image: Build base image.
+    :return: The effective version and its image provenance.
+    :raises mlrun.errors.MLRunInvalidArgumentError: If no version can be resolved or the
+        explicit and image-derived major versions differ.
+    """
+    resolution = _resolve_spark_version_provenance(
+        explicit_version=explicit_version,
+        image=image,
+        base_image=base_image,
+    )
+    if resolution.effective_version is None:
+        if resolution.provenance_image:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Cannot resolve a Spark version from '{resolution.provenance_image}'. "
+                "Set spec.spark_version or use an image tag that starts with "
+                "<major>.<minor>.<patch>."
+            )
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "Cannot resolve a Spark version. Set spec.spark_version or configure "
+            "spark_app_image and spark_app_image_tag."
+        )
+
+    if explicit_version and resolution.provenance_version:
+        explicit_major = _spark_version_major(explicit_version)
+        provenance_major = _spark_version_major(resolution.provenance_version)
+        if explicit_major is None:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"spec.spark_version ({explicit_version}) has no recognizable major version. "
+                f"Image '{resolution.provenance_image}' uses Spark {provenance_major}."
+            )
+        if explicit_major != provenance_major:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"spec.spark_version ({explicit_version}) does not match image "
+                f"'{resolution.provenance_image}' "
+                f"(Spark {resolution.provenance_version})."
+            )
+        if explicit_version != resolution.provenance_version:
+            logger.warning(
+                "spec.spark_version does not match the Spark version bundled in the image",
+                spark_version=explicit_version,
+                provenance_image=resolution.provenance_image,
+                provenance_version=resolution.provenance_version,
+            )
+
+    return resolution
+
+
+def _resolve_spark_version_provenance(
+    explicit_version: str | None,
+    image: str | None,
+    base_image: str | None,
+) -> SparkVersionResolution:
+    configured_image_reference = _configured_spark_image_reference()
+    if base_image:
+        # The final image tag identifies the build, not its Spark version.
+        provenance_image = base_image
+        provenance_version = extract_spark_version_from_image(base_image)
+    elif image:
+        provenance_image = image
+        provenance_version = extract_spark_version_from_image(image)
+    else:
+        # Partial platform configuration selects no image, so it carries no provenance.
+        provenance_image = configured_image_reference
+        provenance_version = (
+            _leading_semver_prefix(config.spark_app_image_tag)
+            if configured_image_reference
+            else None
+        )
+
+    return SparkVersionResolution(
+        effective_version=explicit_version or provenance_version,
+        provenance_image=provenance_image,
+        provenance_version=provenance_version,
+    )
+
+
+def _configured_spark_image_reference() -> str:
+    # Both halves are required to name an image, matching Spark3Runtime._default_image.
+    if config.spark_app_image and config.spark_app_image_tag:
+        return f"{config.spark_app_image}:{config.spark_app_image_tag}"
+    return ""
+
+
+def _spark_version_major(version: str) -> str | None:
+    match = re.match(r"^v?(\d+)(?:\.|$)", version)
+    return match.group(1) if match else None
+
+
+def _leading_semver_prefix(tag: str | None) -> str | None:
+    if not tag:
+        return None
+    match = re.match(r"^(\d+\.\d+\.\d+)", tag)
+    if not match:
+        return None
+    prefix = match.group(1)
+    try:
+        semver.Version.parse(prefix)
+    except ValueError:
+        return None
+    return prefix
+
+
+def _split_image_reference(
+    image: str | None,
+) -> tuple[str | None, str | None]:
+    """Split a Docker image reference into its name and optional tag."""
+    if not image:
+        return image, None
+    reference = image.split("@sha256:", 1)[0]
+    last_slash = reference.rfind("/")
+    colon_index = reference.find(":", last_slash + 1)
+    if colon_index == -1:
+        return reference, None
+    return reference[:colon_index], reference[colon_index + 1 :]
 
 
 def calc_hash(func, tag=""):

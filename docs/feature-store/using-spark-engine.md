@@ -141,6 +141,12 @@ mlrun.get_or_create_project("my-spark-project")
 Spark3Runtime.deploy_default_image()
 ```
 
+### Spark version
+
+MLRun derives `sparkVersion` from `spec.build.base_image`, `spec.image`, or the configured platform image tag, in that order.
+
+For images without a version tag, set `spec.spark_version` explicitly (for example, `my_func.spec.spark_version = "3.5.6"`). Otherwise, submission fails.
+
 Spark operator ingestion:
 ```python
 # mlrun: start-code

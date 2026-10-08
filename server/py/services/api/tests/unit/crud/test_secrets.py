@@ -937,6 +937,8 @@ def test_store_secret_tokens_service_account_stores_for_different_user(
         username="target-user",
     )
 
+    # Orca verified the user with Keycloak before calling, so MLRun skips the verification
+    mock_iguazio_client.refresh_access_tokens.assert_not_called()
     mock_secrets_provider.store_user_token_secret.assert_called_once()
     _, kwargs = mock_secrets_provider.store_user_token_secret.call_args
     assert kwargs["user_id"] == "target-user-id"

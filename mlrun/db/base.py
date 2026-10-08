@@ -1180,6 +1180,7 @@ class RunDBInterface(ABC):
     ) -> mlrun.common.schemas.StoreSecretTokensResponse:
         pass
 
+    # TODO: Remove in 1.15.0
     @abstractmethod
     def list_secret_tokens(
         self,
@@ -1187,6 +1188,7 @@ class RunDBInterface(ABC):
     ) -> mlrun.common.schemas.ListSecretTokensResponse:
         pass
 
+    # TODO: Remove in 1.15.0
     @abstractmethod
     def delete_secret_token(
         self, token_name: str, username: str | None = None

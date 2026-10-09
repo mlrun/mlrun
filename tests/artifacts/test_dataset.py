@@ -116,8 +116,11 @@ def test_resolve_dataset_hash_path():
                 format="csv",
             ),
             "artifact_path": "v3io://just/regular/path",
-            "expected_hash": "0d1c62a76b705b34bb70f355162f83402f3640e3",
-            "expected_file_target": "v3io://just/regular/path/0d1c62a76b705b34bb70f355162f83402f3640e3.csv",
+            "expected_hash": "63e11ea8f69464ffcacc58e69e22f2d6a0839b6c69c8e4d2d90e22a9ea3a9757",
+            "expected_file_target": (
+                "v3io://just/regular/path/"
+                "63e11ea8f69464ffcacc58e69e22f2d6a0839b6c69c8e4d2d90e22a9ea3a9757.csv"
+            ),
             "expected_error": None,
         },
         {
@@ -129,8 +132,11 @@ def test_resolve_dataset_hash_path():
                 format="parquet",
             ),
             "artifact_path": "v3io://just/regular/path",
-            "expected_hash": "f039fcf3a8b4bd6805b2bec0c6db96c2189eb9e2",
-            "expected_file_target": "v3io://just/regular/path/f039fcf3a8b4bd6805b2bec0c6db96c2189eb9e2.parquet",
+            "expected_hash": "f5470208b890d5e11dc683e0d5bd6d3098db9e3b4dff11445a8e64a21855dc6d",
+            "expected_file_target": (
+                "v3io://just/regular/path/"
+                "f5470208b890d5e11dc683e0d5bd6d3098db9e3b4dff11445a8e64a21855dc6d.parquet"
+            ),
             "expected_error": None,
         },
         {
@@ -139,8 +145,11 @@ def test_resolve_dataset_hash_path():
                 df=pandas.DataFrame({"x": [1, 2]}),
             ),
             "artifact_path": "v3io://just/regular/path",
-            "expected_hash": "0d1c62a76b705b34bb70f355162f83402f3640e3",
-            "expected_file_target": "v3io://just/regular/path/0d1c62a76b705b34bb70f355162f83402f3640e3",
+            "expected_hash": "63e11ea8f69464ffcacc58e69e22f2d6a0839b6c69c8e4d2d90e22a9ea3a9757",
+            "expected_file_target": (
+                "v3io://just/regular/path/"
+                "63e11ea8f69464ffcacc58e69e22f2d6a0839b6c69c8e4d2d90e22a9ea3a9757"
+            ),
             "expected_error": None,
         },
         {
@@ -160,8 +169,11 @@ def test_resolve_dataset_hash_path():
                 format="csv",
             ),
             "artifact_path": "v3io://just/regular/path",
-            "expected_hash": "0d1c62a76b705b34bb70f355162f83402f3640e3",
-            "expected_file_target": "v3io://just/regular/path/0d1c62a76b705b34bb70f355162f83402f3640e3.csv",
+            "expected_hash": "63e11ea8f69464ffcacc58e69e22f2d6a0839b6c69c8e4d2d90e22a9ea3a9757",
+            "expected_file_target": (
+                "v3io://just/regular/path/"
+                "63e11ea8f69464ffcacc58e69e22f2d6a0839b6c69c8e4d2d90e22a9ea3a9757.csv"
+            ),
             "expected_error": None,
         },
     ]:
@@ -181,6 +193,74 @@ def test_resolve_dataset_hash_path():
         )
         assert test_case.get("expected_hash") == dataset_hash
         assert test_case.get("expected_file_target") == target_path
+
+
+@pytest.mark.parametrize(
+    ("left_dataframe", "right_dataframe"),
+    [
+        (
+            pandas.DataFrame({"A": [1604090909467468979, 2], "B": [4, 4]}),
+            pandas.DataFrame({"A": [1, 2], "B": [3, 4]}),
+        ),
+        (
+            pandas.DataFrame({"flag": [True, False, True], "value": [10, 20, 30]}),
+            pandas.DataFrame({"flag": [1, 0, 1], "value": [10, 20, 30]}),
+        ),
+        (
+            pandas.DataFrame(
+                {
+                    "created_at": pandas.array(
+                        [
+                            pandas.Timestamp("1970-01-01")
+                            + pandas.Timedelta(nanoseconds=100)
+                        ],
+                        dtype="datetime64[ns]",
+                    )
+                }
+            ),
+            pandas.DataFrame({"created_at": pandas.array([100], dtype="int64")}),
+        ),
+        (
+            pandas.DataFrame({"sensor": numpy.array([5, -3, 127], dtype=numpy.int8)}),
+            pandas.DataFrame({"sensor": numpy.array([5, -3, 127], dtype=numpy.int64)}),
+        ),
+        (
+            pandas.DataFrame(
+                {
+                    "is_active": [True, False],
+                    "created_at": pandas.to_datetime(
+                        [
+                            "1970-01-01T00:00:00.000000001",
+                            "1970-01-01T00:00:00.000000002",
+                        ]
+                    ),
+                    "score": numpy.array([10, 20], dtype=numpy.int8),
+                }
+            ),
+            pandas.DataFrame(
+                {
+                    "is_active": [1, 0],
+                    "created_at": [1, 2],
+                    "score": numpy.array([10, 20], dtype=numpy.int64),
+                }
+            ),
+        ),
+    ],
+)
+def test_dataframe_hash_path_avoids_known_collisions(left_dataframe, right_dataframe):
+    artifact = mlrun.artifacts.dataset.DatasetArtifact(format="parquet")
+    left_hash, left_target_path = artifact.resolve_dataframe_target_hash_path(
+        left_dataframe,
+        artifact_path="v3io://just/regular/path",
+    )
+    right_hash, right_target_path = artifact.resolve_dataframe_target_hash_path(
+        right_dataframe,
+        artifact_path="v3io://just/regular/path",
+    )
+
+    assert not left_dataframe.equals(right_dataframe)
+    assert left_hash != right_hash
+    assert left_target_path != right_target_path
 
 
 def test_dataset_stats():

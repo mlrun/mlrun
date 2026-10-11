@@ -1422,3 +1422,31 @@ def test_create_api_gateway_without_auth_allowed_flag_on(monkeypatch, rundb_mock
         assert "not supported" not in str(exc), (
             "create_api_gateway without auth params should not raise due to auth flag"
         )
+
+
+@pytest.mark.parametrize("function_authentication_enabled", [False, True])
+def test_create_api_gateway_default_authentication_mode(
+    monkeypatch,
+    rundb_mock,
+    function_authentication_enabled,
+):
+    """The configured default mode reaches the API gateway only when function-level auth is disabled."""
+    monkeypatch.setattr(
+        mlrun.mlconf.httpdb.nuclio,
+        "function_authentication_enabled",
+        function_authentication_enabled,
+    )
+    monkeypatch.setattr(
+        mlrun.mlconf.function.application,
+        "default_authentication_mode",
+        "iguazio",
+    )
+    fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
+        "app-test", kind="application", image="mlrun/mlrun"
+    )
+
+    fn.create_api_gateway(name="gw")
+
+    (api_gateway,) = rundb_mock._api_gateways.values()
+    expected_mode = None if function_authentication_enabled else "iguazio"
+    assert api_gateway.spec.authenticationMode == expected_mode

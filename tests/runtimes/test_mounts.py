@@ -599,6 +599,69 @@ def test_mount_s3_without_secret_does_not_override_user_set_aws_access_key():
     assert env_dict["AWS_SECRET_ACCESS_KEY"] == "modifier-secret-key"
 
 
+@pytest.mark.parametrize(
+    "mount_s3_kwargs, expected_session_token",
+    [
+        # explicit key/secret - an env session token must not be paired with them
+        ({"aws_access_key": "xx", "aws_secret_key": "yy"}, None),
+        ({"aws_access_key": "xx"}, None),
+        # explicit session token always wins
+        (
+            {"aws_access_key": "xx", "aws_secret_key": "yy", "aws_session_token": "zz"},
+            "zz",
+        ),
+        # credentials fully taken from env - session token taken from env too
+        ({}, "env-token"),
+    ],
+)
+def test_mount_s3_session_token_env_fallback(
+    monkeypatch, mount_s3_kwargs, expected_session_token
+):
+    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "env-key")
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "env-secret")
+    monkeypatch.setenv("AWS_SESSION_TOKEN", "env-token")
+    function = mlrun.new_function(
+        "function-name", "function-project", kind=mlrun.runtimes.RuntimeKinds.job
+    )
+
+    function.apply(mlrun.runtimes.mounts.mount_s3(**mount_s3_kwargs))
+
+    assert function.get_env("AWS_SESSION_TOKEN") == expected_session_token
+
+
+def test_mount_s3_session_token_with_prefix(monkeypatch):
+    monkeypatch.setenv("MY_AWS_ACCESS_KEY_ID", "env-key")
+    monkeypatch.setenv("MY_AWS_SECRET_ACCESS_KEY", "env-secret")
+    monkeypatch.setenv("MY_AWS_SESSION_TOKEN", "env-token")
+    monkeypatch.setenv("AWS_SESSION_TOKEN", "unprefixed-token")
+    function = mlrun.new_function(
+        "function-name", "function-project", kind=mlrun.runtimes.RuntimeKinds.job
+    )
+
+    function.apply(mlrun.runtimes.mounts.mount_s3(prefix="MY_"))
+
+    env_dict = {var["name"]: var["value"] for var in function.spec.env}
+    assert env_dict == {
+        "MY_AWS_ACCESS_KEY_ID": "env-key",
+        "MY_AWS_SECRET_ACCESS_KEY": "env-secret",
+        "MY_AWS_SESSION_TOKEN": "env-token",
+    }
+
+
+def test_mount_s3_secret_session_token_with_prefix():
+    function = mlrun.new_function(
+        "function-name", "function-project", kind=mlrun.runtimes.RuntimeKinds.job
+    )
+
+    function.apply(mlrun.runtimes.mounts.mount_s3(secret_name="s", prefix="MY_"))
+
+    # env var name is prefixed, the key inside the secret is not
+    assert function.get_env("MY_AWS_SESSION_TOKEN") == {
+        "secretKeyRef": {"name": "s", "key": "AWS_SESSION_TOKEN", "optional": True}
+    }
+    assert function.get_env("AWS_SESSION_TOKEN") is None
+
+
 def _auth_prefix() -> str:
     # Matches how the code builds the pattern: format(hashed_access_key="")
     return mlrun.mlconf.secret_stores.kubernetes.auth_secret_name.format(

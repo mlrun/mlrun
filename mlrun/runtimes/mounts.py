@@ -230,7 +230,8 @@ def mount_s3(
             (for authenticating externally, such as through IAM instance-roles)
     :param aws_session_token: AWS_SESSION_TOKEN value — required alongside key
             and secret when using temporary credentials (SSO/SAML/STS).
-            (default: env variable)
+            (default: env variable, only when aws_access_key and aws_secret_key
+            are not specified)
 
     """
 
@@ -254,9 +255,14 @@ def mount_s3(
     def _use_s3_cred(runtime: "KubeResource"):
         _access_key = aws_access_key or os.environ.get(prefix + "AWS_ACCESS_KEY_ID")
         _secret_key = aws_secret_key or os.environ.get(prefix + "AWS_SECRET_ACCESS_KEY")
-        _session_token = aws_session_token or os.environ.get(
-            prefix + "AWS_SESSION_TOKEN"
-        )
+        # Explicit key/secret must not be paired with an unrelated session token
+        # picked up from the caller's env (e.g. left over from `aws sso login`).
+        if aws_access_key or aws_secret_key:
+            _session_token = aws_session_token
+        else:
+            _session_token = aws_session_token or os.environ.get(
+                prefix + "AWS_SESSION_TOKEN"
+            )
 
         _endpoint_url = endpoint_url or os.environ.get(prefix + "AWS_ENDPOINT_URL_S3")
 

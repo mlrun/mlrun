@@ -296,17 +296,46 @@ def test_validate_call_update_valid_cas_and_ordering_applies():
     assert outcome == follower_contract.ReplayOutcome.apply
 
 
-def test_validate_call_prepare_delete_replay_of_in_flight_delete():
-    """A repeated mark-delete call (leader resends the same op) while already
-    `deleting` is an idempotent no-op, not an error."""
+@pytest.mark.parametrize("prev_op_id", [None, _OLD, _STORED])
+def test_validate_call_prepare_delete_replay_of_in_flight_delete(prev_op_id):
+    """
+    Regression: a repeated mark-delete call (leader resends the same op) while already
+    `deleting` is an idempotent no-op, not a CAS mismatch. Once the first call applied,
+    stored op_id equals the incoming one, so whatever witness is resent — None from a
+    reconciler re-drive, or the original pre-delete op_id — must not be CAS-checked.
+    """
     outcome = follower_contract.validate_call(
         follower_contract.FollowerOp.prepare_delete,
         current_state=_STATE.deleting,
         stored_op_id=_STORED,
         incoming_op_id=_STORED,
-        prev_op_id=_STORED,
+        prev_op_id=prev_op_id,
     )
     assert outcome == follower_contract.ReplayOutcome.replay
+
+
+@pytest.mark.parametrize("prev_op_id", [None, _OLD])
+def test_validate_call_update_replay_after_applied_skips_cas(prev_op_id):
+    outcome = follower_contract.validate_call(
+        follower_contract.FollowerOp.update,
+        current_state=_STATE.online,
+        stored_op_id=_STORED,
+        incoming_op_id=_STORED,
+        prev_op_id=prev_op_id,
+    )
+    assert outcome == follower_contract.ReplayOutcome.replay
+
+
+def test_validate_call_prepare_delete_new_op_without_witness_still_cas_rejected():
+    """The replay short-circuit must not bypass CAS for a genuinely new op."""
+    with pytest.raises(mlrun.errors.MLRunConflictError):
+        follower_contract.validate_call(
+            follower_contract.FollowerOp.prepare_delete,
+            current_state=_STATE.online,
+            stored_op_id=_STORED,
+            incoming_op_id=_NEW,
+            prev_op_id=None,
+        )
 
 
 def test_validate_call_commit_delete_matching_op_applies():

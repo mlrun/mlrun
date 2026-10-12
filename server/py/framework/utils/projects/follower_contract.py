@@ -186,7 +186,8 @@ def validate_call(
     """
     Run the full per-call validation order the contract specifies: CAS -> ordering ->
     valid transition. Returns whether the caller should apply the mutation or treat this
-    as an idempotent no-op replay.
+    as an idempotent no-op replay. For CAS ops, an incoming op_id equal to the stored one
+    is a replay and short-circuits before CAS, regardless of the `prev_op_id` sent.
 
     `check_transition` only runs when the outcome is `apply`. A `replay` means the
     incoming op_id exactly matches what's stored, i.e. nothing has changed since that
@@ -197,6 +198,11 @@ def validate_call(
     replay of yesterday's already-valid one.
     """
     if op in _CAS_OPS:
+        # Replay check must precede CAS: once the op is applied, stored op_id *is* the
+        # incoming op_id, so no witness the leader could resend (the original
+        # prev_op_id, or None from a reconciler re-drive) would ever match it.
+        if incoming_op_id == stored_op_id:
+            return ReplayOutcome.replay
         check_cas(stored_op_id, prev_op_id)
         outcome = check_ordering(stored_op_id, incoming_op_id)
     elif op in _SAME_OP_OPS:

@@ -132,7 +132,7 @@ def test_built_function_derives_version_from_base_image_over_opaque_final_image(
         base_image=runtime.spec.build.base_image,
     )
     assert resolution.effective_version == "3.5.5"
-    assert resolution.provenance_image == _BUILT_FUNCTION_BASE_IMAGE
+    assert resolution.source_image == _BUILT_FUNCTION_BASE_IMAGE
 
 
 def test_custom_opaque_image_with_no_version_source_fails():

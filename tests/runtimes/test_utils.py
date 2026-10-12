@@ -510,41 +510,41 @@ def no_spark_platform_image_config():
         ),
     ],
 )
-def test_resolve_spark_version_provenance(
+def test_resolve_spark_version_source(
     spark_platform_image_config,
     explicit_version,
     image,
     base_image,
     expected,
 ):
-    resolution = mlrun.runtimes.utils._resolve_spark_version_provenance(
+    resolution = mlrun.runtimes.utils._resolve_spark_version_source(
         explicit_version=explicit_version,
         image=image,
         base_image=base_image,
     )
     assert (
         resolution.effective_version,
-        resolution.provenance_image,
-        resolution.provenance_version,
+        resolution.source_image,
+        resolution.image_version,
     ) == expected
 
 
-def test_resolve_spark_version_provenance_no_source_at_all(
+def test_resolve_spark_version_source_no_source_at_all(
     no_spark_platform_image_config,
 ):
-    resolution = mlrun.runtimes.utils._resolve_spark_version_provenance(
+    resolution = mlrun.runtimes.utils._resolve_spark_version_source(
         explicit_version=None,
         image=None,
         base_image=None,
     )
     assert (
         resolution.effective_version,
-        resolution.provenance_image,
-        resolution.provenance_version,
+        resolution.source_image,
+        resolution.image_version,
     ) == (None, "", None)
 
 
-def test_resolve_spark_version_explicit_wins_over_provenance():
+def test_resolve_spark_version_explicit_wins_over_image_version():
     resolution = mlrun.runtimes.utils.resolve_spark_version(
         explicit_version="4.2.0",
         image=_SPARK4_IMAGE,
@@ -652,7 +652,7 @@ def test_resolve_spark_version_rejects_lenient_other_major_explicit_version(
         )
 
 
-def test_resolve_spark_version_preserves_explicit_version_without_provenance():
+def test_resolve_spark_version_preserves_explicit_version_without_image_version():
     resolution = mlrun.runtimes.utils.resolve_spark_version(
         explicit_version="3.5",
         image="mlrun/mlrun:latest",
@@ -662,7 +662,7 @@ def test_resolve_spark_version_preserves_explicit_version_without_provenance():
     assert resolution.effective_version == "3.5"
 
 
-def test_resolve_spark_version_rejects_unrecognizable_major_with_provenance():
+def test_resolve_spark_version_rejects_unrecognizable_major_with_image_version():
     with pytest.raises(
         mlrun.errors.MLRunInvalidArgumentError,
         match="has no recognizable major version",
@@ -701,7 +701,7 @@ def test_resolve_spark_version_error_names_configured_image_and_tag(
 def test_resolve_spark_version_rejects_partial_platform_configuration(
     spark_platform_image_config, configured_image, configured_tag
 ):
-    # Partial configuration selects no image, so there is no provenance to derive from.
+    # Partial configuration selects no version source image.
     mlrun.mlconf.spark_app_image = configured_image
     mlrun.mlconf.spark_app_image_tag = configured_tag
 
@@ -736,13 +736,13 @@ def test_resolve_spark_version_ignores_partial_platform_configuration_for_suppli
         base_image=None,
     )
     assert opaque.effective_version == "3.5.6"
-    assert opaque.provenance_version is None
+    assert opaque.image_version is None
 
-    # A version-bearing user image — provenance is the image, never the partial config.
+    # A version-bearing user image is the source, never the partial config.
     from_image = mlrun.runtimes.utils.resolve_spark_version(
         explicit_version=None,
         image=_SPARK4_IMAGE,
         base_image=None,
     )
     assert from_image.effective_version == "4.2.0"
-    assert from_image.provenance_image == _SPARK4_IMAGE
+    assert from_image.source_image == _SPARK4_IMAGE

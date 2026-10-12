@@ -66,12 +66,12 @@ def resolve_spark_operator_version():
 
 
 class SparkVersionResolution(typing.NamedTuple):
-    # Explicit version, or the version derived from provenance.
+    # Explicit version, or the version derived from the selected image.
     effective_version: str | None
-    # Image reference used to derive provenance_version.
-    provenance_image: str | None
-    # Version derived from provenance_image.
-    provenance_version: str | None
+    # Image used to derive and validate the Spark version.
+    source_image: str | None
+    # Spark version derived from the image tag.
+    image_version: str | None
 
 
 def extract_spark_version_from_image(image: str) -> str | None:
@@ -96,19 +96,19 @@ def resolve_spark_version(
     :param explicit_version: User-provided Spark version.
     :param image: Runtime image before default assignment.
     :param base_image: Build base image.
-    :return: The effective version and its image provenance.
+    :return: The effective version, source image, and image version.
     :raises mlrun.errors.MLRunInvalidArgumentError: If no version can be resolved or the
         explicit and image-derived major versions differ.
     """
-    resolution = _resolve_spark_version_provenance(
+    resolution = _resolve_spark_version_source(
         explicit_version=explicit_version,
         image=image,
         base_image=base_image,
     )
     if resolution.effective_version is None:
-        if resolution.provenance_image:
+        if resolution.source_image:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Cannot resolve a Spark version from '{resolution.provenance_image}'. "
+                f"Cannot resolve a Spark version from '{resolution.source_image}'. "
                 "Set spec.spark_version or use an image tag that starts with "
                 "<major>.<minor>.<patch>."
             )
@@ -117,32 +117,32 @@ def resolve_spark_version(
             "spark_app_image and spark_app_image_tag."
         )
 
-    if explicit_version and resolution.provenance_version:
+    if explicit_version and resolution.image_version:
         explicit_major = _spark_version_major(explicit_version)
-        provenance_major = _spark_version_major(resolution.provenance_version)
+        image_major = _spark_version_major(resolution.image_version)
         if explicit_major is None:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"spec.spark_version ({explicit_version}) has no recognizable major version. "
-                f"Image '{resolution.provenance_image}' uses Spark {provenance_major}."
+                f"Image '{resolution.source_image}' uses Spark {image_major}."
             )
-        if explicit_major != provenance_major:
+        if explicit_major != image_major:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"spec.spark_version ({explicit_version}) does not match image "
-                f"'{resolution.provenance_image}' "
-                f"(Spark {resolution.provenance_version})."
+                f"'{resolution.source_image}' "
+                f"(Spark {resolution.image_version})."
             )
-        if explicit_version != resolution.provenance_version:
+        if explicit_version != resolution.image_version:
             logger.warning(
                 "spec.spark_version does not match the Spark version bundled in the image",
                 spark_version=explicit_version,
-                provenance_image=resolution.provenance_image,
-                provenance_version=resolution.provenance_version,
+                source_image=resolution.source_image,
+                image_version=resolution.image_version,
             )
 
     return resolution
 
 
-def _resolve_spark_version_provenance(
+def _resolve_spark_version_source(
     explicit_version: str | None,
     image: str | None,
     base_image: str | None,
@@ -150,24 +150,25 @@ def _resolve_spark_version_provenance(
     configured_image_reference = _configured_spark_image_reference()
     if base_image:
         # The final image tag identifies the build, not its Spark version.
-        provenance_image = base_image
-        provenance_version = extract_spark_version_from_image(base_image)
+        source_image = base_image
+        image_version = extract_spark_version_from_image(base_image)
     elif image:
-        provenance_image = image
-        provenance_version = extract_spark_version_from_image(image)
+        source_image = image
+        image_version = extract_spark_version_from_image(image)
     else:
-        # Partial platform configuration selects no image, so it carries no provenance.
-        provenance_image = configured_image_reference
-        provenance_version = (
+        # No user image: use the platform default, which names an image only when
+        # both spark_app_image and spark_app_image_tag are set.
+        source_image = configured_image_reference
+        image_version = (
             _leading_semver_prefix(config.spark_app_image_tag)
             if configured_image_reference
             else None
         )
 
     return SparkVersionResolution(
-        effective_version=explicit_version or provenance_version,
-        provenance_image=provenance_image,
-        provenance_version=provenance_version,
+        effective_version=explicit_version or image_version,
+        source_image=source_image,
+        image_version=image_version,
     )
 
 

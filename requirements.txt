@@ -37,6 +37,8 @@ orjson>=3.9.15, <4
 # mlrun pipeline adapters
 mlrun-pipelines-kfp-common~=0.8.0
 mlrun-pipelines-kfp-v1-8~=0.8.2
+# kubernetes 37 regenerated its models as strict, keyword-only pydantic models, which breaks our k8s object usage
+kubernetes>=25.3, !=36.0.0, <37
 docstring_parser~=0.16
 # TODO: Remove it after moving notificaions to the server side(ML-8069)
 aiosmtplib~=5.1

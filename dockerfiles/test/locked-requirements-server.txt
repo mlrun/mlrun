@@ -192,9 +192,7 @@ aiohttp==3.14.5 \
 aiohttp-retry==2.9.1 \
     --hash=sha256:66d2759d1921838256a05a3f80ad7e724936f083e35be5abb5e16eed6be6dc54 \
     --hash=sha256:8eb75e904ed4ee5c2ec242fefe85bf04240f685391c4879d8f541d6028ff01f1
-    # via
-    #   -r requirements.txt
-    #   kubernetes
+    # via -r requirements.txt
 aioitertools==0.13.0 \
     --hash=sha256:0be0292b856f08dfac90e31f4739432f4cb6d7520ab9eb73e143f4f2fa5259be \
     --hash=sha256:620bd241acc0bbb9ec819f1ab215866871b4bbd1f73836a55f799200ee86950c
@@ -2569,10 +2567,11 @@ kiwisolver==1.5.1 \
     --hash=sha256:fc271a6f0a2126958f4090e5507b9da5848927dae331f8f763bd4aa642b3d2cd \
     --hash=sha256:febcce10f2bcdbb80b4ea919238a6a4ac13dbc4c7cadbe8d5d75c3682f8b5404
     # via matplotlib
-kubernetes==37.0.1 \
-    --hash=sha256:a313a482361506340b5972cabaf20a7ee16ec8713e73325bf699b783a40464a9 \
-    --hash=sha256:e41db0a95615c2388680a2d556df33fd0f27a5717c9b5df5857e475c196c2f10
+kubernetes==36.0.3 \
+    --hash=sha256:36993ed25ce59b789c9341473a228fcf268504a2fec7c2b2b1531d73072e5ce7 \
+    --hash=sha256:8fde9241c4b298e6374a069dcf728359b4e72c2fb29489a975ba4e1c047cf10f
     # via
+    #   -r requirements.txt
     #   dask-kubernetes
     #   mlrun-pipelines-kfp-common
     #   testcontainers
@@ -4260,7 +4259,6 @@ pydantic==2.14.0 \
     #   evidently
     #   fastapi
     #   igz-mgmt
-    #   kubernetes
     #   mlflow-skinny
     #   mlflow-tracing
     #   openai
@@ -5287,6 +5285,7 @@ six==1.17.0 \
     --hash=sha256:ff70335d468e7eb6ec65b95b99d3a2836546063f63acc5171de367e834932a81
     # via
     #   kfp-server-api
+    #   kubernetes
     #   kubernetes-asyncio
     #   oss2
     #   python-dateutil
@@ -5732,7 +5731,6 @@ typing-extensions==4.16.0 \
     #   import-linter
     #   ipython
     #   jupyter-client
-    #   kubernetes
     #   litestar
     #   mlflow-skinny
     #   openai

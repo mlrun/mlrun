@@ -1124,6 +1124,9 @@ class TestSpark3Runtime(services.api.tests.unit.runtimes.base.TestRuntimeBase):
         runtime.with_igz_spark = unittest.mock.Mock()
 
         self._reset_mocks()
+        framework.utils.singletons.k8s.get_k8s_helper().v1api.create_namespaced_config_map.return_value = kubernetes.client.V1ConfigMap(  # noqa: E501
+            metadata=kubernetes.client.V1ObjectMeta(name="my-vector-merger-script")
+        )
 
         mlrun.mlconf.artifact_path = "v3io:///mypath"
 

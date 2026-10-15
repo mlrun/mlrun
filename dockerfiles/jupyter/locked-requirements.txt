@@ -1656,9 +1656,7 @@ kiwisolver==1.5.1 \
 kubernetes==36.0.3 \
     --hash=sha256:36993ed25ce59b789c9341473a228fcf268504a2fec7c2b2b1531d73072e5ce7 \
     --hash=sha256:8fde9241c4b298e6374a069dcf728359b4e72c2fb29489a975ba4e1c047cf10f
-    # via
-    #   -r requirements.txt
-    #   mlrun-pipelines-kfp-common
+    # via mlrun-pipelines-kfp-common
 locket==1.0.0 \
     --hash=sha256:5c0d4c052a8bbbf750e056a8e65ccd309086f4f0f18a2eac306a8dfa4112a632 \
     --hash=sha256:b6c819a722f7b6bd955b80781788e4a66a55628b858d347536b7e81325a3a5e3

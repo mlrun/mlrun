@@ -2571,7 +2571,7 @@ kubernetes==36.0.3 \
     --hash=sha256:36993ed25ce59b789c9341473a228fcf268504a2fec7c2b2b1531d73072e5ce7 \
     --hash=sha256:8fde9241c4b298e6374a069dcf728359b4e72c2fb29489a975ba4e1c047cf10f
     # via
-    #   -r requirements.txt
+    #   -r dockerfiles/mlrun-api/requirements.txt
     #   dask-kubernetes
     #   mlrun-pipelines-kfp-common
     #   testcontainers

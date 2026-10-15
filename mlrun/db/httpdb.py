@@ -691,7 +691,16 @@ class HTTPRunDB(RunDBInterface):
                 == mlrun.common.types.AuthenticationMode.IGUAZIO_V4.value
             ):
                 if not config.auth_with_oauth_token.token_file:
-                    user_token_file = os.path.expanduser("~/.igz.yml")
+                    user_token_file = os.path.expanduser(
+                        mlrun.common.constants.USER_TOKEN_FILE
+                    )
+                    legacy_token_file = os.path.expanduser(
+                        mlrun.common.constants.LEGACY_USER_TOKEN_FILE
+                    )
+                    if not os.path.exists(user_token_file) and os.path.exists(
+                        legacy_token_file
+                    ):
+                        user_token_file = legacy_token_file
 
                     # runtimes
                     if mlrun.utils.helpers.is_running_in_runtime():

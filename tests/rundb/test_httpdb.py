@@ -658,9 +658,13 @@ def test_iguazio_v4_oauth_token_file_uses_secret_path_without_sa_token_automount
         # Running in k8s as an mlrun runtime (job/dask/nuclio) - should use k8s secret path
         (True, True, None, "/var/mlrun-secrets/auth/.igz.yml"),
         # Running in k8s but not as an mlrun runtime (e.g. Jupyter) - should use user home token file
-        (True, False, None, "~/.igz.yml"),
+        (True, False, None, "~/.ecos.yml"),
         # Running locally (not k8s, not a runtime) - should use user home token file
+        (False, False, None, "~/.ecos.yml"),
+        # Only the legacy token file exists - should fall back to it
         (False, False, None, "~/.igz.yml"),
+        # Both exist - new file wins
+        (False, False, None, "~/.ecos.yml (both exist)"),
         # Token file already configured - should not change it
         (True, True, "/custom/path/token.yml", "/custom/path/token.yml"),
     ],
@@ -668,6 +672,7 @@ def test_iguazio_v4_oauth_token_file_uses_secret_path_without_sa_token_automount
 def test_iguazio_v4_oauth_token_file_auto_initialization(
     requests_mock: requests_mock_package.Mocker,
     monkeypatch,
+    tmp_path,
     is_k8s,
     is_runtime,
     preconfigured_token_file,
@@ -676,12 +681,22 @@ def test_iguazio_v4_oauth_token_file_auto_initialization(
     """
     Test that token_file is correctly auto-initialized based on environment:
     - In k8s, as an mlrun runtime: uses /var/mlrun-secrets/auth/.igz.yml
-    - In k8s, not an mlrun runtime (e.g. Jupyter): uses ~/.igz.yml
-    - Locally: uses ~/.igz.yml
+    - In k8s, not an mlrun runtime (e.g. Jupyter): uses ~/.ecos.yml
+    - Locally: uses ~/.ecos.yml, falling back to ~/.igz.yml if only the latter exists
     - Pre-configured: preserves the existing value
     """
 
     mlrun.mlconf.auth_with_oauth_token.token_file = preconfigured_token_file
+
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    if expected_token_file_suffix == "~/.igz.yml":
+        (home / ".igz.yml").touch()
+    elif expected_token_file_suffix == "~/.ecos.yml (both exist)":
+        (home / ".igz.yml").touch()
+        (home / ".ecos.yml").touch()
+        expected_token_file_suffix = "~/.ecos.yml"
 
     external_token_endpoint = "https://dashboard.default-tenant.app.example.com/api/v1/authentication/refresh-access-token"
     internal_token_endpoint = "https://dashboard.default-tenant.svc.cluster.local/api/v1/authentication/refresh-access-token"
@@ -720,8 +735,8 @@ def test_iguazio_v4_oauth_token_file_auto_initialization(
     # Determine the expected token file path
     if preconfigured_token_file:
         expected_token_file = preconfigured_token_file
-    elif expected_token_file_suffix == "~/.igz.yml":
-        expected_token_file = os.path.expanduser("~/.igz.yml")
+    elif expected_token_file_suffix.startswith("~/"):
+        expected_token_file = os.path.expanduser(expected_token_file_suffix)
     else:
         expected_token_file = expected_token_file_suffix
 

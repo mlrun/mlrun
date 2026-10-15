@@ -29,7 +29,7 @@ def pmr_mysql_config(complex_mysql_password) -> pytest_mock_resources.MysqlConfi
     # against a MySQL container whose root password contains every char the
     # backup/restore code paths must escape correctly.
     return pytest_mock_resources.MysqlConfig(
-        image=os.getenv("MLRUN_MYSQL_IMAGE", "gcr.io/iguazio/mlrun-mysql:8.4"),
+        image=os.getenv("MLRUN_MYSQL_IMAGE", "mysql:8.4"),
         port=3306,
         username="root",
         password=complex_mysql_password,

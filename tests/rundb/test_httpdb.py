@@ -596,7 +596,7 @@ def test_iguazio_v4_oauth_config_uses_internal_endpoint_in_cluster(
         # Verify token_file is set to the expected path when running inside k8s
         expected_token_file = os.path.join(
             mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_PATH,
-            mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_FILE,
+            mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_ECOS_FILE,
         )
         assert mlrun.mlconf.auth_with_oauth_token.token_file == expected_token_file
 
@@ -646,7 +646,7 @@ def test_iguazio_v4_oauth_token_file_uses_secret_path_without_sa_token_automount
 
     expected_token_file = os.path.join(
         mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_PATH,
-        mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_FILE,
+        mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_ECOS_FILE,
     )
     assert mlrun.mlconf.auth_with_oauth_token.token_file == expected_token_file
     assert mlrun.mlconf.auth_token_endpoint == internal_token_endpoint
@@ -656,6 +656,8 @@ def test_iguazio_v4_oauth_token_file_uses_secret_path_without_sa_token_automount
     "is_k8s,is_runtime,preconfigured_token_file,expected_token_file_suffix",
     [
         # Running in k8s as an mlrun runtime (job/dask/nuclio) - should use k8s secret path
+        (True, True, None, "/var/mlrun-secrets/auth/.ecos.yml"),
+        # Running as an mlrun runtime where only the legacy secret file is mounted - should fall back to it
         (True, True, None, "/var/mlrun-secrets/auth/.igz.yml"),
         # Running in k8s but not as an mlrun runtime (e.g. Jupyter) - should use user home token file
         (True, False, None, "~/.ecos.yml"),
@@ -680,7 +682,8 @@ def test_iguazio_v4_oauth_token_file_auto_initialization(
 ):
     """
     Test that token_file is correctly auto-initialized based on environment:
-    - In k8s, as an mlrun runtime: uses /var/mlrun-secrets/auth/.igz.yml
+    - In k8s, as an mlrun runtime: uses /var/mlrun-secrets/auth/.ecos.yml, falling back to
+      /var/mlrun-secrets/auth/.igz.yml if only the latter exists
     - In k8s, not an mlrun runtime (e.g. Jupyter): uses ~/.ecos.yml
     - Locally: uses ~/.ecos.yml, falling back to ~/.igz.yml if only the latter exists
     - Pre-configured: preserves the existing value
@@ -697,6 +700,13 @@ def test_iguazio_v4_oauth_token_file_auto_initialization(
         (home / ".igz.yml").touch()
         (home / ".ecos.yml").touch()
         expected_token_file_suffix = "~/.ecos.yml"
+    elif expected_token_file_suffix == "/var/mlrun-secrets/auth/.igz.yml":
+        real_exists = os.path.exists
+        monkeypatch.setattr(
+            os.path,
+            "exists",
+            lambda path: path == expected_token_file_suffix or real_exists(path),
+        )
 
     external_token_endpoint = "https://dashboard.default-tenant.app.example.com/api/v1/authentication/refresh-access-token"
     internal_token_endpoint = "https://dashboard.default-tenant.svc.cluster.local/api/v1/authentication/refresh-access-token"

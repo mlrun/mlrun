@@ -1803,9 +1803,10 @@ def _assert_env_vars(parsed_function_object, submit_job_body, original_function)
         submit_job_body["function"]["spec"]["env"][2]["name"]
         == parsed_function_object.spec.env[3].name
     )
-    assert (
-        submit_job_body["function"]["spec"]["env"][2]["valueFrom"]
-        == parsed_function_object.spec.env[3].value_from
+    assert submit_job_body["function"]["spec"]["env"][2][
+        "valueFrom"
+    ] == kubernetes.client.ApiClient().sanitize_for_serialization(
+        parsed_function_object.spec.env[3].value_from
     )
 
 

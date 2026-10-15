@@ -1137,13 +1137,13 @@ def test_build_status_events_and_logs(
     assert response.status_code == HTTPStatus.OK.value
 
     normal_event = kubernetes.client.CoreV1Event(
-        involved_object="mock",
+        involved_object=kubernetes.client.V1ObjectReference(name="mock"),
         metadata=kubernetes.client.V1ObjectMeta(name="normal-event"),
     )
     normal_event.message = "event"
     normal_event.type = "Normal"
     warning_event = kubernetes.client.CoreV1Event(
-        involved_object="mock",
+        involved_object=kubernetes.client.V1ObjectReference(name="mock"),
         metadata=kubernetes.client.V1ObjectMeta(name="warning-event"),
     )
     warning_event.message = "event"

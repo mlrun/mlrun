@@ -17,7 +17,8 @@ from unittest.mock import Mock, patch
 import botocore.exceptions
 import pytest
 
-from mlrun.datastore.s3 import S3Store
+import mlrun.errors
+from mlrun.datastore.s3 import S3Store, _BytesLikeStream
 
 
 class TestS3StoreExceptionHandling:
@@ -57,7 +58,6 @@ class TestS3StoreExceptionHandling:
         # Mock required methods that might be called
         s3_store._get_parent_secret = Mock(return_value=None)
         s3_store._join = Mock(side_effect=lambda key: f"/{key}")
-        s3_store._prepare_put_data = Mock(return_value=(b"data", None))
         s3_store._sanitize_options = Mock(side_effect=lambda x: x)
 
         # Mock the boto3 resource
@@ -226,6 +226,52 @@ class TestS3StoreExceptionHandling:
         range_header = S3Store.get_range(0, 50)
         assert range_header == "bytes=50-"
 
+    def test_put_wiring(self, s3_store: S3Store) -> None:
+        """Smoke test for put(): happy path + append/type guards.
+
+        put() is otherwise only exercised by AWS-gated integration tests;
+        this covers the upload_fileobj wiring, str->bytes encode, append
+        guard, and type validation in CI without needing AWS credentials.
+        """
+        # Capture upload_fileobj args before the stream's `with` block closes it.
+        captured: dict = {}
+
+        # boto3's upload_fileobj passes `Config=` as a PascalCase kwarg
+        # (AWS SDK convention), so the side-effect signature matches.
+        def capture(fileobj, key, Config=None):  # noqa: N803
+            captured["data"] = fileobj.read()
+            captured["key"] = key
+            captured["config"] = Config
+
+        s3_store.s3.Bucket.return_value.upload_fileobj.side_effect = capture
+
+        # bytes → upload_fileobj called with the right bucket, key, config, data
+        s3_store.put("some/key", b"hello")
+        s3_store.s3.Bucket.assert_called_with("test-bucket")
+        assert captured == {
+            "data": b"hello",
+            "key": "some/key",
+            "config": s3_store.config,
+        }
+
+        # str is encoded to bytes before upload
+        s3_store.put("some/key", "world")
+        assert captured["data"] == b"world"
+
+        # append=True raises before touching upload_fileobj
+        s3_store.s3.Bucket.return_value.upload_fileobj.reset_mock()
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError,
+            match="S3 does not support appending",
+        ):
+            s3_store.put("some/key", b"x", append=True)
+
+        # wrong type → TypeError naming the data type and the backend
+        with pytest.raises(
+            TypeError, match="Unable to put a value of type int to S3Store"
+        ):
+            s3_store.put("some/key", 123)
+
 
 class TestS3StoreAnonymousAccessFallback:
     """Tests for ML-11829: S3Store should use the AWS default credential chain
@@ -321,3 +367,26 @@ class TestS3StoreGetStorageOptions:
             storage_options = store.get_storage_options()
 
         assert storage_options["anon"] is True
+
+
+def test_bytes_like_stream_lifecycle():
+    """Smoke test for _BytesLikeStream: read, seek, memoryview pin, close release."""
+    data = bytearray(b"hello world")
+    stream = _BytesLikeStream(data)
+
+    assert stream.readable() and stream.seekable()
+
+    buf = bytearray(5)
+    assert stream.readinto(buf) == 5
+    assert bytes(buf) == b"hello"
+
+    stream.seek(6)
+    assert stream.readinto(buf) == 5
+    assert bytes(buf) == b"world"
+
+    # memoryview keeps the bytearray pinned until close()
+    with pytest.raises(BufferError):
+        data.append(ord("!"))
+    stream.close()
+    data.append(ord("!"))
+    assert bytes(data) == b"hello world!"

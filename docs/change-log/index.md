@@ -40,6 +40,14 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 |-------|----------------------------------------------------------------------------|
 |ML-12427|Add support for buildah as container builder.|
 
+### Closed issues
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-13094|The S3 datastore now supports `AWS_SESSION_TOKEN` for temporary AWS credentials (for example, session-based authentication), in addition to access key and secret.|
+|ML-12701|`project.set_function()` with a single `.py` file source now supports `store://` artifact URIs (including Spark and other runtimes); code is resolved from the artifact store at build/run time instead of failing with an unsupported URL scheme.|
+|ML-12952|Concurrent calls to `get_or_create_project()` with the same local context directory no longer raise `FileExistsError`.|
+|ML-12849|Terminating a workflow from the UI no longer fails with a database conflict error when termination races with MLRun background run-state updates.|
+
 
 (v1-12-0)=
 ## v1.12.0 (September 2026)
@@ -1642,6 +1650,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-12378|When using HTTP streaming, async does not work but works in the same manner as sync.|NA|v1.11.0|
 |ML-12573|In rare, high-stress situations, TSDB records are lost on Kafka rebalance. |Set a constant number of stream pod replicas and document the Kafka rebalance handling.| v1.12.0|
 |ML-12996|When trying to access the parquet data of a model endpoint in GCS, the model monitoring user application intermittently fails with a `FileNotFoundError`. As a consequence, drift is not detected for several Model Endpoints (MEPs) even though the endpoints continue to be invoked.|NA  |v1.12.0|
+|ML-12990|When Buildah is used as the container image builder, application runtime image builds can fail while pulling a base image with `unsupported MIME type for compression: "application/vnd.docker.image.rootfs.diff.tar.gzip"`. This can happen when the base image manifest mixes OCI and Docker layer media types (for example, images built or pushed with Docker Engine's containerd image store).|Rebuild the base image with Docker's `containerd-snapshotter` option disabled, or re-publish the image with consistent manifest and layer types (for example, `skopeo copy --format v2s2`).|v1.13.0|
 
 ## Limitations
 

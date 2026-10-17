@@ -307,12 +307,18 @@ class Projects(
             session, name
         )
 
-        # wait for nuclio to delete the project as well, so it won't create new resources after we delete them
-        logger.debug(
-            "Waiting for nuclio project deletion",
-            project_name=name,
-        )
-        self._wait_for_nuclio_project_deletion(name, session, auth_info)
+        # Only wait if MLRun's own leader-driven fan-out is the thing that just
+        # triggered the real Nuclio delete. Under any external leader (orca, iguazio,
+        # ...) that leader owns triggering and confirming the Nuclio deletion itself -
+        # MLRun-as-follower has no visibility into that system's timing for it and
+        # must not block on it here.
+        if mlrun.mlconf.is_project_follower_configured("nuclio"):
+            # wait for nuclio to delete the project as well, so it won't create new resources after we delete them
+            logger.debug(
+                "Waiting for nuclio project deletion",
+                project_name=name,
+            )
+            self._wait_for_nuclio_project_deletion(name, session, auth_info)
 
         # Delete MM resources
         model_monitoring_deleter.delete()

@@ -2098,6 +2098,7 @@ class BasePod:
         env=None,
         image_pull_policy="IfNotPresent",
         name="init",
+        env_from=None,
     ):
         if isinstance(env, dict):
             env = [client.V1EnvVar(name=k, value=v) for k, v in env.items()]
@@ -2106,6 +2107,7 @@ class BasePod:
                 name=name,
                 image=image,
                 env=env,
+                env_from=env_from,
                 command=command,
                 args=args,
                 image_pull_policy=image_pull_policy,

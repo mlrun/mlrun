@@ -620,9 +620,10 @@ def append_source_fetch_init_container(
 
     args = ["-m", "mlrun", "load-source", source, "--target", target_dir]
 
+    auto_mount_env, auto_mount_env_from = resolve_storage_auto_mount_env()
     env_list = list(builder_env_list or []) + list(project_secrets or [])
     already_set = {env_var.name for env_var in env_list}
-    for env_var in resolve_storage_auto_mount_env():
+    for env_var in auto_mount_env:
         if env_var.name in already_set:
             continue
         env_list.append(env_var)
@@ -641,18 +642,31 @@ def append_source_fetch_init_container(
         command=["python"],
         args=args,
         env=env_list,
-        env_from=resolve_storage_auto_mount_env_from(),
+        env_from=auto_mount_env_from,
         name="fetch-source",
     )
 
 
-def resolve_storage_auto_mount_env() -> list:
-    # KubeResource.apply sanitizes spec.env to plain dicts, so rebuild V1EnvVar for
-    # callers that rely on attribute access.
-    scratch = _apply_storage_auto_mount_to_scratch_runtime()
-    if scratch is None:
-        return []
-    return [
+def resolve_storage_auto_mount_env() -> tuple[
+    list[client.V1EnvVar], list[client.V1EnvFromSource]
+]:
+    # Returns (env, env_from); env_from carries e.g. secret_env without keys, which mounts
+    # the whole secret via envFrom.secretRef.
+    # Gate on env_style_modifiers so mount-style outputs (volumes/volume_mounts) are
+    # not silently dropped. KubeResource.apply sanitizes spec.env to plain dicts, so
+    # rebuild V1EnvVar for callers that rely on attribute access.
+    auto_mount_type = mlrun.runtimes.pod.AutoMountType(
+        mlrun.mlconf.storage.auto_mount_type
+    )
+    modifier = auto_mount_type.get_modifier()
+    if (
+        modifier is None
+        or modifier not in mlrun.runtimes.pod.AutoMountType.env_style_modifiers()
+    ):
+        return [], []
+    scratch = mlrun.runtimes.KubejobRuntime()
+    scratch.try_auto_mount_based_on_config()
+    env = [
         client.V1EnvVar(
             name=env_var["name"],
             value=env_var.get("value"),
@@ -662,33 +676,7 @@ def resolve_storage_auto_mount_env() -> list:
         else env_var
         for env_var in scratch.spec.env or []
     ]
-
-
-def resolve_storage_auto_mount_env_from() -> list[client.V1EnvFromSource]:
-    # e.g. secret_env without keys mounts the whole secret via envFrom.secretRef
-    scratch = _apply_storage_auto_mount_to_scratch_runtime()
-    if scratch is None:
-        return []
-    return list(scratch.spec.env_from)
-
-
-def _apply_storage_auto_mount_to_scratch_runtime() -> (
-    mlrun.runtimes.KubejobRuntime | None
-):
-    # Gate on env_style_modifiers so mount-style outputs (volumes/volume_mounts) are
-    # not silently dropped.
-    auto_mount_type = mlrun.runtimes.pod.AutoMountType(
-        mlrun.mlconf.storage.auto_mount_type
-    )
-    modifier = auto_mount_type.get_modifier()
-    if (
-        modifier is None
-        or modifier not in mlrun.runtimes.pod.AutoMountType.env_style_modifiers()
-    ):
-        return None
-    scratch = mlrun.runtimes.KubejobRuntime()
-    scratch.try_auto_mount_based_on_config()
-    return scratch
+    return env, list(scratch.spec.env_from)
 
 
 def _generate_builder_env(

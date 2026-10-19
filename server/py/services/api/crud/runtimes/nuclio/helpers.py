@@ -388,11 +388,12 @@ def parse_extra_args_to_nuclio_build_flags(extra_args: str) -> list[str]:
 def _get_auto_mount_env_as_dict() -> dict:
     """Return the env vars produced by the configured storage auto-mount modifier as plain values.
 
-    Mirrors the logic in builder._resolve_storage_auto_mount_env but returns a plain dict
-    so callers can do O(1) key lookups. Nuclio's codeEntryAttributes are static data with no
-    pod to resolve secretKeyRef entries, so entries referencing the auto-mount ``secret_name``
-    (e.g. mount_s3 credentials) are dereferenced by reading that secret. Other secretKeyRef
-    entries are skipped.
+    Based on builder.resolve_storage_auto_mount_env, but returns a plain dict so callers can
+    do O(1) key lookups. Nuclio's codeEntryAttributes are static data with no pod to resolve
+    secretKeyRef or envFrom entries, so entries referencing the auto-mount ``secret_name``
+    (e.g. mount_s3 credentials, or secret_env without keys) are dereferenced by reading that
+    secret. As in a pod, env entries take precedence over envFrom ones. References to other
+    secrets are skipped.
     """
     auto_mount_type = mlrun.runtimes.pod.AutoMountType(
         mlrun.mlconf.storage.auto_mount_type
@@ -420,6 +421,14 @@ def _get_auto_mount_env_as_dict() -> dict:
                 value = secret_data.get(ref_key)
         if value:
             result[name] = value
+
+    if secret_data and any(
+        env_from.secret_ref and env_from.secret_ref.name == secret_name
+        for env_from in scratch.spec.env_from
+    ):
+        for key, value in secret_data.items():
+            if value:
+                result.setdefault(key, value)
     return result
 
 

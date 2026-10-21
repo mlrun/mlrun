@@ -409,6 +409,31 @@ def test_application_requires_build(source, commands, requirements, expected):
     assert fn.requires_build() == expected
 
 
+def test_application_invoke_via_api_gateway_forwards_auth():
+    fn = mlrun.new_function("application-test", kind="application")
+    fn.status.api_gateway = mlrun.runtimes.nuclio.api_gateway.APIGateway(
+        metadata=mlrun.runtimes.nuclio.api_gateway.APIGatewayMetadata(
+            name="application-test"
+        ),
+        spec=mlrun.runtimes.nuclio.api_gateway.APIGatewaySpec(
+            project="default",
+            host="https://example.com",
+            functions=["application-test"],
+        ),
+        status=mlrun.runtimes.nuclio.api_gateway.APIGatewayStatus(
+            state=mlrun.common.schemas.APIGatewayState.ready
+        ),
+    )
+
+    with (
+        unittest.mock.patch.object(fn, "_sync_api_gateway"),
+        unittest.mock.patch("requests.request") as mock_request,
+    ):
+        fn.invoke("/", auth=("user", "password"))
+
+    assert mock_request.call_args.kwargs["auth"] == ("user", "password")
+
+
 def test_application_default_api_gateway(rundb_mock, igz_version_mock):
     function_name = "application-test"
     fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(

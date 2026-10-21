@@ -66,7 +66,6 @@ def verify_api_state(request: Request):
             "client-spec",
             "migrations",
             "clusterization-spec",
-            "memory-reports",
         ]
         if not any(enabled_endpoint in path for enabled_endpoint in enabled_endpoints):
             message = mlrun.common.schemas.APIStates.description(
@@ -84,21 +83,8 @@ def verify_api_state(request: Request):
             "client-spec",
             "migrations",
             "clusterization-spec",
-            "memory-reports",
         ]
         if not any(enabled_endpoint in path for enabled_endpoint in enabled_endpoints):
             raise mlrun.errors.MLRunPreconditionFailedError(
                 f"API is in state {mlrun.mlconf.httpdb.state}"
-            )
-
-
-def expose_internal_endpoints(request: Request):
-    if not mlrun.mlconf.debug.expose_internal_api_endpoints:
-        path_with_query_string = uvicorn.protocols.utils.get_path_with_query_string(
-            request.scope
-        )
-        path = path_with_query_string.split("?")[0]
-        if "/_internal" in path:
-            raise mlrun.errors.MLRunPreconditionFailedError(
-                "Internal endpoints are not exposed"
             )

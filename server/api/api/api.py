@@ -35,7 +35,6 @@ from server.api.api.endpoints import (
     grafana_proxy,
     healthz,
     hub,
-    internal,
     jobs,
     logs,
     model_endpoints,
@@ -156,11 +155,6 @@ api_router.include_router(
 api_router.include_router(
     tags.router,
     tags=["tags"],
-    dependencies=[Depends(deps.authenticate_request)],
-)
-api_router.include_router(
-    internal.internal_router,
-    tags=["internal"],
     dependencies=[Depends(deps.authenticate_request)],
 )
 api_router.include_router(

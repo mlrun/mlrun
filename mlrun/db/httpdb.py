@@ -508,6 +508,13 @@ class HTTPRunDB(RunDBInterface):
 
         return True
 
+    @staticmethod
+    def _resolve_token_file(token_file: str, legacy_token_file: str) -> str:
+        """Return the legacy token file only if the new one is missing and the legacy one exists"""
+        if not os.path.exists(token_file) and os.path.exists(legacy_token_file):
+            return legacy_token_file
+        return token_file
+
     def connect(self, secrets=None) -> typing.Self:
         """Connect to the MLRun API server. Must be called prior to executing any other method.
         The code utilizes the URL for the API server from the configuration - ``config.dbpath``.
@@ -692,13 +699,24 @@ class HTTPRunDB(RunDBInterface):
                 == mlrun.common.types.AuthenticationMode.IGUAZIO_V4.value
             ):
                 if not config.auth_with_oauth_token.token_file:
-                    user_token_file = os.path.expanduser("~/.igz.yml")
-
                     # runtimes
                     if mlrun.utils.helpers.is_running_in_runtime():
-                        user_token_file = os.path.join(
-                            mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_PATH,
-                            mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_FILE,
+                        user_token_file = self._resolve_token_file(
+                            os.path.join(
+                                mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_PATH,
+                                mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_ECOS_FILE,
+                            ),
+                            os.path.join(
+                                mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_PATH,
+                                mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_FILE,
+                            ),
+                        )
+                    else:
+                        user_token_file = self._resolve_token_file(
+                            os.path.expanduser(mlrun.common.constants.USER_TOKEN_FILE),
+                            os.path.expanduser(
+                                mlrun.common.constants.LEGACY_USER_TOKEN_FILE
+                            ),
                         )
 
                     config.auth_with_oauth_token.token_file = user_token_file

@@ -5481,10 +5481,10 @@ class HTTPRunDB(RunDBInterface):
             "stored per user. Use `store_secret_token` instead."
         )
 
-    # TODO: Remove in 1.15.0
+    # TODO: Remove in 1.16.0
     @deprecated(
-        version="1.13.1",
-        reason="'list_secret_tokens' is deprecated in 1.13.1 and will be removed in 1.15.0. "
+        version="1.14.0",
+        reason="'list_secret_tokens' is deprecated in 1.14.0 and will be removed in 1.16.0. "
         "Offline tokens are now managed by Orca, use the EcliptOS SDK's 'list_offline_tokens()' instead.",
         category=FutureWarning,
     )
@@ -5531,10 +5531,10 @@ class HTTPRunDB(RunDBInterface):
 
         return mlrun.common.schemas.ListSecretTokensResponse(**response.json())
 
-    # TODO: Remove in 1.15.0
+    # TODO: Remove in 1.16.0
     @deprecated(
-        version="1.13.1",
-        reason="'delete_secret_token' is deprecated in 1.13.1 and will be removed in 1.15.0. "
+        version="1.14.0",
+        reason="'delete_secret_token' is deprecated in 1.14.0 and will be removed in 1.16.0. "
         "Offline tokens are now managed by Orca, use the EcliptOS SDK's 'revoke_offline_session()' instead, "
         "which revokes the token and deletes its MLRun copy.",
         category=FutureWarning,
@@ -5574,10 +5574,10 @@ class HTTPRunDB(RunDBInterface):
             )
         return result
 
-    # TODO: Remove in 1.15.0
+    # TODO: Remove in 1.16.0
     @deprecated(
-        version="1.13.1",
-        reason="'delete_secret_tokens' is deprecated in 1.13.1 and will be removed in 1.15.0. "
+        version="1.14.0",
+        reason="'delete_secret_tokens' is deprecated in 1.14.0 and will be removed in 1.16.0. "
         "Offline tokens are now managed by Orca, use the EcliptOS SDK's 'revoke_offline_session()' instead, "
         "which revokes the token and deletes its MLRun copy.",
         category=FutureWarning,

@@ -1014,13 +1014,13 @@ class NopDB(RunDBInterface):
     ) -> mlrun.common.schemas.StoreSecretTokensResponse:
         pass
 
-    # TODO: Remove in 1.15.0
+    # TODO: Remove in 1.16.0
     def list_secret_tokens(
         self, username: str | None = None
     ) -> mlrun.common.schemas.ListSecretTokensResponse:
         pass
 
-    # TODO: Remove in 1.15.0
+    # TODO: Remove in 1.16.0
     def delete_secret_token(
         self, token_name: str, username: str | None = None
     ) -> mlrun.common.schemas.DeleteSecretTokenResponse:

@@ -51,10 +51,9 @@ class SecretsClientType(enum.StrEnum):
     datastore_profiles = "datastore-profiles"
 
 
-# TODO: Update to 2.1.1 during ML-13070
-# The first Orca release that ships RevokeOfflineSession and self-revokes the
-# Keycloak session before calling this endpoint.
-MIN_ORCA_VERSION_WITH_SELF_REVOKE = "2.1.0"
+# The first Oris release that ships RevokeOfflineSession and self-revokes the
+# Keycloak session before calling this endpoint (paired with MLRun 1.14.0).
+MIN_ORIS_VERSION_WITH_SELF_REVOKE = "1.2.0"
 
 
 class Secrets(
@@ -599,7 +598,7 @@ class Secrets(
         :param skip_revocation: If True, skip revoking the token via Iguazio and only delete
                                 the K8s secret. Used in bulk delete during user deletion flow
                                 since tokens are invalidated when the user is deleted anyway,
-                                and once Orca is recent enough to already own revocation itself.
+                                and once Oris is recent enough to already own revocation itself.
         :raises mlrun.errors.MLRunNotFoundError: If the token is not found.
         :raises mlrun.errors.MLRunRuntimeError: If K8s deletion fails after revocation.
         """
@@ -634,27 +633,27 @@ class Secrets(
             )
             raise mlrun.errors.MLRunRuntimeError(err_msg) from exc
 
-    def _orca_owns_revocation(self) -> bool:
+    def _oris_owns_revocation(self) -> bool:
         """
-        Returns whether the Orca deployment paired with this cluster already revokes the
-        Keycloak session itself before calling this endpoint. Orca's version is resolved once
-        via its own info API (see framework.utils.clients.iguazio.v4.resolve_orca_version).
-        A missing or unparseable version is treated as a recent Orca, since an older Orca
+        Returns whether the Oris deployment paired with this cluster already revokes the
+        Keycloak session itself before calling this endpoint. Oris's version is resolved once
+        via its own info API (see framework.utils.clients.iguazio.v4.resolve_oris_version).
+        A missing or unparseable version is treated as a recent Oris, since an older Oris
         predates this version check entirely and would otherwise never resolve to one.
         """
-        orca_version = framework.utils.clients.iguazio.v4.resolve_orca_version()
-        if not orca_version:
+        oris_version = framework.utils.clients.iguazio.v4.resolve_oris_version()
+        if not oris_version:
             return True
         try:
-            parsed_version = semver.VersionInfo.parse(orca_version)
+            parsed_version = semver.VersionInfo.parse(oris_version)
             parsed_version = semver.VersionInfo.parse(
                 f"{parsed_version.major}.{parsed_version.minor}.{parsed_version.patch}"
             )
         except ValueError:
-            logger.warning("Unable to parse Orca version", orca_version=orca_version)
+            logger.warning("Unable to parse Oris version", oris_version=oris_version)
             return True
         return parsed_version >= semver.VersionInfo.parse(
-            MIN_ORCA_VERSION_WITH_SELF_REVOKE
+            MIN_ORIS_VERSION_WITH_SELF_REVOKE
         )
 
     def delete_secret_token(
@@ -667,7 +666,8 @@ class Secrets(
         Delete a stored offline token for a user and its corresponding Kubernetes secret.
 
         This method performs two actions:
-        1. (Only if Orca < 2.1.0) - Calls the Iguazio management service to revoke the Keycloak session itself
+        1. (Only if Oris < MIN_ORIS_VERSION_WITH_SELF_REVOKE) - Calls the Iguazio management service
+           to revoke the Keycloak session itself
         2. Removes the Kubernetes secret associated with the token.
 
         :param token_name:
@@ -701,7 +701,7 @@ class Secrets(
                 token_name=token_name,
                 iguazio_client=iguazio_client,
                 request_headers=auth_info.request_headers,
-                skip_revocation=self._orca_owns_revocation(),
+                skip_revocation=self._oris_owns_revocation(),
             )
         except mlrun.errors.MLRunNotFoundError:
             logger.warning(

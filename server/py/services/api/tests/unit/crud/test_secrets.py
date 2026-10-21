@@ -1045,7 +1045,7 @@ def test_list_secret_tokens_returns_tokens():
 
 def test_delete_secret_token_success(mock_iguazio_client, monkeypatch):
     monkeypatch.setattr(
-        framework.utils.clients.iguazio.v4, "resolve_orca_version", lambda: "1.0.0"
+        framework.utils.clients.iguazio.v4, "resolve_oris_version", lambda: "1.0.0"
     )
     request_headers = {
         mlrun.common.schemas.HeaderNames.authorization: f"{mlrun.common.schemas.AuthorizationHeaderPrefixes.bearer}123",
@@ -1083,33 +1083,31 @@ def test_delete_secret_token_success(mock_iguazio_client, monkeypatch):
 
 
 @pytest.mark.parametrize(
-    "resolved_version,min_version",
+    "resolved_version",
     [
-        ("999.0.0", "2.1.1"),  # plain release, well past the threshold
+        "1.2.0",  # the first Oris release that self-revokes
+        "999.0.0",  # plain release, well past the threshold
         # PR/dev build: pre-release and build metadata are stripped before comparing, so only
         # major.minor.patch matters - a PR build cut from a release at the threshold still skips.
-        ("2.1.0-pr-921.1.20260818115106", "2.1.0"),
-        # Unresolvable (unreachable, unconfigured, or unparseable): an old Orca predates this
+        "1.2.0-pr-921.1.20260818115106",
+        # Unresolvable (unreachable, unconfigured, or unparseable): an old Oris predates this
         # version check entirely and would never resolve to a version either, so this is
-        # treated as a recent Orca rather than blocking revocation from ever being skipped.
-        ("", "2.1.1"),
+        # treated as a recent Oris rather than blocking revocation from ever being skipped.
+        "",
     ],
 )
-def test_delete_secret_token_recent_orca_skips_revocation(
-    mock_iguazio_client, monkeypatch, resolved_version, min_version
+def test_delete_secret_token_recent_oris_skips_revocation(
+    mock_iguazio_client, monkeypatch, resolved_version
 ):
     """
-    A recent-enough (or unresolvable) Orca is the source of truth for offline-token revocation
+    A recent-enough (or unresolvable) Oris is the source of truth for offline-token revocation
     and revokes the Keycloak session itself before calling this endpoint, so it must not
-    trigger a redundant revoke here - it should only delete the K8s secret. Orca's version is
+    trigger a redundant revoke here - it should only delete the K8s secret. Oris's version is
     resolved once via its own info API, never trusted from the (spoofable) caller.
     """
     monkeypatch.setattr(
-        services.api.crud.secrets, "MIN_ORCA_VERSION_WITH_SELF_REVOKE", min_version
-    )
-    monkeypatch.setattr(
         framework.utils.clients.iguazio.v4,
-        "resolve_orca_version",
+        "resolve_oris_version",
         lambda: resolved_version,
     )
     auth_info = mlrun.common.schemas.AuthInfo(
@@ -1138,26 +1136,23 @@ def test_delete_secret_token_recent_orca_skips_revocation(
 
 
 @pytest.mark.parametrize(
-    "resolved_version,min_version",
+    "resolved_version",
     [
-        ("1.2.0", "5.0.0"),  # predates ORIS-4151's self-revoke behavior
+        "1.1.1",  # predates ORIS-4151's self-revoke behavior
         # PR/dev build below the threshold even after stripping pre-release/build metadata.
-        ("2.1.0-pr-921.1.20260818115106", "2.1.1"),
+        "1.1.1-pr-921.1.20260818115106",
     ],
 )
-def test_delete_secret_token_orca_below_threshold_still_revokes(
-    mock_iguazio_client, monkeypatch, resolved_version, min_version
+def test_delete_secret_token_oris_below_threshold_still_revokes(
+    mock_iguazio_client, monkeypatch, resolved_version
 ):
     """
-    A resolvable Orca version that's too old (even after stripping pre-release/build metadata)
+    A resolvable Oris version that's too old (even after stripping pre-release/build metadata)
     must still go through the normal revoke-then-delete flow.
     """
     monkeypatch.setattr(
-        services.api.crud.secrets, "MIN_ORCA_VERSION_WITH_SELF_REVOKE", min_version
-    )
-    monkeypatch.setattr(
         framework.utils.clients.iguazio.v4,
-        "resolve_orca_version",
+        "resolve_oris_version",
         lambda: resolved_version,
     )
     auth_info = mlrun.common.schemas.AuthInfo(
@@ -1188,7 +1183,7 @@ def test_delete_secret_token_orca_below_threshold_still_revokes(
 
 def test_delete_secret_token_not_found(mock_iguazio_client, monkeypatch):
     monkeypatch.setattr(
-        framework.utils.clients.iguazio.v4, "resolve_orca_version", lambda: "1.0.0"
+        framework.utils.clients.iguazio.v4, "resolve_oris_version", lambda: "1.0.0"
     )
     auth_info = mlrun.common.schemas.AuthInfo(
         username="dummy-user", user_id="user-id-123"
@@ -1212,7 +1207,7 @@ def test_delete_secret_token_not_found(mock_iguazio_client, monkeypatch):
 
 def test_delete_secret_token_iguazio_failure(mock_iguazio_client, monkeypatch):
     monkeypatch.setattr(
-        framework.utils.clients.iguazio.v4, "resolve_orca_version", lambda: "1.0.0"
+        framework.utils.clients.iguazio.v4, "resolve_oris_version", lambda: "1.0.0"
     )
     auth_info = mlrun.common.schemas.AuthInfo(
         username="dummy-user", user_id="user-id-123"
@@ -1234,7 +1229,7 @@ def test_delete_secret_token_iguazio_failure(mock_iguazio_client, monkeypatch):
 
 def test_delete_secret_token_k8s_delete_failure(mock_iguazio_client, monkeypatch):
     monkeypatch.setattr(
-        framework.utils.clients.iguazio.v4, "resolve_orca_version", lambda: "1.0.0"
+        framework.utils.clients.iguazio.v4, "resolve_oris_version", lambda: "1.0.0"
     )
     auth_info = mlrun.common.schemas.AuthInfo(
         username="dummy-user", user_id="user-id-123"

@@ -494,43 +494,7 @@ class APIGateway(ModelObj):
         auth = kwargs.pop("auth", None)
 
         if auth is None:
-            if (
-                self.spec.authentication.authentication_mode
-                == schemas.APIGatewayAuthenticationMode.basic.value
-            ):
-                if not credentials:
-                    raise mlrun.errors.MLRunInvalidArgumentError(
-                        "API Gateway invocation requires authentication. Please pass credentials"
-                    )
-                auth = mlrun.auth.nuclio.NuclioAuthInfo(
-                    username=credentials[0], password=credentials[1]
-                ).to_requests_auth()
-            elif (
-                self.spec.authentication.authentication_mode
-                == schemas.APIGatewayAuthenticationMode.access_key.value
-            ):
-                # inject access key from env
-                if credentials:
-                    auth = mlrun.auth.nuclio.NuclioAuthInfo(
-                        username=credentials[0],
-                        password=credentials[1],
-                        mode=NuclioAuthKinds.iguazio,
-                    ).to_requests_auth()
-                else:
-                    auth = (
-                        mlrun.auth.nuclio.NuclioAuthInfo()
-                        .from_envvar()
-                        .to_requests_auth()
-                    )
-                if not auth:
-                    raise mlrun.errors.MLRunInvalidArgumentError(
-                        "API Gateway invocation requires authentication. Please set V3IO_ACCESS_KEY env var"
-                    )
-            elif (
-                self.spec.authentication.authentication_mode
-                == schemas.APIGatewayAuthenticationMode.iguazio.value
-            ):
-                auth = mlrun.auth.nuclio.NuclioAuthInfo.from_envvar().to_requests_auth()
+            auth = self._resolve_gateway_auth(credentials=credentials)
         if auth is None and not any(
             key.lower() == "authorization" for key in headers or {}
         ):
@@ -788,6 +752,44 @@ class APIGateway(ModelObj):
     def _generate_basic_auth(username: str, password: str):
         token = base64.b64encode(f"{username}:{password}".encode()).decode()
         return f"{mlrun.common.schemas.AuthorizationHeaderPrefixes.basic}{token}"
+
+    def _resolve_gateway_auth(
+        self, credentials: tuple[str, str] | None
+    ) -> requests.auth.AuthBase | None:
+        """Resolve the requests auth object for the gateway's own authentication mode.
+
+        :param credentials: the (username, password) passed to ``invoke``, if any.
+        :return: a requests auth object, or None when the gateway holds no authentication.
+        """
+        mode = self.spec.authentication.authentication_mode
+        if mode == schemas.APIGatewayAuthenticationMode.basic.value:
+            if not credentials:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "API Gateway invocation requires authentication. Please pass credentials"
+                )
+            return mlrun.auth.nuclio.NuclioAuthInfo(
+                username=credentials[0], password=credentials[1]
+            ).to_requests_auth()
+        if mode == schemas.APIGatewayAuthenticationMode.access_key.value:
+            # inject access key from env
+            if credentials:
+                auth = mlrun.auth.nuclio.NuclioAuthInfo(
+                    username=credentials[0],
+                    password=credentials[1],
+                    mode=NuclioAuthKinds.iguazio,
+                ).to_requests_auth()
+            else:
+                auth = (
+                    mlrun.auth.nuclio.NuclioAuthInfo().from_envvar().to_requests_auth()
+                )
+            if not auth:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "API Gateway invocation requires authentication. Please set V3IO_ACCESS_KEY env var"
+                )
+            return auth
+        if mode == schemas.APIGatewayAuthenticationMode.iguazio.value:
+            return mlrun.auth.nuclio.NuclioAuthInfo.from_envvar().to_requests_auth()
+        return None
 
     @staticmethod
     def _resolve_canary(

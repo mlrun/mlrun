@@ -94,6 +94,7 @@ default_config = {
     "kfp_image": "mlrun/mlrun-kfp",  # image to use for KFP runner
     "dask_kfp_image": "mlrun/mlrun",  # image to use for dask KFP runner
     "igz_version": "",  # the version of the iguazio system the API is running on
+    "orca_version": "",  # resolved lazily from Orca's own info API, see resolve_orca_version()
     "iguazio_api_url": "",  # the url to iguazio api (internal / external access with priority to internal)
     "iguazio_api_url_ingress": "",  # the url to iguazio api ingress (for external access)
     "iguazio_api_ssl_verify": True,  # verify ssl certificate of iguazio api

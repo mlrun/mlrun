@@ -19,6 +19,7 @@ import typing
 import uuid
 from collections import defaultdict
 
+import semver
 from fastapi.concurrency import run_in_threadpool
 
 import mlrun.auth.utils
@@ -48,6 +49,12 @@ class SecretsClientType(enum.StrEnum):
     hub = "hub"
     notifications = "notifications"
     datastore_profiles = "datastore-profiles"
+
+
+# TODO: Update to 2.1.1 during ML-13070
+# The first Orca release that ships RevokeOfflineSession and self-revokes the
+# Keycloak session before calling this endpoint.
+MIN_ORCA_VERSION_WITH_SELF_REVOKE = "2.1.0"
 
 
 class Secrets(
@@ -436,13 +443,21 @@ class Secrets(
         secret_tokens: list[mlrun.common.schemas.SecretToken],
         auth_info: mlrun.common.schemas.AuthInfo,
         force: bool = False,
+        username: str | None = None,
     ) -> mlrun.common.schemas.StoreSecretTokensResponse:
         """
         Validate and store offline tokens as Kubernetes secrets.
 
+        A trusted service-account caller (e.g. Orca acting on a user's behalf) may store a
+        token whose subject differs from its own identity; the target user's ``username`` is
+        then taken from the caller and their user_id from the token's own subject, rather than
+        from auth_info.
+
         :param secret_tokens: List of SecretToken objects to store.
         :param force: Whether to force update existing tokens.
-        :param auth_info: Authentication information of the user storing the tokens.
+        :param auth_info: Authentication information of the caller storing the tokens.
+        :param username: Target username, required when the caller is a service account and
+                         ignored otherwise (a regular user can only store their own token).
         :return: StoreSecretTokensResponse object with created, updated, and skipped tokens.
         """
         if not secret_tokens:
@@ -450,22 +465,41 @@ class Secrets(
                 "Failed to store secret tokens – no tokens provided"
             )
 
+        is_service_account = auth_info.is_service_account()
+        if is_service_account and not username:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "A service-account-authenticated store must provide the target user's "
+                "username"
+            )
+
         logger.debug(
             "Storing secret tokens",
-            username=auth_info.username,
+            username=username if is_service_account else auth_info.username,
             token_count=len(secret_tokens),
+            is_service_account=is_service_account,
         )
 
         # Extract and validate tokens info
         tokens_values = mlrun.auth.utils.extract_and_validate_tokens_info(
-            secret_tokens=secret_tokens, authenticated_id=auth_info.user_id
+            secret_tokens=secret_tokens,
+            authenticated_id=auth_info.user_id,
+            bypass_ownership_check=is_service_account,
         )
 
-        # TODO: move init iguazio_client (ML-11077)
-        iguazio_client = framework.utils.clients.iguazio.v4.Client()
+        if is_service_account:
+            # The caller passed _authorize_service_account_store_secret_tokens, and Orca
+            # has already verified the user with Keycloak when minting the token.
+            logger.debug(
+                "Skipping offline token verification for an authorized service-account caller",
+                username=username,
+                token_count=len(secret_tokens),
+            )
+        else:
+            # TODO: move init iguazio_client (ML-11077)
+            iguazio_client = framework.utils.clients.iguazio.v4.Client()
 
-        # We validate the offline tokens by sending it to Iguazio for verification.
-        iguazio_client.refresh_access_tokens(secret_tokens)
+            # We validate the offline tokens by sending it to Iguazio for verification.
+            iguazio_client.refresh_access_tokens(secret_tokens)
 
         token_actions = defaultdict(list)
 
@@ -474,8 +508,21 @@ class Secrets(
             expiration = token_info["token_exp"]
             issued_at = token_info["token_iat"]
 
+            if is_service_account:
+                # The caller supplies the username; the user_id can only come from the
+                # token's subject, since the caller never sends it.
+                # Note: a single SA call applies the same username to every token, while
+                # the user_id is taken per-token from its subject. This is correct only
+                # while callers send tokens for a single user per call (Orca sends exactly
+                # one). Supporting multiple subjects per call would require a per-token
+                # username.
+                target_user_id, target_username = token_info["token_sub"], username
+            else:
+                target_user_id, target_username = auth_info.user_id, auth_info.username
+
             action = self.secrets_provider.store_user_token_secret(
-                auth_info=auth_info,
+                user_id=target_user_id,
+                username=target_username,
                 token_name=token_name,
                 token=token,
                 expiration=expiration,
@@ -551,7 +598,8 @@ class Secrets(
         :param request_headers: Request headers for authenticating with Iguazio.
         :param skip_revocation: If True, skip revoking the token via Iguazio and only delete
                                 the K8s secret. Used in bulk delete during user deletion flow
-                                since tokens are invalidated when the user is deleted anyway.
+                                since tokens are invalidated when the user is deleted anyway,
+                                and once Orca is recent enough to already own revocation itself.
         :raises mlrun.errors.MLRunNotFoundError: If the token is not found.
         :raises mlrun.errors.MLRunRuntimeError: If K8s deletion fails after revocation.
         """
@@ -586,6 +634,29 @@ class Secrets(
             )
             raise mlrun.errors.MLRunRuntimeError(err_msg) from exc
 
+    def _orca_owns_revocation(self) -> bool:
+        """
+        Returns whether the Orca deployment paired with this cluster already revokes the
+        Keycloak session itself before calling this endpoint. Orca's version is resolved once
+        via its own info API (see framework.utils.clients.iguazio.v4.resolve_orca_version).
+        A missing or unparseable version is treated as a recent Orca, since an older Orca
+        predates this version check entirely and would otherwise never resolve to one.
+        """
+        orca_version = framework.utils.clients.iguazio.v4.resolve_orca_version()
+        if not orca_version:
+            return True
+        try:
+            parsed_version = semver.VersionInfo.parse(orca_version)
+            parsed_version = semver.VersionInfo.parse(
+                f"{parsed_version.major}.{parsed_version.minor}.{parsed_version.patch}"
+            )
+        except ValueError:
+            logger.warning("Unable to parse Orca version", orca_version=orca_version)
+            return True
+        return parsed_version >= semver.VersionInfo.parse(
+            MIN_ORCA_VERSION_WITH_SELF_REVOKE
+        )
+
     def delete_secret_token(
         self,
         token_name: str,
@@ -596,7 +667,7 @@ class Secrets(
         Delete a stored offline token for a user and its corresponding Kubernetes secret.
 
         This method performs two actions:
-        1. Calls the Iguazio management service to revoke the offline token.
+        1. (Only if Orca < 2.1.0) - Calls the Iguazio management service to revoke the Keycloak session itself
         2. Removes the Kubernetes secret associated with the token.
 
         :param token_name:
@@ -630,6 +701,7 @@ class Secrets(
                 token_name=token_name,
                 iguazio_client=iguazio_client,
                 request_headers=auth_info.request_headers,
+                skip_revocation=self._orca_owns_revocation(),
             )
         except mlrun.errors.MLRunNotFoundError:
             logger.warning(

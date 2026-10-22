@@ -128,7 +128,7 @@ def test_requirement_specifiers_convention():
 
     ignored_invalid_map = {
         # See comment near requirement for why we're limiting to patch changes only for all of these
-        "storey": {"~=1.14.0"},
+        "storey": {"~=1.14.1"},
         # No specifier — pip resolves against the base storey requirement
         # in requirements.txt, so we don't duplicate the version constraint.
         "storey[otel]": {""},

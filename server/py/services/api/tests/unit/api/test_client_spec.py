@@ -241,6 +241,29 @@ def test_client_spec_nuclio_function_authentication_enabled(
         services.api.api.endpoints.client_spec.get_cached_client_spec.cache_clear()
 
 
+@pytest.mark.parametrize("non_root_home", ["/home/custom", ""])
+def test_client_spec_function_security_context_non_root_home(
+    db: sqlalchemy.orm.Session,
+    client: fastapi.testclient.TestClient,
+    non_root_home: str,
+) -> None:
+    mlrun.mlconf.function.spec.security_context.enrichment_mode = (
+        mlrun.common.schemas.SecurityContextEnrichmentModes.override
+    )
+    mlrun.mlconf.function.spec.security_context.non_root_home = non_root_home
+    services.api.api.endpoints.client_spec.get_cached_client_spec.cache_clear()
+
+    try:
+        response = client.get("client-spec")
+        assert response.status_code == http.HTTPStatus.OK.value
+        assert (
+            response.json()["function"]["spec"]["security_context"]["non_root_home"]
+            == non_root_home
+        )
+    finally:
+        services.api.api.endpoints.client_spec.get_cached_client_spec.cache_clear()
+
+
 @pytest.mark.parametrize(
     "server_version, client_version, python_version, expected_dask_kfp",
     [

@@ -47,7 +47,7 @@ def test_extras_requirement_file_aligned():
     excluded_packages = [
         "mlrun_pipelines_kfp_v1_8",
         "mlrun_pipelines_kfp_v1_8[kfp]",
-        "pytest-mock-resources[postgres]",
+        "pytest-mock-resources[postgres-binary]",
         "mlrun_pipelines_kfp_v2",
         "mlflow",
     ]

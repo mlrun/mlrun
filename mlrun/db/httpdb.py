@@ -5485,7 +5485,7 @@ class HTTPRunDB(RunDBInterface):
     @deprecated(
         version="1.14.0",
         reason="'list_secret_tokens' is deprecated in 1.14.0 and will be removed in 1.16.0. "
-        "Offline tokens are now managed by Orca, use the EcliptOS SDK's 'list_offline_tokens()' instead.",
+        "Offline tokens are now managed by Oris, use the EcliptOS SDK's 'list_offline_tokens()' instead.",
         category=FutureWarning,
     )
     @mlrun.utils.iguazio_v4_only
@@ -5535,7 +5535,7 @@ class HTTPRunDB(RunDBInterface):
     @deprecated(
         version="1.14.0",
         reason="'delete_secret_token' is deprecated in 1.14.0 and will be removed in 1.16.0. "
-        "Offline tokens are now managed by Orca, use the EcliptOS SDK's 'revoke_offline_session()' instead, "
+        "Offline tokens are now managed by Oris, use the EcliptOS SDK's 'revoke_offline_session()' instead, "
         "which revokes the token and deletes its MLRun copy.",
         category=FutureWarning,
     )
@@ -5545,7 +5545,7 @@ class HTTPRunDB(RunDBInterface):
     ) -> mlrun.common.schemas.DeleteSecretTokenResponse:
         """
         (deprecated) Delete a secret token. Only system-administrators can delete tokens for other users.
-        With a recent Orca this only deletes MLRun's copy of the token and no longer revokes it. Use the
+        With a recent Oris this only deletes MLRun's copy of the token and no longer revokes it. Use the
         EcliptOS SDK's ``revoke_offline_session()`` instead.
 
         :param token_name: The name of the token to delete.
@@ -5578,7 +5578,7 @@ class HTTPRunDB(RunDBInterface):
     @deprecated(
         version="1.14.0",
         reason="'delete_secret_tokens' is deprecated in 1.14.0 and will be removed in 1.16.0. "
-        "Offline tokens are now managed by Orca, use the EcliptOS SDK's 'revoke_offline_session()' instead, "
+        "Offline tokens are now managed by Oris, use the EcliptOS SDK's 'revoke_offline_session()' instead, "
         "which revokes the token and deletes its MLRun copy.",
         category=FutureWarning,
     )

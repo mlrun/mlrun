@@ -36,7 +36,7 @@ class Member(project_leader.Member):
         wait_for_completion: bool = True,
     ) -> bool:
         self._update_state(project)
-        auth_info.projects_role = self._project_role
+        auth_info = auth_info.copy(update={"projects_role": self._project_role})
         (
             _,
             is_running_in_background,
@@ -53,7 +53,7 @@ class Member(project_leader.Member):
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ):
         self._update_state(project)
-        auth_info.projects_role = self._project_role
+        auth_info = auth_info.copy(update={"projects_role": self._project_role})
         framework.utils.singletons.project_member.get_project_member().store_project(
             self.db_session, name, project, auth_info
         )
@@ -77,7 +77,7 @@ class Member(project_leader.Member):
         deletion_strategy: mlrun.common.schemas.DeletionStrategy = mlrun.common.schemas.DeletionStrategy.default(),
         wait_for_completion: bool = True,
     ) -> bool:
-        auth_info.projects_role = self._project_role
+        auth_info = auth_info.copy(update={"projects_role": self._project_role})
         return framework.utils.singletons.project_member.get_project_member().delete_project(
             self.db_session,
             name,
@@ -104,7 +104,7 @@ class Member(project_leader.Member):
         name: str,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ) -> mlrun.common.schemas.Project:
-        auth_info.projects_role = self._project_role
+        auth_info = auth_info.copy(update={"projects_role": self._project_role})
         return (
             framework.utils.singletons.project_member.get_project_member().get_project(
                 self.db_session, name, auth_info
@@ -122,7 +122,6 @@ class Member(project_leader.Member):
         name: str,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ) -> mlrun.common.schemas.ProjectOwner:
-        auth_info.projects_role = self._project_role
         project = self.get_project(session, name, auth_info)
         return mlrun.common.schemas.ProjectOwner(
             username=project.spec.owner, access_key=self.project_owner_access_key

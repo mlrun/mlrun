@@ -651,7 +651,9 @@ def v2_serving_init(context, namespace=None):
         **kwargs,
     )
     context.logger.info("Initializing graph steps")
-    server.init_object(namespace or get_caller_globals())
+    server.init_object(
+        namespace or get_caller_globals(),
+    )
 
     # Select the appropriate handler based on streaming mode
     if server.streaming:
@@ -839,7 +841,9 @@ async def async_execute_graph(
         **kwargs,
     )
     context.logger.info("Initializing graph steps")
-    server.init_object(namespace)
+    server.init_object(
+        namespace,
+    )
 
     context.logger.info_with("Graph was initialized", verbose=server.verbose)
 

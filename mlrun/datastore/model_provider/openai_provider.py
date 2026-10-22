@@ -332,7 +332,7 @@ class OpenAIProvider(ModelProvider):
         try:
             # gather() stops on first exception - fast fail
             return await asyncio.gather(*tasks)
-        except:
+        except Exception:
             # Cancel all remaining tasks
             for task in tasks:
                 task.cancel()

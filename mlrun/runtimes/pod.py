@@ -27,6 +27,7 @@ from kubernetes.client import V1Volume, V1VolumeMount
 
 import mlrun.common.constants
 import mlrun.common.secrets
+import mlrun.config
 import mlrun.errors
 import mlrun.runtimes.mounts
 import mlrun.utils.regex
@@ -866,6 +867,11 @@ class KubeResource(BaseRuntime):
         if name not in self.spec.auto_mount_injected_env_names:
             self.spec.auto_mount_injected_env_names.append(name)
 
+    def _generate_runtime_env(self, runobj: "mlrun.model.RunObject" = None):
+        runtime_env, external_source_env = super()._generate_runtime_env(runobj)
+        runtime_env.update(get_non_root_home_env(self.spec))
+        return runtime_env, external_source_env
+
     def _set_env(self, name, value=None, value_from=None):
         new_var = k8s_client.V1EnvVar(name=name, value=value, value_from=value_from)
 
@@ -1515,6 +1521,55 @@ class KubeResource(BaseRuntime):
             if isinstance(secret_key_ref, dict):
                 return secret_key_ref.get("name")
         return None
+
+
+def get_non_root_home() -> str:
+    """
+    Get the configured writable HOME for functions that run as non-root.
+
+    Older servers don't send the key in the client spec, and the SDK replaces its whole function config with the
+    synced one, so fall back to the SDK default when the key is missing.
+
+    :return: ``mlconf.function.spec.security_context.non_root_home``, or its SDK default when it's missing.
+    """
+    return getattr(
+        mlconf.function.spec.security_context,
+        "non_root_home",
+        mlrun.config.default_config["function"]["spec"]["security_context"][
+            "non_root_home"
+        ],
+    )
+
+
+def get_non_root_home_env(spec: KubeResourceSpec) -> dict[str, str]:
+    """
+    Get the default HOME env var for a function that runs as non-root.
+
+    A non-root user id without an entry in the image's passwd database starts with HOME=/, which it can't write to,
+    so libraries using the default user cache location (~/.cache) fail. The default is generated when the container
+    env is built and is never stored in the function spec.
+
+    :param spec: The function spec.
+
+    :return: ``{"HOME": get_non_root_home()}`` when the spec's security context runs as non-root and HOME isn't set
+             explicitly in ``spec.env``, otherwise an empty dict.
+    """
+    non_root_home = get_non_root_home()
+    if not non_root_home or not _is_non_root_security_context(spec.security_context):
+        return {}
+    if any(get_item_name(env_var) == "HOME" for env_var in spec.env):
+        return {}
+    return {"HOME": non_root_home}
+
+
+def _is_non_root_security_context(security_context) -> bool:
+    if isinstance(security_context, dict):
+        run_as_user = security_context.get("runAsUser")
+        run_as_non_root = security_context.get("runAsNonRoot")
+    else:
+        run_as_user = getattr(security_context, "run_as_user", None)
+        run_as_non_root = getattr(security_context, "run_as_non_root", None)
+    return bool(run_as_user) or bool(run_as_non_root)
 
 
 def _resolve_if_type_sanitized(attribute_name, attribute):

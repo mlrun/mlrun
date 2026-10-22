@@ -435,7 +435,9 @@ def test_compile_nuclio_function_with_store_source_redeploy_is_idempotent(
         }
     }
 
-    services.api.crud.runtimes.nuclio.function._compile_function_config(func)
+    _, _, config = services.api.crud.runtimes.nuclio.function._compile_function_config(
+        func
+    )
 
     # Exactly one init container in spec.config (no duplication on rebuild).
     init_containers = func.spec.config.get("spec.initContainers") or []
@@ -453,10 +455,10 @@ def test_compile_nuclio_function_with_store_source_redeploy_is_idempotent(
     ]
     assert len(project_secret_refs) == 1
 
-    # extend_config later merges nuclio_spec into base_spec; without the dedupe
-    # we'd see two entries with the same name here and Nuclio would reject
-    # the K8s Deployment with "Duplicate value".
-    base_spec_init = mlrun.utils.get_in(func.spec.base_spec, "spec.initContainers", [])
+    # extend_config merges nuclio_spec into (a copy of) base_spec; without the
+    # dedupe we'd see two entries with the same name in the compiled config and
+    # Nuclio would reject the K8s Deployment with "Duplicate value".
+    base_spec_init = mlrun.utils.get_in(config, "spec.initContainers", [])
     base_loader_count = sum(
         1 for c in base_spec_init if c.get("name") == init_container_name
     )
@@ -475,7 +477,7 @@ def test_compile_nuclio_function_with_store_source_redeploy_is_idempotent(
     # user-set entry untouched. Without the base_spec dedupe, extend_config's
     # append-merge would produce two entries per name and Nuclio would
     # reject the K8s Deployment with "Duplicate value".
-    base_env = mlrun.utils.get_in(func.spec.base_spec, "spec.env", []) or []
+    base_env = mlrun.utils.get_in(config, "spec.env", []) or []
     base_real_handlers = [e for e in base_env if e.get("name") == "MLRUN_REAL_HANDLER"]
     assert len(base_real_handlers) == 1
     assert base_real_handlers[0]["value"] == "main:handler"

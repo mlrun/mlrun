@@ -14,6 +14,7 @@
 
 # test_httpdb.py actually holds integration tests (that should be migrated to tests/integration/sdk_api/httpdb)
 # currently we are running it in the integration tests CI step so adding this file for unit tests for the httpdb
+import copy
 import enum
 import io
 import unittest.mock
@@ -26,6 +27,7 @@ import urllib3.exceptions
 import mlrun.artifacts.base
 import mlrun.config
 import mlrun.db.httpdb
+import mlrun.runtimes.pod
 from mlrun.common.types import AuthenticationMode
 
 
@@ -561,3 +563,43 @@ def test_client_spec_nuclio_function_authentication_enabled_sync(
 
     # Restore defaults so we don't leak into other tests.
     mlrun.mlconf.httpdb.nuclio.function_authentication_enabled = False
+
+
+@pytest.mark.parametrize(
+    "server_security_context, expected_non_root_home",
+    [
+        ({"non_root_home": "/home/custom"}, "/home/custom"),
+        ({"non_root_home": ""}, ""),
+        # older servers don't send the key - fall back to the SDK default
+        ({}, "/tmp"),
+    ],
+)
+def test_client_spec_function_security_context_non_root_home_sync(
+    requests_mock, server_security_context, expected_non_root_home
+):
+    requests_mock.get(
+        "https://fake-url/api/v1/client-spec",
+        json={
+            "version": "v1.1.0",
+            "function": {
+                "spec": {
+                    "security_context": {
+                        "default": "e30=",
+                        "enrichment_mode": "override",
+                        "enrichment_group_id": 65534,
+                        "pipelines": {"kfp_pod_user_unix_id": 5},
+                        **server_security_context,
+                    }
+                }
+            },
+        },
+    )
+
+    db = mlrun.db.httpdb.HTTPRunDB("https://fake-url")
+    try:
+        db.connect()
+
+        assert mlrun.runtimes.pod.get_non_root_home() == expected_non_root_home
+    finally:
+        # connect() replaces the whole function config, which the config reload doesn't restore
+        mlrun.mlconf.function = copy.deepcopy(mlrun.config.default_config["function"])

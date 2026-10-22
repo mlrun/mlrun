@@ -72,4 +72,27 @@ By default, MLRun assigns the root user to MLRun runtimes and pods. You can impr
 - **Override**: Use the user id of the user that triggered the current run (running as non-root) and use the nogroupid for group id. Requires Iguazio v3.5.1 and higher.
 - **Disabled**: Security context is not auto applied (the system applies the root user). (default)
 
+### Default `HOME` for non-root functions
+
+A non-root user id that has no entry in the image's user database starts with `HOME=/`, which it cannot write to.
+Libraries that use the default user cache location (for example `~/.cache` in Hugging Face libraries) then fail with
+`PermissionError: [Errno 13] Permission denied: '/.cache'`.
+
+When a function runs as non-root (its security context sets a non-zero `runAsUser`, or `runAsNonRoot`), MLRun sets
+`HOME=/tmp` in the function's container. This applies to jobs, Nuclio and serving functions, and to KFP pipeline step pods
+that MLRun runs as non-root. The value is added when the pod is created and is not saved in the function spec.
+
+- To use a different home directory for a function, set it explicitly. An explicit `HOME` always takes precedence:
+  ```python
+  fn.set_env("HOME", "/home/my-user")
+  ```
+- To change or disable the default system-wide, set `function.spec.security_context.non_root_home`
+  (env var `MLRUN_FUNCTION__SPEC__SECURITY_CONTEXT__NON_ROOT_HOME`) to another path, or to an empty value to disable it.
+
+```{admonition} Note
+If the image's non-root user has a real home directory (with `pip install --user` packages or dotfiles), set `HOME`
+explicitly, otherwise they are hidden by the default. If the function runs with `readOnlyRootFilesystem: true`,
+`/tmp` is not writable: mount a writable volume (for example an `emptyDir`) and set `HOME` to it.
+```
+
 See also {ref}`images-usage`.

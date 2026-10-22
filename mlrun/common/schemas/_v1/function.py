@@ -32,6 +32,7 @@ class SecurityContext(pydantic.v1.BaseModel):
     enrichment_mode: SecurityContextEnrichmentModes | None
     enrichment_group_id: int | None
     pipelines: Pipelines | None
+    non_root_home: str | None
 
 
 class ServiceAccount(pydantic.v1.BaseModel):

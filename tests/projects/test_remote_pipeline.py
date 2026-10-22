@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import base64
+import copy
 import json
 import os
 import pathlib
@@ -24,6 +25,7 @@ import pytest
 import yaml
 
 import mlrun
+import mlrun.config
 import tests.projects.assets.remote_pipeline_with_overridden_resources
 import tests.projects.base_pipeline
 from mlrun.common.schemas import SecurityContextEnrichmentModes
@@ -308,6 +310,140 @@ class TestRemotePipeline(tests.projects.base_pipeline.TestPipeline):
                         ), (
                             f"security context was not enriched correctly in step: {step.get('name')}"
                         )
+
+    @pytest.mark.parametrize(
+        "enrichment_mode,function_kinds,expected_homes",
+        [
+            # several non-local functions - each enriched step gets exactly one default HOME,
+            # and an explicit HOME on the step template wins
+            (
+                SecurityContextEnrichmentModes.override.value,
+                ["job", "job", "job", "nuclio"],
+                {"func1": "/home/custom", "func2": "/tmp"},
+            ),
+            # no security context is enriched - only the explicit HOME remains
+            (
+                SecurityContextEnrichmentModes.disabled.value,
+                ["job", "job", "job", "nuclio"],
+                {"func1": "/home/custom", "func2": None},
+            ),
+        ],
+    )
+    def test_kfp_pipeline_enriched_with_non_root_home(
+        self,
+        rundb_mock,
+        workflow_path,
+        enrichment_mode,
+        function_kinds,
+        expected_homes,
+    ):
+        mlrun.mlconf.function.spec.security_context.enrichment_mode = enrichment_mode
+
+        homes = self._compile_workflow_step_homes(workflow_path, function_kinds)
+
+        assert homes == expected_homes
+
+    @pytest.mark.parametrize(
+        "synced_security_context, expected_home",
+        [
+            ({"non_root_home": "/home/custom"}, "/home/custom"),
+            ({"non_root_home": ""}, None),
+            # older servers don't send the key - fall back to the SDK default
+            ({}, "/tmp"),
+        ],
+    )
+    def test_kfp_pipeline_non_root_home_after_client_spec_sync(
+        self, rundb_mock, workflow_path, synced_security_context, expected_home
+    ):
+        # the security context as synced by HTTPRunDB.connect() from the server's client spec
+        mlrun.mlconf.function.spec.security_context = {
+            "default": "e30=",
+            "enrichment_mode": SecurityContextEnrichmentModes.override.value,
+            "enrichment_group_id": 65534,
+            "pipelines": {"kfp_pod_user_unix_id": 5},
+            **synced_security_context,
+        }
+
+        try:
+            homes = self._compile_workflow_step_homes(workflow_path, ["job", "job"])
+
+            assert homes == {"func1": "/home/custom", "func2": expected_home}
+        finally:
+            # the config reload doesn't restore keys missing from the synced security context
+            mlrun.mlconf.function.spec.security_context = copy.deepcopy(
+                mlrun.config.default_config["function"]["spec"]["security_context"]
+            )
+
+    def test_kfp_pod_of_local_function_not_enriched_with_non_root_home(self):
+        mlrun.mlconf.function.spec.security_context.enrichment_mode = (
+            SecurityContextEnrichmentModes.override.value
+        )
+        function = mlrun.new_function("local-func", kind="local")
+        kfp_pod_template = {"name": "step", "container": {"env": []}}
+
+        mlrun.projects.pipelines._enrich_kfp_pod_security_context(
+            kfp_pod_template, function
+        )
+
+        assert kfp_pod_template == {"name": "step", "container": {"env": []}}
+
+    def test_kfp_pod_non_root_home_enrichment_is_idempotent(self):
+        mlrun.mlconf.function.spec.security_context.enrichment_mode = (
+            SecurityContextEnrichmentModes.override.value
+        )
+        kfp_pod_template = {"name": "step", "container": {}}
+
+        # the patcher applies every project function to every step template
+        for name in ["func1", "func2"]:
+            mlrun.projects.pipelines._enrich_kfp_pod_security_context(
+                kfp_pod_template, mlrun.new_function(name, kind="job")
+            )
+
+        assert kfp_pod_template["container"]["env"] == [
+            {"name": "HOME", "value": "/tmp"}
+        ]
+
+    def _compile_workflow_step_homes(self, workflow_path, function_kinds):
+        self.pipeline_path = "remote_pipeline_with_home.py"
+        mlrun.projects.pipeline_context.clear(with_project=True)
+
+        self._create_project("remotepipe")
+        for index, kind in enumerate(function_kinds):
+            self.project.set_function(
+                mlrun.new_function(
+                    source=f"{self.assets_path}/{self.pipeline_path}",
+                    name=f"func{index + 1}",
+                    image="mlrun/mlrun",
+                    kind=kind,
+                )
+            )
+        self.project.set_workflow(
+            "p1",
+            workflow_path=str(f"{self.assets_path / self.pipeline_path}"),
+            handler=self.pipeline_handler,
+            engine="kfp",
+            local=False,
+        )
+        self.project.save()
+
+        self.project.save_workflow("p1", target=str(workflow_path))
+
+        with workflow_path.open() as workflow_file:
+            workflow = yaml.safe_load(workflow_file)
+        homes = {}
+        for step in workflow["spec"]["templates"]:
+            if not step.get("container"):
+                continue
+            home_values = [
+                env_var["value"]
+                for env_var in step["container"].get("env") or []
+                if env_var["name"] == "HOME"
+            ]
+            assert len(home_values) <= 1, (
+                f"step {step['name']} has multiple HOME env vars: {home_values}"
+            )
+            homes[step["name"].split("-")[0]] = home_values[0] if home_values else None
+        return homes
 
     def _get_preemptible_tolerations(self):
         return [{"effect": "NoSchedule", "key": "test1", "operator": "Exists"}]

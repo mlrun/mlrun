@@ -26,6 +26,7 @@ import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.common.schemas.function
 import mlrun.common.schemas.workflow
+import mlrun.runtimes.pod
 import mlrun.utils.notifications
 import mlrun_pipelines.common.models
 import mlrun_pipelines.patcher
@@ -474,6 +475,15 @@ def _enrich_kfp_pod_security_context(kfp_pod_template, function):
             kfp_pod_user_unix_id
         ),
     }
+
+    # the non-root kfp pod needs a writable HOME, unless the step sets it explicitly. Decided by the step's own env
+    # only - every function is applied to every step template, so this also keeps the enrichment idempotent
+    non_root_home = mlrun.runtimes.pod.get_non_root_home()
+    container_env = kfp_pod_template["container"].setdefault("env", [])
+    if non_root_home and not any(
+        env_var.get("name") == "HOME" for env_var in container_env
+    ):
+        container_env.append({"name": "HOME", "value": non_root_home})
 
 
 def get_db_function(project, key) -> mlrun.runtimes.BaseRuntime:

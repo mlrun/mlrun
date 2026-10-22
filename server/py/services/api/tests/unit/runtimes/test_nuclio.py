@@ -646,6 +646,104 @@ class TestNuclioRuntime(TestRuntimeBase):
         for expected_env_var in expected_env_vars:
             assert expected_env_var in config["spec"]["env"]
 
+    @pytest.mark.parametrize("with_base_spec", [False, True])
+    def test_compile_non_root_gets_default_home(
+        self, db: Session, client: TestClient, with_base_spec
+    ):
+        function = self._generate_non_root_runtime(with_base_spec)
+        config = self._compile_config(function)
+        assert self._get_home_envs(config) == [{"name": "HOME", "value": "/tmp"}]
+
+    def test_compile_root_has_no_default_home(self, db: Session, client: TestClient):
+        function = self._generate_runtime(self.runtime_kind)
+        config = self._compile_config(function)
+        assert self._get_home_envs(config) == []
+
+    @pytest.mark.parametrize("home_source", ["spec_env", "spec_config", "base_spec"])
+    def test_compile_non_root_explicit_home_wins(
+        self, db: Session, client: TestClient, home_source
+    ):
+        function = self._generate_non_root_runtime(with_base_spec=True)
+        user_home = {"name": "HOME", "value": "/home/user"}
+        if home_source == "spec_env":
+            function.set_env("HOME", user_home["value"])
+        elif home_source == "spec_config":
+            function.set_config("spec.env", [dict(user_home)])
+        else:
+            function.spec.base_spec["spec"]["env"] = [dict(user_home)]
+
+        config = self._compile_config(function)
+        assert self._get_home_envs(config) == [user_home]
+
+    @pytest.mark.parametrize("reload_between_deploys", [False, True])
+    @pytest.mark.parametrize("with_base_spec", [False, True])
+    def test_compile_twice_does_not_store_default_home(
+        self, db: Session, client: TestClient, with_base_spec, reload_between_deploys
+    ):
+        function = self._generate_non_root_runtime(with_base_spec)
+        for _ in range(2):
+            if reload_between_deploys:
+                # simulate the function being stored after deploy and loaded back for a redeploy
+                function = function.from_dict(function.to_dict())
+            config = self._compile_config(function)
+            assert self._get_home_envs(config) == [{"name": "HOME", "value": "/tmp"}]
+            self._assert_no_home_in_raw_env(function)
+
+    @pytest.mark.parametrize("reload_between_deploys", [False, True])
+    @pytest.mark.parametrize("with_base_spec", [False, True])
+    def test_redeploy_after_moving_to_root_has_no_home(
+        self, db: Session, client: TestClient, with_base_spec, reload_between_deploys
+    ):
+        function = self._generate_non_root_runtime(with_base_spec)
+        config = self._compile_config(function)
+        assert self._get_home_envs(config) == [{"name": "HOME", "value": "/tmp"}]
+
+        if reload_between_deploys:
+            function = function.from_dict(function.to_dict())
+        function.with_security_context(
+            kubernetes.client.V1SecurityContext(run_as_user=0)
+        )
+        config = self._compile_config(function)
+        assert self._get_home_envs(config) == []
+        self._assert_no_home_in_raw_env(function)
+
+    def _generate_non_root_runtime(self, with_base_spec: bool = False):
+        function = self._generate_runtime(self.runtime_kind)
+        function.with_security_context(
+            kubernetes.client.V1SecurityContext(run_as_user=12345, run_as_group=12345)
+        )
+        if with_base_spec:
+            # a populated base_spec (e.g. from_image or an imported nuclio yaml) is compiled in place
+            function.spec.base_spec = nuclio.config.new_config()
+            function.spec.base_spec["spec"]["env"] = [
+                {"name": "USER_VAR", "value": "1"}
+            ]
+        return function
+
+    @staticmethod
+    def _compile_config(function) -> dict:
+        _, _, config = (
+            services.api.crud.runtimes.nuclio.function._compile_function_config(
+                function
+            )
+        )
+        return config
+
+    @staticmethod
+    def _get_home_envs(config: dict) -> list[dict]:
+        return [
+            env_var
+            for env_var in config["spec"].get("env") or []
+            if env_var["name"] == "HOME"
+        ]
+
+    @staticmethod
+    def _assert_no_home_in_raw_env(function):
+        raw_env = (function.spec.config.get("spec.env") or []) + (
+            mlrun.utils.get_in(function.spec.base_spec, "spec.env", []) or []
+        )
+        assert "HOME" not in [env_var["name"] for env_var in raw_env]
+
     def test_deploy_with_project_secrets(
         self, db: Session, k8s_secrets_mock: APIK8sSecretsMock
     ):

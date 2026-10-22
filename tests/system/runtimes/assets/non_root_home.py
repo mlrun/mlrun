@@ -17,12 +17,11 @@ import uuid
 
 
 def probe(context):
-    """Job handler: write to ~/.cache and log the uid, HOME and writability."""
     context.log_results(_probe_cache_dir())
 
 
 def handler(context, event):
-    """Nuclio handler: probe on invocation (not at init) so failures surface in the response."""
+    """Probe on invocation, not at init, so failures appear in the response."""
     try:
         result = _probe_cache_dir()
     except Exception as exc:
@@ -39,7 +38,7 @@ def handler(context, event):
 
 
 def _probe_cache_dir() -> dict:
-    # attempt the write before any other check, so an unwritable HOME fails with the original PermissionError
+    # write first so an unwritable HOME raises the original PermissionError
     cache_dir = os.path.expanduser("~/.cache")
     os.makedirs(cache_dir, exist_ok=True)
     probe_path = os.path.join(cache_dir, f"mlrun-non-root-home-{uuid.uuid4().hex}")

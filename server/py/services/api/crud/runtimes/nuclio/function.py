@@ -306,8 +306,7 @@ def _compile_function_config(
         or function.spec.build.source
         or function.kind == mlrun.runtimes.RuntimeKinds.serving  # serving can be empty
     ):
-        # compile on a copy - the compiled config gets generated values (e.g. runtime env vars) which must not be
-        # stored back in the function's base_spec, where a redeploy would treat them as user-set
+        # compile on a copy so a redeploy does not treat generated values as user-set
         config = copy.deepcopy(function.spec.base_spec)
         if not config:
             # if base_spec was not set (when not using code_to_function) and we have base64 code
@@ -399,8 +398,7 @@ def _enrich_config_spec(
 
 def _resolve_env_vars(function):
     env_dict, external_source_env_dict = function._get_nuclio_config_spec_env()
-    # the generated non-root HOME default only considers spec.env, so drop it if the user set HOME in the raw nuclio
-    # config or base spec - those are merged into the compiled config and would otherwise be overridden by it
+    # raw Nuclio config is merged later and must take precedence over generated HOME
     if mlrun.runtimes.pod.get_non_root_home_env(
         function.spec
     ) and _is_env_set_in_raw_config(function, "HOME"):

@@ -24,8 +24,6 @@ NON_ROOT_UID = 12345
 
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured
 class TestNonRootHome(tests.system.base.TestMLRunSystem):
-    """ML-13134: functions running as a non-root UID without a passwd entry must get a writable HOME."""
-
     project_name = "non-root-home-system-test"
     reuse_project_across_tests = True
 
@@ -65,8 +63,8 @@ class TestNonRootHome(tests.system.base.TestMLRunSystem):
         self._assert_probe_result(result)
 
     def _set_non_root_security_context(self, function):
-        # with_security_context is only allowed when enrichment is disabled, otherwise the server
-        # enriches the user's non-root unix id
+        # explicit context is allowed only when enrichment is disabled; otherwise
+        # the server supplies the UID
         enrichment_mode = mlrun.mlconf.function.spec.security_context.enrichment_mode
         self._logger.info(
             "Security context enrichment mode", enrichment_mode=enrichment_mode
@@ -82,7 +80,7 @@ class TestNonRootHome(tests.system.base.TestMLRunSystem):
             )
 
     def _assert_probe_result(self, result: dict):
-        # the effective uid depends on the lab's enrichment mode, so only assert what the fix guarantees
+        # enrichment mode controls the effective UID, so don't assert a specific UID
         self._logger.info(
             "Non-root HOME probe result", uid=result["uid"], home=result["home"]
         )

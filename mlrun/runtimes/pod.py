@@ -1525,12 +1525,11 @@ class KubeResource(BaseRuntime):
 
 def get_non_root_home() -> str:
     """
-    Get the configured writable HOME for functions that run as non-root.
+    Get the configured HOME for non-root functions.
 
-    Older servers don't send the key in the client spec, and the SDK replaces its whole function config with the
-    synced one, so fall back to the SDK default when the key is missing.
+    Older servers omit this key when replacing the SDK function config.
 
-    :return: ``mlconf.function.spec.security_context.non_root_home``, or its SDK default when it's missing.
+    :return: The configured path, falling back to the SDK default for older servers.
     """
     return getattr(
         mlconf.function.spec.security_context,
@@ -1543,16 +1542,14 @@ def get_non_root_home() -> str:
 
 def get_non_root_home_env(spec: KubeResourceSpec) -> dict[str, str]:
     """
-    Get the default HOME env var for a function that runs as non-root.
+    Generate the default HOME environment variable for a non-root function.
 
-    A non-root user id without an entry in the image's passwd database starts with HOME=/, which it can't write to,
-    so libraries using the default user cache location (~/.cache) fail. The default is generated when the container
-    env is built and is never stored in the function spec.
+    A non-root UID without a passwd entry starts with the unwritable ``HOME=/``.
+    The generated value is not stored in the function spec.
 
     :param spec: The function spec.
-
-    :return: ``{"HOME": get_non_root_home()}`` when the spec's security context runs as non-root and HOME isn't set
-             explicitly in ``spec.env``, otherwise an empty dict.
+    :return: The generated HOME variable, or an empty dictionary for root functions,
+             functions with an explicit HOME, or when the default is disabled.
     """
     non_root_home = get_non_root_home()
     if not non_root_home or not _is_non_root_security_context(spec.security_context):

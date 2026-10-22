@@ -35,9 +35,7 @@ def _non_root_job():
 
 
 def test_sync_environment_variables_does_not_sync_generated_home():
-    """ML-13134: a KFP v2 step of a non-local function only runs the `mlrun run` client, the user code runs
-    in the function pod built by the server, which gets the generated non-root HOME default. The step itself
-    gets no MLRun-managed security context, so syncing the default to it is not needed."""
+    """Non-local KFP v2 steps run the client; user code runs in the server-created function pod."""
     function = _non_root_job()
     assert mlrun.runtimes.pod.get_non_root_home_env(function.spec) == {"HOME": "/tmp"}
 
@@ -48,8 +46,7 @@ def test_sync_environment_variables_does_not_sync_generated_home():
 
 
 def test_local_function_step_has_no_non_root_home():
-    """ML-13134: a local function's code runs inside the KFP v2 step, but local runtimes have no security
-    context and MLRun sets none on v2 steps, so the non-root HOME default never applies to them."""
+    """Local KFP v2 steps have no MLRun-managed security context."""
     function = mlrun.new_function("test-home", project="p", kind="local")
     assert not isinstance(function, mlrun.runtimes.pod.KubeResource)
     runtime_env, _ = function._generate_runtime_env()

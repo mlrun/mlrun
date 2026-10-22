@@ -683,7 +683,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         function = self._generate_non_root_runtime(with_base_spec)
         for _ in range(2):
             if reload_between_deploys:
-                # simulate the function being stored after deploy and loaded back for a redeploy
+                # simulate storing the function and loading it for redeployment
                 function = function.from_dict(function.to_dict())
             config = self._compile_config(function)
             assert self._get_home_envs(config) == [{"name": "HOME", "value": "/tmp"}]
@@ -713,7 +713,7 @@ class TestNuclioRuntime(TestRuntimeBase):
             kubernetes.client.V1SecurityContext(run_as_user=12345, run_as_group=12345)
         )
         if with_base_spec:
-            # a populated base_spec (e.g. from_image or an imported nuclio yaml) is compiled in place
+            # exercise base specs created from images or imported Nuclio YAML
             function.spec.base_spec = nuclio.config.new_config()
             function.spec.base_spec["spec"]["env"] = [
                 {"name": "USER_VAR", "value": "1"}

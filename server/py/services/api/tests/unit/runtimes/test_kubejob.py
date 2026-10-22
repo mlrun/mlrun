@@ -694,7 +694,7 @@ class TestKubejobRuntime(TestRuntimeBase):
         self.execute_function(runtime)
         assert self._get_pod_home_envs() == [{"name": "HOME", "value": "/tmp"}]
 
-        # the default is generated, not stored on the function
+        # the generated default must not become part of the function spec
         assert not runtime.is_env_exists("HOME")
 
     def test_run_root_has_no_default_home(self, db: Session, k8s_secrets_mock):

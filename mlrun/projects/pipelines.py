@@ -476,8 +476,7 @@ def _enrich_kfp_pod_security_context(kfp_pod_template, function):
         ),
     }
 
-    # the non-root kfp pod needs a writable HOME, unless the step sets it explicitly. Decided by the step's own env
-    # only - every function is applied to every step template, so this also keeps the enrichment idempotent
+    # each function is applied to every step template, so only inspect the step env
     non_root_home = mlrun.runtimes.pod.get_non_root_home()
     container_env = kfp_pod_template["container"].setdefault("env", [])
     if non_root_home and not any(

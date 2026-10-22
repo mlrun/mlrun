@@ -1208,7 +1208,7 @@ def test_ensure_function_security_context_non_root_home_is_generated_not_stored(
     runtime_env, _ = function._generate_runtime_env()
     assert runtime_env["HOME"] == "/tmp"
 
-    # the stored function spec doesn't contain the generated default
+    # the default is generated and must not be stored in the function spec
     stored_env = function.to_dict()["spec"].get("env") or []
     assert "HOME" not in [env_var["name"] for env_var in stored_env]
 

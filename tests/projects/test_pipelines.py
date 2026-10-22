@@ -30,14 +30,14 @@ import mlrun.projects.pipelines
             [{"name": "HOME", "value": "/home/custom"}],
         ),
         ({"non_root_home": ""}, []),
-        # older servers don't send the key - fall back to the SDK default
+        # older servers omit the key, so the SDK default applies
         ({}, [{"name": "HOME", "value": "/tmp"}]),
     ],
 )
 def test_enrich_kfp_pod_security_context_non_root_home_after_client_spec_sync(
     synced_security_context, expected_env
 ):
-    # the security context as synced by HTTPRunDB.connect() from the server's client spec
+    # match the security context installed by HTTPRunDB.connect()
     mlrun.mlconf.function.spec.security_context = {
         "default": "e30=",
         "enrichment_mode": mlrun.common.schemas.SecurityContextEnrichmentModes.override.value,
@@ -58,7 +58,7 @@ def test_enrich_kfp_pod_security_context_non_root_home_after_client_spec_sync(
         }
         assert kfp_pod_template["container"]["env"] == expected_env
     finally:
-        # the config reload doesn't restore keys missing from the synced security context
+        # reloading config does not restore keys omitted by the synced context
         mlrun.mlconf.function.spec.security_context = copy.deepcopy(
             mlrun.config.default_config["function"]["spec"]["security_context"]
         )

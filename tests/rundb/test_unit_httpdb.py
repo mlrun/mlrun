@@ -596,7 +596,7 @@ def test_client_spec_nuclio_function_authentication_enabled_sync(
     [
         ({"non_root_home": "/home/custom"}, "/home/custom"),
         ({"non_root_home": ""}, ""),
-        # older servers don't send the key - fall back to the SDK default
+        # older servers omit the key, so the SDK default applies
         ({}, "/tmp"),
     ],
 )
@@ -627,5 +627,5 @@ def test_client_spec_function_security_context_non_root_home_sync(
 
         assert mlrun.runtimes.pod.get_non_root_home() == expected_non_root_home
     finally:
-        # connect() replaces the whole function config, which the config reload doesn't restore
+        # connect() replaces the config; reload does not restore omitted keys
         mlrun.mlconf.function = copy.deepcopy(mlrun.config.default_config["function"])

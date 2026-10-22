@@ -314,14 +314,13 @@ class TestRemotePipeline(tests.projects.base_pipeline.TestPipeline):
     @pytest.mark.parametrize(
         "enrichment_mode,function_kinds,expected_homes",
         [
-            # several non-local functions - each enriched step gets exactly one default HOME,
-            # and an explicit HOME on the step template wins
+            # enriched steps get one HOME; an explicit HOME takes precedence
             (
                 SecurityContextEnrichmentModes.override.value,
                 ["job", "job", "job", "nuclio"],
                 {"func1": "/home/custom", "func2": "/tmp"},
             ),
-            # no security context is enriched - only the explicit HOME remains
+            # disabled enrichment preserves only explicit HOME
             (
                 SecurityContextEnrichmentModes.disabled.value,
                 ["job", "job", "job", "nuclio"],
@@ -348,14 +347,14 @@ class TestRemotePipeline(tests.projects.base_pipeline.TestPipeline):
         [
             ({"non_root_home": "/home/custom"}, "/home/custom"),
             ({"non_root_home": ""}, None),
-            # older servers don't send the key - fall back to the SDK default
+            # older servers omit the key, so the SDK default applies
             ({}, "/tmp"),
         ],
     )
     def test_kfp_pipeline_non_root_home_after_client_spec_sync(
         self, rundb_mock, workflow_path, synced_security_context, expected_home
     ):
-        # the security context as synced by HTTPRunDB.connect() from the server's client spec
+        # match the security context installed by HTTPRunDB.connect()
         mlrun.mlconf.function.spec.security_context = {
             "default": "e30=",
             "enrichment_mode": SecurityContextEnrichmentModes.override.value,
@@ -369,7 +368,7 @@ class TestRemotePipeline(tests.projects.base_pipeline.TestPipeline):
 
             assert homes == {"func1": "/home/custom", "func2": expected_home}
         finally:
-            # the config reload doesn't restore keys missing from the synced security context
+            # reloading config does not restore keys omitted by the synced context
             mlrun.mlconf.function.spec.security_context = copy.deepcopy(
                 mlrun.config.default_config["function"]["spec"]["security_context"]
             )

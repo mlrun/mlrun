@@ -55,7 +55,7 @@ def test_get_non_root_home_env_by_security_context(security_context, expected_en
 
 
 def test_get_non_root_home_env_unconverted_dict_security_context():
-    # security_context may be stored as an unconverted (camelCase) dict, bypassing the setter
+    # security context can bypass the setter and remain a camelCase dictionary
     function = _new_job()
     function.spec._security_context = {"runAsUser": 12345, "runAsGroup": 12345}
     assert mlrun.runtimes.pod.get_non_root_home_env(function.spec) == {
@@ -64,7 +64,7 @@ def test_get_non_root_home_env_unconverted_dict_security_context():
 
 
 def test_non_root_home_ignores_enrichment_mode():
-    # enrichment mode is disabled by default - only the effective security context decides
+    # the effective security context, not enrichment mode, determines the default
     assert (
         mlrun.mlconf.function.spec.security_context.enrichment_mode
         == mlrun.common.schemas.SecurityContextEnrichmentModes.disabled.value
@@ -121,7 +121,7 @@ def test_explicit_home_wins(set_home_first, home_kwargs):
 
     assert mlrun.runtimes.pod.get_non_root_home_env(function.spec) == {}
 
-    # also after serialization (env entries become dicts)
+    # serialized environment entries become dictionaries
     function = mlrun.new_function(runtime=function.to_dict())
     assert mlrun.runtimes.pod.get_non_root_home_env(function.spec) == {}
     runtime_env, _ = function._generate_runtime_env()
@@ -164,7 +164,7 @@ def test_non_root_home_does_not_mutate_spec():
 
 
 def test_nuclio_explicit_home_not_overridden_by_generated_env():
-    # in nuclio the generated env overrides spec.env, so an explicit HOME must suppress the default
+    # generated Nuclio environment values otherwise override spec.env
     function = mlrun.new_function("test-home", project="p", kind="nuclio")
     function.with_security_context(
         k8s_client.V1SecurityContext(run_as_user=12345, run_as_group=12345)

@@ -297,6 +297,27 @@ class TestNuclioRuntime(TestRuntimeBase):
         diff_result.pop("dictionary_item_removed", None)
         assert diff_result == {}
 
+    def _get_s3_archive_attributes_with_auto_mount(
+        self, monkeypatch, auto_mount_params, secret_data=None, builder_env=None
+    ):
+        fn = self._generate_runtime(self.runtime_kind)
+        fn.with_source_archive(
+            "s3://my-bucket/path/in/bucket/my-functions-archive.tar.gz",
+            handler="main:Handler",
+        )
+        monkeypatch.setattr(mlrun.mlconf.storage, "auto_mount_type", "s3")
+        monkeypatch.setattr(
+            mlrun.mlconf.storage, "auto_mount_params", auto_mount_params
+        )
+        k8s_helper = unittest.mock.Mock()
+        k8s_helper.is_running_inside_kubernetes_cluster.return_value = True
+        k8s_helper.get_secret_data.return_value = secret_data or {}
+        with unittest.mock.patch(
+            "framework.utils.singletons.k8s.get_k8s_helper", return_value=k8s_helper
+        ):
+            archive = get_archive_spec(fn, builder_env or {})
+        return archive["spec"]["build"]["codeEntryAttributes"], k8s_helper
+
     def _assert_nuclio_v3io_mount(self, local_path="", remote_path="", cred_only=False):
         args, _ = nuclio.deploy.deploy_config.call_args
         deploy_spec = args[0]["spec"]
@@ -1542,6 +1563,69 @@ class TestNuclioRuntime(TestRuntimeBase):
             == "https://minio.example.com"
         )
 
+    def test_load_function_with_source_archive_s3_credentials_from_auto_mount_secret(
+        self, monkeypatch
+    ):
+        """
+        ML-11339: with auto_mount_params secret_name set and no explicit credentials,
+        the credentials must be read from that secret, since nuclio cannot resolve the
+        secretKeyRef entries mount_s3 emits.
+        """
+        attributes, k8s_helper = self._get_s3_archive_attributes_with_auto_mount(
+            monkeypatch,
+            auto_mount_params="endpoint_url=https://minio.example.com,secret_name=minio-credentials",
+            secret_data={
+                "AWS_ACCESS_KEY_ID": "minio-id",
+                "AWS_SECRET_ACCESS_KEY": "minio-secret",
+            },
+        )
+        k8s_helper.get_secret_data.assert_called_once_with("minio-credentials")
+        assert attributes["s3AccessKeyId"] == "minio-id"
+        assert attributes["s3SecretAccessKey"] == "minio-secret"
+        assert attributes["s3SessionToken"] == ""
+        assert attributes["s3Endpoint"] == "https://minio.example.com"
+
+    def test_load_function_with_source_archive_s3_explicit_credentials_override_auto_mount_secret(
+        self, monkeypatch
+    ):
+        attributes, _ = self._get_s3_archive_attributes_with_auto_mount(
+            monkeypatch,
+            auto_mount_params="endpoint_url=https://minio.example.com,secret_name=minio-credentials",
+            secret_data={
+                "AWS_ACCESS_KEY_ID": "minio-id",
+                "AWS_SECRET_ACCESS_KEY": "minio-secret",
+            },
+            builder_env={
+                "AWS_ACCESS_KEY_ID": "user-id",
+                "AWS_SECRET_ACCESS_KEY": "user-secret",
+            },
+        )
+        assert attributes["s3AccessKeyId"] == "user-id"
+        assert attributes["s3SecretAccessKey"] == "user-secret"
+
+    def test_load_function_with_source_archive_s3_auto_mount_secret_missing(
+        self, monkeypatch
+    ):
+        attributes, _ = self._get_s3_archive_attributes_with_auto_mount(
+            monkeypatch,
+            auto_mount_params="endpoint_url=https://minio.example.com,secret_name=minio-credentials",
+            secret_data={},
+        )
+        assert attributes["s3AccessKeyId"] == ""
+        assert attributes["s3SecretAccessKey"] == ""
+        assert attributes["s3Endpoint"] == "https://minio.example.com"
+
+    def test_load_function_with_source_archive_s3_auto_mount_without_secret_name(
+        self, monkeypatch
+    ):
+        attributes, k8s_helper = self._get_s3_archive_attributes_with_auto_mount(
+            monkeypatch,
+            auto_mount_params="endpoint_url=https://minio.example.com",
+        )
+        k8s_helper.get_secret_data.assert_not_called()
+        assert attributes["s3AccessKeyId"] == ""
+        assert attributes["s3Endpoint"] == "https://minio.example.com"
+
     def test_load_function_with_source_archive_v3io(self):
         fn = self._generate_runtime(self.runtime_kind)
         fn.with_source_archive(
@@ -2222,7 +2306,7 @@ class TestNuclioRuntime(TestRuntimeBase):
             ):
                 with unittest.mock.patch.object(
                     mlrun.k8s_utils,
-                    "is_running_inside_kubernetes_cluster",
+                    "is_running_in_kubernetes_pod",
                     return_value=inside_k8s,
                 ):
                     if expected_exception:

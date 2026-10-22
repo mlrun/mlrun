@@ -759,17 +759,9 @@ class ApplicationRuntime(nuclio_function.RemoteRuntime):
             # Force ssl redirect so that the application is only accessible via https
             api_gateway.with_force_ssl_redirect()
 
-        # Add authentication if required
-        authentication_mode = (
-            authentication_mode
-            or mlrun.mlconf.function.application.default_authentication_mode
+        self._enrich_api_gateway_authentication(
+            api_gateway, authentication_mode, authentication_creds
         )
-        if authentication_mode == schemas.APIGatewayAuthenticationMode.access_key:
-            api_gateway.with_access_key_auth()
-        elif authentication_mode == schemas.APIGatewayAuthenticationMode.basic:
-            api_gateway.with_basic_auth(*authentication_creds)
-        elif authentication_mode == schemas.APIGatewayAuthenticationMode.iguazio:
-            api_gateway.with_iguazio_auth()
 
         db = self._get_db()
         api_gateway_scheme = db.store_api_gateway(
@@ -916,6 +908,27 @@ class ApplicationRuntime(nuclio_function.RemoteRuntime):
         self,
     ):
         pass
+
+    @staticmethod
+    def _enrich_api_gateway_authentication(
+        api_gateway: nuclio_api_gateway.APIGateway,
+        authentication_mode: schemas.APIGatewayAuthenticationMode | None,
+        authentication_creds: tuple[str, str] | None,
+    ):
+        # With function-level authentication, Nuclio rejects any API gateway authentication mode
+        if mlrun.mlconf.is_nuclio_function_authentication_enabled():
+            return
+
+        authentication_mode = (
+            authentication_mode
+            or mlrun.mlconf.function.application.default_authentication_mode
+        )
+        if authentication_mode == schemas.APIGatewayAuthenticationMode.access_key:
+            api_gateway.with_access_key_auth()
+        elif authentication_mode == schemas.APIGatewayAuthenticationMode.basic:
+            api_gateway.with_basic_auth(*authentication_creds)
+        elif authentication_mode == schemas.APIGatewayAuthenticationMode.iguazio:
+            api_gateway.with_iguazio_auth()
 
     def _run(self, runobj: "mlrun.RunObject", execution):
         raise mlrun.runtimes.RunError(

@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import io
 import time
 from urllib.parse import urlparse
 
@@ -28,6 +29,56 @@ from .utils import parse_s3_bucket_and_key
 __all__ = ["parse_s3_bucket_and_key"]
 
 
+class _BytesLikeStream(io.RawIOBase):
+    """Seekable, zero-copy file-like wrapper for bytes/bytearray.
+
+    Backed by a memoryview over the input buffer. Being seekable lets
+    s3transfer pick its seekable upload path: for sub-threshold payloads
+    the stream is passed straight to a single PUT (no BytesIO copy), and
+    multipart workers can seek to their chunk offset and read in parallel
+    rather than serializing on a shared reader.
+    """
+
+    def __init__(self, data):
+        self._view = memoryview(data)
+        self._pos = 0
+
+    def readable(self):
+        return True
+
+    def close(self):
+        view = self._view
+        if view is not None:
+            self._view = None
+            view.release()
+        super().close()
+
+    def seekable(self):
+        return True
+
+    def seek(self, offset, whence=io.SEEK_SET):
+        if whence == io.SEEK_SET:
+            self._pos = offset
+        elif whence == io.SEEK_CUR:
+            self._pos += offset
+        elif whence == io.SEEK_END:
+            self._pos = len(self._view) + offset
+        else:
+            raise ValueError(f"invalid whence: {whence}")
+        return self._pos
+
+    def tell(self):
+        return self._pos
+
+    def readinto(self, b):
+        n = len(b)
+        chunk = self._view[self._pos : self._pos + n]
+        n_read = len(chunk)
+        b[:n_read] = chunk
+        self._pos += n_read
+        return n_read
+
+
 class S3Store(DataStore):
     using_bucket = True
 
@@ -41,6 +92,7 @@ class S3Store(DataStore):
 
         access_key_id = self._get_secret_or_env("AWS_ACCESS_KEY_ID")
         secret_key = self._get_secret_or_env("AWS_SECRET_ACCESS_KEY")
+        session_token = self._get_secret_or_env("AWS_SESSION_TOKEN")
         token_file = self._get_secret_or_env("AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE")
         endpoint_url = self._get_secret_or_env("AWS_ENDPOINT_URL_S3")
         force_non_anonymous = self._get_secret_or_env("S3_NON_ANONYMOUS")
@@ -56,7 +108,10 @@ class S3Store(DataStore):
         # If user asks to assume a role, this needs to go through the STS client and retrieve temporary creds
         if assume_role_arn:
             client = boto3.client(
-                "sts", aws_access_key_id=access_key_id, aws_secret_access_key=secret_key
+                "sts",
+                aws_access_key_id=access_key_id,
+                aws_secret_access_key=secret_key,
+                aws_session_token=session_token,
             )
             self._temp_credentials = client.assume_role(
                 RoleArn=assume_role_arn, RoleSessionName="assumeRoleSession"
@@ -93,6 +148,7 @@ class S3Store(DataStore):
                 region_name=region,
                 aws_access_key_id=access_key_id,
                 aws_secret_access_key=secret_key,
+                aws_session_token=session_token,
                 endpoint_url=endpoint_url,
             )
         else:
@@ -178,14 +234,13 @@ class S3Store(DataStore):
         endpoint_url = self._get_secret_or_env("AWS_ENDPOINT_URL_S3")
         access_key_id = self._get_secret_or_env("AWS_ACCESS_KEY_ID")
         secret = self._get_secret_or_env("AWS_SECRET_ACCESS_KEY")
+        token = self._get_secret_or_env("AWS_SESSION_TOKEN")
         token_file = self._get_secret_or_env("AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE")
 
         if self._temp_credentials:
             access_key_id = self._temp_credentials["AccessKeyId"]
             secret = self._temp_credentials["SecretAccessKey"]
             token = self._temp_credentials["SessionToken"]
-        else:
-            token = None
 
         storage_options = dict(
             anon=not (
@@ -237,9 +292,18 @@ class S3Store(DataStore):
             raise
 
     def put(self, key, data, append=False):
-        data, _ = self._prepare_put_data(data, append)
+        if append:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "S3 does not support appending to objects"
+            )
+        self._validate_put_data(data)
+        if isinstance(data, str):
+            data = data.encode()
         bucket, key = self.get_bucket_and_key(key)
-        self.s3.Object(bucket, key).put(Body=data)
+        # `with` guarantees close(): releases the memoryview so a bytearray
+        # caller can resize their data even if upload raises.
+        with io.BufferedReader(_BytesLikeStream(data)) as stream:
+            self.s3.Bucket(bucket).upload_fileobj(stream, key, Config=self.config)
 
     def stat(self, key):
         bucket, key = self.get_bucket_and_key(key)

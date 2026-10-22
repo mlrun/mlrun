@@ -13,13 +13,15 @@
 # limitations under the License.
 
 ARG MLRUN_PYTHON_VERSION=3.11
+ARG MLRUN_BASE_PYTHON_VERSION=3.13
 ARG MLRUN_PIP_VERSION=26.0
 ARG MLRUN_UV_IMAGE=ghcr.io/astral-sh/uv:latest
 ARG MLRUN_CACHE_DATE=initial
 
 FROM ${MLRUN_UV_IMAGE} AS uv-image
-FROM quay.io/jupyter/scipy-notebook:python-${MLRUN_PYTHON_VERSION}
+FROM quay.io/jupyter/scipy-notebook:python-${MLRUN_BASE_PYTHON_VERSION}
 ARG MLRUN_PYTHON_VERSION
+ARG MLRUN_BASE_PYTHON_VERSION
 ARG MLRUN_PIP_VERSION
 USER root
 
@@ -49,8 +51,14 @@ USER $NB_UID
 # Ensure uv uses mlrun conda env
 ENV PATH="/opt/conda/envs/mlrun/bin:$PATH"
 
+# jupyterlab-git-core is a separate conda-forge package from jupyterlab-git (split since v0.50)
 RUN python -m pip install --upgrade pip~=${MLRUN_PIP_VERSION} && \
-    conda update --all --yes
+    conda update --all --yes && \
+    conda install -n base -y \
+        "jupyterlab-git>=0.54.0" \
+        "jupyterlab-git-core>=0.54.0" \
+        "pillow>=12.3.0" \
+        "tornado>=6.5.8"
 
 # Add Jupyter kernel for mlrun environment
 RUN conda install -n mlrun ipykernel -y && \
@@ -97,8 +105,8 @@ USER root
 RUN rm -rf /tmp/mlrun \
     && rm -rf $HOME/.cache \
     && rm -rf /opt/conda/envs/mlrun/lib/python${MLRUN_PYTHON_VERSION}/ensurepip \
-    && rm -rf /opt/conda/lib/python${MLRUN_PYTHON_VERSION}/ensurepip \
-    && rm -rf /usr/local/lib/python${MLRUN_PYTHON_VERSION}/ensurepip
+    && rm -rf /opt/conda/lib/python${MLRUN_BASE_PYTHON_VERSION}/ensurepip \
+    && rm -rf /usr/local/lib/python${MLRUN_BASE_PYTHON_VERSION}/ensurepip
 
 USER $NB_UID
 
@@ -119,10 +127,12 @@ ENV JUPYTER_ENABLE_LAB=yes \
     MLRUN_HTTPDB__PORT=8080
 
 # backup home since it will be deleted when using pvc
-# exclude the conda package cache - it dominates the tarball size and is not user data,
-# so including it turns first-mount extraction on NFS-backed PVCs into a 30-60 min stall
+# the conda package cache is removed explicitly before archiving: --exclude was unreliable
+# (packages still linked to the base env survive conda clean and the path pattern was
+# not consistently matched by GNU tar when the source path is absolute)
 RUN conda clean -a -y || true && \
-    mkdir data && tar -cf /tmp/basehome.tar --exclude='.conda/pkgs' --exclude='.cache' $HOME
+    rm -rf $HOME/.conda/pkgs && \
+    mkdir data && tar -cf /tmp/basehome.tar --exclude='.cache' $HOME
 
 ARG MLRUN_GIT_COMMIT
 LABEL org.opencontainers.image.revision=$MLRUN_GIT_COMMIT

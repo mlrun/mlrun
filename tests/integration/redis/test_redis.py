@@ -96,7 +96,7 @@ class TestRedisDataStore:
         assert result == "test"
         with pytest.raises(
             TypeError,
-            match="Unable to put a value of type RedisStore",
+            match="Unable to put a value of type int to RedisStore",
         ):
             data_item.put(123)
 

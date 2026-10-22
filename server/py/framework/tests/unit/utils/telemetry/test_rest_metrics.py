@@ -123,10 +123,7 @@ def test_record_duration_noop_when_uninitialized(reset_state: None) -> None:
     assert telemetry_rest_metrics._duration_histogram is None
 
 
-def test_record_duration_records_with_system_id_and_attributes(
-    reset_state: None, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(mlrun.mlconf, "system_id", "sys-xyz")
+def test_record_duration_records_with_attributes(reset_state: None) -> None:
     histogram = unittest.mock.MagicMock()
     telemetry_rest_metrics._duration_histogram = histogram
 
@@ -141,7 +138,6 @@ def test_record_duration_records_with_system_id_and_attributes(
     histogram.record.assert_called_once_with(
         0.25,
         attributes={
-            "system_id": "sys-xyz",
             "method": http.HTTPMethod.POST,
             "status_code": 201,
             "resource": "functions",
@@ -193,7 +189,6 @@ def test_record_request_size_records_with_attributes(reset_state: None) -> None:
     histogram.record.assert_called_once_with(
         2.5,
         attributes={
-            "system_id": "",
             "method": http.HTTPMethod.POST,
             "status_code": 201,
             "resource": "runs",
@@ -217,7 +212,6 @@ def test_record_response_size_records_with_attributes(reset_state: None) -> None
     histogram.record.assert_called_once_with(
         12.75,
         attributes={
-            "system_id": "",
             "method": "LIST",
             "status_code": 200,
             "resource": "artifacts",
@@ -252,7 +246,6 @@ def test_record_items_returned_records_without_method(
     histogram.record.assert_called_once_with(
         7,
         attributes={
-            "system_id": "",
             "status_code": 200,
             "resource": "runs",
             "project": "proj-a",

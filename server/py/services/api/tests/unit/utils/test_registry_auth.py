@@ -76,8 +76,9 @@ def test_append_secret_authfile_init_container():
     # ML-12988: copies the secret in via `cp` (no soft-fail - a misconfigured secret is a real
     # error worth surfacing directly), using buildah_image since the main container always pulls it
     # anyway - never the credential-exchange image, which a GAR-only build wouldn't otherwise need.
-    # Also chmods the copy world-writable: this init container gets no explicit security context,
-    # so its UID is never guaranteed to match whichever container merges into the file next.
+    # Also chmods the copy group-writable: this init container gets no explicit security context,
+    # so its UID is never guaranteed to match whichever container merges into the file next - the
+    # pod's fsGroup (see make_buildah_pod) makes the group match regardless.
     pod = framework.utils.singletons.k8s.BasePod(task_name="t", image="img")
     registry_auth.append_secret_authfile_init_container(pod, "/auth/config.json")
 
@@ -88,7 +89,7 @@ def test_append_secret_authfile_init_container():
     assert len(container.args) == 1
     script = container.args[0]
     assert "cp /auth-secret/config.json /auth/config.json" in script
-    assert "chmod 0666 /auth/config.json" in script
+    assert "chmod 0660 /auth/config.json" in script
 
 
 def test_append_ecr_credential_exchange_init_container():

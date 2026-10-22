@@ -36,13 +36,13 @@ MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX ?= ml-
 MLRUN_PYTHON_VERSION ?= 3.11
 
 # Centralized MySQL image tag for tests and tooling (overridable)
-MLRUN_MYSQL_IMAGE ?= gcr.io/iguazio/mlrun-mysql:8.4
-MLRUN_POSTGRES_IMAGE = gcr.io/iguazio/postgres:17
+MLRUN_MYSQL_IMAGE ?= mysql:8.4
+MLRUN_POSTGRES_IMAGE = postgres:18
 
 MLRUN_SKIP_COMPILE_SCHEMAS ?=
 INCLUDE_PYTHON_VERSION_SUFFIX ?=
-MLRUN_PIP_VERSION ?= 26.0.1
-MLRUN_UV_VERSION ?= 0.10.9
+MLRUN_PIP_VERSION ?= 26.2
+MLRUN_UV_VERSION ?= 0.12.9
 MLRUN_UV_IMAGE ?= ghcr.io/astral-sh/uv:$(MLRUN_UV_VERSION)
 MLRUN_CACHE_DATE ?= $(shell date +%s)
 # empty by default, can be set to something like "tag-name" which will cause to:

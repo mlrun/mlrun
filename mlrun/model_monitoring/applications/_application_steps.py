@@ -127,7 +127,7 @@ class _PrepareOTelEvent(StepToDict):
     Attributes (shared from MonitoringApplicationContext):
         * ``project``
         * ``app.name``
-        * ``function.name``
+        * ``serving.function.name``
         * ``endpoint.uid``
         * ``endpoint.name``
 
@@ -170,7 +170,7 @@ class _PrepareOTelEvent(StepToDict):
         base_attributes = {
             attr.PROJECT.value: ctx.project_name,
             attr.APP_NAME.value: ctx.application_name,
-            attr.FUNCTION_NAME.value: ctx.model_endpoint.spec.function_name,
+            attr.SERVING_FUNCTION_NAME.value: ctx.model_endpoint.spec.function_name,
             attr.ENDPOINT_UID.value: ctx.endpoint_id,
             attr.ENDPOINT_NAME.value: ctx.endpoint_name,
         }

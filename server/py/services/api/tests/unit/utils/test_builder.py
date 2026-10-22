@@ -1246,6 +1246,23 @@ def test_make_dockerfile_with_build_and_extra_args(
             assert lines[i + 1 : i + 1 + len(expected_in_stage)] == expected_in_stage
 
 
+def test_make_dockerfile_zip_source_chowns_via_copy_from_extractor():
+    # a .zip source is staged through the extractor stage's COPY --from=, not a plain ADD - the
+    # chown must land on that COPY as --chown too, same as the non-zip case in make_dockerfile.
+    dock = services.api.utils.builder.base.make_dockerfile(
+        base_image="mlrun/mlrun",
+        source="source.zip",
+        target_dir="/home/mlrun_code",
+        user_unix_id=1000,
+        enriched_group_id=1000,
+    )
+    assert (
+        "COPY --chown=1000:1000 --from=extractor /home/mlrun_code/source/ /home/mlrun_code"
+        in dock
+    )
+    assert "RUN chown" not in dock
+
+
 @pytest.mark.parametrize(
     "builder_env,extra_args,parsed_extra_args",
     [

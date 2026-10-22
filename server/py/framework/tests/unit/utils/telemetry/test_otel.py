@@ -141,3 +141,47 @@ def test_build_metric_provider_exporter_uses_endpoint_and_insecure(
 
     assert captured["endpoint"] == "localhost:4317"
     assert captured["insecure"] is True
+
+
+def test_build_metric_provider_omits_batch_size_by_default(
+    telemetry_configured: None,
+    monkeypatch: pytest.MonkeyPatch,
+    _no_thread_leak: list,
+) -> None:
+    """Other telemetry clients (system_counters, model_monitoring) must not
+    be affected by the REST-metrics-only batch-size cap."""
+    captured: dict = {}
+    real_cls = telemetry_otel.OTLPMetricExporter
+
+    def _spy(**kwargs):
+        captured.update(kwargs)
+        return real_cls(**kwargs)
+
+    monkeypatch.setattr(telemetry_otel, "OTLPMetricExporter", _spy)
+
+    provider = telemetry_otel.build_metric_provider("mlrun-api")
+    _no_thread_leak.append(provider)
+
+    assert captured["max_export_batch_size"] is None
+
+
+def test_build_metric_provider_passes_custom_batch_size(
+    telemetry_configured: None,
+    monkeypatch: pytest.MonkeyPatch,
+    _no_thread_leak: list,
+) -> None:
+    captured: dict = {}
+    real_cls = telemetry_otel.OTLPMetricExporter
+
+    def _spy(**kwargs):
+        captured.update(kwargs)
+        return real_cls(**kwargs)
+
+    monkeypatch.setattr(telemetry_otel, "OTLPMetricExporter", _spy)
+
+    provider = telemetry_otel.build_metric_provider(
+        "mlrun-api", max_export_batch_size=1000
+    )
+    _no_thread_leak.append(provider)
+
+    assert captured["max_export_batch_size"] == 1000

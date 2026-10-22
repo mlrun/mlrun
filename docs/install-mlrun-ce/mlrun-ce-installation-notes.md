@@ -11,6 +11,7 @@ This page lists additional steps or configuration options you may need to follow
 - [Using Azure Blob Storage for MLRun artifacts](#using-azure-blob-storage-for-mlrun-artifacts)
 - [Ingress Configuration](#ingress-configuration)
 - [Installing Spark Operator on non-mlrun namespace](#installing-spark-operator-on-non-mlrun-namespace)
+- [Configure OTel](#configure-otel)
 
 ## Advanced chart configuration
 
@@ -123,3 +124,124 @@ By default Spark Operator jobNamespaces is set to "mlrun" namespace. If you are 
 ```bash
 --set spark-operator.jobNamespaces={your-namespace}
 ```
+
+## Configure OTel
+
+MLRun CE running on Kubernetes integrates the OpenTelemetry Operator to bring metrics and distributed tracing to your ML workloads, with zero code changes required for standard use. 
+
+Benefits of OTel:
+- Automatic Python metrics from Nuclio functions — CPU, memory, GC, thread counts, system I/O — with no changes to function code
+- Custom metrics — use the standard Python OTel SDK inside your function; the collector endpoint is pre-configured
+- Metrics visible in Prometheus/Grafana out of the box — no extra exporters or sidecars needed
+- Opt-in per function — only the functions you choose are instrumented; the rest of the platform is unaffected
+
+When enabled, a single OTel Collector runs per namespace. Instrumented pods push metrics over OTLP to the Collector, which forwards
+metrics to the in-cluster Prometheus instance via its OTLP write endpoint. Metrics are immediately available for querying in
+Prometheus and visualizing in the bundled Grafana dashboard.
+
+```{admonition} Note
+Traces currently only go to the `debug` exporter. You can configure your own trace backend (for example, Jaeger, Tempo).
+```
+
+OTel is disabled by default. 
+
+### Installation
+
+Enable OTel by adding four flags to your Helm install command:
+
+```
+helm --namespace mlrun install my-mlrun \
+    --set global.registry.url=<your-registry> \
+    --set global.registry.secretName=registry-credentials \
+    --set opentelemetry-operator.enabled=true \
+    --set opentelemetry.namespaceLabel.enabled=true \
+    --set opentelemetry.collector.enabled=true \
+    --set opentelemetry.instrumentation.enabled=true \
+    --wait mlrun/mlrun-ce
+```
+### Upgrade
+
+Enable OTel by adding four flags to your Helm upgrade command:
+```
+helm --namespace mlrun upgrade my-mlrun \
+    --set opentelemetry-operator.enabled=true \
+    --set opentelemetry.namespaceLabel.enabled=true \
+    --set opentelemetry.collector.enabled=true \
+    --set opentelemetry.instrumentation.enabled=true \
+    mlrun/mlrun-ce
+```
+### Verify the resources were created
+```
+kubectl -n mlrun get opentelemetrycollectors
+kubectl -n mlrun get instrumentations
+kubectl -n mlrun get pods | grep opentelemetry
+```
+
+### What gets instrumented
+Instrumentation is opt-in per Nuclio function. To enable OTel injection on a function, add the annotation when deploying:
+```
+fn.with_annotations({
+    "instrumentation.opentelemetry.io/inject-python": "mlrun-otel-instrumentation"
+})
+```
+Once annotated, the OTel Operator injects an init container that sets up automatic Python instrumentation: no changes to the function code are required.
+
+### Metrics
+All metrics flow into Prometheus and are queryable in Grafana.
+#### Process metrics
+- `process_runtime_cpython_cpu_time_seconds_total`
+- `process_runtime_cpython_context_switches_total`
+- `process_runtime_cpython_cpu_utilization_ratio`
+- `process_runtime_cpython_gc_count_bytes_total`
+- `process_runtime_cpython_memory_bytes`
+- `process_runtime_cpython_thread_count`
+#### System metrics
+ - CPU time + utilization
+- disk I/O + operations + time
+- memory usage + utilization
+- network I/O + packets + errors + connections
+- swap usage + utilization
+- thread count
+
+
+#### Custom metrics example (Python OTel SDK)
+Once auto-instrumentation is active, the global MeterProvider is already configured. You can emit your own business metrics without any extra setup.
+
+```
+# function_with_otel.py
+from opentelemetry import metrics
+_counter = None
+def init_context(context):
+    global _counter
+    # Auto-instrumentation sets up the MeterProvider before init_context runs.
+    # Just call get_meter() to reuse it — no manual setup needed.
+    meter = metrics.get_meter("nuclio.metrics")
+    _counter = meter.create_counter(
+        name="nuclio_requests_total",
+        description="Total requests handled by this function",
+        unit="1",
+    )
+def handler(context, event):
+    _counter.add(1, {"function": "my-function"})
+    return "ok"
+```
+
+And deploy your custom metrics (OTel is already enabled):
+```python
+import mlrun
+
+fn = mlrun.code_to_function(
+    name="my-otel-function",
+    kind="nuclio",
+    filename="function_with_otel.py",
+    handler="handler",
+    image="mlrun/mlrun",
+)
+# Opt in to OTel auto-instrumentation
+
+fn.with_annotations(
+    {"instrumentation.opentelemetry.io/inject-python": "mlrun-otel-instrumentation"}
+)
+fn.deploy(project=project.name)
+```
+After deploying and invoking the function, `nuclio_requests_total` appear in Prometheus alongside the automatic system and process metrics.

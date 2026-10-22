@@ -116,6 +116,8 @@ jobs:
 
     - name: Merge base branch into PR
       if: inputs.pr_number != ''
+      env:
+        PR_NUMBER: ${{ inputs.pr_number }}
       run: |
         git config user.name "github-actions[bot]"
         git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -123,7 +125,7 @@ jobs:
 
         git fetch origin "${BASE_SHA}"
         if ! git merge "${BASE_SHA}" --no-edit; then
-          echo "::error::Merge of ${BASE_SHA} into PR #${{ inputs.pr_number }} failed due to conflicts. Please merge or rebase your branch locally and push."
+          echo "::error::Merge of ${BASE_SHA} into PR #${PR_NUMBER} failed due to conflicts. Please merge or rebase your branch locally and push."
           git merge --abort
           exit 1
         fi

@@ -5808,7 +5808,10 @@ class MlrunProject(ModelObj):
 
         :param states: List only runs whose state is one of the provided states.
         :param sort: Whether to sort the result according to their start time. Otherwise, results will be
-            returned by their internal order in the DB (order will not be guaranteed).
+            returned by their internal order in the DB (order will not be guaranteed). Takes precedence over
+            `partition_sort_by` for the returned order - `partition_sort_by` only decides which run wins
+            *within* a partition, and, when `max_partitions` is set, which partitions are kept; it does not
+            affect the order of the final result.
         :param iter: If ``True`` return runs from all iterations. Otherwise, return only runs whose ``iter`` is 0.
         :param start_time_from: Filter by run start time in ``[start_time_from, start_time_to]``.
         :param start_time_to: Filter by run start time in ``[start_time_from, start_time_to]``.
@@ -6548,6 +6551,14 @@ class MlrunProject(ModelObj):
 
 
 def _set_as_current_active_project(project: MlrunProject):
+    previous_project = pipeline_context.project
+    if (
+        previous_project
+        and previous_project is not project
+        and previous_project.spec.repo
+    ):
+        previous_project.spec.repo.close()
+
     mlrun.mlconf.active_project = project.metadata.name
     pipeline_context.set(project)
 

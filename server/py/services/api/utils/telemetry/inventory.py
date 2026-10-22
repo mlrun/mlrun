@@ -17,8 +17,8 @@
 Chief-only. Re-anchored to DB truth on every project-summaries cache refresh,
 so the values are immune to counter resets, pod restarts, and Prometheus
 retention windows. Exported via synchronous Gauge instruments — one per
-logical metric in ``_METRIC_NAMES``, all tagged with ``system_id`` plus any
-per-call attributes (e.g. ``project``).
+logical metric in ``_METRIC_NAMES``, tagged with any per-call attributes
+(e.g. ``project``).
 
 The OTLP exporter ticks at ``cache_interval`` * ``export_interval_multiplier``
 (default 10 * 60 s = 10 min), aligned with the cache refresh cadence so each
@@ -198,8 +198,7 @@ def set_count(metric: str, value: int, **attributes) -> None:
     """Set the current count for ``metric`` with the given attributes.
 
     No-op when the SDK was not initialized (telemetry disabled) or when
-    ``metric`` is not in ``_METRIC_NAMES``. ``system_id`` is injected from
-    ``mlrun.mlconf`` on every call so live config changes are picked up.
+    ``metric`` is not in ``_METRIC_NAMES``.
     """
     gauge = _gauges.get(metric)
     if gauge is None:
@@ -207,10 +206,7 @@ def set_count(metric: str, value: int, **attributes) -> None:
     try:
         gauge.set(
             value,
-            attributes={
-                "system_id": mlrun.mlconf.system_id or "",
-                **{k: (v or "") for k, v in attributes.items()},
-            },
+            attributes={k: (v or "") for k, v in attributes.items()},
         )
     except Exception as exc:
         mlrun.utils.logger.warning(

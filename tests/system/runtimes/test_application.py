@@ -408,7 +408,7 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
         function = self.project.set_function(
             name=name,
             kind="application",
-            requirements=["vizro<0.1.32", "gunicorn", "Werkzeug==2.2.2"],
+            requirements=["vizro<0.1.32", "gunicorn<24", "Werkzeug==2.2.2", "plotly<7"],
             with_repo=with_repo,
         )
         function.set_internal_application_port(8050)

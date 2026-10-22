@@ -12,10 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
+import datetime
 import json
 import os
 import unittest.mock
 
+import pandas as pd
+import pyarrow.parquet as pq
 import pytest
 import storey
 
@@ -35,6 +39,8 @@ from mlrun.model_monitoring.stream_processing import (
     _HTTP_ERROR_KEY,
     EventStreamProcessor,
     HTTPAckResponder,
+    MapFeatureNames,
+    ProcessBeforeParquet,
     ProcessEndpointEvent,
     ProcessHTTPEvent,
     TriggerRouter,
@@ -701,6 +707,252 @@ class TestProcessEndpointEvent:
             request={"inputs": [[1.0, 2.0]]}, resp={"outputs": [[0.8]]}
         )
         assert result.body is None
+
+
+_TIMESTAMP = datetime.datetime(2026, 8, 11, 20, 37, 9, tzinfo=datetime.UTC)
+_ENDPOINT_ID = "ep-1"
+
+
+def _map_feature_names_step(
+    monkeypatch: pytest.MonkeyPatch,
+    feature_names: list[str],
+    label_names: list[str],
+) -> MapFeatureNames:
+    """Build a MapFeatureNames step whose endpoint record comes from a mocked DB.
+
+    first_request is set so the step has nothing to write back to the record.
+    """
+    endpoint = mlrun.common.schemas.ModelEndpoint(
+        metadata=mlrun.common.schemas.ModelEndpointMetadata(
+            name="my-model", project="test-project"
+        ),
+        spec=mlrun.common.schemas.ModelEndpointSpec(
+            feature_names=feature_names, label_names=label_names
+        ),
+        status=mlrun.common.schemas.ModelEndpointStatus(first_request=_TIMESTAMP),
+    )
+    mock_db = unittest.mock.MagicMock()
+    mock_db.get_model_endpoint.return_value = endpoint
+    monkeypatch.setattr(mlrun.db, "get_run_db", lambda *a, **kw: mock_db)
+    return MapFeatureNames(project="test-project")
+
+
+def _raw_event(
+    features: list[float],
+    prediction: list[float],
+    feature_names: list[str] | None,
+    label_names: list[str] | None,
+    labels: dict | None = None,
+    metrics: dict | None = None,
+    entities: dict | None = None,
+) -> dict:
+    """Build an event shaped like the one ProcessEndpointEvent emits."""
+    return {
+        EventFieldType.ENDPOINT_ID: _ENDPOINT_ID,
+        EventFieldType.ENDPOINT_NAME: "my-model",
+        EventFieldType.TIMESTAMP: _TIMESTAMP,
+        EventFieldType.REQUEST_ID: "req-1",
+        EventFieldType.LATENCY: 5.0,
+        EventFieldType.FEATURES: features,
+        EventFieldType.PREDICTION: prediction,
+        EventFieldType.FEATURE_NAMES: feature_names,
+        EventFieldType.LABEL_NAMES: label_names,
+        EventFieldType.LABELS: labels,
+        EventFieldType.METRICS: metrics,
+        EventFieldType.ENTITIES: entities,
+    }
+
+
+class TestMapFeatureNames:
+    """MapFeatureNames.do() consumes the schema metadata rather than forwarding it.
+
+    feature_names and label_names only feed the name-value mapping. Left on the event, the
+    Parquet target infers null for an empty one and list<string> for a resolved one.
+    """
+
+    async def test_schema_metadata_is_consumed(self, monkeypatch):
+        step = _map_feature_names_step(monkeypatch, ["f0", "f1"], ["p0"])
+
+        result = await step.do(
+            _raw_event(
+                [1.0, 2.0], [0.8], feature_names=["f0", "f1"], label_names=["p0"]
+            )
+        )
+
+        assert EventFieldType.FEATURE_NAMES not in result
+        assert EventFieldType.LABEL_NAMES not in result
+        assert result["f0"] == 1.0
+        assert result["p0"] == 0.8
+
+    async def test_feature_named_like_the_metadata_is_preserved(self, monkeypatch):
+        """A feature named `feature_names` keeps its own value."""
+        step = _map_feature_names_step(
+            monkeypatch, [EventFieldType.FEATURE_NAMES], ["p0"]
+        )
+
+        result = await step.do(
+            _raw_event(
+                [42.0],
+                [0.8],
+                feature_names=[EventFieldType.FEATURE_NAMES],
+                label_names=["p0"],
+            )
+        )
+
+        assert result[EventFieldType.FEATURE_NAMES] == 42.0
+        assert ProcessBeforeParquet().do(result)[EventFieldType.FEATURE_NAMES] == 42.0
+
+    async def test_label_named_like_the_metadata_is_preserved(self, monkeypatch):
+        step = _map_feature_names_step(
+            monkeypatch, ["f0"], [EventFieldType.LABEL_NAMES]
+        )
+
+        result = await step.do(
+            _raw_event(
+                [1.0],
+                [0.8],
+                feature_names=["f0"],
+                label_names=[EventFieldType.LABEL_NAMES],
+            )
+        )
+
+        assert result[EventFieldType.LABEL_NAMES] == 0.8
+        assert ProcessBeforeParquet().do(result)[EventFieldType.LABEL_NAMES] == 0.8
+
+
+class TestProcessBeforeParquet:
+    """ProcessBeforeParquet.do() must emit events with a Parquet-stable schema."""
+
+    @staticmethod
+    def _mapped_event(
+        monkeypatch: pytest.MonkeyPatch,
+        feature_names: list[str] | None,
+        label_names: list[str] | None,
+        entities: dict | None = None,
+    ) -> dict:
+        """Build an event by running a raw one through MapFeatureNames.
+
+        feature_names and label_names are the metadata on the event before the mapping:
+        None on a schema-less endpoint, the generated names once persisted.
+        """
+        step = _map_feature_names_step(monkeypatch, ["f0", "f1"], ["p0"])
+        return asyncio.run(
+            step.do(
+                _raw_event(
+                    [1.0, 2.0],
+                    [0.8],
+                    feature_names=feature_names,
+                    label_names=label_names,
+                    entities=entities,
+                )
+            )
+        )
+
+    @classmethod
+    def _schema_less_event(cls, monkeypatch: pytest.MonkeyPatch) -> dict:
+        """First event on an endpoint created without input/output schema."""
+        return cls._mapped_event(monkeypatch, feature_names=None, label_names=None)
+
+    @classmethod
+    def _schema_resolved_event(cls, monkeypatch: pytest.MonkeyPatch) -> dict:
+        """Later event, after MapFeatureNames persisted the generated names."""
+        return cls._mapped_event(
+            monkeypatch, feature_names=["f0", "f1"], label_names=["p0"]
+        )
+
+    @pytest.mark.parametrize(
+        "feature_names,label_names",
+        [(None, None), (["f0", "f1"], ["p0"])],
+        ids=["schema_less", "schema_resolved"],
+    )
+    def test_transient_fields_are_removed(
+        self, monkeypatch, feature_names, label_names
+    ):
+        result = ProcessBeforeParquet().do(
+            self._mapped_event(
+                monkeypatch, feature_names=feature_names, label_names=label_names
+            )
+        )
+
+        for key in [
+            EventFieldType.FEATURES,
+            EventFieldType.NAMED_FEATURES,
+            EventFieldType.PREDICTION,
+            EventFieldType.NAMED_PREDICTIONS,
+        ]:
+            assert key not in result
+
+        # These are what flip between null and list<string>.
+        assert EventFieldType.FEATURE_NAMES not in result
+        assert EventFieldType.LABEL_NAMES not in result
+
+        # The mapped name-value pairs are what the target actually stores.
+        assert result["f0"] == 1.0
+        assert result["p0"] == 0.8
+
+    def test_entities_are_still_split_into_columns(self, monkeypatch):
+        result = ProcessBeforeParquet().do(
+            self._mapped_event(
+                monkeypatch,
+                feature_names=["f0", "f1"],
+                label_names=["p0"],
+                entities={"e1": "x"},
+            )
+        )
+
+        assert result["e1"] == "x"
+
+    def test_parquet_schema_is_stable_across_flushes(self, monkeypatch, tmp_path):
+        """Two flushes must stay readable as one dataset.
+
+        max_events=1 forces a file per event, so both land in the same hour partition.
+        PyArrow adopts the schema of the first file it discovers and casts the rest to it,
+        so the per-file schemas are compared directly to keep this deterministic.
+        """
+        target_dir = tmp_path / "parquet"
+
+        flow = storey.build_flow(
+            [
+                storey.SyncEmitSource(key_field=EventFieldType.ENDPOINT_ID),
+                ProcessBeforeParquet(),
+                # Mirrors apply_parquet_target() in the monitoring serving graph.
+                storey.ParquetTarget(
+                    path=str(target_dir),
+                    index_cols=[EventFieldType.ENDPOINT_ID],
+                    partition_cols=["$key", "$year", "$month", "$day", "$hour"],
+                    time_field=EventFieldType.TIMESTAMP,
+                    infer_columns_from_data=True,
+                    max_events=1,
+                ),
+            ]
+        )
+
+        controller = flow.run()
+        controller.emit(self._schema_less_event(monkeypatch))
+        controller.emit(self._schema_resolved_event(monkeypatch))
+        controller.terminate()
+        controller.await_termination()
+
+        partition_dirs = {
+            path.parent for path in target_dir.rglob("*.parquet") if path.is_file()
+        }
+        assert len(partition_dirs) == 1, (
+            f"expected both events in one partition, got {partition_dirs}"
+        )
+        partition_dir = partition_dirs.pop()
+        files = sorted(partition_dir.glob("*.parquet"))
+        assert len(files) == 2, "expected one file per event"
+
+        schemas = [pq.read_schema(file) for file in files]
+        assert schemas[0].equals(schemas[1]), (
+            f"parquet files disagree on schema:\n{schemas[0]}\nvs\n{schemas[1]}"
+        )
+
+        df = pd.read_parquet(partition_dir)
+
+        assert len(df) == 2
+        assert EventFieldType.FEATURE_NAMES not in df.columns
+        assert EventFieldType.LABEL_NAMES not in df.columns
 
 
 class _MockContext:

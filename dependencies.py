@@ -55,14 +55,14 @@ def extra_requirements() -> dict[str, list[str]]:
             "gcsfs>=2025.5.1, <=2025.7.0",
         ],
         "kafka": [
-            "kafka-python~=2.1.0",
+            "kafka-python~=2.3.2",
             # because confluent kafka supports avro format by default
             "avro~=1.11",
         ],
         "rabbitmq": ["pika~=1.3"],
         "redis": ["redis~=4.3"],
         "databricks-sdk": ["databricks-sdk~=0.20.0"],
-        "sqlalchemy": ["sqlalchemy~=2.0"],
+        "sqlalchemy": ["sqlalchemy~=2.0.0"],
         "dask": [
             # Use ~= instead of >= to avoid installing newer versions of dask and distributed,
             # which can cause incompatibilities between the client and the Dask scheduler/worker.

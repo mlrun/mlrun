@@ -560,6 +560,13 @@ default_config = {
             "iguazio_client_job_cache_ttl": "20 minutes",
             "nuclio_project_deletion_verification_timeout": "300 seconds",
             "nuclio_project_deletion_verification_interval": "5 seconds",
+            # when the leader is orca, how often to poll GET /api/v1/trackable-actions/executions while waiting
+            # for an operation (create/update/delete) to reach a terminal state, and how long to wait before
+            # giving up
+            "iguazio_project_states_poll_interval": "2 seconds",
+            "iguazio_project_states_poll_timeout": "300 seconds",
+            # when the leader is orca, the SDK's own per-request timeout for talking to Orca directly
+            "iguazio_request_timeout": "20 seconds",
             "summaries": {
                 # Number of days back to include when calculating the project pipeline summary.
                 "list_pipelines_time_period_in_days": 2,
@@ -568,6 +575,12 @@ default_config = {
             "stale_resource_ttl_create": "2 minutes",
             "stale_resource_ttl_update": "2 minutes",
             "stale_resource_ttl_delete": "10 minutes",
+            # Expected service-account identity (AuthInfo.username) of the configured
+            # project leader when MLRun is a follower (distinct from "followers" above,
+            # which is the list MLRun fans out to when it's the leader). Inbound
+            # /follower/projects calls are rejected with 403 unless the caller is a
+            # service account matching this identity.
+            "follower_leader_identity": "",
         },
         # The API needs to know what is its k8s svc url so it could enrich it in the jobs it creates
         "api_url": "",

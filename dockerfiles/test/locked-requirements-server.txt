@@ -2079,7 +2079,9 @@ huggingface-hub==0.36.2 \
 humanfriendly==10.0 \
     --hash=sha256:1697e1a8a8f550fd43c2865cd84542fc175a61dcb779b6fee18cf6b6ccba1477 \
     --hash=sha256:6b0b831ce8f15f7300721aa49829fc4e83921a9a301cc7f606be6686a2288ddc
-    # via -r dockerfiles/mlrun-api/requirements.txt
+    # via
+    #   -r dockerfiles/mlrun-api/requirements.txt
+    #   -r requirements.txt
 hypothesis==6.170.1 \
     --hash=sha256:0029ebe0254225c6ed09e8c9af72615a8aead8b9e0b9dbfe090f900091128bbe \
     --hash=sha256:053b9caf23fa67c794e4e97bb5e1227a2df4458ea7c90df6709b32526da34d1c \

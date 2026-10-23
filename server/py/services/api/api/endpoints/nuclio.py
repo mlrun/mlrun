@@ -121,6 +121,7 @@ async def store_api_gateway(
     name: str,
     api_gateway: mlrun.common.schemas.APIGateway,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
+    db_session: sqlalchemy.orm.Session = Depends(deps.get_db_session),
 ):
     await framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
         project_name=project,
@@ -135,6 +136,12 @@ async def store_api_gateway(
             mlrun.common.schemas.AuthorizationAction.store,
             auth_info,
         )
+    )
+    await run_in_threadpool(
+        framework.utils.singletons.project_member.get_project_member().ensure_project_open_for_resource_creation,
+        db_session,
+        project,
+        auth_info=auth_info,
     )
     async with framework.utils.clients.async_nuclio.Client(auth_info) as client:
         create = False
@@ -265,6 +272,12 @@ async def deploy_function(
             mlrun.common.schemas.AuthorizationAction.update,
             auth_info,
         )
+    )
+    await run_in_threadpool(
+        framework.utils.singletons.project_member.get_project_member().ensure_project_open_for_resource_creation,
+        db_session,
+        project,
+        auth_info=auth_info,
     )
     (
         function,

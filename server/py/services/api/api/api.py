@@ -33,6 +33,7 @@ from services.api.api.endpoints import (
     feature_store,
     feature_store_v2,
     files,
+    followers_sync_status,
     frontend_spec,
     functions,
     functions_v2,
@@ -46,6 +47,7 @@ from services.api.api.endpoints import (
     pipelines,
     project_secrets,
     projects,
+    projects_follower,
     projects_v2,
     runs,
     runtime_resources,
@@ -86,6 +88,7 @@ api_router.include_router(
 api_router.include_router(healthz.router, tags=["healthz"])
 api_router.include_router(client_spec.router, tags=["client-spec"])
 api_router.include_router(clusterization_spec.router, tags=["clusterization-spec"])
+api_router.include_router(followers_sync_status.router, tags=["followers-sync-status"])
 api_router.include_router(
     logs.router,
     tags=["logs"],
@@ -198,6 +201,11 @@ api_router.include_router(
     alert_activations.router,
     tags=["alert-activations"],
     dependencies=[Depends(deps.authenticate_request)],
+)
+api_router.include_router(
+    projects_follower.router,
+    tags=["projects-follower"],
+    dependencies=[Depends(deps.authenticate_leader_request)],
 )
 
 # v2 Router

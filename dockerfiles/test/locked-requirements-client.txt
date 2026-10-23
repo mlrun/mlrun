@@ -2072,6 +2072,10 @@ huggingface-hub==0.36.2 \
     # via
     #   tokenizers
     #   transformers
+humanfriendly==10.0 \
+    --hash=sha256:1697e1a8a8f550fd43c2865cd84542fc175a61dcb779b6fee18cf6b6ccba1477 \
+    --hash=sha256:6b0b831ce8f15f7300721aa49829fc4e83921a9a301cc7f606be6686a2288ddc
+    # via -r requirements.txt
 hypothesis==6.170.1 \
     --hash=sha256:0029ebe0254225c6ed09e8c9af72615a8aead8b9e0b9dbfe090f900091128bbe \
     --hash=sha256:053b9caf23fa67c794e4e97bb5e1227a2df4458ea7c90df6709b32526da34d1c \
@@ -4159,6 +4163,10 @@ pyparsing==3.3.3 \
     # via
     #   httplib2
     #   matplotlib
+pyreadline3==3.5.6 ; sys_platform == 'win32' \
+    --hash=sha256:61e53218b99656091ddb077df9e71f25850e72e030b6183b39c9b7e6e4f4a9bf \
+    --hash=sha256:8449b734232e42a5dcd74048e39b60db2839a4c38cf3ae2bf7707d58b5389c0d
+    # via humanfriendly
 pytest==9.1.1 \
     --hash=sha256:1088fbde8f2b49d95a549a195707afa7a76a3ce9bcadc26b6d71f0ffda5fe313 \
     --hash=sha256:37a86b45efb9a47a61a36449063e8e18d0cab3161329fc099eb21783169c4f0c

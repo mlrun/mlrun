@@ -97,8 +97,6 @@ def verify_api_state(request: Request):
             "client-spec",
             "clusterization-spec",
             "followers-sync-status",
-            # debug purposes
-            "memory-reports",
             # allow authentication
             "user-secrets/tokens",
         ]
@@ -107,18 +105,6 @@ def verify_api_state(request: Request):
                 mlrun.mlconf.httpdb.state
             )
             raise mlrun.errors.MLRunPreconditionFailedError(message)
-
-
-def expose_internal_endpoints(request: Request):
-    if not mlrun.mlconf.debug.expose_internal_api_endpoints:
-        path_with_query_string = uvicorn.protocols.utils.get_path_with_query_string(
-            request.scope
-        )
-        path = path_with_query_string.split("?")[0]
-        if "/_internal" in path:
-            raise mlrun.errors.MLRunPreconditionFailedError(
-                "Internal endpoints are not exposed"
-            )
 
 
 def iguazio_v4_only(request: Request):

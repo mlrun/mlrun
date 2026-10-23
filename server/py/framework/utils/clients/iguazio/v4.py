@@ -185,22 +185,22 @@ class Client(BaseClient, project_leader.Member):
             auth_headers=request_headers,
         )
 
-    def get_orca_version(self) -> str:
+    def get_oris_version(self) -> str:
         """
-        Fetch Orca's own release version from its system-info API.
+        Fetch Oris's own release version from its system-info API.
 
-        :return: Orca's version string (e.g. "1.2.0").
-        :raises mlrun.errors.MLRunRuntimeError: If the request to Orca fails.
+        :return: Oris's version string (e.g. "1.2.0").
+        :raises mlrun.errors.MLRunRuntimeError: If the request to Oris fails.
         """
 
-        def _get_orca_version():
+        def _get_oris_version():
             system_info = self._client.get_system_info()
             return system_info.metadata.version.oris_version
 
         return self._try_callback_with_httpx_exceptions(
-            _get_orca_version,
+            _get_oris_version,
             mlrun.errors.MLRunRuntimeError,
-            "Failed to get Orca version from its system-info API",
+            "Failed to get Oris version from its system-info API",
         )
 
     def get_user_id_by_username(
@@ -687,17 +687,17 @@ class AsyncClient(BaseAsyncClient, Client):
     pass
 
 
-# if orca version specified on mlrun config set it likewise,
-# if not specified, get it from Orca's own info API
+# if oris version specified on mlrun config set it likewise,
+# if not specified, get it from Oris's own info API
 # since this is a heavy operation (sending requests to API), and it's unlikely that the version
 # will change - only fetch it once
-def resolve_orca_version() -> str:
-    if not config.orca_version and config.iguazio_api_url:
+def resolve_oris_version() -> str:
+    if not config.oris_version and config.iguazio_api_url:
         try:
-            config.orca_version = Client().get_orca_version()
+            config.oris_version = Client().get_oris_version()
         except Exception as exc:
             logger.warning(
-                "Failed to resolve Orca version", exc=mlrun.errors.err_to_str(exc)
+                "Failed to resolve Oris version", exc=mlrun.errors.err_to_str(exc)
             )
 
-    return config.orca_version
+    return config.oris_version

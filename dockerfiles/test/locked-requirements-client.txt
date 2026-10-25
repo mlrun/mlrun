@@ -2839,13 +2839,13 @@ mlflow-tracing==3.5.1 \
     --hash=sha256:4fd685347158e0d2c48f5bec3d15ecfc6fadc1dbb48073cb220ded438408fa65 \
     --hash=sha256:bca266b1871692ae2ec812ed177cdc108ccef1cb3fb82725a8b959ec98d5fba0
     # via mlflow
-mlrun-pipelines-kfp-common==0.8.0 \
-    --hash=sha256:079e05afb86af7329a7e379469d20f48286828dc258caaa4cba4bce1c1c03ffb \
-    --hash=sha256:f0edc8cfa5af08489d8067e381d768181fe9f9facef8b061620196f4e7a4dfa1
+mlrun-pipelines-kfp-common==0.9.0 \
+    --hash=sha256:08fe0a365499e58f4c3a1f01c3755ff97e659b1bbdf9ba49256d04e4e73858e6 \
+    --hash=sha256:c11416a0f3a7788058baa2578ec0a7d86e2932f6eba86a5e372b5e3135f10033
     # via -r requirements.txt
-mlrun-pipelines-kfp-v1-8==0.8.2 \
-    --hash=sha256:0be568fcaf9a8a21e5f43ca627b9fadd18b2dbe82d3030e676743174d91d1d85 \
-    --hash=sha256:67b7d267454511ca815b96b215f96547f0d0bc041631782af01c6be5e670a462
+mlrun-pipelines-kfp-v1-8==0.9.0 \
+    --hash=sha256:0f3b85100f9f195507948da6bcfe73364c71887809eb3f3d683b450bcddc1295 \
+    --hash=sha256:ec9934f9f45dfc2fdf0a4f4bb62189509faa22e32eb9ded3e1fa7870853761ae
     # via
     #   -r dockerfiles/test/requirements.txt
     #   -r requirements.txt

@@ -118,11 +118,15 @@ class _PrepareOTelEvent(StepToDict):
     in the instrument name:
         * ``mlrun.model_monitoring.result`` for results, with the result name
           in the ``result.name`` attribute
+        * ``mlrun.model_monitoring.result.status`` for the status of each
+          result, with the same attributes as the result
         * ``mlrun.model_monitoring.metric`` for metrics, with the metric name
           in the ``metric.name`` attribute
 
-    Both are emitted as gauges — raw value flows through, and
-    ``result.status`` is the normalized signal for alerting / dashboarding.
+    All are emitted as gauges. The result gauge carries the raw value; the
+    status gauge carries the :class:`ResultStatusApp` value (``-1``
+    irrelevant, ``0`` no detection, ``1`` potential detection, ``2``
+    detected) and is the normalized signal for alerting / dashboarding.
 
     Attributes (shared from MonitoringApplicationContext):
         * ``project``
@@ -134,7 +138,6 @@ class _PrepareOTelEvent(StepToDict):
     Result-only attributes:
         * ``result.name``   (e.g. ``"general_drift"``)
         * ``result.kind``   (e.g. ``"data_drift"``)
-        * ``result.status`` (e.g. ``"detected"``)
 
     Metric-only attributes:
         * ``metric.name``   (e.g. ``"hellinger"``)
@@ -185,28 +188,48 @@ class _PrepareOTelEvent(StepToDict):
                 continue
             attributes = dict(base_attributes)
             if isinstance(entry, ModelMonitoringApplicationResult):
-                metric_name = metric_name_enum.RESULT.value
                 attributes[attr.RESULT_NAME.value] = entry.name
                 attributes[attr.RESULT_KIND.value] = entry.kind.name
-                attributes[attr.RESULT_STATUS.value] = entry.status.name
+                metrics.append(
+                    _to_otel_gauge(
+                        metric_name=metric_name_enum.RESULT.value,
+                        value=entry.value,
+                        attributes=attributes,
+                    )
+                )
+                metrics.append(
+                    _to_otel_gauge(
+                        metric_name=metric_name_enum.RESULT_STATUS.value,
+                        value=entry.status.value,
+                        attributes=attributes,
+                    )
+                )
             elif isinstance(entry, ModelMonitoringApplicationMetric):
-                metric_name = metric_name_enum.METRIC.value
                 attributes[attr.METRIC_NAME.value] = entry.name
+                metrics.append(
+                    _to_otel_gauge(
+                        metric_name=metric_name_enum.METRIC.value,
+                        value=entry.value,
+                        attributes=attributes,
+                    )
+                )
             else:
                 logger.warning(
                     "Skipping unexpected entry type in OTel event preparer",
                     entry_type=type(entry).__name__,
                 )
-                continue
-            metrics.append(
-                {
-                    "metric_name": metric_name,
-                    "value": float(entry.value),
-                    "type": "gauge",
-                    "attributes": attributes,
-                }
-            )
         return {"metrics": metrics, "endpoint_id": ctx.endpoint_id}
+
+
+def _to_otel_gauge(
+    metric_name: str, value: float, attributes: dict[str, Any]
+) -> dict[str, Any]:
+    return {
+        "metric_name": metric_name,
+        "value": float(value),
+        "type": "gauge",
+        "attributes": attributes,
+    }
 
 
 class _PrepareMonitoringEvent(StepToDict):

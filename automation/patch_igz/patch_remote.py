@@ -294,9 +294,6 @@ class MLRunPatcher:
                 "REGISTRY_USERNAME defined, yet REGISTRY_PASSWORD is not defined"
             )
 
-        if self._reset_db and "DB_USER" not in self._config:
-            raise RuntimeError("Must define DB_USER if requesting DB reset")
-
         if self._kubeconfig and not os.path.isfile(self._kubeconfig):
             raise RuntimeError(f"KUBECONFIG file not found: {self._kubeconfig}")
 
@@ -466,7 +463,7 @@ class MLRunPatcher:
                     "status",
                     "deployment",
                     deployment,
-                    "--timeout=120s",
+                    "--timeout=300s",
                 ],
                 live=True,
             )
@@ -672,27 +669,7 @@ class MLRunPatcher:
         )
 
         logger.info("Reset DB")
-        self._exec_remote(
-            [
-                "kubectl",
-                "-n",
-                self._namespace,
-                "exec",
-                "-it",
-                "deployment/mlrun-db",
-                "--container",
-                "mlrun-db",
-                "--",
-                "mysql",
-                "--user",
-                self._config["DB_USER"],
-                "--socket",
-                "/var/run/mysqld/mysql.sock",
-                "--execute",
-                "DROP DATABASE mlrun; CREATE DATABASE mlrun",
-            ],
-            live=True,
-        )
+        self._reset_mlrun_db_data()
 
         for deployment, replicas in current_non_mlrun_db_services.items():
             logger.info(f"Scaling up {deployment} with {replicas}")
@@ -707,6 +684,108 @@ class MLRunPatcher:
                     f"--replicas={replicas}",
                 ],
             )
+
+    def _reset_mlrun_db_data(self):
+        workload_ref = self._get_mlrun_db_workload_ref()
+        container, engine = self._get_mlrun_db_container(workload_ref)
+        if engine == "mysql":
+            db_user = self._config.get("DB_USER")
+            if not db_user:
+                raise RuntimeError(
+                    "Must define DB_USER in the patch-env config to reset a MySQL-backed mlrun-db"
+                )
+            reset_cmd = [
+                "mysql",
+                "--user",
+                db_user,
+                "--socket",
+                "/var/run/mysqld/mysql.sock",
+                "--execute",
+                "DROP DATABASE mlrun; CREATE DATABASE mlrun",
+            ]
+        else:
+            # FORCE drops the DB even if a stale connection lingers from a pod that
+            # was just scaled down; OWNER must be re-set since CREATE DATABASE
+            # otherwise assigns ownership to whichever role runs the statement.
+            # DROP/CREATE DATABASE cannot run inside a transaction block, so they
+            # must be sent to psql as separate -c statements, not joined with ";"
+            # in one -c (which Postgres executes as a single implicit transaction).
+            reset_cmd = [
+                "sh",
+                "-c",
+                'PGPASSWORD="$POSTGRES_PASSWORD" psql --username "$POSTGRES_USER"'
+                " --dbname postgres -v ON_ERROR_STOP=1"
+                ' -c "DROP DATABASE IF EXISTS mlrun WITH (FORCE);"'
+                ' -c "CREATE DATABASE mlrun OWNER $POSTGRES_USER;"',
+            ]
+        self._exec_remote(
+            [
+                "kubectl",
+                "-n",
+                self._namespace,
+                "exec",
+                "-it",
+                workload_ref,
+                "--container",
+                container,
+                "--",
+                *reset_cmd,
+            ],
+            live=True,
+        )
+
+    def _get_mlrun_db_workload_ref(self) -> str:
+        # mlrun-db is deployed as a Deployment on some systems and a StatefulSet on
+        # others (e.g. when backed by a Postgres sub-chart with per-pod storage) —
+        # resolve the live workload kind by name instead of assuming one, since the
+        # label scheme differs between the built-in MySQL chart and Postgres backends.
+        for kind in ("statefulset", "deployment"):
+            try:
+                output = self._exec_remote(
+                    [
+                        "kubectl",
+                        "-n",
+                        self._namespace,
+                        "get",
+                        kind,
+                        "mlrun-db",
+                        "-o",
+                        "name",
+                    ]
+                ).strip()
+            except RuntimeError:
+                continue
+            if output:
+                return output
+        raise RuntimeError(
+            f"Could not find mlrun-db deployment or statefulset in namespace {self._namespace}"
+        )
+
+    def _get_mlrun_db_container(self, workload_ref: str) -> tuple[str, str]:
+        # mlrun-db runs either the built-in MySQL container or a Postgres backend
+        # (e.g. a bitnami-style sub-chart) — detect the engine from the container
+        # image instead of assuming a container name or SQL dialect.
+        output = self._exec_remote(
+            [
+                "kubectl",
+                "-n",
+                self._namespace,
+                "get",
+                workload_ref,
+                "-o",
+                'jsonpath={range .spec.template.spec.containers[*]}{.name}{"\\t"}{.image}{"\\n"}{end}',
+            ]
+        ).strip()
+        for line in output.splitlines():
+            name, _, image = line.partition("\t")
+            image = image.lower()
+            if "mysql" in image:
+                return name, "mysql"
+            if "postgres" in image:
+                return name, "postgres"
+        raise RuntimeError(
+            f"Could not determine mlrun-db engine from containers: {output}"
+        )
 
     @staticmethod
     def _execute_local_proc_interactive(cmd, env=None):

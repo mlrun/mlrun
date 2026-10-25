@@ -11,12 +11,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import datetime
 import json
 import os
 from pathlib import Path
 
+import google.auth
+import google.auth.transport.requests
 from fsspec.registry import get_filesystem_class
-from google.auth.credentials import Credentials
+from google.auth.credentials import Credentials, Signing
 from google.cloud.storage import Client, transfer_manager
 from google.oauth2 import service_account
 
@@ -24,6 +27,13 @@ import mlrun.errors
 from mlrun.utils import logger
 
 from .base import DataStore, FileStats, make_datastore_schema_sanitizer
+
+# Validity window for read-only signed URLs.
+_SIGNED_URL_TTL = datetime.timedelta(hours=2)
+
+# Without this scope, IAM signing fails with ACCESS_TOKEN_SCOPE_INSUFFICIENT even when the
+# required role is granted.
+_IAM_SIGN_BLOB_SCOPE = "https://www.googleapis.com/auth/iam"
 
 # Google storage objects will be represented with the following URL: gcs://<bucket name>/<path> or gs://...
 
@@ -60,10 +70,66 @@ class GoogleCloudStorageStore(DataStore):
             )
         elif isinstance(token, Credentials):
             credentials = token
+        elif token is None:
+            # The IAM scope enables remote signing with Workload Identity.
+            credentials, _ = google.auth.default(scopes=[access, _IAM_SIGN_BLOB_SCOPE])
         else:
             raise ValueError(f"Unsupported token type: {type(token)}")
         self._storage_client = Client(credentials=credentials)
         return self._storage_client
+
+    def get_read_only_https_url(self, key, *, ttl=_SIGNED_URL_TTL):
+        """Return a short-lived GET signed URL for a GCS object."""
+        blob_name = key.lstrip("/")
+        bucket_name = self.endpoint
+        if not bucket_name or not blob_name:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"could not resolve GCS bucket/blob for key {key!r}"
+            )
+
+        try:
+            blob = self.storage_client.bucket(bucket_name).blob(blob_name)
+            sign_kwargs = self._get_identity_signing_kwargs()
+        except Exception as exc:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "GCS signed URLs require GCP_CREDENTIALS or "
+                "GOOGLE_APPLICATION_CREDENTIALS: "
+                f"{mlrun.errors.err_to_str(exc)}"
+            ) from exc
+
+        try:
+            return blob.generate_signed_url(
+                version="v4",
+                expiration=ttl,
+                method="GET",
+                **sign_kwargs,
+            )
+        except Exception as exc:
+            raise mlrun.errors.MLRunRuntimeError(
+                f"failed to create read-only GCS signed URL for {blob_name!r}: "
+                f"{mlrun.errors.err_to_str(exc)}"
+            ) from exc
+
+    def _get_identity_signing_kwargs(self) -> dict:
+        """Return remote-signing arguments for credentials without a private key.
+
+        IAM signing requires ``roles/iam.serviceAccountTokenCreator`` on the service account.
+        """
+        credentials = self.storage_client._credentials
+        if isinstance(credentials, Signing):
+            return {}
+
+        credentials.refresh(google.auth.transport.requests.Request())
+        service_account_email = getattr(credentials, "service_account_email", None)
+        if not service_account_email or service_account_email == "default":
+            raise ValueError(
+                "no private key and no resolvable service account identity (Application "
+                "Default Credentials must belong to a service account, e.g. GCE/GKE "
+                "Workload Identity)"
+            )
+        return dict(
+            service_account_email=service_account_email, access_token=credentials.token
+        )
 
     @property
     def filesystem(self):

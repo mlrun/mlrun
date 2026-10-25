@@ -1,13 +1,14 @@
 click~=8.1
-# Pin to avoid PyNaCl 1.6.1 which breaks cffi compatibility
-PyNaCl==1.6.0
-paramiko~=3.5
+PyNaCl~=1.6
+paramiko~=5.0
 semver~=3.0
 requests~=2.32
 boto3>=1.28.0,<1.36
 pyyaml>=6.0.2, <7
 packaging~=24.2
 coloredlogs~=15.0
-sqlalchemy~=2.0
+# cap below 2.1: sqlalchemy-utils (even latest 0.42.1) breaks on 2.1's renamed ORM internals
+# Revisit once that's fixed upstream.
+sqlalchemy~=2.0.0
 sqlalchemy-utils~=0.41.2
 orjson>=3.9.15, <4

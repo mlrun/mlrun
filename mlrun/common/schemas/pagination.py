@@ -13,13 +13,11 @@
 # limitations under the License.
 
 
-import pydantic.v1
+# Facade re-exporting the ``_shared`` layer and the active model face, preserving the
+# ``mlrun.common.schemas.pagination`` import path.
+from ._dispatch import USE_V2_SCHEMAS as _USE_V2
 
-
-class PaginationInfo(pydantic.v1.BaseModel):
-    class Config:
-        allow_population_by_field_name = True
-
-    page: int | None
-    page_size: int | None = pydantic.v1.Field(alias="page-size")
-    page_token: str | None = pydantic.v1.Field(alias="page-token")
+if _USE_V2:
+    from ._v2.pagination import *  # noqa: F401,F403
+else:
+    from ._v1.pagination import *  # noqa: F401,F403

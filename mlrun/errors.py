@@ -255,6 +255,17 @@ class MLRunValueError(ValueError):
     pass
 
 
+class MLRunEmptySampleDFError(MLRunValueError):
+    """Raised when a model monitoring application's sample DataFrame is empty.
+
+    Distinct from a generic :class:`MLRunValueError` so that callers iterating over
+    monitoring windows can skip windows with no inference data without swallowing
+    unrelated value errors (e.g. missing endpoint details or storage failures).
+    """
+
+    pass
+
+
 class MLRunFatalFailureError(Exception):
     """
     Internal exception meant to be used inside mlrun.utils.helpers.retry_until_successful to signal the loop not to

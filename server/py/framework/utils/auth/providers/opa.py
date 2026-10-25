@@ -30,6 +30,22 @@ from mlrun.utils import logger
 import framework.utils.auth.providers.base as auth
 import framework.utils.helpers
 
+# Invoked on every enforced OPA permission denial. The services layer registers a listener
+# here (see register_permission_denied_listener) instead of this module importing services
+# directly, which the import-linter layering contract forbids.
+_permission_denied_listener: typing.Callable[[str, str, str | None], None] | None = None
+
+
+def register_permission_denied_listener(
+    listener: typing.Callable[[str, str, str | None], None],
+) -> None:
+    """
+    Registers a callback invoked as ``listener(resource, action, username)`` on every
+    enforced OPA permission denial. Safe to call multiple times.
+    """
+    global _permission_denied_listener
+    _permission_denied_listener = listener
+
 
 class Provider(
     auth.Provider,
@@ -71,25 +87,32 @@ class Provider(
         action: mlrun.common.schemas.AuthorizationAction,
         auth_info: mlrun.common.schemas.AuthInfo,
         raise_on_forbidden: bool = True,
+        skip_logging_forbidden: bool = False,
     ) -> bool:
-        # store is not really a verb in our OPA manifest, we map it to 2 query permissions requests (create & update)
+        # store is not really a verb in our OPA manifest, we map it to 2 query permissions requests
+        # (create & update). Sub-checks never raise/audit individually, so a denied store surfaces
+        # as exactly one audit event labeled "store" — not one event per denied sub-action.
         if action == mlrun.common.schemas.AuthorizationAction.store:
-            results = await asyncio.gather(
+            create_allowed, update_allowed = await asyncio.gather(
                 self.query_permissions(
                     resource,
                     mlrun.common.schemas.AuthorizationAction.create,
                     auth_info,
-                    raise_on_forbidden,
+                    raise_on_forbidden=False,
                 ),
                 self.query_permissions(
                     resource,
                     mlrun.common.schemas.AuthorizationAction.update,
                     auth_info,
-                    raise_on_forbidden,
+                    raise_on_forbidden=False,
                 ),
             )
-            create_allowed, update_allowed = results
-            return create_allowed and update_allowed
+            allowed = create_allowed and update_allowed
+            if not allowed and raise_on_forbidden:
+                await self._raise_forbidden(
+                    resource, action, auth_info, skip_logging_forbidden
+                )
+            return allowed
         if framework.utils.helpers.is_request_from_leader(
             auth_info.projects_role, leader_name=self._leader_name
         ):
@@ -107,8 +130,8 @@ class Provider(
             logger.debug("Received response from OPA", body=response_body)
         allowed = response_body["result"]
         if not allowed and raise_on_forbidden:
-            raise mlrun.errors.MLRunAccessDeniedError(
-                f"Not allowed to {action} resource {resource}"
+            await self._raise_forbidden(
+                resource, action, auth_info, skip_logging_forbidden
             )
         return allowed
 
@@ -171,6 +194,44 @@ class Provider(
         )
         allowed_projects[project_name] = ttl
         self._allowed_project_owners_cache[auth_info.user_id] = allowed_projects
+
+    async def _raise_forbidden(
+        self,
+        resource: str,
+        action: mlrun.common.schemas.AuthorizationAction,
+        auth_info: mlrun.common.schemas.AuthInfo,
+        skip_logging_forbidden: bool,
+    ):
+        # skip_logging_forbidden is set by internal not-ready/retry checks (e.g.
+        # ensure_project_permissions), which deny repeatedly while waiting for permission
+        # propagation — those are not actor-initiated denials of a specific request.
+        if not skip_logging_forbidden:
+            await mlrun.utils.helpers.run_in_threadpool(
+                self._publish_permission_denied_event, resource, action, auth_info
+            )
+        raise mlrun.errors.MLRunAccessDeniedError(
+            f"Not allowed to {action} resource {resource}"
+        )
+
+    def _publish_permission_denied_event(
+        self,
+        resource: str,
+        action: mlrun.common.schemas.AuthorizationAction,
+        auth_info: mlrun.common.schemas.AuthInfo,
+    ):
+        """Best-effort emit of a permission-denied audit event; never raises."""
+        if _permission_denied_listener is None:
+            return
+        try:
+            username = auth_info.username or auth_info.user_id
+            _permission_denied_listener(resource, str(action), username)
+        except Exception as publish_exc:
+            logger.warning(
+                "Failed to publish permission denied event",
+                resource=resource,
+                action=action,
+                exc=mlrun.errors.err_to_str(publish_exc),
+            )
 
     def _check_allowed_project_owners_cache(
         self, resource: str, auth_info: mlrun.common.schemas.AuthInfo

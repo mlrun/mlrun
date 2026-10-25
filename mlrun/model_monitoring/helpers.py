@@ -28,7 +28,6 @@ import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.data_types.infer
 import mlrun.datastore.datastore_profile
 import mlrun.platforms.iguazio
-from mlrun.common.schemas import ModelEndpoint
 from mlrun.common.schemas.model_monitoring.model_endpoints import (
     ModelEndpointMonitoringMetric,
     compose_full_name,
@@ -414,39 +413,6 @@ def _get_monitoring_time_window_from_controller_run(
         mm_constants.EventFieldType.DAYS: 0,
     }
     return batch_dict2timedelta(batch_dict)
-
-
-def update_model_endpoint_last_request(
-    project: str,
-    model_endpoint: ModelEndpoint,
-    current_request: datetime.datetime,
-    db: "RunDBInterface",
-) -> None:
-    """
-    Update the last request field of the model endpoint to be after the current request time.
-
-    :param project:         Project name.
-    :param model_endpoint:  Model endpoint object.
-    :param current_request: current request time
-    :param db:              DB interface.
-    """
-
-    logger.info(
-        "Update model endpoint last request time (EP with serving)",
-        project=project,
-        endpoint_id=model_endpoint.metadata.uid,
-        name=model_endpoint.metadata.name,
-        function_name=model_endpoint.spec.function_name,
-        last_request=model_endpoint.status.last_request,
-        current_request=current_request,
-    )
-    db.patch_model_endpoint(
-        project=project,
-        endpoint_id=model_endpoint.metadata.uid,
-        name=model_endpoint.metadata.name,
-        function_name=model_endpoint.spec.function_name,
-        attributes={mm_constants.EventFieldType.LAST_REQUEST: current_request},
-    )
 
 
 def calculate_inputs_statistics(

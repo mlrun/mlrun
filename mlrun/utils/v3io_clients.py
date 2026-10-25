@@ -13,14 +13,24 @@
 # limitations under the License.
 
 from v3io.dataplane import Client as V3IOClient
-from v3io_frames import Client as V3IOFramesClient
-from v3io_frames.client import ClientBase
+
+try:
+    from v3io_frames import Client as V3IOFramesClient
+    from v3io_frames.client import ClientBase
+except ImportError:
+    V3IOFramesClient = None
+    ClientBase = None
 
 _v3io_clients: dict[frozenset, V3IOClient] = {}
-_frames_clients: dict[frozenset, ClientBase] = {}
+# string annotation so the module imports without v3io_frames installed
+_frames_clients: "dict[frozenset, ClientBase]" = {}
 
 
-def get_frames_client(**kwargs) -> ClientBase:
+def get_frames_client(**kwargs) -> "ClientBase":
+    if V3IOFramesClient is None:
+        raise ImportError(
+            "v3io-frames is not installed, run 'pip install mlrun[v3io-frames]'"
+        )
     global _frames_clients
     kw_set = frozenset(kwargs.items())
     if kw_set not in _frames_clients:

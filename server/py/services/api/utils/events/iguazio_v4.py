@@ -107,6 +107,30 @@ PROJECT_LIFECYCLE_EVENTS: dict[
     ),
 }
 
+PROJECT_SECRET_CREATED = "UserAction.Project.MLRunSecret.Created"
+PROJECT_SECRET_UPDATED = "UserAction.Project.MLRunSecret.Updated"
+PROJECT_SECRET_DELETED = "UserAction.Project.MLRunSecret.Deleted"
+
+PROJECT_SECRET_EVENTS: dict[
+    mlrun.common.schemas.SecretEventActions,
+    tuple[str, str],
+] = {
+    mlrun.common.schemas.SecretEventActions.created: (
+        PROJECT_SECRET_CREATED,
+        "Project {} secret created",
+    ),
+    mlrun.common.schemas.SecretEventActions.updated: (
+        PROJECT_SECRET_UPDATED,
+        "Project {} secret updated",
+    ),
+    mlrun.common.schemas.SecretEventActions.deleted: (
+        PROJECT_SECRET_DELETED,
+        "Project {} secret deleted",
+    ),
+}
+
+PERMISSION_DENIED = "UserAction.General.PermissionDenied"
+
 
 class Client(base_events.BaseEventClient):
     """
@@ -120,6 +144,9 @@ class Client(base_events.BaseEventClient):
             auto_login=False,
             use_token_file=False,
             verify_ssl=mlrun.mlconf.iguazio_api_ssl_verify,
+            logger=clients_helpers.iguazio_sdk_logger(
+                logger.get_child("system-events")
+            ),
         )
         self._service_account_token_client = service_account_token.Client()
         self._entity_name = self._resolve_entity_name()
@@ -288,9 +315,59 @@ class Client(base_events.BaseEventClient):
         secret_name: str,
         secret_keys: list[str] | None = None,
         action: mlrun.common.schemas.SecretEventActions = mlrun.common.schemas.SecretEventActions.created,
-    ):
-        # TODO: map v3 project-secret events onto the v4 catalog (separate change).
-        pass
+        initiator: str | None = None,
+    ) -> iguazio.schemas.EventActivationSpec:
+        """
+        Generate a project secret audit event.
+        :param project: project name
+        :param secret_name: secret name (unused in v4; kept for interface compatibility)
+        :param secret_keys: secret keys (unused in v4; kept for interface compatibility)
+        :param action: created, updated, or deleted
+        :param initiator: username of the user who performed the action
+        :return: EventActivationSpec to emit
+        """
+        try:
+            config_name, description_template = PROJECT_SECRET_EVENTS[action]
+        except KeyError as exc:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Unsupported project secret action {action}"
+            ) from exc
+
+        return iguazio.schemas.EventActivationSpec(
+            config_name=config_name,
+            kind="audit",
+            class_="user action",
+            project_name=project,
+            entity_name=project,
+            description=description_template.format(project),
+            initiator=initiator,
+        )
+
+    def generate_permission_denied_event(
+        self,
+        resource: str,
+        action: str,
+        username: str | None = None,
+    ) -> iguazio.schemas.EventActivationSpec:
+        """
+        Generate a permission-denied audit event.
+        :param resource: the OPA resource path the action was attempted on
+        :param action: the attempted action (e.g. read, create, update, delete)
+        :param username: username of the user who was denied, if known
+        :return: EventActivationSpec to emit
+        """
+        return iguazio.schemas.EventActivationSpec(
+            config_name=PERMISSION_DENIED,
+            kind="audit",
+            class_="user action",
+            entity_name=resource,
+            initiator=username,
+            description=(
+                f"Permission denied for user {username} to perform action "
+                f"{action} in resource {resource}"
+            ),
+            details={"username": username, "action": action, "resource": resource},
+        )
 
     @staticmethod
     def _resolve_entity_name() -> str:

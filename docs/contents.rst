@@ -30,7 +30,7 @@ Table of Contents
    
    mlops-dev-flow
    data-prep/index
-   development/index
+   development/model-training-tracking
    deployment/index
    model-monitoring/mlops-monitoring
    projects/ci-cd-automate
@@ -50,6 +50,12 @@ Table of Contents
    serving/serving-graph
    runtimes/load-from-hub
    feature-store/feature-store
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Server configuration
+
+   server-cfg/server-metrics
      
 .. toctree::
    :maxdepth: 1

@@ -154,7 +154,11 @@ class now(GenericFunction):  # noqa: N801
 
 @compiles(now, mlrun.common.db.dialects.Dialects.POSTGRESQL)
 def _pg_now(element, compiler, **kw):
-    return "now()"
+    # clock_timestamp(), not now(): PostgreSQL now()/transaction_timestamp() is frozen at transaction start. This
+    # stamps a run's terminal end_time, and the abort flow holds one transaction open across the long runtime-
+    # resource deletion, so now() would record end_time at transaction start - dropping the run out of the
+    # notification pusher's sliding end_time window so its notifications are never sent (ML-12865).
+    return "clock_timestamp()"
 
 
 NULL = None  # Avoid flake8 issuing warnings when comparing in filter
@@ -168,6 +172,8 @@ conflict_messages = [
     "(sqlite3.IntegrityError) UNIQUE constraint failed",
     "(pymysql.err.IntegrityError) (1062",
     "(pymysql.err.IntegrityError) (1586",
+    "(psycopg2.errors.UniqueViolation)",
+    "(psycopg.errors.UniqueViolation)",
 ]
 
 
@@ -464,12 +470,20 @@ class SQLDB(DBInterface):
             query = query.filter(Run.uid.in_(specific_uids))
 
         if not only_uids:
-            # group_by allows us to have a row per uid with the whole record rather than just the uid (as distinct does)
-            # note we cannot promise that the same row will be returned each time per uid as the order is not guaranteed
-            query = query.group_by(Run.uid)
+            # Return one full record per uid. A plain `GROUP BY Run.uid` over full rows relies on
+            # MySQL's nonstandard "loose" GROUP BY (arbitrary row per group) and is rejected by
+            # PostgreSQL's strict GROUP BY. Instead select a representative id per uid via an
+            # aggregate (portable across dialects) and fetch those full rows. The representative is
+            # the highest primary-key id (the most recently inserted row); which row is returned was
+            # never guaranteed for this method.
+            latest_run_id_per_uid = query.with_entities(func.max(Run.id)).group_by(
+                Run.uid
+            )
 
             runs = RunList()
-            for run in query:
+            for run in self._query(session, Run).filter(
+                Run.id.in_(latest_run_id_per_uid.scalar_subquery())
+            ):
                 runs.append(run.struct)
 
             return runs
@@ -605,6 +619,17 @@ class SQLDB(DBInterface):
                 partition_order,
                 max_partitions,
             )
+            if sort:
+                # _create_partitioned_query() orders its result by partition_sort_by
+                # (e.g. "updated" for the "no filter" default) purely to make row
+                # selection/pagination deterministic - that field governs which row
+                # wins *within* a partition, not the contract of this function's own
+                # `sort` param (order by start_time). Query.order_by() appends rather
+                # than replaces, so reset before reapplying the same sort used for the
+                # non-partitioned path above.
+                query = query.order_by(None).order_by(
+                    Run.start_time.desc(), Run.id.desc()
+                )
 
         query = self._paginate_query(query, offset, limit)
 
@@ -1277,7 +1302,7 @@ class SQLDB(DBInterface):
         )
         if category:
             query = self._add_artifact_category_query(category, query).with_hint(
-                ArtifactV2, "USE INDEX (idx_project_kind)"
+                ArtifactV2, "USE INDEX (idx_project_kind)", dialect_name="mysql"
             )
 
         # the query returns a list of tuples, we need to extract the tag from each tuple
@@ -1967,6 +1992,13 @@ class SQLDB(DBInterface):
                 partition_order,
                 with_tagged=True,
             )
+            # _create_partitioned_query() now applies its own ORDER BY for determinism.
+            # Query.order_by() appends rather than replaces, so left unreset it would
+            # silently become the leading sort key for order_criteria below and change
+            # which rows survive limit/offset for non-default partition_sort_by/order.
+            # This function already orders deterministically via order_criteria and the
+            # outer query's order_by(), so reset it here.
+            query = query.order_by(None)
         if parent_uri:
             query = self._add_artifact_parent_query(query=query, parent_uri=parent_uri)
 
@@ -1977,7 +2009,7 @@ class SQLDB(DBInterface):
                 # Third sort by tag ID to ensure consistent ordering when an artifact has multiple tags.
                 # Put "latest" tag first, then others by tag_id desc
                 latest_first_case = case(
-                    (text(f"{tag_name_alias} = 'latest'"), 0),
+                    (query.statement.selected_columns[tag_name_alias] == "latest", 0),
                     else_=1,
                 )
 
@@ -2532,7 +2564,9 @@ class SQLDB(DBInterface):
         fn.kind = function.pop("kind", None)
         fn.state = function.get("status", {}).pop("state", None)
         fn.struct = function
-        self._upsert(session, [fn])
+        # flush the function and let tag_objects_v2 commit it together with its
+        # tag, so a concurrent reader never sees it without its "latest" tag
+        self._flush(session, [fn])
         self.tag_objects_v2(session, [fn], project, tag)
         return hash_key
 
@@ -2735,6 +2769,11 @@ class SQLDB(DBInterface):
             updated = True
             existing_invocation_urls.append(url)
             struct["status"]["external_invocation_urls"] = existing_invocation_urls
+            # Sync address to the new URL only when address is currently unset, so
+            # that the next deploy_status poll sees no address change and avoids a
+            # spurious versioned re-store that would orphan linked model endpoints.
+            if not struct["status"].get("address"):
+                struct["status"]["address"] = url
         elif (
             operation == mlrun.common.types.Operation.REMOVE
             and url in existing_invocation_urls
@@ -2747,6 +2786,9 @@ class SQLDB(DBInterface):
             )
             updated = True
             struct["status"]["external_invocation_urls"].remove(url)
+            # Clear address only when it points at the URL being removed.
+            if struct["status"].get("address") == url:
+                struct["status"]["address"] = ""
 
         # update the function record only if the external invocation URLs were updated
         if updated:
@@ -3382,10 +3424,19 @@ class SQLDB(DBInterface):
         self._upsert(session, tags)
 
     # ---- Projects ----
-    def create_project(self, session: Session, project: mlrun.common.schemas.Project):
+    def create_project(
+        self,
+        session: Session,
+        project: mlrun.common.schemas.Project,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
+    ):
         logger.debug("Creating project in DB", project_name=project.metadata.name)
         created = datetime.now(UTC)
         project.metadata.created = created
+        # Ownership is set once, at creation: default to the caller when the
+        # body omits an owner.
+        if project.spec.owner is None:
+            project.spec.owner = auth_info.username
         # TODO: handle taking out the functions/workflows/artifacts out of the project and save them separately
         project_record = Project(
             name=project.metadata.name,
@@ -3418,7 +3469,11 @@ class SQLDB(DBInterface):
 
     @retry_on_conflict
     def store_project(
-        self, session: Session, name: str, project: mlrun.common.schemas.Project
+        self,
+        session: Session,
+        name: str,
+        project: mlrun.common.schemas.Project,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ):
         logger.debug(
             "Storing project in DB",
@@ -3435,8 +3490,13 @@ class SQLDB(DBInterface):
             session, name, raise_on_not_found=False
         )
         if not project_record:
-            self.create_project(session, project)
+            self.create_project(session, project, auth_info)
         else:
+            # Preserve the stored owner when the body omits one so a member
+            # can't null it to seize ownership; an explicit change is
+            # authorized at the endpoint.
+            if project.spec.owner is None:
+                project.spec.owner = project_record.owner
             self._update_project_record_from_project(session, project_record, project)
 
     @staticmethod
@@ -3655,9 +3715,8 @@ class SQLDB(DBInterface):
         project_summaries = query.all()
         project_summaries_results = []
         for project_summary in project_summaries:
-            # project_summary.updated is timezone naive, make it utc
-            project_summary.summary["updated"] = project_summary.updated.replace(
-                tzinfo=UTC
+            project_summary.summary["updated"] = mlrun.utils.ensure_tz_aware(
+                project_summary.updated
             )
             project_summaries_results.append(
                 mlrun.common.schemas.ProjectSummary(**project_summary.summary)
@@ -4783,7 +4842,7 @@ class SQLDB(DBInterface):
                     feature_set, feature_set_digest_id_to_index, feature_set_digests_v2
                 )
                 features_with_feature_set_index.append(
-                    feature.copy(update=dict(feature_set_index=feature_set_index))
+                    feature.model_copy(update=dict(feature_set_index=feature_set_index))
                 )
 
         return mlrun.common.schemas.FeaturesOutputV2(
@@ -4845,7 +4904,7 @@ class SQLDB(DBInterface):
                     feature_set, feature_set_digest_id_to_index, feature_set_digests_v2
                 )
                 entities_with_feature_set_index.append(
-                    entity.copy(update=dict(feature_set_index=feature_set_index))
+                    entity.model_copy(update=dict(feature_set_index=feature_set_index))
                 )
 
         return mlrun.common.schemas.EntitiesOutputV2(
@@ -4924,8 +4983,15 @@ class SQLDB(DBInterface):
                     subquery.c.tag_name,
                     subquery.c.tag_id,
                 )
-            result_query = result_query.join(subquery, cls.id == subquery.c.id).filter(
-                subquery.c.row_number <= rows_per_partition
+            result_query = (
+                result_query.join(subquery, cls.id == subquery.c.id)
+                .filter(subquery.c.row_number <= rows_per_partition)
+                # The join above doesn't preserve the row_number window function's
+                # implicit order, so without an explicit ORDER BY the result order is
+                # undefined by the SQL standard.
+                .order_by(
+                    partition_order.to_order_by_predicate(sort_by_field), cls.id.desc()
+                )
             )
             return result_query
 
@@ -4945,6 +5011,9 @@ class SQLDB(DBInterface):
             session.query(cls)
             .join(subquery, cls.id == subquery.c.id)
             .filter(subquery.c.partition_rank <= max_partitions)
+            # Same ordering gap as the max_partitions == 0 branch above: rank the
+            # partitions by recency, then rows within a partition by their row_number.
+            .order_by(subquery.c.partition_rank, subquery.c.row_number, cls.id.desc())
         )
         return result_query
 
@@ -5841,6 +5910,23 @@ class SQLDB(DBInterface):
             session.add(object_)
         self._commit(session, objects, ignore, silent)
 
+    def _flush(self, session, objects):
+        # Flush without committing, so objects get generated fields (e.g. their
+        # id) while the transaction stays open for a single downstream commit.
+        # Use to persist an object together with its tag atomically: _flush(obj)
+        # then tag_objects_v2(obj) issues the one commit that covers both, so a
+        # concurrent reader never sees the object without its tag (ML-12864).
+        if not objects:
+            return
+        for object_ in objects:
+            session.add(object_)
+        try:
+            session.flush()
+        except SQLAlchemyError:
+            # roll back so @retry_on_conflict retries on a clean session
+            session.rollback()
+            raise
+
     def _upsert_batch(self, session, objects, ignore=False, silent=False):
         if not objects:
             return
@@ -6260,8 +6346,12 @@ class SQLDB(DBInterface):
         else:
             # Basically do an "or" query on the predicates, and count how many rows each parent object has -
             # if it has as much rows as predicates, then it means it answers all the conditions.
+            # Select only the grouped column: a plain `session.query(cls.Label)` here selects every
+            # mapped column (id, name, value, parent) while grouping only by `parent`, which MySQL's
+            # nonstandard "loose" GROUP BY allows but PostgreSQL's strict GROUP BY rejects with
+            # GroupingError. The join below only needs `parent`, so that's all we select.
             subq = (
-                session.query(cls.Label)
+                session.query(cls.Label.parent)
                 .filter(or_(*preds))
                 .group_by(cls.Label.parent)
                 .having(func.count(cls.Label.parent) == len(preds))
@@ -6311,10 +6401,7 @@ class SQLDB(DBInterface):
         sqlalchemy losing timezone information with sqlite so we're returning it
         https://stackoverflow.com/questions/6991457/sqlalchemy-losing-timezone-information-with-sqlite
         """
-        if time_value:
-            if time_value.tzinfo is None:
-                return pytz.utc.localize(time_value)
-        return time_value
+        return mlrun.utils.ensure_tz_aware(time_value)
 
     @staticmethod
     def _transform_feature_set_model_to_schema(
@@ -7498,20 +7585,18 @@ class SQLDB(DBInterface):
             name=alert_activation_record.name,
             project=alert_activation_record.project,
             severity=alert_activation_record.severity,
-            # the activation_time is already stored in UTC in the database as a naive datetime.
-            # we explicitly set the timezone to UTC here to make it timezone-aware, avoiding any ambiguity.
-            activation_time=alert_activation_record.activation_time.replace(tzinfo=UTC),
+            # activation_time/reset_time are stored in UTC, but round-trip as tz-naive on SQLite and
+            # tz-aware on PostgreSQL/MySQL - normalize rather than blindly relabeling as UTC.
+            activation_time=mlrun.utils.ensure_tz_aware(
+                alert_activation_record.activation_time
+            ),
             entity_id=alert_activation_record.entity_id,
             entity_kind=alert_activation_record.entity_kind,
             event_kind=alert_activation_record.event_kind,
             number_of_events=alert_activation_record.number_of_events,
             notifications=alert_activation_record.data.get("notifications", []),
             criteria=alert_activation_record.data.get("criteria"),
-            # the reset_time is already stored in UTC (if not None) in the database as a naive datetime.
-            # we explicitly set the timezone to UTC here to make it timezone-aware, avoiding any ambiguity.
-            reset_time=alert_activation_record.reset_time.replace(tzinfo=UTC)
-            if alert_activation_record.reset_time
-            else None,
+            reset_time=mlrun.utils.ensure_tz_aware(alert_activation_record.reset_time),
         )
 
     # ---- Background Tasks ----
@@ -8051,6 +8136,7 @@ class SQLDB(DBInterface):
         )
 
     # --- Pagination ---
+    @retry_on_conflict
     def store_paginated_query_cache_record(
         self,
         session,
@@ -8074,7 +8160,12 @@ class SQLDB(DBInterface):
             f"{user}/{function}/{page_size}/{kwargs}".encode()
         ).hexdigest()
         if not pagination_cache_record:
-            # in this case, we just lock for update to make sure no one else is writing to it
+            # Lock for update in case a record for this key already exists, so a concurrent
+            # request updating it can't be lost. This does NOT protect the insert branch below:
+            # if two concurrent callers both see zero rows here, both build a fresh
+            # PaginationCache and one of the two inserts collides on the `key` primary key.
+            # @retry_on_conflict closes that gap by retrying this whole method on conflict, so
+            # the retry's SELECT sees the row the other caller just committed.
             pagination_cache_record = self.get_paginated_query_cache_record(
                 session, key=key, for_update=True
             )

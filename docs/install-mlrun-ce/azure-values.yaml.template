@@ -1,0 +1,13 @@
+# Azure Blob Storage for artifacts (or set storage.mode to "local" for bundled SeaweedFS).
+storage:
+  mode: "azure-blob"
+  azure:
+    containerName: "data"
+    accountName: "<name of the storage account>"
+    connectionString: "DefaultEndpointsProtocol=https;AccountName=<name of the storage>;AccountKey=<account key>;EndpointSuffix=core.windows.net"
+
+# Azure Container Registry (or another private Docker registry).
+global:
+  registry:
+    url: "<url of the registry>"
+    secretName: "acr-registry-credentials"

@@ -28,7 +28,9 @@ no-false-positive contract for the most plausible noise sources:
 True-positive disconnect detection is covered by the unit tests
 (test_db_errors.py) and was verified end-to-end on the lab during PR review.
 Reproducing a real disconnect deterministically in a container fixture is
-brittle (it usually means killing the container mid-test).
+brittle (it usually means killing the container mid-test) — except for a
+never-established connection (host/port refuses immediately), which is
+deterministic and exercised below.
 """
 
 import threading
@@ -160,6 +162,32 @@ def test_integrity_violation_does_not_emit_event(
             conn.execute(sqlalchemy.text("DROP TABLE conn_event_integrity_test"))
 
     assert stub_events_client == [], "integrity violation must not trigger an event"
+
+
+def test_unreachable_connection_classifies_as_disconnect(
+    db_engine: sqlalchemy.engine.Engine,
+) -> None:
+    """
+    Reproduces the chief-startup-during-outage shape: a connection attempt
+    against an unreachable host/port fails before any backend ever responds
+    (no SQLSTATE, no is_disconnect flag) — this is why the bootstrap DB-init
+    path (sqlalchemy_utils.database_exists/create_database, which open their
+    own throwaway engines) needs classify_exception(), not just classify().
+    Deterministic: an unreachable port refuses immediately, unlike killing a
+    running container mid-test.
+    """
+    unreachable_engine = sqlalchemy.create_engine(
+        db_engine.url.set(host="127.0.0.1", port=1)
+    )
+    try:
+        with pytest.raises(sqlalchemy.exc.DBAPIError) as exc_info:
+            with unreachable_engine.connect():
+                pass
+    finally:
+        unreachable_engine.dispose()
+
+    category, _ = db_errors.classify_exception(exc_info.value)
+    assert category == db_errors.CATEGORY_DISCONNECT
 
 
 def _is_postgres(engine: sqlalchemy.engine.Engine) -> bool:

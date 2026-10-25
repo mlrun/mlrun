@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, PropertyMock, patch
 
 import pytest
 
@@ -162,6 +162,40 @@ class TestAzureBlobStore:
         store = self._create_store(schema="az", endpoint="data", secrets={})
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
             store.get_read_only_https_url("/src.tar.gz")
+
+    def test_put_bounds_upload_concurrency(self):
+        """put() must bound pipe_file concurrency to avoid buffering the whole body (ML-12754)."""
+        store = self._create_store(schema="az", endpoint="test-container")
+        mock_fs = Mock()
+        with patch.object(
+            AzureBlobStore,
+            "filesystem",
+            new_callable=PropertyMock,
+            return_value=mock_fs,
+        ):
+            store.put("path/to/obj.bin", b"some-bytes")
+
+        mock_fs.pipe_file.assert_called_once()
+        args, kwargs = mock_fs.pipe_file.call_args
+        assert kwargs.get("max_concurrency") == store.max_concurrency
+        assert args[0] == "test-container/path/to/obj.bin"
+        assert args[1] == b"some-bytes"
+
+    def test_put_encodes_str_body(self):
+        """str bodies must be encoded to bytes before pipe_file, and still bounded."""
+        store = self._create_store(schema="az", endpoint="test-container")
+        mock_fs = Mock()
+        with patch.object(
+            AzureBlobStore,
+            "filesystem",
+            new_callable=PropertyMock,
+            return_value=mock_fs,
+        ):
+            store.put("obj.yaml", "key: value")
+
+        args, kwargs = mock_fs.pipe_file.call_args
+        assert args[1] == b"key: value"
+        assert kwargs.get("max_concurrency") == store.max_concurrency
 
     def test_spark_url_az_schema_with_endpoint_container(self):
         """Test spark_url generation for az:// URLs where endpoint is container"""

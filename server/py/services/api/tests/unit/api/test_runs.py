@@ -614,6 +614,37 @@ def test_list_runs_with_pagination(db: Session, client: TestClient):
     assert not runs
 
 
+def test_list_runs_with_page_size_and_no_page(db: Session, client: TestClient):
+    """
+    Regression test for ML-12987: requesting page-size without page (the shape a UI takes on first
+    page load) used to 500 with a TypeError instead of defaulting page to 1.
+    """
+    number_of_runs = 5
+    project = "my_project"
+    for counter in range(number_of_runs):
+        uid = f"uid_{counter}"
+        run = {
+            "metadata": {
+                "name": f"run_{counter}",
+                "uid": uid,
+                "project": project,
+            },
+        }
+        services.api.crud.Runs().store_run(db, run, uid, project=project)
+
+    runs, pagination = _list_and_assert_objects(
+        client,
+        {
+            "page-size": 10,
+            "sort": True,
+        },
+        5,
+        project=project,
+    )
+    assert pagination["page"] == 1
+    assert pagination["page-size"] == 10
+
+
 def test_delete_runs_with_permissions(db: Session, client: TestClient):
     framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions = (
         unittest.mock.AsyncMock()

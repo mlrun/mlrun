@@ -24,6 +24,7 @@ import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.k8s_utils
+import mlrun.runtimes.utils
 import mlrun.utils.regex
 from mlrun.common.runtimes.constants import RunStates, SparkApplicationStates
 from mlrun.runtimes import RuntimeClassMode, Spark3Runtime
@@ -48,7 +49,6 @@ _sparkjob_template = {
         "mode": "cluster",
         "image": "",
         "mainApplicationFile": "",
-        "sparkVersion": "3.1.2",
         "restartPolicy": {
             "type": "OnFailure",
             "onFailureRetries": 0,
@@ -108,7 +108,7 @@ class Spark3RuntimeHandler(KubeRuntimeHandler, abc.ABC):
         update_in(
             job,
             "spec.sparkVersion",
-            runtime.spec.spark_version or self._get_spark_version(),
+            runtime.spec.spark_version or self._get_spark_version(runtime),
         )
 
         if runtime.spec.image_pull_policy:
@@ -449,6 +449,13 @@ with ctx:
                 "Sparkjob must contain driver requests"
             )
 
+        # Validate before assigning the default image.
+        mlrun.runtimes.utils.resolve_spark_version(
+            explicit_version=runtime.spec.spark_version,
+            image=runtime.spec.image,
+            base_image=runtime.spec.build.base_image,
+        )
+
     @staticmethod
     def _parse_cpu_resource_string(cpu):
         if isinstance(cpu, str) and cpu.endswith("m"):
@@ -680,6 +687,26 @@ with ctx:
             "spec.executor.serviceAccount",
             runtime.spec.service_account or "sparkapp",
         )
+        # The driver needs Kubernetes API access to create and manage executors.
+        # Enable token automount explicitly in case the service account disables it.
+        update_in(
+            job,
+            "spec.driver.template.spec",
+            {
+                "automountServiceAccountToken": True,
+                "containers": [{"name": "spark-kubernetes-driver"}],
+            },
+        )
+        # Spark's pod-template loader NPEs without a named executor container.
+        # Keep the template minimal and only disable token automount.
+        update_in(
+            job,
+            "spec.executor.template.spec",
+            {
+                "automountServiceAccountToken": False,
+                "containers": [{"name": "spark-kubernetes-executor"}],
+            },
+        )
 
         if runtime.spec.monitoring:
             if (
@@ -835,5 +862,9 @@ with ctx:
             preemption_mode=runtime.spec.executor_preemption_mode,
         )
 
-    def _get_spark_version(self):
-        return "3.2.3"
+    def _get_spark_version(self, runtime: mlrun.runtimes.sparkjob.Spark3Runtime):
+        return mlrun.runtimes.utils.resolve_spark_version(
+            explicit_version=runtime.spec.spark_version,
+            image=runtime.spec.image,
+            base_image=runtime.spec.build.base_image,
+        ).effective_version

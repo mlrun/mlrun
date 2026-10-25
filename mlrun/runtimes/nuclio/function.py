@@ -39,7 +39,7 @@ import mlrun.k8s_utils
 import mlrun.runtime_configuration_context
 import mlrun.utils
 import mlrun.utils.helpers
-from mlrun.common.schemas import AuthInfo, BatchingSpec
+from mlrun.common.schemas import AuthInfo, BatchingSpec, HTTPTriggerAuthenticationMode
 from mlrun.common.schemas.model_monitoring import ModelEndpointInstruction
 from mlrun.config import config as mlconf
 from mlrun.errors import err_to_str
@@ -68,6 +68,9 @@ SENSITIVE_PATHS_IN_TRIGGER_CONFIG = {
     "attributes/accesscertificate",
     "attributes/sasl/password",
     "attributes/sasl/oauth/clientsecret",
+    # function-level HTTP trigger basic-auth password
+    "attributes/authentication/basicAuth/password",
+    "basicauth/password",
 }
 
 
@@ -99,6 +102,58 @@ def min_nuclio_versions(*versions):
         return wrapper
 
     return decorator
+
+
+def validate_basic_auth_creds(authentication_creds: tuple[str, str] | None) -> None:
+    """Validate a ``(username, password)`` tuple for ``basicAuth`` authentication.
+
+    Shared by API-Gateway-level and function HTTP-trigger-level authentication validation.
+
+    :raises MLRunInvalidArgumentError: when creds are missing, malformed, or contain empty values.
+    """
+    if not authentication_creds or len(authentication_creds) != 2:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "authentication_creds=(username, password) is required when "
+            "authentication_mode is 'basicAuth'."
+        )
+    if not authentication_creds[0] or not authentication_creds[1]:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "Both username and password must be non-empty in authentication_creds."
+        )
+
+
+def resolve_invoke_auth(auth_info: AuthInfo | None) -> requests.auth.AuthBase | None:
+    """Resolve the requests auth object to invoke a function with, directly or through an API gateway.
+
+    Uses ``auth_info`` when it carries credentials. Otherwise, when function-level
+    authentication is enabled, the HTTP trigger rejects credential-less requests
+    (``api`` mode on EcliptOS), so fall back to the caller's own credentials: the run DB
+    token (its provider caches and refreshes the token across invocations), then the environment.
+
+    :param auth_info: credentials passed by the caller, if any.
+    :return: a requests auth object, or None to send the request unauthenticated.
+    """
+    if auth_info and (auth_info.request_headers or auth_info.session):
+        nuclio_auth_info = mlrun.auth.nuclio.NuclioAuthInfo.from_auth_info(auth_info)
+        if nuclio_auth_info and (auth := nuclio_auth_info.to_requests_auth()):
+            return auth
+
+    if not mlrun.mlconf.is_nuclio_function_authentication_enabled():
+        return None
+    try:
+        token_provider = getattr(mlrun.get_run_db(), "token_provider", None)
+        token = token_provider.get_token() if token_provider else None
+        # the function auth-proxy accepts a bearer token only, not an Iguazio session cookie
+        if token and not token_provider.is_iguazio_session():
+            return mlrun.auth.nuclio.NuclioAuthInfo(token=token).to_requests_auth()
+        return mlrun.auth.nuclio.NuclioAuthInfo.from_envvar().to_requests_auth()
+    except Exception as exc:
+        # let the function return its own 401 rather than failing the invocation client-side
+        logger.warning(
+            "Failed to resolve credentials for function invocation, invoking unauthenticated",
+            error=err_to_str(exc),
+        )
+        return None
 
 
 @dataclass
@@ -510,6 +565,44 @@ class RemoteRuntime(KubeResource):
         self.spec.config[f"spec.triggers.{name}"] = spec
         return self
 
+    def _validate_http_trigger_authentication(
+        self,
+        authentication_mode: HTTPTriggerAuthenticationMode,
+        authentication_creds: tuple[str, str] | None,
+    ):
+        """Validate ``authentication_mode`` and ``authentication_creds`` for the HTTP trigger.
+
+        :param authentication_mode: The requested authentication mode.
+        :param authentication_creds: ``(username, password)`` tuple; required for ``basicAuth``.
+        :raises MLRunInvalidArgumentError: when function-level authentication is disabled on the
+            platform, the mode value is invalid, or the creds/mode combination is inconsistent.
+        :raises MLRunIncompatibleVersionError: when Nuclio doesn't support function-level
+            authentication.
+        """
+        if not mlrun.mlconf.is_nuclio_function_authentication_enabled():
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Function-level HTTP trigger authentication is not supported on this platform. "
+                "Configure authentication on the API Gateway instead."
+            )
+        if not validate_nuclio_version_compatibility("1.17.5"):
+            raise mlrun.errors.MLRunIncompatibleVersionError(
+                "Function-level HTTP trigger authentication is only supported on Nuclio "
+                "1.17.5 and higher"
+            )
+
+        if authentication_mode.value not in HTTPTriggerAuthenticationMode.values():
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Invalid authentication_mode '{authentication_mode}'. "
+                f"Supported modes are: {sorted(HTTPTriggerAuthenticationMode.values())}."
+            )
+
+        if authentication_mode == HTTPTriggerAuthenticationMode.basic:
+            validate_basic_auth_creds(authentication_creds)
+        elif authentication_creds is not None:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "authentication_creds must be provided only valid for 'basicAuth' mode"
+            )
+
     def _validate_triggers(self, spec):
         # ML-7763 / NUC-233
         min_nuclio_version = "1.13.12"
@@ -632,6 +725,8 @@ class RemoteRuntime(KubeResource):
         extra_attributes: typing.Mapping[str, str] | None = None,
         batching_spec: BatchingSpec | None = None,
         async_spec: AsyncSpec | None = None,
+        authentication_mode: HTTPTriggerAuthenticationMode | None = None,
+        authentication_creds: tuple[str, str] | None = None,
     ):
         """update/add nuclio HTTP trigger settings
 
@@ -660,9 +755,23 @@ class RemoteRuntime(KubeResource):
         :param async_spec: AsyncSpec object defines async configuration. By default, mode will be sync.
             If number of max connections won't be set, the default value will be set to 1000 according to nuclio
             default.
+        :param authentication_mode: Function-level HTTP trigger authentication mode. Requires the platform
+            feature flag ``httpdb.nuclio.function_authentication_enabled`` to be on and Nuclio 1.17.5
+            or higher. Accepted values defined in
+            :py:class:`~mlrun.common.schemas.HTTPTriggerAuthenticationMode`:
+            ``none``, ``api``, ``browser``, or ``basicAuth``.
+            Set on ``spec.triggers.<name>.attributes.authenticationMode`` in the Nuclio function spec.
+        :param authentication_creds: ``(username, password)`` tuple — required when
+            ``authentication_mode`` is ``basicAuth``, must be omitted for all other modes.
 
         :return: function object (self)
         """
+        if authentication_mode is not None:
+            self._validate_http_trigger_authentication(
+                authentication_mode=authentication_mode,
+                authentication_creds=authentication_creds,
+            )
+
         if self.disable_default_http_trigger:
             logger.warning(
                 "Adding HTTP trigger despite the default HTTP trigger creation being disabled"
@@ -723,6 +832,16 @@ class RemoteRuntime(KubeResource):
                 trigger._struct["async"] = {
                     "maxConnectionsNumber": async_spec.max_connections,
                     "connectionAvailabilityTimeout": async_spec.connection_availability_timeout,
+                }
+
+        if authentication_mode is not None:
+            trigger._struct["attributes"]["authenticationMode"] = (
+                authentication_mode.value
+            )
+            if authentication_mode == HTTPTriggerAuthenticationMode.basic:
+                username, password = authentication_creds
+                trigger._struct["attributes"]["authentication"] = {
+                    "basicAuth": {"username": username, "password": password}
                 }
 
         self.add_trigger(trigger_name or "http", trigger)
@@ -1309,7 +1428,10 @@ class RemoteRuntime(KubeResource):
         :param method:   HTTP method (GET, PUT, ..)
         :param headers:  key/value dict with http headers
         :param force_external_address:   use the external ingress URL
-        :param auth_info: service AuthInfo
+        :param auth_info: credentials to invoke the function with. When omitted and function-level
+                          authentication is enabled on the platform, the caller's credentials are
+                          resolved from the environment. Ignored when the request already carries
+                          an ``Authorization`` header or an ``auth`` object.
         :param mock:     use mock server vs a real Nuclio function (for local simulations)
         :param http_client_kwargs:   allow the user to pass any parameter supported in requests.request method
                                      see this link for more information:
@@ -1344,6 +1466,10 @@ class RemoteRuntime(KubeResource):
         headers.setdefault("x-nuclio-target", full_function_name)
         if not http_client_kwargs:
             http_client_kwargs = {}
+        if http_client_kwargs.get("auth") is None and not any(
+            key.lower() == "authorization" for key in headers
+        ):
+            http_client_kwargs["auth"] = resolve_invoke_auth(auth_info=auth_info)
         if body:
             if isinstance(body, str | bytes):
                 http_client_kwargs["data"] = body
@@ -1663,7 +1789,7 @@ class RemoteRuntime(KubeResource):
         if (
             not force_external_address
             and self.status.internal_invocation_urls
-            and mlrun.k8s_utils.is_running_inside_kubernetes_cluster()
+            and mlrun.k8s_utils.is_running_in_kubernetes_pod()
         ):
             url = mlrun.utils.helpers.join_urls(
                 f"http://{self.status.internal_invocation_urls[0]}", path

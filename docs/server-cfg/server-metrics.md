@@ -1,0 +1,128 @@
+(otel-metrics)=
+# OTel metrics
+
+MLRun collects anonymized system-wide statistics, for example, project counts, artifact counts, run activity, serving endpoints,
+etc., and exports them to Prometheus on the cluster via OpenTelemetry. Metrics are not exported from the cluster. 
+
+When enabled, monitoring application results and metrics are also exported via OpenTelemetry to the same OTLP endpoint. See [Export results and metrics via OTel](../model-monitoring/running-applications.md#export-results-and-metrics-via-otel).
+
+## OTel configuration
+
+OpenTelemetry metrics are configured in `config.py`. Modify the configuration with a `configmap.yaml` that is applied on the mlrun service.
+
+### Set the shared OTLP endpoint
+The shared OTLP endpoint (gRPC or HTTP) is used by every OpenTelemetry feature. 
+To set the endpoint:
+```
+MLRUN_TELEMETRY__OTLP_ENDPOINT=http://<server-name>:<port>
+```
+
+### Disable/enable server metrics collection
+Server metrics are enabled by default. 
+To disable the metrics collection:
+```
+MLRUN_TELEMETRY__ENABLED=false
+```
+
+To enable the metrics collection:
+```
+MLRUN_TELEMETRY__ENABLED=true
+```
+
+## Server metrics description
+Project-scoped metrics carry a project name attribute.
+
+### Metrics and their attributes
+|Metric name |Attributes       |Meaning       |
+|---------------------|--------------------------------|--------------------------------------------------------------------------------|
+|mlrun_projects|(none)|Current number of projects in the installation|
+|mlrun_functions|project, kind ∈ {job, serving, application, dask, mpijob, spark, nuclio, …}|Current number of functions of a given kind in a given project. Consolidates the original separate serving_functions / app_runtime_functions metrics via the kind attribute.|
+|mlrun_workflows|project|Current number of workflow definitions in the project  |
+|mlrun_artifacts|project, kind ∈ {model, dataset, document, llm_prompt, other}|Current number of artifacts of a given kind in the project  |
+|mlrun_runs|project, state ∈ {running, completed, failed, aborted}|Current number of runs in the project in each state (snapshot view)  |
+|mlrun_pipeline_executions|project, state ∈ {running, completed, failed, aborted}|Current number of pipeline executions in the project in each state  |
+|mlrun_alert_configurations|project|Current number of alert configurations in the project  |
+|mlrun_alert_activations|project |Current number of active alert activations in the project|
+|mlrun_model_endpoints|project, kind ∈ {realtime, batch}|Current number of registered model endpoints of a given kind. Consolidates the original separate realtime_endpoints / batch_endpoints metrics via the kind attribute.  |
+|mlrun_model_monitoring_applications|project|Current number of model-monitoring applications in the project.  |
+
+### Example output
+```
+mlrun_projects 5
+mlrun_artifacts{project="name1", kind="model"}   8
+mlrun_artifacts{project="name2", kind="dataset"} 34
+mlrun_artifacts{project="name3", kind="other"}   1
+mlrun_runs{project="name4", state="completed"} 120
+mlrun_runs{project="name5", state="failed"}     3
+```
+### Example PromQL views
+PromQL (Prometheus Query Language) is the language used to select and aggregate time series data in real time.
+Typical output looks like:
+```
+# Total artifacts across the system right now
+sum(mlrun_artifacts)
+# Top 10 projects by artifact count
+topk(10, sum by (project) (mlrun_artifacts))
+# Project count trend (sample every hour over the last 7d)
+mlrun_projects[7d:1h]
+# Net artifact change over the last 24h
+delta(sum(mlrun_artifacts)[24h:])
+```
+
+(rest-call-metrics)=
+## REST call metrics
+Beyond the system-size gauges above, MLRun records processing time, request/response body size, and (for list calls) the number of objects returned for every REST API call, as OpenTelemetry histograms, exported to Prometheus. These are emitted from every API-bearing replica (the API chief and workers, and the alerts service).
+
+This feature is enabled by default whenever the master switch is on. No extra flag is needed:
+```
+MLRUN_TELEMETRY__ENABLED=true
+```
+To disable REST metrics independently while keeping other telemetry on:
+```
+MLRUN_TELEMETRY__REST_METRICS__ENABLED=false
+```
+
+`status_code`, `resource`, and `project` are common to every instrument below. `resource` is the object type the route operates on (for example `functions`, `runs`, `artifacts`); `project` is set for project-scoped routes and empty otherwise. `project` is normally read straight from the URL path, but for a handful of routes where the project isn't part of the path — project creation, function build/start/status, job submission, and build-status polling — it's read from the request body or query string instead. Health-check (`/healthz`) requests are excluded.
+
+`method` is the real HTTP method, except a collection-returning GET is reported as the synthetic `"LIST"` value instead of `"GET"` — so list calls are distinguishable without a separate label. It's omitted entirely (not just empty) wherever it wouldn't vary: absent from `mlrun_rest_response_num_items`, since that metric only ever records `method="LIST"` calls by construction — a label that never varies within a metric adds nothing to query it by.
+
+The four per-call metrics are all histograms — including items-returned, deliberately: it's a per-call value like duration or size, so a histogram preserves the per-call distribution (e.g. p95 list size) on top of the sum/count a plain counter would give.
+
+|Metric name |Kind |Meaning       |
+|---------------------|------|--------------------------------------------------------------------------------|
+|mlrun_rest_request_duration_milliseconds|Histogram|Server processing time (in milliseconds) of each REST call, from receipt to the response headers being sent (time-to-first-byte; excludes client download time and any background-task processing after headers are sent).|
+|mlrun_rest_request_size_kibibytes|Histogram|Size of the REST request body, in kibibytes.|
+|mlrun_rest_response_size_kibibytes|Histogram|Size of the REST response body, in kibibytes.|
+|mlrun_rest_response_num_items|Histogram|Number of objects returned by list calls (`method="LIST"` only).|
+
+The size histograms carry the OTel unit `KiBy` (kibibytes, 2^10 bytes), and their metric name already ends in `_kibibytes` to agree with it. See the [OTel<->Prometheus metric-metadata docs](https://opentelemetry.io/docs/specs/otel/compatibility/prometheus_and_openmetrics/#metric-metadata).
+
+Every call is recorded — there is no sampling for these metrics.
+
+### Example output
+```
+mlrun_rest_request_duration_milliseconds_count{method="LIST", status_code="200", resource="functions", project="name1"} 134
+mlrun_rest_request_duration_milliseconds_count{method="GET", status_code="404", resource="runs", project="name1"}        2
+mlrun_rest_request_duration_milliseconds_bucket{method="LIST", status_code="200", resource="functions", project="name1", le="5"} 96
+mlrun_rest_response_num_items_count{status_code="200", resource="functions", project="name1"} 76
+mlrun_rest_response_num_items_sum{status_code="200", resource="functions", project="name1"} 812
+```
+
+### Example PromQL views
+```
+# Total REST calls recorded
+sum(mlrun_rest_request_duration_milliseconds_count)
+# Request rate (req/s) by object type
+sum by (resource) (rate(mlrun_rest_request_duration_milliseconds_count[5m]))
+# 95th-percentile latency (ms) across all calls
+histogram_quantile(0.95, sum by (le) (rate(mlrun_rest_request_duration_milliseconds_bucket[5m])))
+# Error rate (req/s) by status code
+sum by (status_code) (rate(mlrun_rest_request_duration_milliseconds_count{status_code=~"4..|5.."}[5m]))
+# Average objects returned per list call, by object type
+sum by (resource) (rate(mlrun_rest_response_num_items_sum[5m])) / sum by (resource) (rate(mlrun_rest_response_num_items_count[5m]))
+# 95th-percentile objects returned per list call, by object type
+histogram_quantile(0.95, sum by (resource, le) (rate(mlrun_rest_response_num_items_bucket[5m])))
+```
+
+See [OTel configuration](#otel-configuration) above to configure the shared OTLP endpoint and enable/disable metrics collection.
+

@@ -301,28 +301,6 @@ class PartitionBootstrapperMySQL(PartitionBootstrapper):
 
 
 class PartitionBootstrapperPostgres(PartitionBootstrapper):
-    def _get_existing_child_partition_names(
-        self,
-        session: sqlalchemy.orm.Session,
-        table_name: str,
-    ) -> set[str]:
-        """
-        Return names of existing child partitions for a PostgreSQL parent table.
-        """
-        sql = sqlalchemy.text(
-            """
-            SELECT c.relname AS partition_name
-            FROM pg_inherits
-            JOIN pg_class c ON c.oid = pg_inherits.inhrelid
-            JOIN pg_class p ON p.oid = pg_inherits.inhparent
-            JOIN pg_namespace n ON n.oid = p.relnamespace
-            WHERE n.nspname = current_schema()
-              AND p.relname = :table_name
-            """
-        )
-        result = session.execute(sql, {"table_name": table_name})
-        return {row.partition_name for row in result}
-
     def bootstrap(
         self,
         session: sqlalchemy.orm.Session,
@@ -332,6 +310,14 @@ class PartitionBootstrapperPostgres(PartitionBootstrapper):
     ):
         """
         Create missing range partitions for a PostgreSQL partitioned table.
+
+        Each new partition is anchored on the highest upper bound already present
+        in the database rather than on its position in the freshly generated batch.
+        This keeps partitions contiguous even when one or more intervals were
+        missed (e.g. the periodic task did not run for a while): the first new
+        partition simply extends from the newest existing bound and spans the gap,
+        instead of re-emitting a ``MINVALUE`` lower bound that would overlap the
+        original partition and abort the whole create/drop transaction.
         """
         partition_list = self._get_partition_list(
             table_name=table_name,
@@ -347,24 +333,43 @@ class PartitionBootstrapperPostgres(PartitionBootstrapper):
             sample_partition=partition_list[0][0],
         )
 
-        existing_children = self._get_existing_child_partition_names(
+        existing_partitions = self._get_existing_partition_boundaries(
             session=session,
             table_name=table_name,
+        )
+        # Highest upper bound covered so far (existing + just-created). Each new
+        # partition uses it as its lower bound, so partitions stay contiguous and
+        # never overlap an existing one after a missed rotation. None means the
+        # table has no partitions yet (genuine initial bootstrap).
+        highest_covered_boundary = max(
+            (boundary for _, boundary in existing_partitions),
+            default=None,
         )
 
         mlrun.utils.logger.info(
             "Creating partitions (PostgreSQL)",
             requested_partitions=len(partition_list),
-            existing_partitions=len(existing_children),
+            existing_partitions=len(existing_partitions),
+            highest_covered_boundary=highest_covered_boundary,
             table_name=table_name,
         )
 
-        for index, (partition_name, boundary_value) in enumerate(partition_list):
-            if partition_name in existing_children:
+        for partition_name, boundary_value in partition_list:
+            upper_bound_value = int(boundary_value)
+
+            # Skip anything already covered (by upper bound, not by name): this
+            # keeps the run idempotent and avoids the range overlap that anchoring
+            # on batch position — rather than on the DB — used to cause after a gap.
+            if (
+                highest_covered_boundary is not None
+                and upper_bound_value <= highest_covered_boundary
+            ):
                 mlrun.utils.logger.debug(
-                    "Partition already exists, skipping creation",
+                    "Partition range already covered, skipping creation",
                     table_name=table_name,
                     partition_name=partition_name,
+                    upper_bound=upper_bound_value,
+                    covered_up_to=highest_covered_boundary,
                 )
                 continue
 
@@ -374,17 +379,57 @@ class PartitionBootstrapperPostgres(PartitionBootstrapper):
                 table_name=table_name,
             )
             lower_bound = (
-                "MINVALUE" if index == 0 else str(int(partition_list[index - 1][1]))
+                "MINVALUE"
+                if highest_covered_boundary is None
+                else str(highest_covered_boundary)
             )
-            upper_bound = str(int(boundary_value))
+            upper_bound = str(upper_bound_value)
             ddl = f"""
                 CREATE TABLE {quoted_partition}
                 PARTITION OF {quoted_table}
                 FOR VALUES FROM ({lower_bound}) TO ({upper_bound})
             """
             session.execute(sqlalchemy.text(ddl))
+            highest_covered_boundary = upper_bound_value
 
         session.commit()
+
+    def _get_existing_partition_boundaries(
+        self,
+        session: sqlalchemy.orm.Session,
+        table_name: str,
+    ) -> list[tuple[str, int]]:
+        """
+        Read existing PostgreSQL child partitions and their integer upper bounds.
+
+        :param session: SQLAlchemy session bound to the target database.
+        :param table_name: Parent partitioned table name.
+        :return: ``(partition_name, upper_bound)`` tuples. Rows whose upper bound
+            cannot be parsed (e.g. a ``DEFAULT``/``MAXVALUE`` partition) are skipped.
+        """
+        sql = sqlalchemy.text(
+            r"""
+            SELECT c.relname AS partition_name,
+                   (regexp_match(
+                           pg_get_expr(c.relpartbound, c.oid),
+                           'TO \((\d+)\)'
+                    ))[1]::int AS upper_bound
+            FROM pg_inherits i
+            JOIN pg_class c ON c.oid = i.inhrelid
+            JOIN pg_class p ON p.oid = i.inhparent
+            JOIN pg_namespace n ON n.oid = p.relnamespace
+            WHERE n.nspname = current_schema()
+              AND p.relname = :table_name
+              AND c.relkind = 'r'
+            """
+        )
+        result = session.execute(sql, {"table_name": table_name})
+        existing_partitions: list[tuple[str, int]] = []
+        for partition_name, upper_bound in result:
+            if upper_bound is None:
+                continue
+            existing_partitions.append((partition_name, int(upper_bound)))
+        return existing_partitions
 
 
 class PartitionBootstrapperSqlite(PartitionBootstrapper):

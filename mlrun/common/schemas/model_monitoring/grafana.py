@@ -12,54 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Union
 
-from pydantic.v1 import BaseModel
+# Facade re-exporting the ``_shared`` layer and the active model face, preserving the
+# ``mlrun.common.schemas.model_monitoring.grafana`` import path.
+from .._dispatch import USE_V2_SCHEMAS as _USE_V2
+from .._shared.model_monitoring.grafana import *  # noqa: F401,F403
 
-import mlrun.common.types
-
-
-class GrafanaColumnType(mlrun.common.types.StrEnum):
-    NUMBER = "number"
-    STRING = "string"
-
-
-class GrafanaColumn(BaseModel):
-    text: str
-    type: str
-
-
-class GrafanaNumberColumn(GrafanaColumn):
-    type: str = GrafanaColumnType.NUMBER
-
-
-class GrafanaStringColumn(GrafanaColumn):
-    type: str = GrafanaColumnType.STRING
-
-
-class GrafanaTable(BaseModel):
-    columns: list[GrafanaColumn]
-    rows: list[list[Union[float, int, str] | None]] = []
-    type: str = "table"
-
-    def add_row(self, *args):
-        self.rows.append(list(args))
-
-
-class GrafanaModelEndpointsTable(GrafanaTable):
-    def __init__(self):
-        columns = self._init_columns()
-        super().__init__(columns=columns)
-
-    @staticmethod
-    def _init_columns():
-        return [
-            GrafanaColumn(text="endpoint_id", type=GrafanaColumnType.STRING),
-            GrafanaColumn(text="endpoint_name", type=GrafanaColumnType.STRING),
-            GrafanaColumn(text="endpoint_function", type=GrafanaColumnType.STRING),
-            GrafanaColumn(text="endpoint_model", type=GrafanaColumnType.STRING),
-            GrafanaColumn(text="endpoint_model_class", type=GrafanaColumnType.STRING),
-            GrafanaColumn(text="error_count", type=GrafanaColumnType.NUMBER),
-            GrafanaColumn(text="drift_status", type=GrafanaColumnType.NUMBER),
-            GrafanaColumn(text="sampling_percentage", type=GrafanaColumnType.NUMBER),
-        ]
+if _USE_V2:
+    from .._v2.model_monitoring.grafana import *  # noqa: F401,F403
+else:
+    from .._v1.model_monitoring.grafana import *  # noqa: F401,F403

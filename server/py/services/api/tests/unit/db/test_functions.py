@@ -17,6 +17,7 @@ import time
 
 import deepdiff
 import pytest
+from sqlalchemy.exc import IntegrityError
 
 import mlrun.common.schemas
 import mlrun.errors
@@ -61,6 +62,69 @@ class TestFunctions(TestDatabaseBase):
         assert function_queried_with_tag is not None
         assert function_queried_with_tag["metadata"]["tag"] == "latest"
         assert function_queried_without_tag_hash == function_queried_without_tag_hash
+
+    def test_store_function_tag_failure_leaves_no_orphan_function(self):
+        # ML-12864: function and tag are stored atomically, so a failed tag
+        # write must leave no function row behind.
+        function = self._generate_function()
+
+        with pytest.MonkeyPatch.context() as monkeypatch:
+
+            def _raise(*args, **kwargs):
+                raise RuntimeError("tag write failed")
+
+            monkeypatch.setattr(self._db, "tag_objects_v2", _raise)
+            with pytest.raises(RuntimeError):
+                self._db.store_function(
+                    self._db_session,
+                    function=function.to_dict(),
+                    name=function.metadata.name,
+                    project=self.project,
+                )
+
+        # discard the aborted transaction and confirm nothing was committed
+        self._db_session.rollback()
+        remaining = (
+            self._db_session.query(Function)
+            .filter_by(project=self.project, name=function.metadata.name)
+            .all()
+        )
+        assert remaining == []
+
+    def test_store_function_rolls_back_on_flush_conflict(self):
+        # ML-12864: a unique-constraint violation at flush must roll back so the
+        # session stays usable for the retry_on_conflict retry.
+        function = self._generate_function()
+        self._db.store_function(
+            self._db_session,
+            function=function.to_dict(),
+            name=function.metadata.name,
+            project=self.project,
+            versioned=False,
+        )
+
+        with pytest.MonkeyPatch.context() as monkeypatch:
+            # surface the raw flush conflict once, and force the INSERT path
+            monkeypatch.setattr(mlrun.mlconf.httpdb.db, "conflict_retry_timeout", 0)
+            monkeypatch.setattr(
+                self._db, "_get_class_instance_by_uid", lambda *args, **kwargs: None
+            )
+            with pytest.raises(IntegrityError):
+                self._db.store_function(
+                    self._db_session,
+                    function=function.to_dict(),
+                    name=function.metadata.name,
+                    project=self.project,
+                    versioned=False,
+                )
+
+        # the session is usable (rolled back) and the original row is intact
+        remaining = (
+            self._db_session.query(Function)
+            .filter_by(project=self.project, name=function.metadata.name)
+            .all()
+        )
+        assert len(remaining) == 1
 
     def test_store_function_versioned(self):
         function_1 = self._generate_function()

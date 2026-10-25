@@ -12,46 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from enum import Enum, StrEnum
 
-from pydantic.v1 import BaseModel
+# Facade re-exporting the ``_shared`` layer and the active model face, preserving the
+# ``mlrun.common.schemas.serving`` import path.
+from ._dispatch import USE_V2_SCHEMAS as _USE_V2
+from ._shared.serving import *  # noqa: F401,F403
 
-from .background_task import BackgroundTaskList
-
-
-class DeployResponse(BaseModel):
-    data: dict
-    background_tasks: BackgroundTaskList
-
-
-class ModelRunnerStepData(StrEnum):
-    MODELS = "models"
-    MODEL_TO_EXECUTION_MECHANISM = "execution_mechanism_by_model_name"
-    MONITORING_DATA = "monitoring_data"
-
-
-class MonitoringData(StrEnum):
-    INPUTS = "inputs"
-    OUTPUTS = "outputs"
-    INPUT_PATH = "input_path"
-    RESULT_PATH = "result_path"
-    CREATION_STRATEGY = "creation_strategy"
-    LABELS = "labels"
-    MODEL_PATH = "model_path"
-    MODEL_ENDPOINT_UID = "model_endpoint_uid"
-    MODEL_CLASS = "model_class"
-
-
-class ModelsData(Enum):
-    MODEL_CLASS = 0
-    MODEL_PARAMETERS = 1
-
-
-MAX_BATCH_JOB_DURATION = "1w"
-
-
-class APIHandlerAction(StrEnum):
-    """Supported API handler actions for serving endpoints"""
-
-    ALLOW = "allow"
-    FORBID = "forbid"
+if _USE_V2:
+    from ._v2.serving import *  # noqa: F401,F403
+else:
+    from ._v1.serving import *  # noqa: F401,F403

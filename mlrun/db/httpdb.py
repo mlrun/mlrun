@@ -29,6 +29,7 @@ from uuid import UUID
 import pydantic.v1
 import requests
 import semver
+from deprecated import deprecated
 from pydantic.v1 import parse_obj_as
 
 import mlrun
@@ -507,6 +508,13 @@ class HTTPRunDB(RunDBInterface):
 
         return True
 
+    @staticmethod
+    def _resolve_token_file(token_file: str, legacy_token_file: str) -> str:
+        """Return the legacy token file only if the new one is missing and the legacy one exists"""
+        if not os.path.exists(token_file) and os.path.exists(legacy_token_file):
+            return legacy_token_file
+        return token_file
+
     def connect(self, secrets=None) -> typing.Self:
         """Connect to the MLRun API server. Must be called prior to executing any other method.
         The code utilizes the URL for the API server from the configuration - ``config.dbpath``.
@@ -680,9 +688,9 @@ class HTTPRunDB(RunDBInterface):
                 or config.httpdb.authentication.mode
             )
 
-            config.httpdb.authorization.namespaces.resources = (
-                server_cfg.get("authorization_namespaces_resources")
-                or config.httpdb.authorization.namespaces.resources
+            config.httpdb.authorization.namespaces.mlrun = (
+                server_cfg.get("authorization_namespaces_mlrun")
+                or config.httpdb.authorization.namespaces.mlrun
             )
 
             # Iguazio V4 OAuth token config auto-initialization
@@ -691,24 +699,30 @@ class HTTPRunDB(RunDBInterface):
                 == mlrun.common.types.AuthenticationMode.IGUAZIO_V4.value
             ):
                 if not config.auth_with_oauth_token.token_file:
-                    user_token_file = os.path.expanduser("~/.igz.yml")
-
                     # runtimes
-                    # TODO: change to os.getenv("MLRUN_RUNTIME_KIND")
-                    # when https://github.com/mlrun/mlrun/pull/9121 is done.
-                    if (
-                        mlrun.k8s_utils.is_running_inside_kubernetes_cluster()
-                        and not os.environ.get("JPY_SESSION_NAME")
-                    ):
-                        user_token_file = os.path.join(
-                            mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_PATH,
-                            mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_FILE,
+                    if mlrun.utils.helpers.is_running_in_runtime():
+                        user_token_file = self._resolve_token_file(
+                            os.path.join(
+                                mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_PATH,
+                                mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_ECOS_FILE,
+                            ),
+                            os.path.join(
+                                mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_PATH,
+                                mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_FILE,
+                            ),
+                        )
+                    else:
+                        user_token_file = self._resolve_token_file(
+                            os.path.expanduser(mlrun.common.constants.USER_TOKEN_FILE),
+                            os.path.expanduser(
+                                mlrun.common.constants.LEGACY_USER_TOKEN_FILE
+                            ),
                         )
 
                     config.auth_with_oauth_token.token_file = user_token_file
 
                 # if running inside kubernetes, use the internal endpoint, otherwise use the external endpoint
-                if mlrun.k8s_utils.is_running_inside_kubernetes_cluster():
+                if mlrun.k8s_utils.is_running_in_kubernetes_pod():
                     config.auth_token_endpoint = server_cfg.get(
                         "oauth_internal_token_endpoint"
                     )
@@ -736,6 +750,10 @@ class HTTPRunDB(RunDBInterface):
                 config.telemetry.model_monitoring.interval = server_cfg[
                     "telemetry_model_monitoring_interval"
                 ]
+            if server_cfg.get("nuclio_function_authentication_enabled") is not None:
+                config.httpdb.nuclio.function_authentication_enabled = server_cfg[
+                    "nuclio_function_authentication_enabled"
+                ]
 
         except Exception as exc:
             logger.warning(
@@ -744,7 +762,10 @@ class HTTPRunDB(RunDBInterface):
                 traceback=traceback.format_exc(),
             )
 
-        # Initialize token provider after syncing config from server
+        # Explicit credentials own auth; don't override with env/config providers.
+        if self._apply_explicit_credentials():
+            return self
+
         self._init_token_provider_from_env()
 
         if config.is_iguazio_v4_mode() and config.auth_with_oauth_token.enabled:
@@ -1115,7 +1136,10 @@ class HTTPRunDB(RunDBInterface):
 
         :param states: List only runs whose state is one of the provided states.
         :param sort: Whether to sort the result according to their start time. Otherwise, results will be
-            returned by their internal order in the DB (order will not be guaranteed).
+            returned by their internal order in the DB (order will not be guaranteed). Takes precedence over
+            `partition_sort_by` for the returned order - `partition_sort_by` only decides which run wins
+            *within* a partition, and, when `max_partitions` is set, which partitions are kept; it does not
+            affect the order of the final result.
         :param iter: If ``True`` return runs from all iterations. Otherwise, return only runs whose ``iter`` is 0.
         :param start_time_from: Filter by run start time in ``[start_time_from, start_time_to]``.
         :param start_time_to: Filter by run start time in ``[start_time_from, start_time_to]``.
@@ -5457,13 +5481,21 @@ class HTTPRunDB(RunDBInterface):
             "stored per user. Use `store_secret_token` instead."
         )
 
+    # TODO: Remove in 1.16.0
+    @deprecated(
+        version="1.14.0",
+        reason="'list_secret_tokens' is deprecated in 1.14.0 and will be removed in 1.16.0. "
+        "Offline tokens are now managed by Oris, use the EcliptOS SDK's 'list_offline_tokens()' instead.",
+        category=FutureWarning,
+    )
     @mlrun.utils.iguazio_v4_only
     def list_secret_tokens(
         self,
         username: str | None = None,
     ) -> mlrun.common.schemas.ListSecretTokensResponse:
         """
-        List secret tokens. Only system-administrators can list tokens for other users.
+        (deprecated) List secret tokens. Only system-administrators can list tokens for other users.
+        Use the EcliptOS SDK's ``list_offline_tokens()`` instead.
 
         :param username: Optional; the username for which to list secret tokens.
                          Use ``"*"`` to list tokens for all users.
@@ -5499,12 +5531,22 @@ class HTTPRunDB(RunDBInterface):
 
         return mlrun.common.schemas.ListSecretTokensResponse(**response.json())
 
+    # TODO: Remove in 1.16.0
+    @deprecated(
+        version="1.14.0",
+        reason="'delete_secret_token' is deprecated in 1.14.0 and will be removed in 1.16.0. "
+        "Offline tokens are now managed by Oris, use the EcliptOS SDK's 'revoke_offline_session()' instead, "
+        "which revokes the token and deletes its MLRun copy.",
+        category=FutureWarning,
+    )
     @mlrun.utils.iguazio_v4_only
     def delete_secret_token(
         self, token_name: str, username: str | None = None
     ) -> mlrun.common.schemas.DeleteSecretTokenResponse:
         """
-        Delete a secret token. Only system-administrators can delete tokens for other users.
+        (deprecated) Delete a secret token. Only system-administrators can delete tokens for other users.
+        With a recent Oris this only deletes MLRun's copy of the token and no longer revokes it. Use the
+        EcliptOS SDK's ``revoke_offline_session()`` instead.
 
         :param token_name: The name of the token to delete.
         :param username: Optional; the username of the token owner.
@@ -5532,15 +5574,25 @@ class HTTPRunDB(RunDBInterface):
             )
         return result
 
+    # TODO: Remove in 1.16.0
+    @deprecated(
+        version="1.14.0",
+        reason="'delete_secret_tokens' is deprecated in 1.14.0 and will be removed in 1.16.0. "
+        "Offline tokens are now managed by Oris, use the EcliptOS SDK's 'revoke_offline_session()' instead, "
+        "which revokes the token and deletes its MLRun copy.",
+        category=FutureWarning,
+    )
     @mlrun.utils.iguazio_v4_only
     def delete_secret_tokens(
         self, username: str | None = None
     ) -> mlrun.common.schemas.DeleteSecretTokensResponse:
         """
-        Delete the user's stored secret token, if one exists. Only system-administrators
-        can delete tokens for other users.
+        (deprecated) Delete the user's stored secret token, if one exists. This only deletes MLRun's
+        copy of the token and does not revoke it. Use the EcliptOS SDK's ``revoke_offline_session()``
+        instead.
 
-        A single token is stored per user, so this deletes that token when present.
+        Only system-administrators can delete tokens for other users. A single token is stored
+        per user, so this deletes that token when present.
 
         :param username: Optional; the username of the token owner. If None, deletes the
             caller's own token.

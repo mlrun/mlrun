@@ -1,0 +1,2 @@
+# generated protobuf/gRPC Go sources: exclude from language stats and PR diffs
+server/go/proto/build/**/*.pb.go linguist-generated=true -diff

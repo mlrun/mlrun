@@ -27,7 +27,7 @@ class TestAlerts(TestDatabaseBase):
         alert_entity = alert_objects.EventEntities(
             kind=alert_objects.EventEntityKind.MODEL_ENDPOINT_RESULT,
             project=project,
-            ids=[1234],
+            ids=["1234"],
         )
         alert_summary = "testing 1 2 3"
         event_kind = alert_objects.EventKind.DATA_DRIFT_DETECTED

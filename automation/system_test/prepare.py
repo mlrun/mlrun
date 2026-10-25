@@ -887,7 +887,8 @@ def run(
 )
 @click.option(
     "--kubeconfig-content",
-    help="Kubeconfig file content encoded in base64",
+    default=None,
+    help="Optional kubeconfig file content encoded in base64 (legacy local/CI use)",
 )
 @click.option(
     "--openai-base-url",

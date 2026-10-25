@@ -21,6 +21,7 @@ from typing import Annotated, Literal, Union
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Query
 from fastapi.concurrency import run_in_threadpool
+from pydantic import StringConstraints
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas as schemas
@@ -541,8 +542,8 @@ async def _get_metrics_values_params(
     project: ProjectAnnotation,
     endpoint_id: EndpointIDAnnotation,
     name: Annotated[
-        list[str],
-        Query(pattern=mm_constants.FQN_PATTERN),
+        list[Annotated[str, StringConstraints(pattern=mm_constants.FQN_PATTERN)]],
+        Query(),
     ],
     start: datetime | None = None,
     end: datetime | None = None,
@@ -568,7 +569,7 @@ async def _get_metrics_values_params(
     metrics = []
     results = []
     for fqn in name:
-        metric = mm_endpoints._parse_metric_fqn_to_monitoring_metric(fqn)
+        metric = mm_endpoints.parse_metric_fqn_to_monitoring_metric(fqn)
         if metric.project != project:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Metric '{fqn}' does not belong to the project '{project}' given "

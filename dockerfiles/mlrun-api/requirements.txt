@@ -5,18 +5,25 @@ apscheduler>=3.11,<4
 objgraph~=3.6
 igz-mgmt~=0.4.2
 humanfriendly~=10.0
-fastapi~=0.125.0
-sqlalchemy~=2.0
+# starlette>=1.0.1 pinned directly (not just left to fastapi's transitive floor): CVE-2026-48710 BadHost fix.
+fastapi>=0.128,<1
+starlette>=1.0.1,<2
+# cap below 2.1: sqlalchemy-utils (even latest 0.42.1) breaks on 2.1's renamed ORM internals
+# Revisit once that's fixed upstream.
+sqlalchemy~=2.0.0
 sqlalchemy-utils~=0.41.2
 pymysql~=1.1
 psycopg2-binary~=2.9
 alembic~=1.18
 timelength~=1.1
 memray~=1.12; sys_platform != 'win32'
-aiosmtplib~=3.0
-# until https://github.com/fastapi/fastapi/issues/10360 is solved
-pydantic>=1,<2
-mlrun-pipelines-kfp-v1-8~=0.7.2
-iguazio~=0.0.1
+aiosmtplib~=5.1
+# ML-12891: API server runs on pydantic 2 (client/SDK stays on pydantic 1 via the pydantic.v1 layer).
+pydantic>=2,<3
+# kubernetes 37 regenerated its models as strict, keyword-only pydantic models, which breaks the API server k8s
+# object usage. Capped on the API server only, so the SDK is not limited. Remove the cap once the migration lands.
+kubernetes>=25.3, !=36.0.0, <37
+mlrun-pipelines-kfp-v1-8~=0.8.2
+iguazio~=0.2.1
 opentelemetry-sdk~=1.42
 opentelemetry-exporter-otlp-proto-grpc~=1.42

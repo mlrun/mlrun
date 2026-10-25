@@ -14,7 +14,11 @@
 
 ARG GO_VERSION=1.26
 
-FROM gcr.io/iguazio/golang:${GO_VERSION} AS build-binary
+FROM golang:${GO_VERSION} AS build-binary
+
+# always build with whatever Go patch is baked into the base image, never let the go
+# toolchain silently fetch a different patch over the network to satisfy go.mod's `go` directive
+ENV GOTOOLCHAIN=local
 
 RUN mkdir /app
 WORKDIR /app
@@ -46,5 +50,8 @@ COPY --from=build-binary /app/logcollector /main
 EXPOSE 8080
 
 VOLUME /var/mlrun
+
+ARG MLRUN_GIT_COMMIT
+LABEL org.opencontainers.image.revision=$MLRUN_GIT_COMMIT
 
 CMD [ "/main" ]

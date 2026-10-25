@@ -364,6 +364,32 @@ def test_restricted_methods_in_wrong_mode(monkeypatch, method_name):
     )
 
 
+@pytest.mark.parametrize(
+    "method_name, args, response_json",
+    [
+        ("list_secret_tokens", (), {"secret_tokens": []}),
+        ("delete_secret_token", ("t1",), {"deleted": True, "username": "user"}),
+        (
+            "delete_secret_tokens",
+            (),
+            {"deleted_count": 1, "failed_tokens": [], "username": "user"},
+        ),
+    ],
+)
+def test_deprecated_secret_token_methods_warn(
+    monkeypatch, method_name, args, response_json
+):
+    monkeypatch.setattr(
+        mlrun.mlconf.httpdb.authentication, "mode", AuthenticationMode.IGUAZIO_V4
+    )
+    db = mlrun.db.httpdb.HTTPRunDB("https://fake-url")
+    db.api_call = unittest.mock.Mock()
+    db.api_call.return_value.json.return_value = response_json
+
+    with pytest.warns(FutureWarning, match=f"'{method_name}' is deprecated"):
+        getattr(db, method_name)(*args)
+
+
 DEFAULTS = {
     "job": "mlrun/mlrun",
     "serving": "mlrun/mlrun",
@@ -529,3 +555,35 @@ def test_client_spec_telemetry_sync_keeps_local_when_server_omits(requests_mock)
     mlrun.mlconf.telemetry.otlp_endpoint = ""
     mlrun.mlconf.telemetry.insecure = True
     mlrun.mlconf.telemetry.model_monitoring.interval = 60
+
+
+@pytest.mark.parametrize(
+    "local_value, server_value, expected_local_value",
+    [
+        (False, True, True),
+        (True, None, True),
+    ],
+)
+def test_client_spec_nuclio_function_authentication_enabled_sync(
+    requests_mock, local_value, server_value, expected_local_value
+):
+    mlrun.mlconf.httpdb.nuclio.function_authentication_enabled = local_value
+
+    requests_mock.get(
+        "https://fake-url/api/v1/client-spec",
+        json={
+            "version": "v1.1.0",
+            "nuclio_function_authentication_enabled": server_value,
+        },
+    )
+
+    db = mlrun.db.httpdb.HTTPRunDB("https://fake-url")
+    db.connect()
+
+    assert (
+        mlrun.mlconf.httpdb.nuclio.function_authentication_enabled
+        == expected_local_value
+    )
+
+    # Restore defaults so we don't leak into other tests.
+    mlrun.mlconf.httpdb.nuclio.function_authentication_enabled = False

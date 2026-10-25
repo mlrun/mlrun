@@ -441,10 +441,7 @@ class TestResultHandlerHttpTriggerGuard:
         finally:
             server.wait_for_completion()
 
-    # ML-12706 — skip output mapping on error responses.
-    # Parameterized over both Response classes the fix accepts (mlrun.serving.server.Response
-    # and nuclio_sdk.Response). In real Nuclio, context.Response is nuclio_sdk.Response;
-    # both must be unwrapped correctly.
+    # ML-12706 — skip output mapping on error responses, across both Response classes.
     @pytest.mark.parametrize(
         "response_cls",
         [Response, nuclio_sdk.Response],

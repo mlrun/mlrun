@@ -17,7 +17,9 @@ import pytest
 from sqlalchemy.exc import SQLAlchemyError
 
 import mlrun.common.schemas
+import mlrun.utils.helpers
 
+import framework.db.sqldb.db
 import framework.db.sqldb.models
 from framework.tests.unit.db.common_fixtures import TestDatabaseBase
 
@@ -35,8 +37,28 @@ class TestSQLDB(TestDatabaseBase):
             ),
             ("(pymysql.err.IntegrityError) (1062", mlrun.errors.MLRunConflictError),
             ("(pymysql.err.IntegrityError) (1586", mlrun.errors.MLRunConflictError),
+            (
+                "(psycopg2.errors.UniqueViolation) duplicate key value violates "
+                'unique constraint "_functions_uc"',
+                mlrun.errors.MLRunConflictError,
+            ),
+            (
+                "(psycopg.errors.UniqueViolation) duplicate key value violates "
+                'unique constraint "_functions_uc"',
+                mlrun.errors.MLRunConflictError,
+            ),
             # other errors
             ("some other exception", mlrun.errors.MLRunRuntimeError),
+            # Postgres non-unique integrity violations must stay fatal, not be
+            # misclassified as retryable conflicts.
+            (
+                "(psycopg2.errors.NotNullViolation) null value in column",
+                mlrun.errors.MLRunRuntimeError,
+            ),
+            (
+                "(psycopg2.errors.ForeignKeyViolation) insert or update on table",
+                mlrun.errors.MLRunRuntimeError,
+            ),
         ],
     )
     def test_commit_failures(self, error_message: str, expected_exception: Exception):
@@ -52,3 +74,41 @@ class TestSQLDB(TestDatabaseBase):
 
         with pytest.raises(expected_exception):
             self._db._commit(session, objects)
+
+    @pytest.mark.parametrize(
+        "error_message, is_conflict",
+        [
+            # Postgres duplicate-key races, via both installed drivers (psycopg2 and
+            # psycopg v3). These are the get-then-insert conflicts retry_on_conflict
+            # must recognize so the store re-runs instead of failing fatally.
+            (
+                "(psycopg2.errors.UniqueViolation) duplicate key value violates "
+                'unique constraint "_functions_uc"',
+                True,
+            ),
+            (
+                "(psycopg.errors.UniqueViolation) duplicate key value violates "
+                'unique constraint "_functions_uc"',
+                True,
+            ),
+            # Non-unique Postgres integrity violations are genuine failures and must
+            # not be swallowed by the conflict-retry mechanism.
+            ("(psycopg2.errors.NotNullViolation) null value in column", False),
+            (
+                "(psycopg.errors.ForeignKeyViolation) insert or update on table",
+                False,
+            ),
+        ],
+    )
+    def test_conflict_messages_match_postgres_unique_violation(
+        self, error_message: str, is_conflict: bool
+    ):
+        # retry_on_conflict (and the current-tree store_function _flush path) classify
+        # a raw SQLAlchemy error by substring-matching its chain against conflict_messages.
+        exc = SQLAlchemyError(error_message)
+        assert (
+            mlrun.utils.helpers.are_strings_in_exception_chain_messages(
+                exc, framework.db.sqldb.db.conflict_messages
+            )
+            is is_conflict
+        )

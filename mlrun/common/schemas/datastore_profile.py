@@ -13,12 +13,11 @@
 # limitations under the License.
 
 
-from pydantic.v1 import BaseModel
+# Facade re-exporting the ``_shared`` layer and the active model face, preserving the
+# ``mlrun.common.schemas.datastore_profile`` import path.
+from ._dispatch import USE_V2_SCHEMAS as _USE_V2
 
-
-class DatastoreProfile(BaseModel):
-    name: str
-    type: str
-    object: str
-    private: str | None
-    project: str
+if _USE_V2:
+    from ._v2.datastore_profile import *  # noqa: F401,F403
+else:
+    from ._v1.datastore_profile import *  # noqa: F401,F403

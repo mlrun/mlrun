@@ -84,7 +84,9 @@ class Projects(
             workflows_amount=len(project.spec.workflows or []),
         )
         try:
-            framework.utils.singletons.db.get_db().create_project(session, project)
+            framework.utils.singletons.db.get_db().create_project(
+                session, project, auth_info
+            )
         except Exception as exc:
             self._emit_project_lifecycle_event(
                 action=mlrun.common.schemas.ProjectLifecycleEventActions.creation_failed,
@@ -117,7 +119,9 @@ class Projects(
             artifact_amount=len(project.spec.artifacts or []),
             workflows_amount=len(project.spec.workflows or []),
         )
-        framework.utils.singletons.db.get_db().store_project(session, name, project)
+        framework.utils.singletons.db.get_db().store_project(
+            session, name, project, auth_info
+        )
 
     def patch_project(
         self,
@@ -311,7 +315,7 @@ class Projects(
                 "Deleting project secrets",
                 project_name=name,
             )
-            self._delete_project_secrets(name)
+            self._delete_project_secrets(name, auth_info=auth_info)
             logger.debug(
                 "Deleting project configmaps",
                 project_name=name,
@@ -933,7 +937,10 @@ class Projects(
         )
 
     @staticmethod
-    def _delete_project_secrets(name: str):
+    def _delete_project_secrets(
+        name: str,
+        auth_info: mlrun.common.schemas.AuthInfo | None = None,
+    ):
         # Passing None will delete all secrets
         secrets = None
         (
@@ -947,6 +954,7 @@ class Projects(
                     name,
                     secret_name,
                     action=action,
+                    initiator=auth_info.username if auth_info else None,
                 )
             )
 

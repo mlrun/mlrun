@@ -81,7 +81,7 @@ class Member(
         wait_for_completion: bool = True,
         commit_before_get: bool = False,
     ) -> tuple[mlrun.common.schemas.ProjectOut | None, bool]:
-        self._enrich_and_validate(project, auth_info)
+        self._enrich_and_validate(project)
         self._run_on_all_followers(
             True, "create_project", db_session, project, auth_info
         )
@@ -96,7 +96,7 @@ class Member(
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         wait_for_completion: bool = True,
     ) -> tuple[mlrun.common.schemas.ProjectOut | None, bool]:
-        self._enrich_and_validate(project, auth_info)
+        self._enrich_and_validate(project)
         self._validate_body_and_path_names_matches(name, project)
         self._run_on_all_followers(
             True, "store_project", db_session, name, project, auth_info
@@ -462,22 +462,19 @@ class Member(
             raise ValueError(f"Unknown follower name: {name}")
         return followers_classes_map[name]()
 
-    def _enrich_and_validate(
-        self,
-        project: mlrun.common.schemas.Project,
-        auth_info: mlrun.common.schemas.AuthInfo | None = None,
-    ):
-        self._enrich_project(project, auth_info)
+    def _enrich_and_validate(self, project: mlrun.common.schemas.Project):
+        self._enrich_project(project)
         self._validate_project(project)
 
     @staticmethod
-    def _enrich_project(
-        project: mlrun.common.schemas.Project,
-        auth_info: mlrun.common.schemas.AuthInfo | None = None,
-    ):
-        if auth_info and project.spec.owner is None:
-            project.spec.owner = auth_info.username
-        project.status.state = project.spec.desired_state
+    def _enrich_project(project: mlrun.common.schemas.Project):
+        desired_state = project.spec.desired_state
+        if desired_state is None:
+            project.status.state = None
+        else:
+            project.status.state = mlrun.common.schemas.ProjectState(
+                desired_state.value
+            )
 
     @staticmethod
     def _enrich_project_patch(project_patch: dict):

@@ -4,6 +4,7 @@
 A code artifact (`kind="code"`) stores a function or workflow source file (or an archive of files) as a versioned MLRun artifact. Once logged, the artifact can be referenced by a `store://` URI as the source for {py:meth}`~mlrun.projects.MlrunProject.set_function` or {py:meth}`~mlrun.projects.MlrunProject.set_workflow`, in addition to a local path, git source, or remote URL. The code is downloaded by the runner pod at runtime — the client never resolves the URI.
 
 **In this section**
+- [SDK](#sdk)
 - [Log a code artifact](#log-a-code-artifact)
 - [Run a function from a code artifact](#run-a-function-from-a-code-artifact)
 - [Handler format](#handler-format)
@@ -13,8 +14,9 @@ A code artifact (`kind="code"`) stores a function or workflow source file (or an
 - [Project export behavior](#project-export-behavior)
 
 **See also**
-- {ref}`log-artifacts`
 - {ref}`artifacts`
+
+## SDK
 - {py:meth}`~mlrun.projects.MlrunProject.log_code_file`
 - {py:meth}`~mlrun.projects.MlrunProject.set_function`
 - {py:meth}`~mlrun.projects.MlrunProject.set_workflow`

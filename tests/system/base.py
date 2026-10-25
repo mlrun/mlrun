@@ -17,6 +17,7 @@ import json
 import os
 import pathlib
 import re
+import shlex
 import sys
 import typing
 import urllib.parse
@@ -26,11 +27,13 @@ import git
 import igz_mgmt
 import kubernetes.client as k8s_client
 import kubernetes.config
+import paramiko
 import pytest
 import yaml
 from deepdiff import DeepDiff
 
 import mlrun.common.schemas
+import mlrun.projects.project
 from mlrun import get_run_db, mlconf
 from mlrun.utils import create_test_logger
 
@@ -39,6 +42,10 @@ logger = create_test_logger(name="test-system")
 
 class TestMLRunSystem:
     project_name = "system-test-project"
+    # Opt-in: skips the per-method project recreate/cascading-delete in favor of
+    # once per class. Only safe for classes that don't assume the project starts
+    # empty for every test (e.g. assertions counting all runs/artifacts/endpoints).
+    reuse_project_across_tests = False
     root_path = pathlib.Path(__file__).absolute().parent.parent.parent
     env_file_path = root_path / "tests" / "system" / "env.yml"
     results_path = root_path / "tests" / "test_results" / "system"
@@ -68,6 +75,11 @@ class TestMLRunSystem:
 
     _test_env = {}
     _old_env = {}
+    _ssh_client: paramiko.SSHClient | None = None
+
+    DATA_CLUSTER_IP_ENV = "LATEST_SYSTEM_TEST_DATA_CLUSTER_IP"
+    DATA_CLUSTER_SSH_USERNAME_ENV = "LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_USERNAME"
+    DATA_CLUSTER_SSH_PASSWORD_ENV = "LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD"
 
     @classmethod
     def setup_class(cls):
@@ -87,6 +99,11 @@ class TestMLRunSystem:
         )
 
         cls.uploaded_code = False
+
+        if cls.reuse_project_across_tests and not cls._skip_set_environment():
+            cls.project = mlrun.get_or_create_project(
+                cls.project_name, "./", allow_cross_project=True
+            )
 
         if "MLRUN_IGUAZIO_API_URL" in env and "V3IO_ACCESS_KEY" in env:
             cls._igz_mgmt_client = igz_mgmt.Client(
@@ -125,9 +142,17 @@ class TestMLRunSystem:
         self._files_to_upload = []
 
         if not self._skip_set_environment():
-            self.project = mlrun.get_or_create_project(
-                self.project_name, "./", allow_cross_project=True
-            )
+            if self.reuse_project_across_tests:
+                # _setup_env's mlconf.reload() above, and the autouse
+                # config_test_base fixture (tests/common_fixtures.py), wipe
+                # active_project and pipeline_context.project on every test;
+                # the class-level project already exists, so just restore both,
+                # the same way new_project()/load_project() would.
+                mlrun.projects.project._set_as_current_active_project(self.project)
+            else:
+                self.project = mlrun.get_or_create_project(
+                    self.project_name, "./", allow_cross_project=True
+                )
 
         self.custom_setup()
 
@@ -139,10 +164,11 @@ class TestMLRunSystem:
     def _should_clean_resources():
         return os.environ.get("MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES") != "false"
 
-    def _delete_test_project(self, name=None):
-        if self._should_clean_resources():
-            self._run_db.delete_project(
-                name or self.project_name,
+    @classmethod
+    def _delete_test_project(cls, name=None):
+        if cls._should_clean_resources():
+            cls._run_db.delete_project(
+                name or cls.project_name,
                 deletion_strategy=mlrun.common.schemas.DeletionStrategy.cascading,
             )
 
@@ -153,12 +179,13 @@ class TestMLRunSystem:
 
         self._logger.debug("Removing test data from database")
         if self._should_clean_resources():
-            fsets = self._run_db.list_feature_sets()
+            fsets = self._run_db.list_feature_sets(project=self.project_name)
             if fsets:
                 for fset in fsets:
                     fset.purge_targets()
 
-        self._delete_test_project()
+        if not self.reuse_project_across_tests:
+            self._delete_test_project()
 
         self.custom_teardown()
 
@@ -169,6 +196,9 @@ class TestMLRunSystem:
     @classmethod
     def teardown_class(cls):
         cls.custom_teardown_class()
+        if cls.reuse_project_across_tests:
+            cls._delete_test_project()
+        cls._disconnect_ssh()
         cls._teardown_env()
 
     def custom_setup(self):
@@ -274,6 +304,10 @@ class TestMLRunSystem:
 
     @classmethod
     def _setup_k8s_client(cls):
+        if cls._is_remote_kubectl_configured():
+            cls.kube_client = None
+            return
+
         def missing_kubeclient(*args, **kwargs):
             raise AttributeError("Kubeclient was not setup and is unavailable")
 
@@ -502,6 +536,75 @@ class TestMLRunSystem:
     # Default namespace for MLRun pods
     DEFAULT_NAMESPACE = "default-tenant"
 
+    @classmethod
+    def _is_remote_kubectl_configured(cls) -> bool:
+        """Return whether data-cluster SSH credentials are available for remote kubectl."""
+        required_env_vars = (
+            cls.DATA_CLUSTER_IP_ENV,
+            cls.DATA_CLUSTER_SSH_USERNAME_ENV,
+            cls.DATA_CLUSTER_SSH_PASSWORD_ENV,
+        )
+        return all(os.environ.get(env_var) for env_var in required_env_vars)
+
+    @classmethod
+    def _ensure_ssh_connected(cls) -> None:
+        """Open an SSH session to the data cluster if not already connected."""
+        if cls._ssh_client is not None:
+            try:
+                cls._ssh_client.exec_command("true")
+                return
+            except Exception:
+                cls._disconnect_ssh()
+
+        ssh_client = paramiko.SSHClient()
+        ssh_client.set_missing_host_key_policy(paramiko.WarningPolicy)
+        ssh_client.connect(
+            os.environ[cls.DATA_CLUSTER_IP_ENV],
+            username=os.environ[cls.DATA_CLUSTER_SSH_USERNAME_ENV],
+            password=os.environ[cls.DATA_CLUSTER_SSH_PASSWORD_ENV],
+        )
+        cls._ssh_client = ssh_client
+
+    @classmethod
+    def _disconnect_ssh(cls) -> None:
+        """Close the data-cluster SSH session if open."""
+        if cls._ssh_client is not None:
+            cls._ssh_client.close()
+            cls._ssh_client = None
+
+    @classmethod
+    def _run_remote_kubectl(cls, args: list[str]) -> tuple[str, str, int]:
+        """Run kubectl on the data cluster over SSH.
+
+        :param args: kubectl arguments (without the ``kubectl`` binary name)
+        :return: stdout, stderr, and remote exit status
+        """
+        cls._ensure_ssh_connected()
+        command = "kubectl " + " ".join(shlex.quote(arg) for arg in args)
+        assert cls._ssh_client is not None
+        _, stdout_stream, stderr_stream = cls._ssh_client.exec_command(command)
+        stdout = stdout_stream.read().decode()
+        stderr = stderr_stream.read().decode()
+        exit_status = stdout_stream.channel.recv_exit_status()
+        return stdout, stderr, exit_status
+
+    @classmethod
+    def _list_pod_names_via_ssh(cls, namespace: str) -> list[str]:
+        """List pod names in a namespace using remote kubectl."""
+        stdout, stderr, exit_status = cls._run_remote_kubectl(
+            ["get", "pods", "-n", namespace, "-o", "json"]
+        )
+        if exit_status != 0:
+            raise RuntimeError(
+                f"Failed to list pods in {namespace}: {stderr or stdout}"
+            )
+        pod_list = json.loads(stdout)
+        return [
+            item["metadata"]["name"]
+            for item in pod_list.get("items", [])
+            if item.get("metadata", {}).get("name")
+        ]
+
     def _is_kube_client_available(self) -> bool:
         """Check if kube_client is configured and available."""
         try:
@@ -520,6 +623,35 @@ class TestMLRunSystem:
     def _is_system_pod(self, pod_name: str) -> bool:
         """Check if pod is a system pod (mlrun-api-*)."""
         return pod_name.startswith(self.SYSTEM_POD_PREFIXES)
+
+    def _collect_single_pod_logs_via_ssh(
+        self,
+        pod_name: str,
+        namespace: str,
+        tail_lines: int,
+        since_seconds: int | None = None,
+    ) -> str | None:
+        """Collect logs from a single pod using remote kubectl."""
+        args = ["logs", "-n", namespace, pod_name, f"--tail={tail_lines}"]
+        if since_seconds is not None:
+            args.append(f"--since={since_seconds}s")
+        try:
+            stdout, stderr, exit_status = self._run_remote_kubectl(args)
+            if exit_status != 0:
+                return f"[Failed to get logs: {stderr or stdout}]"
+            self._logger.debug(
+                "Collected logs from pod via remote kubectl",
+                pod_name=pod_name,
+                lines=len(stdout.splitlines()) if stdout else 0,
+            )
+            return stdout
+        except Exception as exc:
+            self._logger.warning(
+                "Failed to collect logs from pod via remote kubectl",
+                pod_name=pod_name,
+                exc=mlrun.errors.err_to_str(exc),
+            )
+            return f"[Failed to get logs: {exc}]"
 
     def _collect_single_pod_logs(
         self,
@@ -576,10 +708,19 @@ class TestMLRunSystem:
         :param namespace: Kubernetes namespace (default: default-tenant)
         :returns: Dictionary mapping pod names to their logs
         """
+        if self._is_remote_kubectl_configured():
+            return self._collect_pod_logs_on_failure_via_ssh(
+                test_duration_seconds=test_duration_seconds,
+                tail_lines=tail_lines,
+                time_buffer_seconds=time_buffer_seconds,
+                namespace=namespace,
+            )
+
         if not self._is_kube_client_available():
             self._logger.info(
                 "kube_client not available, skipping pod log collection. "
-                "Set MLRUN_SYSTEM_TEST_KUBECONFIG_PATH or MLRUN_SYSTEM_TEST_KUBECONFIG."
+                "Set LATEST_SYSTEM_TEST_DATA_CLUSTER_* env vars, "
+                "MLRUN_SYSTEM_TEST_KUBECONFIG_PATH, or MLRUN_SYSTEM_TEST_KUBECONFIG."
             )
             return {}
 
@@ -620,6 +761,43 @@ class TestMLRunSystem:
 
             elif self._is_system_pod(pod_name):
                 if logs := self._collect_single_pod_logs(
+                    pod_name, namespace, tail_lines, since_seconds=since_seconds
+                ):
+                    collected_logs[f"{pod_name} (last {since_seconds}s)"] = logs
+
+        return collected_logs
+
+    def _collect_pod_logs_on_failure_via_ssh(
+        self,
+        test_duration_seconds: int,
+        tail_lines: int = 1000,
+        time_buffer_seconds: int = 60,
+        namespace: str = DEFAULT_NAMESPACE,
+    ) -> dict[str, str]:
+        """Collect pod logs by running kubectl on the data cluster over SSH."""
+        project_name = self.project_name
+        since_seconds = test_duration_seconds + time_buffer_seconds
+        collected_logs: dict[str, str] = {}
+
+        try:
+            pod_names = self._list_pod_names_via_ssh(namespace)
+        except Exception as exc:
+            self._logger.warning(
+                "Failed to list pods via remote kubectl",
+                namespace=namespace,
+                exc=mlrun.errors.err_to_str(exc),
+            )
+            return {}
+
+        for pod_name in pod_names:
+            if self._is_project_pod(pod_name, project_name):
+                if logs := self._collect_single_pod_logs_via_ssh(
+                    pod_name, namespace, tail_lines, since_seconds=None
+                ):
+                    collected_logs[pod_name] = logs
+
+            elif self._is_system_pod(pod_name):
+                if logs := self._collect_single_pod_logs_via_ssh(
                     pod_name, namespace, tail_lines, since_seconds=since_seconds
                 ):
                     collected_logs[f"{pod_name} (last {since_seconds}s)"] = logs

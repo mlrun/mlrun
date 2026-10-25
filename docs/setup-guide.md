@@ -58,6 +58,7 @@ Run ```pip install mlrun```
      - ```pip install mlrun[s3]``` Install requirements for S3 
      - ```pip install mlrun[azure-blob-storage]``` Install requirements for Azure blob storage
      - ```pip install mlrun[google-cloud-storage]``` Install requirements for Google cloud storage
+     - ```pip install mlrun[v3io-frames]``` Install v3io Frames support, including v3io TSDB model monitoring.
    
       
    - To install all extras, run: ```pip install mlrun[complete]``` See the full list [here](https://github.com/mlrun/mlrun/blob/development/dependencies.py#L25).<br>

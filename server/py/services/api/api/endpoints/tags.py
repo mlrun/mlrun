@@ -13,9 +13,12 @@
 # limitations under the License.
 
 import http
+import re
+import typing
 
 import fastapi
 import fastapi.concurrency
+import pydantic
 import sqlalchemy.orm
 
 import mlrun.common.constants
@@ -27,13 +30,29 @@ import framework.utils.auth.verifier
 import framework.utils.singletons.project_member
 import services.api.crud.tags
 
+# ML-12736: tag_name_regex_as_string() builds a look-ahead regex; pydantic v2's default (Rust)
+# regex engine does not support look-around, so the tag name is validated with Python's re via an
+# AfterValidator instead of a FastAPI ``pattern``/``regex`` path constraint.
+_TAG_NAME_REGEX = re.compile(tag_name_regex_as_string())
+
+
+def _validate_tag_name(tag: str) -> str:
+    if not _TAG_NAME_REGEX.match(tag):
+        raise ValueError(f"invalid tag name: {tag}")
+    return tag
+
+
+TagNamePath = typing.Annotated[
+    str, fastapi.Path(), pydantic.AfterValidator(_validate_tag_name)
+]
+
 router = fastapi.APIRouter(prefix="/projects/{project}/tags")
 
 
 @router.post("/{tag}", response_model=mlrun.common.schemas.Tag)
 async def overwrite_object_tags_with_tag(
     project: str,
-    tag: str = fastapi.Path(..., regex=tag_name_regex_as_string()),
+    tag: TagNamePath,
     tag_objects: mlrun.common.schemas.TagObjects = fastapi.Body(...),
     auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
         framework.api.deps.authenticate_request
@@ -76,7 +95,7 @@ async def overwrite_object_tags_with_tag(
 @router.put("/{tag}", response_model=mlrun.common.schemas.Tag)
 async def append_tag_to_objects(
     project: str,
-    tag: str = fastapi.Path(..., regex=tag_name_regex_as_string()),
+    tag: TagNamePath,
     tag_objects: mlrun.common.schemas.TagObjects = fastapi.Body(...),
     auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
         framework.api.deps.authenticate_request

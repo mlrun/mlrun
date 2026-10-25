@@ -27,6 +27,7 @@ import mlrun.common.schemas
 import mlrun.errors
 import mlrun.runtimes.base
 
+import framework.utils.clients.iguazio.v4
 import services.api.crud
 import services.api.tests.unit.conftest
 
@@ -869,13 +870,105 @@ def test_store_secret_tokens_return_values(mock_iguazio_client):
         mlrun.common.schemas.AuthInfo(username="dummy-username", user_id="user-id-123"),
     )
 
-    assert result == {
-        "created_tokens": ["token1"],
-        "updated_tokens": ["token2"],
-    }
+    assert result == mlrun.common.schemas.StoreSecretTokensResponse(
+        created_tokens=["token1"],
+        updated_tokens=["token2"],
+    )
 
     assert mock_secrets_provider.store_user_token_secret.call_count == 3
     assert mock_iguazio_client.refresh_access_tokens.call_count == 1
+
+
+def test_store_secret_tokens_regular_user_ignores_supplied_username(
+    mock_iguazio_client,
+):
+    # A regular (non-service-account) caller may pass username, but it must be ignored: the
+    # token is always stored for the authenticated user, taken from auth_info.
+    token_payload = {"sub": "auth-user-id", "exp": 9999999999, "iat": 1}
+    secret_tokens = [
+        mlrun.common.schemas.SecretToken(
+            name="token1", token=_generate_token(token_payload)
+        ),
+    ]
+
+    mock_secrets_provider = unittest.mock.Mock()
+    services.api.crud.Secrets().secrets_provider = mock_secrets_provider
+    mock_secrets_provider.store_user_token_secret.return_value = (
+        mlrun.common.schemas.SecretEventActions.created
+    )
+
+    services.api.crud.Secrets().store_secret_tokens(
+        secret_tokens,
+        mlrun.common.schemas.AuthInfo(username="auth-user", user_id="auth-user-id"),
+        username="someone-else",
+    )
+
+    mock_secrets_provider.store_user_token_secret.assert_called_once()
+    _, kwargs = mock_secrets_provider.store_user_token_secret.call_args
+    assert kwargs["user_id"] == "auth-user-id"
+    assert kwargs["username"] == "auth-user"
+
+
+def test_store_secret_tokens_service_account_stores_for_different_user(
+    mock_iguazio_client,
+):
+    # The token carries no preferred_username claim: the target user's username comes from
+    # the caller, and only the user_id is taken from the token's subject.
+    token_payload = {"sub": "target-user-id", "exp": 9999999999, "iat": 1}
+    secret_tokens = [
+        mlrun.common.schemas.SecretToken(
+            name="token1", token=_generate_token(token_payload)
+        ),
+    ]
+
+    mock_secrets_provider = unittest.mock.Mock()
+    services.api.crud.Secrets().secrets_provider = mock_secrets_provider
+    mock_secrets_provider.store_user_token_secret.return_value = (
+        mlrun.common.schemas.SecretEventActions.created
+    )
+
+    services.api.crud.Secrets().store_secret_tokens(
+        secret_tokens,
+        mlrun.common.schemas.AuthInfo(
+            username="orca-sa",
+            user_id="orca-sa-id",
+            kind=mlrun.common.schemas.AuthInfoKind.service_account,
+        ),
+        username="target-user",
+    )
+
+    # Orca verified the user with Keycloak before calling, so MLRun skips the verification
+    mock_iguazio_client.refresh_access_tokens.assert_not_called()
+    mock_secrets_provider.store_user_token_secret.assert_called_once()
+    _, kwargs = mock_secrets_provider.store_user_token_secret.call_args
+    assert kwargs["user_id"] == "target-user-id"
+    assert kwargs["username"] == "target-user"
+
+
+def test_store_secret_tokens_service_account_requires_username(mock_iguazio_client):
+    token_payload = {"sub": "target-user-id", "exp": 9999999999, "iat": 1}
+    secret_tokens = [
+        mlrun.common.schemas.SecretToken(
+            name="token1", token=_generate_token(token_payload)
+        ),
+    ]
+
+    mock_secrets_provider = unittest.mock.Mock()
+    services.api.crud.Secrets().secrets_provider = mock_secrets_provider
+
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match="must provide the target user's username",
+    ):
+        services.api.crud.Secrets().store_secret_tokens(
+            secret_tokens,
+            mlrun.common.schemas.AuthInfo(
+                username="orca-sa",
+                user_id="orca-sa-id",
+                kind=mlrun.common.schemas.AuthInfoKind.service_account,
+            ),
+        )
+    mock_secrets_provider.store_user_token_secret.assert_not_called()
 
 
 def test_store_secret_tokens_refresh_access_tokens_failure(mock_iguazio_client):
@@ -950,7 +1043,10 @@ def test_list_secret_tokens_returns_tokens():
     )
 
 
-def test_delete_secret_token_success(mock_iguazio_client):
+def test_delete_secret_token_success(mock_iguazio_client, monkeypatch):
+    monkeypatch.setattr(
+        framework.utils.clients.iguazio.v4, "resolve_oris_version", lambda: "1.0.0"
+    )
     request_headers = {
         mlrun.common.schemas.HeaderNames.authorization: f"{mlrun.common.schemas.AuthorizationHeaderPrefixes.bearer}123",
     }
@@ -986,7 +1082,109 @@ def test_delete_secret_token_success(mock_iguazio_client):
     )
 
 
-def test_delete_secret_token_not_found(mock_iguazio_client):
+@pytest.mark.parametrize(
+    "resolved_version",
+    [
+        "1.2.0",  # the first Oris release that self-revokes
+        "999.0.0",  # plain release, well past the threshold
+        # PR/dev build: pre-release and build metadata are stripped before comparing, so only
+        # major.minor.patch matters - a PR build cut from a release at the threshold still skips.
+        "1.2.0-pr-921.1.20260818115106",
+        # Unresolvable (unreachable, unconfigured, or unparseable): an old Oris predates this
+        # version check entirely and would never resolve to a version either, so this is
+        # treated as a recent Oris rather than blocking revocation from ever being skipped.
+        "",
+    ],
+)
+def test_delete_secret_token_recent_oris_skips_revocation(
+    mock_iguazio_client, monkeypatch, resolved_version
+):
+    """
+    A recent-enough (or unresolvable) Oris is the source of truth for offline-token revocation
+    and revokes the Keycloak session itself before calling this endpoint, so it must not
+    trigger a redundant revoke here - it should only delete the K8s secret. Oris's version is
+    resolved once via its own info API, never trusted from the (spoofable) caller.
+    """
+    monkeypatch.setattr(
+        framework.utils.clients.iguazio.v4,
+        "resolve_oris_version",
+        lambda: resolved_version,
+    )
+    auth_info = mlrun.common.schemas.AuthInfo(
+        username="dummy-user", user_id="user-id-123"
+    )
+    token_name = "my-token"
+
+    mock_secrets_provider = unittest.mock.Mock()
+    services.api.crud.Secrets().secrets_provider = mock_secrets_provider
+    mock_secrets_provider.delete_user_token_secret = unittest.mock.Mock()
+
+    result = services.api.crud.Secrets().delete_secret_token(
+        token_name=token_name,
+        username=auth_info.username,
+        auth_info=auth_info,
+    )
+
+    assert result.deleted is True
+    assert result.username == auth_info.username
+
+    mock_secrets_provider.get_user_token_secret_value.assert_not_called()
+    mock_iguazio_client.revoke_offline_token.assert_not_called()
+    mock_secrets_provider.delete_user_token_secret.assert_called_once_with(
+        user_id=auth_info.user_id, token_name=token_name
+    )
+
+
+@pytest.mark.parametrize(
+    "resolved_version",
+    [
+        "1.1.1",  # predates ORIS-4151's self-revoke behavior
+        # PR/dev build below the threshold even after stripping pre-release/build metadata.
+        "1.1.1-pr-921.1.20260818115106",
+    ],
+)
+def test_delete_secret_token_oris_below_threshold_still_revokes(
+    mock_iguazio_client, monkeypatch, resolved_version
+):
+    """
+    A resolvable Oris version that's too old (even after stripping pre-release/build metadata)
+    must still go through the normal revoke-then-delete flow.
+    """
+    monkeypatch.setattr(
+        framework.utils.clients.iguazio.v4,
+        "resolve_oris_version",
+        lambda: resolved_version,
+    )
+    auth_info = mlrun.common.schemas.AuthInfo(
+        username="dummy-user", user_id="user-id-123"
+    )
+    token_name = "my-token"
+    fake_token = "jwt-token-123"
+
+    mock_secrets_provider = unittest.mock.Mock()
+    services.api.crud.Secrets().secrets_provider = mock_secrets_provider
+    mock_secrets_provider.get_user_token_secret_value.return_value = fake_token
+    mock_secrets_provider.delete_user_token_secret = unittest.mock.Mock()
+
+    result = services.api.crud.Secrets().delete_secret_token(
+        token_name=token_name,
+        username=auth_info.username,
+        auth_info=auth_info,
+    )
+
+    assert result.deleted is True
+    mock_iguazio_client.revoke_offline_token.assert_called_once_with(
+        fake_token, auth_info.request_headers
+    )
+    mock_secrets_provider.delete_user_token_secret.assert_called_once_with(
+        user_id=auth_info.user_id, token_name=token_name
+    )
+
+
+def test_delete_secret_token_not_found(mock_iguazio_client, monkeypatch):
+    monkeypatch.setattr(
+        framework.utils.clients.iguazio.v4, "resolve_oris_version", lambda: "1.0.0"
+    )
     auth_info = mlrun.common.schemas.AuthInfo(
         username="dummy-user", user_id="user-id-123"
     )
@@ -1007,7 +1205,10 @@ def test_delete_secret_token_not_found(mock_iguazio_client):
     assert result.username == auth_info.username
 
 
-def test_delete_secret_token_iguazio_failure(mock_iguazio_client):
+def test_delete_secret_token_iguazio_failure(mock_iguazio_client, monkeypatch):
+    monkeypatch.setattr(
+        framework.utils.clients.iguazio.v4, "resolve_oris_version", lambda: "1.0.0"
+    )
     auth_info = mlrun.common.schemas.AuthInfo(
         username="dummy-user", user_id="user-id-123"
     )
@@ -1026,7 +1227,10 @@ def test_delete_secret_token_iguazio_failure(mock_iguazio_client):
         )
 
 
-def test_delete_secret_token_k8s_delete_failure(mock_iguazio_client):
+def test_delete_secret_token_k8s_delete_failure(mock_iguazio_client, monkeypatch):
+    monkeypatch.setattr(
+        framework.utils.clients.iguazio.v4, "resolve_oris_version", lambda: "1.0.0"
+    )
     auth_info = mlrun.common.schemas.AuthInfo(
         username="dummy-user", user_id="user-id-123"
     )

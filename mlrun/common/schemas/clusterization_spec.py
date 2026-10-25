@@ -13,16 +13,12 @@
 # limitations under the License.
 
 
-import pydantic.v1
+# Facade re-exporting the ``_shared`` layer and the active model face, preserving the
+# ``mlrun.common.schemas.clusterization_spec`` import path.
+from ._dispatch import USE_V2_SCHEMAS as _USE_V2
+from ._shared.clusterization_spec import *  # noqa: F401,F403
 
-import mlrun.common.types
-
-
-class ClusterizationSpec(pydantic.v1.BaseModel):
-    chief_api_state: str | None
-    chief_version: str | None
-
-
-class WaitForChiefToReachOnlineStateFeatureFlag(mlrun.common.types.StrEnum):
-    enabled = "enabled"
-    disabled = "disabled"
+if _USE_V2:
+    from ._v2.clusterization_spec import *  # noqa: F401,F403
+else:
+    from ._v1.clusterization_spec import *  # noqa: F401,F403

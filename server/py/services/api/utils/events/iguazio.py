@@ -78,6 +78,7 @@ class Client(base_events.BaseEventClient):
         secret_name: str,
         secret_keys: list[str] | None = None,
         action: mlrun.common.schemas.SecretEventActions = mlrun.common.schemas.SecretEventActions.created,
+        initiator: str | None = None,
     ) -> igz_mgmt.AuditEvent:
         """
         Generate a project secret event

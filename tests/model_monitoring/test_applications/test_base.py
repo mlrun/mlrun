@@ -470,6 +470,40 @@ def test_windows(
     )
 
 
+@pytest.mark.parametrize("base_period", [None, 1])
+def test_window_generator_skips_empty_windows(base_period: int | None) -> None:
+    """
+    A window with no inference data (e.g. ``skip_overlap`` when all data was already
+    processed - ML-12817) must be skipped, not raised, even though `sample_df` now
+    raises `MLRunEmptySampleDFError` on empty data.
+    """
+    with patch.object(
+        MonitoringApplicationContext,
+        "sample_df",
+        property(
+            lambda _: (_ for _ in ()).throw(
+                mlrun.errors.MLRunEmptySampleDFError("The sample dataframe is empty")
+            )
+        ),
+    ):
+        windows = list(
+            ModelMonitoringApplicationBase._window_generator(
+                start=datetime(2024, 12, 26, 14, 0, 0, tzinfo=UTC).isoformat(),
+                end=datetime(2024, 12, 26, 14, 2, 0, tzinfo=UTC).isoformat(),
+                base_period=base_period,
+                application_schedules=None,
+                endpoint_name="",
+                endpoint_id="",
+                application_name="",
+                existing_data_handling=ExistingDataHandling.skip_overlap,
+                context=mlrun.MLClientCtx.from_dict({}),
+                project=mlrun.projects.MlrunProject(),
+                sample_data=None,
+            )
+        )
+    assert windows == [], "Empty windows should be skipped, not yielded or raised"
+
+
 @pytest.mark.parametrize(
     ("base_period", "start_dt", "end_dt", "expectation"),
     [

@@ -20,21 +20,24 @@ from unittest.mock import Mock, patch
 
 import pandas as pd
 import pytest
-import v3io_frames
 
-import mlrun.common.schemas.model_monitoring.constants as mm_constants
-import mlrun.utils.v3io_clients
-from mlrun.common.schemas.model_monitoring.model_endpoints import (
+# v3io_frames is an optional extra (mlrun[v3io-frames]); the v3io_connector import below
+# needs it, so skip the whole module when it isn't installed.
+v3io_frames = pytest.importorskip("v3io_frames")
+
+import mlrun.common.schemas.model_monitoring.constants as mm_constants  # noqa: E402
+import mlrun.utils.v3io_clients  # noqa: E402
+from mlrun.common.schemas.model_monitoring.model_endpoints import (  # noqa: E402
+    MetricPoint,
     ModelEndpointDriftValues,
     ModelEndpointMonitoringMetric,
     ModelEndpointMonitoringMetricNoData,
     ModelEndpointMonitoringResultValues,
-    _MetricPoint,
 )
-from mlrun.model_monitoring.db.tsdb.v3io.stream_graph_steps import (
+from mlrun.model_monitoring.db.tsdb.v3io.stream_graph_steps import (  # noqa: E402
     _normalize_dict_for_v3io_frames,
 )
-from mlrun.model_monitoring.db.tsdb.v3io.v3io_connector import (
+from mlrun.model_monitoring.db.tsdb.v3io.v3io_connector import (  # noqa: E402
     V3IOTSDBConnector,
     _is_no_schema_error,
 )
@@ -512,11 +515,11 @@ def test_read_predictions() -> None:
     result = tsdb_connector.read_predictions(**predictions_args)
     assert result.full_name == "fictitious-one.mlrun-infra.metric.invocations"
     assert result.values == [
-        _MetricPoint(
+        MetricPoint(
             timestamp=pd.Timestamp("2024-04-02 18:00:00", tz="UTC"),
             value=5.0,
         ),
-        _MetricPoint(
+        MetricPoint(
             timestamp=pd.Timestamp("2024-04-02 18:01:00", tz="UTC"),
             value=10.0,
         ),

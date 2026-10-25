@@ -17,6 +17,7 @@ import uuid
 from abc import abstractmethod
 from typing import Union
 
+import packaging.version
 from sqlalchemy.orm import Session
 
 import mlrun.common.constants as mlrun_constants
@@ -126,6 +127,7 @@ class BaseRunner(metaclass=mlrun.utils.singleton.Singleton):
             workflow_request=workflow_request,
             run_name=runner.metadata.name,
             rerun_request=rerun_request,
+            client_version=self._resolve_client_version(runner),
         )
 
         # Set auth token name on run spec so the workflow runner can use it to mount the secret token
@@ -156,6 +158,7 @@ class BaseRunner(metaclass=mlrun.utils.singleton.Singleton):
         workflow_request: mlrun.common.schemas.WorkflowRequest,
         rerun_request: mlrun.common.schemas.RerunWorkflowRequest,
         run_name: str | None = None,
+        client_version: str | None = None,
     ) -> mlrun_model.RunObject:
         """
         Abstract method to prepare the run object.
@@ -164,6 +167,8 @@ class BaseRunner(metaclass=mlrun.utils.singleton.Singleton):
         :param labels:           Labels for the run.
         :param workflow_request: Workflow request containing the workflow spec.
         :param run_name:         Name of the run.
+        :param client_version:   MLRun SDK version of the client that submitted the request,
+                                 used to gate parameters the client image may not support.
         :return: RunObject ready for execution.
         """
         ...
@@ -249,6 +254,22 @@ class BaseRunner(metaclass=mlrun.utils.singleton.Singleton):
         for key, value in labels.items():
             run_object = run_object.set_label(key, value)
         return run_object
+
+    @staticmethod
+    def _resolve_client_version(runner: mlrun.run.KubejobRuntime) -> str | None:
+        """
+        Read the submitting client's MLRun SDK version off the runner labels.
+
+        The version is stamped onto the runner by the workflows endpoint and is used to gate
+        run parameters that older client images (which execute the workflow-runner job) may
+        not support.
+
+        :param runner: Workflow runner function object.
+        :return: The client MLRun version label, or None if it was not set.
+        """
+        return runner.metadata.labels.get(
+            mlrun_constants.MLRunInternalLabels.client_version
+        )
 
     @staticmethod
     def _enrich_run_labels_and_env(
@@ -349,6 +370,7 @@ class LoadRunner(BaseRunner, metaclass=mlrun.utils.singleton.Singleton):
         run_name: str | None = None,
         workflow_request: mlrun.common.schemas.WorkflowRequest | None = None,
         rerun_request: mlrun.common.schemas.WorkflowRequest | None = None,
+        client_version: str | None = None,
     ) -> mlrun_model.RunObject:
         """
         Prepare the RunObject for loading the project.
@@ -356,6 +378,8 @@ class LoadRunner(BaseRunner, metaclass=mlrun.utils.singleton.Singleton):
         :param project: MLRun project.
         :param labels:  Labels for the run.
         :param run_name: Name of the run.
+        :param client_version: Accepted for signature compatibility with the base runner;
+                               the project loader does not gate any parameters on it.
         :return: RunObject ready for execution.
         """
         source, save, is_context = LoadRunner._validate_source(project, "")
@@ -450,6 +474,7 @@ class WorkflowRunners(BaseRunner, metaclass=mlrun.utils.singleton.Singleton):
             run_name=workflow_request.spec.name,
             uid=meta_uid,
             scrape_metrics=mlrun_config.config.scrape_metrics,
+            client_version=self._resolve_client_version(runner),
         )
 
         mlrun_utils.helpers.set_auth_token_name(
@@ -527,6 +552,7 @@ class WorkflowRunners(BaseRunner, metaclass=mlrun.utils.singleton.Singleton):
         uid: str | None = None,
         scrape_metrics: str | None = None,
         rerun_request: mlrun.common.schemas.RerunWorkflowRequest | None = None,
+        client_version: str | None = None,
     ) -> mlrun_model.RunObject:
         """
         Prepare the RunObject for running the workflow.
@@ -538,6 +564,8 @@ class WorkflowRunners(BaseRunner, metaclass=mlrun.utils.singleton.Singleton):
         :param uid:              Unique identifier for the run.
         :param scrape_metrics:   Whether to scrape metrics.
         :param rerun_request:    Workflow request containing the rerun spec.
+        :param client_version:   MLRun SDK version of the submitting client, used to gate the
+                                 ``run_setup`` parameter (see below).
         :return: RunObject ready for execution.
         """
         source, save, is_context = WorkflowRunners._validate_source(
@@ -571,8 +599,15 @@ class WorkflowRunners(BaseRunner, metaclass=mlrun.utils.singleton.Singleton):
             local=workflow_request.spec.run_local,
             subpath=project.spec.subpath,
             url=source,
-            run_setup=workflow_request.spec.run_setup,
         )
+
+        # The workflow-runner job executes in the *client* image, so passing `run_setup` to a
+        # client whose `load_and_run_workflow` predates it raises `TypeError: ... unexpected
+        # keyword argument 'run_setup'` (ML-12790). Only forward it when the client supports
+        # it; otherwise omit it so the client falls back to its own default (the pre-#9548
+        # behavior).
+        if self._client_supports_run_setup(client_version):
+            parameters["run_setup"] = workflow_request.spec.run_setup
 
         run_object = self._create_run_object(
             source=source,
@@ -591,6 +626,35 @@ class WorkflowRunners(BaseRunner, metaclass=mlrun.utils.singleton.Singleton):
         )
 
         return run_object
+
+    @staticmethod
+    def _client_supports_run_setup(client_version: str | None) -> bool:
+        """
+        Whether the submitting client's ``load_and_run_workflow`` accepts ``run_setup``.
+
+        Dev/unstable builds are treated as supporting it; an unknown or unparseable version is
+        treated as unsupported so the parameter is safely omitted.
+
+        :param client_version: MLRun SDK version reported by the submitting client.
+        :return: True if the client accepts the ``run_setup`` parameter.
+        """
+        if not client_version:
+            return False
+        # Dev builds report version "0.0.0+<sha>" and are built from current source. The
+        # client_version label is sanitized for k8s ("+" -> "-"), so match on the "0.0.0"
+        # prefix rather than the build-metadata suffix.
+        if client_version.startswith("0.0.0"):
+            return True
+        # `run_setup` first shipped to the client in 1.12.0-rc8 (#9548). Compared with
+        # packaging.version (PEP 440) so pre-release tags order numerically —
+        # validate_component_version_compatibility orders them lexically ("rc10" < "rc8")
+        # and would misclassify rc10+ clients.
+        try:
+            return packaging.version.Version(
+                client_version
+            ) >= packaging.version.Version("1.12.0rc8")
+        except packaging.version.InvalidVersion:
+            return False
 
     @staticmethod
     def _validate_source(
@@ -741,6 +805,7 @@ class RerunRunner(BaseRunner, metaclass=mlrun.utils.singleton.Singleton):
         run_name: str | None = None,
         uid: str | None = None,
         scrape_metrics: str | None = None,
+        client_version: str | None = None,
     ) -> mlrun_model.RunObject:
         """
         Prepare the RunObject for rerunning the workflow.
@@ -751,6 +816,8 @@ class RerunRunner(BaseRunner, metaclass=mlrun.utils.singleton.Singleton):
         :param run_name:         Name of the run.
         :param uid:              Unique identifier for the run.
         :param scrape_metrics:   Whether to scrape metrics.
+        :param client_version:   Accepted for signature compatibility with the base runner;
+                                 the rerun runner does not gate any parameters on it.
         :return: RunObject ready for execution.
         """
 

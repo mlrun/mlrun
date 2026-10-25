@@ -390,17 +390,30 @@ class TestCollectRunSLogs:
         mlrun.mlconf.log_collector.failed_runs_grace_period = 20
         mlrun.mlconf.log_collector.periodic_start_log_interval = 10
 
-        log_collector_call_mock = unittest.mock.AsyncMock(
-            side_effect=[
-                # failure response for the first call (failure_uid)
-                BaseLogCollectorResponse(False, "some error"),
-                # success response for the second call (success_uid)
-                BaseLogCollectorResponse(True, ""),
-                # failure response for the third call (failure_uid)
-                BaseLogCollectorResponse(False, "some error"),
-                BaseLogCollectorResponse(False, "some error"),
-            ]
-        )
+        # `list_distinct_runs_uids` doesn't guarantee row order, so the mocked
+        # responses are keyed by run uid rather than by call order.
+        responses_by_uid = {
+            failure_uid: iter(
+                [
+                    # fails on both attempts, exhausting the consecutive
+                    # start-log budget (max_consecutive_start_log_requests == 2)
+                    BaseLogCollectorResponse(False, "some error"),
+                    BaseLogCollectorResponse(False, "some error"),
+                ]
+            ),
+            success_uid: iter(
+                [
+                    # succeeds on the first attempt, resetting its counter
+                    BaseLogCollectorResponse(True, ""),
+                    BaseLogCollectorResponse(False, "some error"),
+                ]
+            ),
+        }
+
+        def _call_mock(endpoint, request):
+            return next(responses_by_uid[request.runUID])
+
+        log_collector_call_mock = unittest.mock.AsyncMock(side_effect=_call_mock)
         monkeypatch.setattr(log_collector, "_call", log_collector_call_mock)
         update_runs_requested_logs_mock = unittest.mock.Mock()
         monkeypatch.setattr(

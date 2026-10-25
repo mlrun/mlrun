@@ -10,6 +10,9 @@ LLM prompt artifacts capture a prompt definition for large language model (LLM) 
 - [Deleting prompt artifacts](#deleting-prompt-artifacts-using-the-sdk)
 - [Viewing LLM-prompt artifacts in the UI](#viewing-llm-prompt-artifacts-in-the-ui)
 
+**See also**
+- {ref}`artifacts`
+
 ## SDK
 - {py:class}`~mlrun.projects.MlrunProject.log_llm_prompt`: Logs an LLM prompt artifact to the current project.
 - {py:class}`~mlrun.projects.MlrunProject.list_llm_prompts`: Lists LLM prompt artifacts in the current project with support for filtering.

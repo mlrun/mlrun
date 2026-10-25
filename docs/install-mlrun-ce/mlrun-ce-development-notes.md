@@ -5,8 +5,8 @@ This page contains notes for configuring your development system (after installa
 **In this section**
 
 - [Change the deployment and jobs default PVC](#change-the-deployment-and-jobs-default-pvc)
-- [Configuring the user Jupyter conda environment](#configuring-the-user-jupyter-conda-environment)
-- [Configuring TimescaleDB and Kafka for model monitoring](#configuring-timescaledb-and-kafka-for-model-monitoring)
+- [Configure the user Jupyter conda environment](#configure-the-user-jupyter-conda-environment)
+- [Configure TimescaleDB and Kafka for model monitoring](#configure-timescaledb-and-kafka-for-model-monitoring)
 
 ## Change the deployment and jobs default PVC
 A default PVC is created during the MLRun installation. If you modified the env vars before importing MLRun (to change the PVC), those values are overwritten. Change the PVC, after importing MLRun, by running this code:
@@ -24,7 +24,7 @@ mlrun.mlconf.storage.auto_mount_params = ",".join(
 )
 ```
 
-## Configuring the user Jupyter conda environment
+## Configure the user Jupyter conda environment
 
 The default Jupyter comes with a conda env named `mlrun`. This conda is not persistent.
 If you install any packages on this conda env, and then the Jupyter pod gets restarted or deleted, those packages will be deleted.
@@ -45,7 +45,7 @@ pip install --user ipykernel
 python -m ipykernel install --user --name <myenv> --display-name "Python (<myenv>)"
 ```
 
-## Configuring TimescaleDB and Kafka for model monitoring
+## Configure TimescaleDB and Kafka for model monitoring
 TimescaleDB and Kafka are part of the default CE installations for model monitoring.
 
   [TimescaleDB](https://docs.timescale.com/self-hosted/latest/install/) is a PostgreSQL-based time-series database used as the TSDB backend for model monitoring. 
@@ -60,7 +60,7 @@ TimescaleDB and Kafka are part of the default CE installations for model monitor
   Default connection values for CE:
   - `Brokers`: kafka-stream.<namespace>.svc.cluster.local:9092
   
-  ### Configuring data store profiles
+  ### Configure data store profiles
   The connections are managed by using [data store profiles](../store/datastore.md#datastore-profiles). Data store profiles manage the connection credentials securely.
   ```python
   from mlrun.datastore.datastore_profile import (
@@ -91,3 +91,4 @@ TimescaleDB and Kafka are part of the default CE installations for model monitor
   )
 ```
 See more details, including additional configuration options, in {py:class}`~mlrun.projects.MlrunProject.set_model_monitoring_credentials`.
+

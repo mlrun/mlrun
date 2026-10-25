@@ -15,7 +15,10 @@
 import string
 import unittest.mock
 
+import psycopg2
+import pymysql.err
 import pytest
+import sqlalchemy
 import sqlalchemy.exc
 import sqlalchemy.orm
 
@@ -30,9 +33,17 @@ import framework.db.sqldb.models
 import framework.db.sqldb.sql_session
 import framework.utils.singletons.db
 import services.api.initial_data
+import services.api.utils.events.db_errors as db_errors
 
 _UUID_V4 = "550e8400-e29b-41d4-a716-446655440000"
 _UUID_V7 = "018f6c4e-7b8a-7c2e-bf3a-5e4d1c2a8b90"
+
+
+@pytest.fixture(autouse=True)
+def _reset_db_connection_event_throttle(monkeypatch):
+    """The DB-connection-failed publish throttle is a process-wide singleton
+    (`db_errors._slot`); reset it so each test starts with a claimable slot."""
+    monkeypatch.setattr(db_errors._slot, "_last_emit_monotonic", 0.0)
 
 
 def test_add_data_version_empty_db():
@@ -828,6 +839,135 @@ def test_publish_db_migration_event_swallows_factory_errors(
         mlrun.common.schemas.MigrationEventActions.failed,
         error=RuntimeError("boom"),
     )
+
+
+def test_initialize_db_if_needed_publishes_event_on_create_database_failure(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """Ticket repro: database_exists() swallows the outage internally (as
+    sqlalchemy_utils does for Postgres) and returns False, so create_database()
+    is where the real, unhandled connection failure surfaces."""
+    engine = _engine_with_dialect(monkeypatch, "postgresql")
+    orig = psycopg2.OperationalError(
+        'connection to server at "mlrun-db" (10.43.154.75), port 5432 '
+        "failed: Connection refused"
+    )
+    monkeypatch.setattr(
+        services.api.initial_data.sqlalchemy_utils, "database_exists", lambda url: False
+    )
+    monkeypatch.setattr(
+        services.api.initial_data.sqlalchemy_utils,
+        "create_database",
+        unittest.mock.MagicMock(
+            side_effect=sqlalchemy.exc.OperationalError(
+                statement=None, params=None, orig=orig, connection_invalidated=True
+            )
+        ),
+    )
+    fake_client = _fake_events_client(monkeypatch)
+
+    with pytest.raises(sqlalchemy.exc.OperationalError):
+        services.api.initial_data._initialize_db_if_needed(engine)
+
+    fake_client.generate_db_connection_event.assert_called_once()
+    call_kwargs = fake_client.generate_db_connection_event.call_args.kwargs
+    assert call_kwargs["error_category"] == db_errors.CATEGORY_DISCONNECT
+    assert call_kwargs["dialect"] == "postgresql"
+    fake_client.emit.assert_called_once()
+
+
+def test_initialize_db_if_needed_publishes_event_on_database_exists_failure(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """MySQL path: database_exists() has no internal swallow-loop, so the
+    connection failure surfaces directly from that call instead."""
+    engine = _engine_with_dialect(monkeypatch, "mysql")
+    orig = pymysql.err.OperationalError(
+        2003, "Can't connect to MySQL server on 'mlrun-db' (111)"
+    )
+    monkeypatch.setattr(
+        services.api.initial_data.sqlalchemy_utils,
+        "database_exists",
+        unittest.mock.MagicMock(
+            side_effect=sqlalchemy.exc.OperationalError(
+                statement=None, params=None, orig=orig
+            )
+        ),
+    )
+    fake_client = _fake_events_client(monkeypatch)
+
+    with pytest.raises(sqlalchemy.exc.OperationalError):
+        services.api.initial_data._initialize_db_if_needed(engine)
+
+    fake_client.generate_db_connection_event.assert_called_once()
+    call_kwargs = fake_client.generate_db_connection_event.call_args.kwargs
+    assert call_kwargs["error_category"] == db_errors.CATEGORY_DISCONNECT
+    assert call_kwargs["error_code"] == 2003
+    assert call_kwargs["dialect"] == "mysql"
+
+
+def test_initialize_db_if_needed_fresh_install_does_not_publish_event(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """A legitimate first-ever install (DB truly doesn't exist yet, connects
+    fine to create it) must never fire MLRun.DB.Connection.Failed."""
+    engine = _engine_with_dialect(monkeypatch, "postgresql")
+    monkeypatch.setattr(
+        services.api.initial_data.sqlalchemy_utils, "database_exists", lambda url: False
+    )
+    create_database_spy = unittest.mock.MagicMock()
+    monkeypatch.setattr(
+        services.api.initial_data.sqlalchemy_utils,
+        "create_database",
+        create_database_spy,
+    )
+    fake_client = _fake_events_client(monkeypatch)
+
+    assert services.api.initial_data._initialize_db_if_needed(engine) is True
+
+    create_database_spy.assert_called_once()
+    fake_client.emit.assert_not_called()
+
+
+def test_initialize_db_if_needed_non_connection_failure_not_published(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """A non-connection DBAPIError (e.g. integrity error) must still propagate,
+    but must not be misreported as a connection failure."""
+    engine = _engine_with_dialect(monkeypatch, "postgresql")
+    monkeypatch.setattr(
+        services.api.initial_data.sqlalchemy_utils,
+        "database_exists",
+        unittest.mock.MagicMock(
+            side_effect=sqlalchemy.exc.IntegrityError(
+                statement=None, params=None, orig=RuntimeError("duplicate key")
+            )
+        ),
+    )
+    fake_client = _fake_events_client(monkeypatch)
+
+    with pytest.raises(sqlalchemy.exc.IntegrityError):
+        services.api.initial_data._initialize_db_if_needed(engine)
+
+    fake_client.emit.assert_not_called()
+
+
+def _fake_events_client(monkeypatch: pytest.MonkeyPatch) -> unittest.mock.MagicMock:
+    fake_client = unittest.mock.MagicMock()
+    fake_client.generate_db_connection_event.return_value = object()
+    monkeypatch.setattr(
+        "services.api.utils.events.events_factory.EventsFactory.get_events_client",
+        lambda *a, **kw: fake_client,
+    )
+    return fake_client
+
+
+def _engine_with_dialect(
+    monkeypatch: pytest.MonkeyPatch, dialect_name: str
+) -> sqlalchemy.engine.Engine:
+    engine = sqlalchemy.create_engine("sqlite:///:memory:")
+    monkeypatch.setattr(engine.dialect, "name", dialect_name)
+    return engine
 
 
 def _initialize_db_without_schema() -> tuple[

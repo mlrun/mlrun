@@ -22,6 +22,7 @@ import mlrun
 import mlrun.common.schemas.notification
 import mlrun.db.httpdb
 import mlrun.model_monitoring
+from mlrun.common.schemas._shared.alert import _event_kind_entity_map
 from mlrun.common.schemas.alert import (
     AlertCriteria,
     AlertSeverity,
@@ -30,7 +31,6 @@ from mlrun.common.schemas.alert import (
     EventEntityKind,
     EventKind,
     ResetPolicy,
-    _event_kind_entity_map,
 )
 from mlrun.common.schemas.model_monitoring.constants import (
     MonitoringAlertNames,

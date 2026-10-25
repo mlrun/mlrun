@@ -9,7 +9,7 @@ Profiles are containers for credentials for a remote service. See:
 - [Provider profiles](#model-provider-profiles)
 - [Source and target profiles](#source-and-target-profiles)
 
-Profiles are also used when configuring model monitoring. See [Configuring TimescaleDB and Kafka for model monitoring](../install-mlrun-ce/mlrun-ce-development-notes.md#configuring-timescaledb-and-kafka-for-model-monitoring).
+Profiles are also used when configuring model monitoring. See [Configuring TimescaleDB and Kafka for model monitoring](../install-mlrun-ce/mlrun-ce-development-notes.md#configure-timescaledb-and-kafka-for-model-monitoring).
 
 ## Model provider profiles
 

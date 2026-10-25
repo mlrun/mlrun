@@ -65,58 +65,6 @@ def leader_follower(
     return projects_leader._leader_follower
 
 
-@pytest.mark.parametrize(
-    "method_name",
-    [
-        "create_project",
-        "store_project",
-    ],
-)
-@pytest.mark.parametrize(
-    "explicit_owner, auth_user, expected_owner",
-    [
-        (None, "auth-user", "auth-user"),
-        ("explicit-owner", "auth-user", "explicit-owner"),
-        ("explicit-owner", "explicit-owner", "explicit-owner"),
-    ],
-)
-def test_project_owner_from_auth_info_only_when_missing(
-    projects_leader: framework.utils.projects.leader.Member,
-    method_name: str,
-    explicit_owner: str | None,
-    auth_user: str,
-    expected_owner: str,
-):
-    project = mlrun.common.schemas.Project(
-        metadata=mlrun.common.schemas.ProjectMetadata(name="project-name"),
-        spec=mlrun.common.schemas.ProjectSpec(
-            description="some description",
-            owner=explicit_owner,
-        ),
-    )
-    auth_info = mlrun.common.schemas.AuthInfo(username=auth_user)
-
-    if method_name == "create_project":
-        created_project, _ = projects_leader.create_project(
-            None,
-            project,
-            auth_info=auth_info,
-        )
-        project_out = created_project
-    elif method_name == "store_project":
-        stored_project, _ = projects_leader.store_project(
-            None,
-            project.metadata.name,
-            project,
-            auth_info=auth_info,
-        )
-        project_out = stored_project
-    else:
-        raise ValueError(f"Unexpected method name: {method_name}")
-
-    assert project_out.spec.owner == expected_owner
-
-
 def test_projects_sync_follower_project_adoption(
     db: sqlalchemy.orm.Session,
     projects_leader: framework.utils.projects.leader.Member,
@@ -783,6 +731,27 @@ async def test_ensure_project_populates_opa_owner_cache_across_replicas(
             )
 
     await opa_provider._sessions.async_close()
+
+
+def test_enrich_project_converts_desired_state_to_project_state():
+    project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name="project-name"),
+        spec=mlrun.common.schemas.ProjectSpec(
+            desired_state=mlrun.common.schemas.ProjectDesiredState.online
+        ),
+    )
+    framework.utils.projects.leader.Member._enrich_project(project)
+    assert project.status.state == mlrun.common.schemas.ProjectState.online
+    assert type(project.status.state) is mlrun.common.schemas.ProjectState
+
+
+def test_enrich_project_desired_state_none():
+    project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name="project-name"),
+        spec=mlrun.common.schemas.ProjectSpec(desired_state=None),
+    )
+    framework.utils.projects.leader.Member._enrich_project(project)
+    assert project.status.state is None
 
 
 def _assert_project_not_in_followers(followers, name):

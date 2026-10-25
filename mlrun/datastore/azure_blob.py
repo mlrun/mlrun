@@ -388,8 +388,10 @@ class AzureBlobStore(DataStore):
         data, _ = self._prepare_put_data(data, append)
         if isinstance(data, str):
             data = data.encode("utf-8")
-        # pipe_file streams in chunks; write() buffers the whole body.
-        self.filesystem.pipe_file(remote_path, data)
+        # Bound concurrency; adlfs default is unbounded -> buffers whole body (ML-12754).
+        self.filesystem.pipe_file(
+            remote_path, data, max_concurrency=self.max_concurrency
+        )
 
     def stat(self, key):
         remote_path = self._convert_key_to_remote_path(key)

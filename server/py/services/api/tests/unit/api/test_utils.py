@@ -1161,6 +1161,33 @@ def test_ensure_function_security_context_override_enrichment_mode(
     )
 
 
+def test_ensure_function_security_context_run_as_non_root_from_default(
+    db: Session, client: TestClient
+):
+    services.api.tests.unit.api.utils.create_project(client, PROJECT)
+    mlrun.mlconf.igz_version = "3.6"
+    mlrun.mlconf.function.spec.security_context.enrichment_mode = (
+        mlrun.common.schemas.SecurityContextEnrichmentModes.override.value
+    )
+    mlrun.mlconf.function.spec.security_context.default = base64.b64encode(
+        json.dumps({"runAsNonRoot": False}).encode("utf-8")
+    )
+
+    mlrun.utils.logger.info(
+        "runAsNonRoot in the default security context is False, enrichment should honor it"
+    )
+    framework.utils.clients.iguazio.v3.Client.get_user_unix_id = unittest.mock.Mock()
+    auth_info = mlrun.common.schemas.AuthInfo(user_unix_id=1000)
+    _, _, _, original_function_dict = _generate_original_function(
+        kind=mlrun.runtimes.RuntimeKinds.job
+    )
+
+    function = mlrun.new_function(runtime=original_function_dict)
+    framework.api.utils.ensure_function_security_context(function, auth_info)
+
+    assert function.spec.security_context.run_as_non_root is False
+
+
 def test_ensure_function_security_context_enrichment_group_id(
     db: Session, client: TestClient
 ):

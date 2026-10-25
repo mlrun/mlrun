@@ -29,7 +29,7 @@ When you call {py:meth}`~mlrun.projects.MlrunProject.enable_model_monitoring`, y
 
 The model monitoring process flow starts with collecting operational data from a function in the model serving pod. The model 
 monitoring stream pod forwards data to a Parquet database. MLRun supports integers, float, strings, images.
-The controller periodically checks the Parquet DB for new data and forwards it to the relevant application. 
+The controller periodically queries the time series database (TSDB) for new prediction data and forwards it to the relevant application. 
 Each model monitoring application is a separate nuclio real-time function. Each one listens to a stream that is filled by 
 the monitoring controller at each `base_period` interval.
 The stream function examines the log entry, processes it into statistics which are then written to the statistics databases 
@@ -86,7 +86,7 @@ The recommended versions are:
 - Kafka: `3.9.0` self-hosted, or Confluent Cloud (tested against `7.9`)
 
 Before you deploy the model monitoring or serving function, you need to set the credentials with {py:meth}`~mlrun.projects.MlrunProject.set_model_monitoring_credentials`.
-See also [Configuring TimescaleDB and Kafka for model monitoring](../install-mlrun-ce/mlrun-ce-development-notes.md#configuring-timescaledb-and-kafka-for-model-monitoring).
+See also [Configuring TimescaleDB and Kafka for model monitoring](../install-mlrun-ce/mlrun-ce-development-notes.md#configure-timescaledb-and-kafka-for-model-monitoring).
 
 ## Model monitoring applications
 

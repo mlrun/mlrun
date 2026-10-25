@@ -502,7 +502,9 @@ with warnings.catch_warnings():
         body = Column(framework.db.sqldb.sql_types.Blob)
         start_time = Column(framework.db.sqldb.sql_types.DateTime)
         end_time = Column(framework.db.sqldb.sql_types.MicroSecondDateTime)
-        updated = Column(framework.db.sqldb.sql_types.DateTime, default=datetime.utcnow)
+        updated = Column(
+            framework.db.sqldb.sql_types.DateTime, default=lambda: datetime.now(UTC)
+        )
         # requested logs column indicates whether logs were requested for this run
         # None - old runs prior to the column addition, logs were already collected for them, so no need to collect them
         # False - logs were not requested for this run
@@ -607,7 +609,13 @@ with warnings.catch_warnings():
 
         @cron_trigger.setter
         def cron_trigger(self, trigger: mlrun.common.schemas.ScheduleCronTrigger):
-            self.cron_trigger_str = orjson.dumps(trigger.dict(exclude_unset=True))
+            # orjson.dumps() returns bytes; binding bytes into this text column goes through
+            # psycopg's bytea adapter on PostgreSQL, storing the bytea hex-escape string instead
+            # of the JSON, so it fails to parse back on every read. MySQL/SQLite round-trip bytes
+            # fine, which is why this only surfaced on Postgres - ML-12860.
+            self.cron_trigger_str = orjson.dumps(
+                trigger.dict(exclude_unset=True)
+            ).decode()
 
     class Project(Base, LabelMixin, framework.db.sqldb.base.BaseModel):
         __tablename__ = "projects"
@@ -623,7 +631,9 @@ with warnings.catch_warnings():
         # leaving the column as is to prevent redundant migration
         # TODO: change to JSON, see mlrun/common/schemas/function.py::FunctionState for reasoning
         _full_object = Column("spec", framework.db.sqldb.sql_types.Blob)
-        created = Column(framework.db.sqldb.sql_types.DateTime, default=datetime.utcnow)
+        created = Column(
+            framework.db.sqldb.sql_types.DateTime, default=lambda: datetime.now(UTC)
+        )
         default_function_node_selector = Column("default_function_node_selector", JSON)
         state = Column(framework.db.sqldb.sql_types.Utf8BinText)
         op_id = Column(framework.db.sqldb.sql_types.UuidType, nullable=True)

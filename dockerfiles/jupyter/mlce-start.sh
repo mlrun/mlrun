@@ -6,7 +6,7 @@ if [ -f "$file_path" ]; then
 else
     # Perform actions when the file does not exist
     echo "Base data does not exist, extracting home backup..."
-    cd / ; tar -xvf /tmp/basehome.tar
+    cd / ; tar -xf /tmp/basehome.tar
     echo "1" > $file_path
 fi
 

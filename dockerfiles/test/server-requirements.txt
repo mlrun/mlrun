@@ -1,2 +1,2 @@
-mlflow~=3.17
+mlflow~=3.17, >=3.17.2
 iguazio~=0.2.1

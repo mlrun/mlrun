@@ -50,4 +50,4 @@ diff-cover~=9.2
 chardet<6
 openai~=1.88
 transformers~=4.56
-pillow~=11.3
+pillow~=13.0

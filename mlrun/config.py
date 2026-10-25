@@ -300,6 +300,8 @@ default_config = {
                     # sets the user id to be used for kfp pods when enrichment mode is not disabled
                     "kfp_pod_user_unix_id": 5,
                 },
+                # HOME injected into non-root functions; empty disables injection
+                "non_root_home": "/tmp",
             },
             "service_account": {
                 "default": None,

@@ -475,14 +475,6 @@ def _enrich_kfp_pod_security_context(kfp_pod_template, function):
         ),
     }
 
-    # each function is applied to every step template, so only inspect the step env
-    non_root_home = mlrun.runtimes.pod.get_non_root_home()
-    container_env = kfp_pod_template["container"].setdefault("env", [])
-    if non_root_home and not any(
-        env_var.get("name") == "HOME" for env_var in container_env
-    ):
-        container_env.append({"name": "HOME", "value": non_root_home})
-
 
 def get_db_function(project, key) -> mlrun.runtimes.BaseRuntime:
     project_instance, name, tag, hash_key = parse_versioned_object_uri(

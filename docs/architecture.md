@@ -79,8 +79,8 @@ Libraries that use the default user cache location (for example `~/.cache` in Hu
 `PermissionError: [Errno 13] Permission denied: '/.cache'`.
 
 When a function runs as non-root (its security context sets a non-zero `runAsUser`, or `runAsNonRoot`), MLRun sets
-`HOME=/tmp` in the function's container. This applies to jobs, Nuclio and serving functions, and to KFP pipeline step pods
-that MLRun runs as non-root. The value is added when the pod is created and is not saved in the function spec.
+`HOME=/tmp` in the function's container. This applies to jobs, Dask, Nuclio and serving functions, including those that run as
+workflow steps. The value is added when the pod is created and is not saved in the function spec.
 
 - To use a different home directory for a function, set it explicitly. An explicit `HOME` always takes precedence:
   ```python

@@ -1523,23 +1523,6 @@ class KubeResource(BaseRuntime):
         return None
 
 
-def get_non_root_home() -> str:
-    """
-    Get the configured HOME for non-root functions.
-
-    Older servers omit this key when replacing the SDK function config.
-
-    :return: The configured path, falling back to the SDK default for older servers.
-    """
-    return getattr(
-        mlconf.function.spec.security_context,
-        "non_root_home",
-        mlrun.config.default_config["function"]["spec"]["security_context"][
-            "non_root_home"
-        ],
-    )
-
-
 def get_non_root_home_env(spec: KubeResourceSpec) -> dict[str, str]:
     """
     Generate the default HOME environment variable for a non-root function.
@@ -1551,7 +1534,14 @@ def get_non_root_home_env(spec: KubeResourceSpec) -> dict[str, str]:
     :return: The generated HOME variable, or an empty dictionary for root functions,
              functions with an explicit HOME, or when the default is disabled.
     """
-    non_root_home = get_non_root_home()
+    # the client spec omits this key, and the SDK replaces its function config with it
+    non_root_home = getattr(
+        mlconf.function.spec.security_context,
+        "non_root_home",
+        mlrun.config.default_config["function"]["spec"]["security_context"][
+            "non_root_home"
+        ],
+    )
     if not non_root_home or not _is_non_root_security_context(spec.security_context):
         return {}
     if any(get_item_name(env_var) == "HOME" for env_var in spec.env):

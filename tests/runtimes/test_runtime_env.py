@@ -20,6 +20,7 @@ import pytest
 
 import mlrun
 import mlrun.common.schemas
+import mlrun.config
 import mlrun.runtimes.pod
 
 NON_ROOT_HOME = "/tmp"
@@ -146,6 +147,27 @@ def test_non_root_home_custom_path():
     assert mlrun.runtimes.pod.get_non_root_home_env(function.spec) == {
         "HOME": "/scratch"
     }
+
+
+def test_non_root_home_after_client_spec_sync():
+    # match the security context installed by HTTPRunDB.connect()
+    mlrun.mlconf.function.spec.security_context = {
+        "default": "e30=",
+        "enrichment_mode": mlrun.common.schemas.SecurityContextEnrichmentModes.disabled.value,
+        "enrichment_group_id": 65534,
+        "pipelines": {"kfp_pod_user_unix_id": 5},
+    }
+    try:
+        function = _new_job()
+        function.with_security_context(k8s_client.V1SecurityContext(run_as_user=12345))
+        assert mlrun.runtimes.pod.get_non_root_home_env(function.spec) == {
+            "HOME": NON_ROOT_HOME
+        }
+    finally:
+        # reloading config does not restore keys omitted by the synced context
+        mlrun.mlconf.function.spec.security_context = copy.deepcopy(
+            mlrun.config.default_config["function"]["spec"]["security_context"]
+        )
 
 
 def test_non_root_home_does_not_mutate_spec():

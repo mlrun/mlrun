@@ -43,15 +43,24 @@ You can export the model monitoring results and metrics (that are sent to the ML
 When configured, the results and metrics returned by `do_tracking()` in every monitoring window
 are exported via OTLP to your [configured endpoint](../server-cfg/server-metrics.md#set-the-shared-otlp-endpoint).
 
-Each result exposes two fixed gauges. The name is a label, not part of the metric (keeps the instrument cardinality bounded to two):
-- mlrun.model_monitoring.result → scraped as mlrun_model_monitoring_result (one per result)
+Results and metrics are exported as three fixed gauges. The result or metric name is a label, not part of the metric name (keeps the instrument cardinality bounded to three):
+- mlrun.model_monitoring.result → scraped as mlrun_model_monitoring_result (the result value, one per result)
+- mlrun.model_monitoring.result.status → scraped as mlrun_model_monitoring_result_status (the result status, one per result)
 - mlrun.model_monitoring.metric → scraped as mlrun_model_monitoring_metric (one per metric)
 
+The value of the status gauge is the result status: `-1` irrelevant, `0` no detection, `1` potential detection, `2` detected.
+
 **Shared labels**: `project`, `app.name`, `serving.function.name`, `endpoint.uid`, `endpoint.name` </br>
-**Result only**: `result.name`, `result.kind`, `result.status` </br>
+**Result only** (both result gauges): `result.name`, `result.kind` </br>
 **Metric only**: `metric.name`
 
 (OTLP→Prometheus turns dots into underscores, e.g. result_name.)
+
+Each gauge keeps its last value and is re-exported on every export interval, so it always reflects the latest monitoring window. For example, to list the endpoints whose latest result is a detection:
+
+```
+mlrun_model_monitoring_result_status{project="my-project"} == 2
+```
 
 To export results:
 1. Enable export to OTel collection for the project by setting `otlp_enabled=True` when you run {py:meth}`~mlrun.projects.MlrunProject.enable_model_monitoring`.

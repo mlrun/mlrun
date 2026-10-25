@@ -32,7 +32,7 @@ import framework.utils.clients.messaging
 @pytest.fixture
 def fastapi_request():
     fastapi_app = unittest.mock.Mock()
-    fastapi_app.extra = {"mlrun_service_name": "test"}
+    fastapi_app.state.mlrun_service_name = "test"
     return fastapi.Request(
         scope={
             "type": "http",

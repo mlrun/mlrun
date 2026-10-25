@@ -26,7 +26,6 @@ import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.common.schemas.function
 import mlrun.common.schemas.workflow
-import mlrun.runtimes.pod
 import mlrun.utils.notifications
 import mlrun_pipelines.common.models
 import mlrun_pipelines.patcher

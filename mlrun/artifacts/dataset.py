@@ -248,6 +248,13 @@ class DatasetArtifact(Artifact):
                 self.spec.size, self.metadata.hash = None, None
 
     def resolve_dataframe_target_hash_path(self, dataframe, artifact_path: str):
+        """
+        Resolve the target path for storing the dataframe, based on a hash of its content.
+
+        :param dataframe: The dataframe to calculate the hash for.
+        :param artifact_path: The base artifact path under which the hashed file will be stored.
+        :return: A tuple of (dataframe_hash, target_path).
+        """
         if not artifact_path:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Unable to resolve body target hash path, artifact_path is not defined"

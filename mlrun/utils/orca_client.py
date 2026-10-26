@@ -75,15 +75,47 @@ class ProjectsOrchestrator:
         )
         return response, orca_projects.extract_op_id(response.json())
 
-    def update(
+    def store(
         self, name: str, project: orca_projects.ProjectLike
+    ) -> tuple[requests.Response, uuid.UUID | str, bool]:
+        """Create or update a project, choosing by Orca's own state of it. A project that is
+        missing or still ``creating`` is (re-)created - Orca's create is idempotent for a
+        ``creating`` project and re-drives its pending operation, while an update of it would
+        be rejected with 412. Any other state is updated, CAS'd against the ``op_id`` just read.
+
+        :return: The raw response, the ``op_id`` of the operation, and whether it was a create.
+        """
+        try:
+            current = self.get(name)
+        except mlrun.errors.MLRunNotFoundError:
+            current = None
+        if (
+            current is None
+            or current.status.state == mlrun.common.schemas.ProjectState.creating
+        ):
+            response, op_id = self.create(project)
+            return response, op_id, True
+        response, op_id = self.update(
+            name, project, observed_op_id=current.status.op_id
+        )
+        return response, op_id, False
+
+    def update(
+        self,
+        name: str,
+        project: orca_projects.ProjectLike,
+        observed_op_id: uuid.UUID | str | None = None,
     ) -> tuple[requests.Response, uuid.UUID | str]:
         """``PUT`` a project's desired state. Resolves the CAS witness (``prev_op_id``) first
         if the caller didn't supply one. May settle synchronously (200) or asynchronously (202).
 
+        :param observed_op_id: The project's current ``op_id``, if already read from Orca -
+            used as the CAS witness instead of reading it again.
         :return: The raw response, and the ``op_id`` this update minted.
         """
-        prev_op_id = self.resolve_prev_op_id(name, project)
+        prev_op_id = self.resolve_prev_op_id(
+            name, project, observed_op_id=observed_op_id
+        )
         self._logger.debug("Updating project", name=name, prev_op_id=prev_op_id)
         response = self._send_request(
             "PUT",
@@ -161,7 +193,10 @@ class ProjectsOrchestrator:
         return self.get(name)
 
     def resolve_prev_op_id(
-        self, name: str, project: orca_projects.ProjectLike
+        self,
+        name: str,
+        project: orca_projects.ProjectLike,
+        observed_op_id: uuid.UUID | str | None = None,
     ) -> uuid.UUID | str | None:
         # The CAS witness Orca requires for an update is the last op_id the caller observed; if
         # the caller didn't supply one, read the current state from Orca first (client reads
@@ -171,6 +206,8 @@ class ProjectsOrchestrator:
         prev_op_id = project.status.op_id if project.status else None
         if prev_op_id:
             return prev_op_id
+        if observed_op_id:
+            return observed_op_id
         try:
             return self.get(name).status.op_id
         except mlrun.errors.MLRunNotFoundError:
@@ -179,26 +216,24 @@ class ProjectsOrchestrator:
     def wait_for_op(self, name: str, op_id: uuid.UUID | str) -> None:
         """Poll the sync-project trackable action for ``op_id`` to a terminal state.
 
-        :raises mlrun.errors.MLRunRuntimeError: if the action fails or the poll times out.
+        :raises mlrun.errors.MLRunRetryExhaustedError: if the action fails (without further
+            polling - see :func:`is_action_failed`) or the poll times out.
         """
         self._logger.debug(
             "Waiting for Orca sync-project action to reach a terminal state",
             name=name,
             op_id=op_id,
         )
-        try:
-            mlrun.utils.helpers.retry_until_successful(
-                self._poll_interval_seconds,
-                self._poll_timeout_seconds,
-                self._logger,
-                False,
-                self._verify_op_terminal,
-                name,
-                op_id,
-                fatal_exceptions=(orca_projects.OrcaActionFailedError,),
-            )
-        except orca_projects.OrcaActionFailedError as exc:
-            raise mlrun.errors.MLRunRuntimeError(str(exc)) from exc
+        mlrun.utils.helpers.retry_until_successful(
+            self._poll_interval_seconds,
+            self._poll_timeout_seconds,
+            self._logger,
+            False,
+            self._verify_op_terminal,
+            name,
+            op_id,
+            fatal_exceptions=(orca_projects.OrcaActionFailedError,),
+        )
 
     def _verify_op_terminal(self, name: str, op_id: uuid.UUID | str) -> None:
         response = self._send_request(
@@ -252,3 +287,10 @@ class ProjectsOrchestrator:
             ),
             status=None,
         )
+
+
+def is_action_failed(exc: BaseException) -> bool:
+    """Whether ``exc``, raised by :meth:`ProjectsOrchestrator.wait_for_op`, means the action
+    reached a terminal ``failed`` state - as opposed to the poll timing out.
+    """
+    return isinstance(exc.__cause__, orca_projects.OrcaActionFailedError)

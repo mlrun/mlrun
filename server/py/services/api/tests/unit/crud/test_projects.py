@@ -547,6 +547,34 @@ def test_prepare_create_project_creates_new_row(
     assert result is created_project
 
 
+def test_prepare_create_project_does_not_emit_lifecycle_event(
+    reset_projects_singleton: None,
+    patched_db_session: unittest.mock.MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """Orca decides the create's outcome and publishes it; an MLRun "creation
+    succeeded" event at prepare time contradicts a later failure on another follower."""
+    events_client = unittest.mock.MagicMock()
+    monkeypatch.setattr(
+        "services.api.utils.events.events_factory.EventsFactory.get_events_client",
+        lambda *args, **kwargs: events_client,
+    )
+    monkeypatch.setattr(
+        projects_crud.Projects, "get_follower_project_snapshot", lambda *a, **k: None
+    )
+    fake_db = unittest.mock.MagicMock()
+    monkeypatch.setattr("framework.utils.singletons.db.get_db", lambda: fake_db)
+    project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name="proj")
+    )
+
+    projects_crud.Projects().prepare_create_project(project, uuid.UUID(int=1))
+
+    fake_db.create_project.assert_called_once()
+    events_client.generate_project_lifecycle_event.assert_not_called()
+    events_client.emit.assert_not_called()
+
+
 def test_prepare_create_project_idempotent_replay_does_not_mutate(
     reset_projects_singleton: None,
     patched_db_session: unittest.mock.MagicMock,
@@ -939,6 +967,34 @@ def test_purge_follower_project_resources_uses_cascading_strategy(
         delete_mock.call_args.kwargs["deletion_strategy"]
         == mlrun.common.schemas.DeletionStrategy.cascading
     )
+
+
+def test_purge_follower_project_resources_does_not_emit_lifecycle_event(
+    reset_projects_singleton: None,
+    patched_db_session: unittest.mock.MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """Orca already decided the delete and publishes its outcome; MLRun's own
+    deletion event would duplicate it."""
+    events_client = unittest.mock.MagicMock()
+    monkeypatch.setattr(
+        "services.api.utils.events.events_factory.EventsFactory.get_events_client",
+        lambda *args, **kwargs: events_client,
+    )
+    monkeypatch.setattr(
+        projects_crud.Projects, "delete_project_resources", unittest.mock.MagicMock()
+    )
+    monkeypatch.setattr(
+        "framework.utils.singletons.db.get_db", lambda: unittest.mock.MagicMock()
+    )
+    project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name="proj")
+    )
+
+    projects_crud.Projects()._purge_follower_project_resources(project)
+
+    events_client.generate_project_lifecycle_event.assert_not_called()
+    events_client.emit.assert_not_called()
 
 
 def test_commit_delete_project_retry_with_same_op_id_reuses_active_task(

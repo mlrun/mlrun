@@ -1,0 +1,48 @@
+# Copyright 2026 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Go Security Scan
+
+permissions:
+  contents: read
+
+on:
+  # The Go CI only runs on PRs that change server/go/**, and Dependabot does not bump the go.mod `toolchain`
+  # directive, so new vulnerabilities in the pinned Go release or in Go modules can go unnoticed for long periods.
+  # Run govulncheck weekly on the default branch to catch them.
+  schedule:
+  - cron: "0 5 * * 1"  # At 5 AM UTC on every Monday
+  workflow_dispatch:
+
+jobs:
+  govulncheck:
+    name: Run govulncheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          # same Go version as the Go CI lint job: the `toolchain` directive pinned in go.mod
+          go-version-file: "server/go/go.mod"
+          cache-dependency-path: "server/go/go.sum"
+          cache: true
+      - name: Install protobuf compiler
+        run: |
+          sudo apt-get update && sudo apt install -y protobuf-compiler
+
+          # versions are coupled to `server/common/builder/schemas_compiler/docker/Dockerfile`
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
+          go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.6.1
+      - name: Run govulncheck
+        run: make security-go

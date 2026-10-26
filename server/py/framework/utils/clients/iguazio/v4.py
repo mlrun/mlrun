@@ -30,7 +30,8 @@ import mlrun.common.formatters
 import mlrun.common.schemas
 import mlrun.common.types
 import mlrun.errors
-from mlrun.utils import get_in
+from mlrun.config import config
+from mlrun.utils import get_in, logger
 
 import framework.utils.clients.helpers as clients_helpers
 import framework.utils.clients.service_account_token as service_account_token
@@ -156,6 +157,24 @@ class Client(BaseClient, project_follower.Member):
             mlrun.errors.MLRunUnauthorizedError,
             "Failed to revoke offline token from Iguazio",
             auth_headers=request_headers,
+        )
+
+    def get_oris_version(self) -> str:
+        """
+        Fetch Oris's own release version from its system-info API.
+
+        :return: Oris's version string (e.g. "1.2.0").
+        :raises mlrun.errors.MLRunRuntimeError: If the request to Oris fails.
+        """
+
+        def _get_oris_version():
+            system_info = self._client.get_system_info()
+            return system_info.metadata.version.oris_version
+
+        return self._try_callback_with_httpx_exceptions(
+            _get_oris_version,
+            mlrun.errors.MLRunRuntimeError,
+            "Failed to get Oris version from its system-info API",
         )
 
     def get_user_id_by_username(
@@ -625,3 +644,19 @@ class AsyncClient(BaseAsyncClient, Client):
     """Asynchronous implementation of the Iguazio V4 client. Inherits logic from Client and BaseAsyncClient."""
 
     pass
+
+
+# if oris version specified on mlrun config set it likewise,
+# if not specified, get it from Oris's own info API
+# since this is a heavy operation (sending requests to API), and it's unlikely that the version
+# will change - only fetch it once
+def resolve_oris_version() -> str:
+    if not config.oris_version and config.iguazio_api_url:
+        try:
+            config.oris_version = Client().get_oris_version()
+        except Exception as exc:
+            logger.warning(
+                "Failed to resolve Oris version", exc=mlrun.errors.err_to_str(exc)
+            )
+
+    return config.oris_version

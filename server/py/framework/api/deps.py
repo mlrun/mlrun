@@ -30,7 +30,7 @@ def get_db_session(
 ) -> typing.Generator[Session | None, None, None]:
     # FastAPI dependencies automatically create DB sessions when entering an endpoint.
     # These sessions are redundant when the request is going to be forwarded to services.
-    if not request.app.extra.get("mlrun_service").is_forwarded_request(request):
+    if not request.app.state.mlrun_service.is_forwarded_request(request):
         db_session = None
         try:
             db_session = framework.db.session.create_session()
@@ -77,8 +77,6 @@ def verify_api_state(request: Request):
             # clusterization purposes
             "client-spec",
             "clusterization-spec",
-            # debug purposes
-            "memory-reports",
             # allow authentication
             "user-secrets/tokens",
         ]
@@ -87,18 +85,6 @@ def verify_api_state(request: Request):
                 mlrun.mlconf.httpdb.state
             )
             raise mlrun.errors.MLRunPreconditionFailedError(message)
-
-
-def expose_internal_endpoints(request: Request):
-    if not mlrun.mlconf.debug.expose_internal_api_endpoints:
-        path_with_query_string = uvicorn.protocols.utils.get_path_with_query_string(
-            request.scope
-        )
-        path = path_with_query_string.split("?")[0]
-        if "/_internal" in path:
-            raise mlrun.errors.MLRunPreconditionFailedError(
-                "Internal endpoints are not exposed"
-            )
 
 
 def iguazio_v4_only(request: Request):

@@ -1427,7 +1427,8 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
 
     def store_user_token_secret(
         self,
-        auth_info: mlrun.common.schemas.AuthInfo,
+        user_id: str,
+        username: str,
         token_name: str,
         token: str,
         expiration: int,
@@ -1446,7 +1447,8 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         - `tokensFile`: Base64-encoded YAML containing the token and its name.
         - `tokenExpiration`: Token expiration as a string.
 
-        :param auth_info: Authentication information containing user_id and username.
+        :param user_id: The token owner's user ID.
+        :param username: The token owner's username.
         :param token_name: The logical name for the token.
         :param token: The offline token string (JWT).
         :param expiration: The token's expiration timestamp (int UNIX epoch).
@@ -1456,13 +1458,10 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         :param namespace: Kubernetes namespace for the secret.
         :return: SecretEventActions.{created, updated, skipped}
         """
-        user_id = auth_info.user_id
-        username = auth_info.username
-
         if user_id is None or username is None:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "secret token handling is only supported in enterprise where"
-                "auth_info.user_id and auth_info.username should always be filled"
+                "secret token handling is only supported in enterprise where "
+                "user_id and username should always be filled"
             )
 
         # Canonicalize to lowercase: Keycloak/Iguazio treat usernames case-insensitively,
@@ -2098,6 +2097,7 @@ class BasePod:
         env=None,
         image_pull_policy="IfNotPresent",
         name="init",
+        env_from=None,
     ):
         if isinstance(env, dict):
             env = [client.V1EnvVar(name=k, value=v) for k, v in env.items()]
@@ -2106,6 +2106,7 @@ class BasePod:
                 name=name,
                 image=image,
                 env=env,
+                env_from=env_from,
                 command=command,
                 args=args,
                 image_pull_policy=image_pull_policy,

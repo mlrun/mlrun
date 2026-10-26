@@ -122,6 +122,40 @@ def validate_basic_auth_creds(authentication_creds: tuple[str, str] | None) -> N
         )
 
 
+def resolve_invoke_auth(auth_info: AuthInfo | None) -> requests.auth.AuthBase | None:
+    """Resolve the requests auth object to invoke a function with, directly or through an API gateway.
+
+    Uses ``auth_info`` when it carries credentials. Otherwise, when function-level
+    authentication is enabled, the HTTP trigger rejects credential-less requests
+    (``api`` mode on EcliptOS), so fall back to the caller's own credentials: the run DB
+    token (its provider caches and refreshes the token across invocations), then the environment.
+
+    :param auth_info: credentials passed by the caller, if any.
+    :return: a requests auth object, or None to send the request unauthenticated.
+    """
+    if auth_info and (auth_info.request_headers or auth_info.session):
+        nuclio_auth_info = mlrun.auth.nuclio.NuclioAuthInfo.from_auth_info(auth_info)
+        if nuclio_auth_info and (auth := nuclio_auth_info.to_requests_auth()):
+            return auth
+
+    if not mlrun.mlconf.is_nuclio_function_authentication_enabled():
+        return None
+    try:
+        token_provider = getattr(mlrun.get_run_db(), "token_provider", None)
+        token = token_provider.get_token() if token_provider else None
+        # the function auth-proxy accepts a bearer token only, not an Iguazio session cookie
+        if token and not token_provider.is_iguazio_session():
+            return mlrun.auth.nuclio.NuclioAuthInfo(token=token).to_requests_auth()
+        return mlrun.auth.nuclio.NuclioAuthInfo.from_envvar().to_requests_auth()
+    except Exception as exc:
+        # let the function return its own 401 rather than failing the invocation client-side
+        logger.warning(
+            "Failed to resolve credentials for function invocation, invoking unauthenticated",
+            error=err_to_str(exc),
+        )
+        return None
+
+
 @dataclass
 class AsyncSpec:
     enabled: bool = True
@@ -1435,7 +1469,7 @@ class RemoteRuntime(KubeResource):
         if http_client_kwargs.get("auth") is None and not any(
             key.lower() == "authorization" for key in headers
         ):
-            http_client_kwargs["auth"] = self._resolve_invoke_auth(auth_info=auth_info)
+            http_client_kwargs["auth"] = resolve_invoke_auth(auth_info=auth_info)
         if body:
             if isinstance(body, str | bytes):
                 http_client_kwargs["data"] = body
@@ -1461,44 +1495,6 @@ class RemoteRuntime(KubeResource):
         if data and resp.headers["content-type"] == "application/json":
             data = json.loads(data)
         return data
-
-    @staticmethod
-    def _resolve_invoke_auth(
-        auth_info: AuthInfo | None,
-    ) -> requests.auth.AuthBase | None:
-        """Resolve the requests auth object to invoke the function with.
-
-        Uses ``auth_info`` when it carries credentials. Otherwise, when function-level
-        authentication is enabled, the HTTP trigger rejects credential-less requests
-        (``api`` mode on EcliptOS), so fall back to the caller's own credentials: the run DB
-        token (its provider caches and refreshes the token across invocations), then the environment.
-
-        :param auth_info: credentials passed by the caller, if any.
-        :return: a requests auth object, or None to send the request unauthenticated.
-        """
-        if auth_info and (auth_info.request_headers or auth_info.session):
-            nuclio_auth_info = mlrun.auth.nuclio.NuclioAuthInfo.from_auth_info(
-                auth_info
-            )
-            if nuclio_auth_info and (auth := nuclio_auth_info.to_requests_auth()):
-                return auth
-
-        if not mlrun.mlconf.is_nuclio_function_authentication_enabled():
-            return None
-        try:
-            token_provider = getattr(mlrun.get_run_db(), "token_provider", None)
-            token = token_provider.get_token() if token_provider else None
-            # the function auth-proxy accepts a bearer token only, not an Iguazio session cookie
-            if token and not token_provider.is_iguazio_session():
-                return mlrun.auth.nuclio.NuclioAuthInfo(token=token).to_requests_auth()
-            return mlrun.auth.nuclio.NuclioAuthInfo.from_envvar().to_requests_auth()
-        except Exception as exc:
-            # let the function return its own 401 rather than failing the invocation client-side
-            logger.warning(
-                "Failed to resolve credentials for function invocation, invoking unauthenticated",
-                error=err_to_str(exc),
-            )
-            return None
 
     def with_sidecar(
         self,

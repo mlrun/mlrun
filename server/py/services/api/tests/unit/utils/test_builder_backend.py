@@ -942,6 +942,23 @@ def test_buildah_backend_routes_remote_source_through_fetch_init_container(sourc
     assert "ADD ./source /home/mlrun_code" in _decoded_dockerfile(pod)
 
 
+def test_buildah_backend_fetch_init_container_references_auto_mount_env_from(
+    monkeypatch,
+):
+    # secret_env without keys (the CE chart default) mounts the storage secret via envFrom;
+    # the fetch-source init container needs that reference to read an s3:// source.
+    monkeypatch.setattr(mlrun.mlconf.storage, "auto_mount_type", "secret_env")
+    monkeypatch.setattr(
+        mlrun.mlconf.storage, "auto_mount_params", "secret_name=storage-credentials"
+    )
+    pod = _make_buildah_backend_pod(source="s3://bucket/path/project.tar.gz")
+
+    fetch_container = _init_container_by_name(pod, "fetch-source")
+    assert [
+        env_from.secret_ref.name for env_from in fetch_container.env_from or []
+    ] == ["storage-credentials"]
+
+
 def test_buildah_backend_chowns_fetch_source_populated_dir():
     # the fetch-source init container gets no matching security context, so it clones as its
     # image's default user (root), not the build container's non-root uid - the chown here is a

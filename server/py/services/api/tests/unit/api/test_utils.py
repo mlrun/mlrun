@@ -1188,6 +1188,31 @@ def test_ensure_function_security_context_run_as_non_root_from_default(
     assert function.spec.security_context.run_as_non_root is False
 
 
+def test_ensure_function_security_context_non_root_home_is_generated_not_stored(
+    db: Session, client: TestClient
+):
+    services.api.tests.unit.api.utils.create_project(client, PROJECT)
+    mlrun.mlconf.igz_version = "3.6"
+    mlrun.mlconf.function.spec.security_context.enrichment_mode = (
+        mlrun.common.schemas.SecurityContextEnrichmentModes.override.value
+    )
+    framework.utils.clients.iguazio.v3.Client.get_user_unix_id = unittest.mock.Mock()
+    auth_info = mlrun.common.schemas.AuthInfo(user_unix_id=1000)
+    _, _, _, original_function_dict = _generate_original_function(
+        kind=mlrun.runtimes.RuntimeKinds.job
+    )
+
+    function = mlrun.new_function(runtime=original_function_dict)
+    framework.api.utils.ensure_function_security_context(function, auth_info)
+
+    runtime_env, _ = function._generate_runtime_env()
+    assert runtime_env["HOME"] == "/tmp"
+
+    # the default is generated and must not be stored in the function spec
+    stored_env = function.to_dict()["spec"].get("env") or []
+    assert "HOME" not in [env_var["name"] for env_var in stored_env]
+
+
 def test_ensure_function_security_context_enrichment_group_id(
     db: Session, client: TestClient
 ):

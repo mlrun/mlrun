@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import time
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock, patch
 
 import jwt
@@ -24,7 +24,7 @@ import mlrun.common.schemas
 import mlrun.common.types
 import mlrun.errors
 import mlrun.utils.logger
-from mlrun.auth.providers import IGTokenProvider
+from mlrun.auth.providers import IGTokenProvider, OAuthClientIDTokenProvider
 from mlrun.config import config
 
 
@@ -63,7 +63,7 @@ def test_ig_token_provider_successful_flow(encoded_jwt_token):
             # Check token and lifetime
             assert provider.get_token()
             assert provider._token_total_lifetime == exp - iat
-            assert provider._token_expiry_time == datetime.fromtimestamp(exp)
+            assert provider._token_expiry_time == datetime.fromtimestamp(exp, tz=UTC)
 
 
 def test_with_empty_endpoint():
@@ -92,7 +92,9 @@ def test_is_access_token_valid(
     provider = IGTokenProvider.__new__(IGTokenProvider)
     provider._token = "token"
     provider._token_total_lifetime = total_lifetime
-    provider._token_expiry_time = datetime.now() + timedelta(seconds=remaining_seconds)
+    provider._token_expiry_time = datetime.now(UTC) + timedelta(
+        seconds=remaining_seconds
+    )
 
     if threshold is not None:
         monkeypatch.setattr(
@@ -110,15 +112,18 @@ def test_is_access_token_valid(
         (
             jwt.encode(
                 {
-                    "iat": int((datetime.now() - timedelta(seconds=10)).timestamp()),
-                    "exp": int((datetime.now() + timedelta(seconds=100)).timestamp()),
+                    "iat": int((datetime.now(UTC) - timedelta(seconds=10)).timestamp()),
+                    "exp": int(
+                        (datetime.now(UTC) + timedelta(seconds=100)).timestamp()
+                    ),
                 },
                 key="secret",
                 algorithm="HS256",
             ),
             110,  # exp - iat
             datetime.fromtimestamp(
-                int((datetime.now() + timedelta(seconds=100)).timestamp())
+                int((datetime.now(UTC) + timedelta(seconds=100)).timestamp()),
+                tz=UTC,
             ),
         ),
         # Missing iat
@@ -148,7 +153,7 @@ def test_token_cleanup_when_expired(encoded_jwt_token, monkeypatch):
     provider = IGTokenProvider.__new__(IGTokenProvider)
     provider._token = token
     provider._token_total_lifetime = 100
-    provider._token_expiry_time = datetime.now() - timedelta(seconds=5)
+    provider._token_expiry_time = datetime.now(UTC) - timedelta(seconds=5)
 
     monkeypatch.setattr("mlrun.mlconf.auth_with_oauth_token.refresh_threshold", 0.5)
 
@@ -163,7 +168,7 @@ def test_post_fetch_hook_warns_near_expiry(monkeypatch, encoded_jwt_token):
     provider._token = token
     provider._token_total_lifetime = 100
     provider._max_retries = 3
-    provider._token_expiry_time = datetime.now() + timedelta(seconds=2)
+    provider._token_expiry_time = datetime.now(UTC) + timedelta(seconds=2)
 
     monkeypatch.setattr("mlrun.secrets.sync_secret_tokens", MagicMock())
     monkeypatch.setattr("mlrun.mlconf.auth_with_oauth_token.refresh_threshold", 0.9)
@@ -191,7 +196,7 @@ def test_refresh_token_fails_and_is_not_valid(monkeypatch):
     provider._token_total_lifetime = 100
     provider._max_retries = 3
 
-    provider._token_expiry_time = datetime.now() - timedelta(seconds=5)
+    provider._token_expiry_time = datetime.now(UTC) - timedelta(seconds=5)
 
     monkeypatch.setattr("mlrun.mlconf.auth_with_oauth_token.refresh_threshold", 0.5)
     monkeypatch.setattr("mlrun.mlconf.auth_with_oauth_token.token_file", "not-exists")
@@ -208,7 +213,7 @@ def test_refresh_token_fails_and_is_not_valid(monkeypatch):
     # set token lifetime to be almost expired
     provider._token = "almost_expired_token"
     provider._token_total_lifetime = 100
-    provider._token_expiry_time = datetime.now() + timedelta(seconds=2)
+    provider._token_expiry_time = datetime.now(UTC) + timedelta(seconds=2)
 
     # refresh will fail, but should not raise an error in this case, because _token is not empty after post hook
     provider._refresh_token_if_needed()
@@ -362,3 +367,103 @@ def test_runtime_retry_succeeds_after_initial_failures(encoded_jwt_token, monkey
     assert provider._token == encoded_jwt
     # Verify multiple attempts were made (at least 3: 2 failures + 1 success)
     assert call_count[0] >= 3
+
+
+# Asia/Jerusalem DST ended on 2026-10-25 at 02:00 IDT, i.e. 2026-10-24 23:00:00 UTC
+_dst_fall_back_utc = datetime(2026, 10, 24, 23, 0, 0, tzinfo=UTC)
+
+
+@pytest.fixture
+def dst_local_timezone(monkeypatch):
+    if not hasattr(time, "tzset"):
+        pytest.skip("time.tzset is not available on this platform")
+    monkeypatch.setenv("TZ", "Asia/Jerusalem")
+    time.tzset()
+    yield
+    monkeypatch.undo()
+    time.tzset()
+
+
+def _freeze_providers_now(monkeypatch, frozen_now: datetime):
+    class _FrozenDatetime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            if tz is None:
+                return frozen_now.astimezone().replace(tzinfo=None)
+            return frozen_now.astimezone(tz)
+
+    monkeypatch.setattr("mlrun.auth.providers.datetime", _FrozenDatetime)
+
+
+@pytest.mark.parametrize(
+    "seconds_before_dst_change",
+    [
+        # Inside the window where now is before the DST change and expiry is after it
+        60,
+        600,
+        # Outside the window
+        1200,
+        -600,
+    ],
+)
+def test_ig_token_provider_fresh_token_valid_across_dst_fall_back(
+    monkeypatch, dst_local_timezone, seconds_before_dst_change
+):
+    token_lifetime_seconds = 900
+    now = _dst_fall_back_utc - timedelta(seconds=seconds_before_dst_change)
+    _freeze_providers_now(monkeypatch, now)
+    iat = int(now.timestamp())
+    access_token = jwt.encode(
+        {"iat": iat, "exp": iat + token_lifetime_seconds, "sub": "test-user"},
+        key=None,
+        algorithm="none",
+    )
+
+    with patch.object(
+        mlrun.auth.utils,
+        "load_offline_token",
+        return_value=("offline-token", "offline-token-name"),
+    ):
+        with patch("mlrun.utils.HTTPSessionWithRetry") as mock_session:
+            mock_response = MagicMock()
+            mock_response.ok = True
+            mock_response.json.return_value = {"spec": {"accessToken": access_token}}
+            mock_session.return_value.request.return_value = mock_response
+
+            # Fetching on init must not discard the freshly issued token
+            provider = IGTokenProvider(token_endpoint="http://example.com")
+
+    assert provider._token == access_token
+    assert provider._is_token_within_refresh_threshold(cleanup_if_expired=False)
+    remaining_seconds = (provider._token_expiry_time - now).total_seconds()
+    assert remaining_seconds == token_lifetime_seconds
+
+
+def test_oauth_client_id_token_provider_expires_across_dst_fall_back(
+    monkeypatch, dst_local_timezone
+):
+    token_lifetime_seconds = 900
+    fetch_time = _dst_fall_back_utc - timedelta(minutes=10)
+    _freeze_providers_now(monkeypatch, fetch_time)
+
+    with patch("mlrun.utils.HTTPSessionWithRetry") as mock_session:
+        mock_response = MagicMock()
+        mock_response.ok = True
+        mock_response.json.return_value = {
+            "access_token": "client-id-token",
+            "expires_in": token_lifetime_seconds,
+        }
+        mock_session.return_value.request.return_value = mock_response
+        provider = OAuthClientIDTokenProvider(
+            token_endpoint="http://example.com",
+            client_id="client-id",
+            client_secret="client-secret",
+        )
+
+    assert provider._is_token_within_refresh_threshold(cleanup_if_expired=False)
+
+    # 5 minutes past the real expiry, after the local clock has been set back an hour
+    _freeze_providers_now(
+        monkeypatch, fetch_time + timedelta(seconds=token_lifetime_seconds + 300)
+    )
+    assert not provider._is_token_within_refresh_threshold(cleanup_if_expired=False)

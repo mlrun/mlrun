@@ -290,6 +290,7 @@ def extract_and_validate_tokens_info(
     authenticated_id: str,
     filter_by_authenticated_id: bool = False,
     skip_invalid: bool = False,
+    bypass_ownership_check: bool = False,
 ) -> dict[str, dict[str, typing.Any]]:
     """
     Extract and validate tokens info from a list of SecretToken objects.
@@ -299,6 +300,9 @@ def extract_and_validate_tokens_info(
     :param filter_by_authenticated_id: Whether to filter tokens by the authenticated user ID.
     :param skip_invalid: If True, skip tokens that fail decoding/validation instead of raising.
                          Useful for client-side flows where partial success is acceptable.
+    :param bypass_ownership_check: If True, skip the check that the token's subject matches
+                         ``authenticated_id``. Used for a trusted service-account caller storing
+                         a token on behalf of a different user than itself.
     :return: Dictionary of token info with the token name as the key and the token as the value.
     """
     token_values = {}
@@ -329,9 +333,10 @@ def extract_and_validate_tokens_info(
                         f"Offline token '{token_name}' is missing the 'iat' (issued at) claim"
                     )
 
-                # Validate token belongs to the authenticated user
+                # Validate token belongs to the authenticated user, unless the caller is a
+                # trusted service account storing a token on behalf of a different user.
                 token_sub = decoded_token.get(Claims.SUBJECT)
-                if token_sub != authenticated_id:
+                if not bypass_ownership_check and token_sub != authenticated_id:
                     # just ignore the token as it doesn't belong to the authenticated user
                     if filter_by_authenticated_id:
                         continue
@@ -351,6 +356,7 @@ def extract_and_validate_tokens_info(
                     "token_exp": decoded_token.get(Claims.EXPIRATION),
                     "token_iat": decoded_token.get(Claims.ISSUED_AT),
                     "token": secret_token.token,
+                    "token_sub": token_sub,
                 }
             except mlrun.errors.MLRunInvalidArgumentError as exc:
                 if skip_invalid:

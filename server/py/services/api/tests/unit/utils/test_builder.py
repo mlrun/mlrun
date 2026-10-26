@@ -1889,6 +1889,28 @@ def test_build_runtime_kaniko_incompatible_source_applies_storage_auto_mount_env
     assert env_by_name.get("STORAGE_ACCOUNT") == "smoke-account"
 
 
+def test_build_runtime_kaniko_incompatible_source_applies_storage_auto_mount_env_from(
+    monkeypatch,
+):
+    """secret_env without keys (the CE chart default) mounts the auto-mount secret via
+    envFrom; the fetch-source init container must reference it so k8s resolves it."""
+    _patch_k8s_helper(monkeypatch)
+    config.httpdb.builder.docker_registry = "default.docker.registry/default-repository"
+    monkeypatch.setattr(config.storage, "auto_mount_type", "secret_env")
+    monkeypatch.setattr(
+        config.storage, "auto_mount_params", "secret_name=storage-credentials"
+    )
+
+    _build_with_source("az://container/path/project.tar.gz")
+
+    fetch_container = _init_container_by_name("fetch-source")
+    assert [
+        env_from.secret_ref.name for env_from in fetch_container.env_from or []
+    ] == ["storage-credentials"]
+    # project secrets stay in env, which k8s ranks above envFrom
+    assert [env_var.name for env_var in fetch_container.env or []] == ["KEY"]
+
+
 def test_build_runtime_kaniko_incompatible_source_auto_mount_none_adds_no_env(
     monkeypatch,
 ):
@@ -1967,6 +1989,7 @@ def test_build_runtime_kaniko_incompatible_source_applies_s3_auto_mount_env(
     fetch_container = _init_container_by_name("fetch-source")
     env_by_name = {env_var.name: env_var.value for env_var in fetch_container.env or []}
     assert env_by_name.get("AWS_REGION") == "us-east-1"
+    assert not fetch_container.env_from
 
 
 def test_build_runtime_kaniko_incompatible_source_passes_secrets_to_fetcher(

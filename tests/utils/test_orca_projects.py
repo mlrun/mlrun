@@ -133,6 +133,39 @@ def test_verify_action_execution_terminal_failed_raises_fatal():
         )
 
 
+def test_verify_action_execution_terminal_failed_includes_last_error():
+    body = {
+        "items": [
+            {
+                "status": {
+                    "state": "failed",
+                    "lastError": "dial tcp nuclio-dashboard: connection refused",
+                }
+            }
+        ]
+    }
+    with pytest.raises(
+        orca_projects.OrcaActionFailedError,
+        match="failed: dial tcp.*connection refused",
+    ):
+        orca_projects.verify_action_execution_terminal(body, "p1", "op-id")
+
+
+@pytest.mark.parametrize(
+    "status, expected",
+    [
+        ({"opId": "op-id", "state": "online"}, True),
+        ({"opId": "op-id", "state": "archived"}, True),
+        # a create (or an upsert Orca turned into one) omits the proto-default "creating" state
+        ({"opId": "op-id"}, False),
+        ({"opId": "op-id", "state": "creating"}, False),
+        ({"opId": "op-id", "state": "deleting"}, False),
+    ],
+)
+def test_is_update_of_existing_project(status, expected):
+    assert orca_projects.is_update_of_existing_project({"status": status}) is expected
+
+
 @pytest.mark.parametrize(
     "body",
     [

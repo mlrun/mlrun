@@ -154,6 +154,24 @@ def extract_op_id(body: dict) -> uuid.UUID | str:
     return body["status"]["opId"]
 
 
+def is_update_of_existing_project(body: dict) -> bool:
+    """Whether a create/update/patch response describes a CAS update of an existing project.
+    A create - including an upsert Orca turned into one - has no stored state yet (``creating``
+    is the proto default, so it's omitted from the JSON).
+
+    Unlike create/delete, an update is not 2PC: Orca stores it before fanning it out, so a
+    failed sync-project action only means some follower didn't apply it - whether it was down
+    or rejected the change - and Orca's reconcile re-drives it.
+
+    :param body: The parsed JSON body of an Orca create/update/patch response.
+    :return: Whether the response is for an update of an existing project.
+    """
+    return body["status"].get("state") in (
+        mlrun.common.schemas.ProjectState.online,
+        mlrun.common.schemas.ProjectState.archived,
+    )
+
+
 def extract_error_details(body: dict) -> tuple[str | None, str | None]:
     """Pull ``errorMessage``/``ctx`` out of an Orca error response body's ``status`` envelope -
     shared by every caller that talks to Orca (not just the projects ones), since it's Orca's
@@ -230,11 +248,13 @@ def verify_action_execution_terminal(
         raise mlrun.errors.MLRunRuntimeError(
             f"No Orca sync-project action observed yet for project {name} (op_id={op_id})"
         )
-    state = items[0].get("status", {}).get("state")
+    status = items[0].get("status", {})
+    state = status.get("state")
     if state == ActionExecutionState.failed:
-        raise OrcaActionFailedError(
-            f"Orca sync-project action for project {name} (op_id={op_id}) failed"
-        )
+        message = f"Orca sync-project action for project {name} (op_id={op_id}) failed"
+        if last_error := status.get("lastError"):
+            message = f"{message}: {last_error}"
+        raise OrcaActionFailedError(message)
     if state != ActionExecutionState.succeeded:
         raise mlrun.errors.MLRunRuntimeError(
             f"Orca sync-project action for project {name} (op_id={op_id}) is still in "

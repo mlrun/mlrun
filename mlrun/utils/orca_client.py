@@ -151,13 +151,22 @@ class ProjectsOrchestrator:
         at here; ``op_id`` (already returned by :meth:`create`/:meth:`update`/:meth:`patch`) is
         their handle to check later. A synchronous (non-202) response is already terminal, so
         this fetches nothing further and parses the project out of it directly; a 202 is polled
-        to a terminal state via :meth:`wait_for_op`, then the final project is fetched fresh.
+        to a terminal state via :meth:`wait_for_op`, then the final project is fetched fresh. An
+        update of an existing project whose fan-out failed still returns the project as Orca
+        holds it; a create never carries a stored state, so it stays strict (see
+        :func:`mlrun.utils.orca_projects.is_update_of_existing_project`).
         """
         if not wait_for_completion:
             return None
         if response.status_code != requests.codes.accepted:
             return orca_projects.to_mlproject(response.json())
-        self.wait_for_op(name, op_id)
+        self.wait_for_op(
+            name,
+            op_id,
+            tolerate_failed_fan_out=orca_projects.is_update_of_existing_project(
+                response.json()
+            ),
+        )
         return self.get(name)
 
     def resolve_prev_op_id(
@@ -176,38 +185,61 @@ class ProjectsOrchestrator:
         except mlrun.errors.MLRunNotFoundError:
             return None
 
-    def wait_for_op(self, name: str, op_id: uuid.UUID | str) -> None:
+    def wait_for_op(
+        self,
+        name: str,
+        op_id: uuid.UUID | str,
+        *,
+        tolerate_failed_fan_out: bool = False,
+    ) -> None:
         """Poll the sync-project trackable action for ``op_id`` to a terminal state.
 
-        :raises mlrun.errors.MLRunRuntimeError: if the action fails or the poll times out.
+        :param name: The project name.
+        :param op_id: The operation id to wait for.
+        :param tolerate_failed_fan_out: Treat a failed action as done, with a warning. Only for
+            an update of an existing project
+            (:func:`mlrun.utils.orca_projects.is_update_of_existing_project`).
+        :raises mlrun.errors.MLRunRetryExhaustedError: if the poll times out, or the action
+            fails and ``tolerate_failed_fan_out`` is ``False``.
         """
         self._logger.debug(
             "Waiting for Orca sync-project action to reach a terminal state",
             name=name,
             op_id=op_id,
         )
-        try:
-            mlrun.utils.helpers.retry_until_successful(
-                self._poll_interval_seconds,
-                self._poll_timeout_seconds,
-                self._logger,
-                False,
-                self._verify_op_terminal,
-                name,
-                op_id,
-                fatal_exceptions=(orca_projects.OrcaActionFailedError,),
-            )
-        except orca_projects.OrcaActionFailedError as exc:
-            raise mlrun.errors.MLRunRuntimeError(str(exc)) from exc
+        mlrun.utils.helpers.retry_until_successful(
+            self._poll_interval_seconds,
+            self._poll_timeout_seconds,
+            self._logger,
+            False,
+            self._verify_op_terminal,
+            name,
+            op_id,
+            tolerate_failed_fan_out=tolerate_failed_fan_out,
+            fatal_exceptions=(orca_projects.OrcaActionFailedError,),
+        )
 
-    def _verify_op_terminal(self, name: str, op_id: uuid.UUID | str) -> None:
+    def _verify_op_terminal(
+        self, name: str, op_id: uuid.UUID | str, tolerate_failed_fan_out: bool
+    ) -> None:
         response = self._send_request(
             "GET",
             orca_projects.ACTION_EXECUTIONS_ENDPOINT,
             "Failed getting Orca sync-project action execution",
             params=orca_projects.action_execution_query_params(op_id),
         )
-        orca_projects.verify_action_execution_terminal(response.json(), name, op_id)
+        try:
+            orca_projects.verify_action_execution_terminal(response.json(), name, op_id)
+        except orca_projects.OrcaActionFailedError as exc:
+            if not tolerate_failed_fan_out:
+                raise
+            self._logger.warning(
+                "Orca stored the project update but not every follower applied it, "
+                "Orca's reconcile will re-drive it",
+                name=name,
+                op_id=op_id,
+                error=mlrun.errors.err_to_str(exc),
+            )
 
     @staticmethod
     def _merge_for_patch(

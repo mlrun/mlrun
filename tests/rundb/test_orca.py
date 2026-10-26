@@ -350,6 +350,137 @@ class TestOrcaProjectsClient:
         ]
         assert len(poll_requests) == 1
 
+    def test_patch_project_failed_fan_out_returns_stored_project(
+        self, requests_mock, orca_client
+    ):
+        # ORIS-4791: Orca stores an update before fanning it out, so a follower being down must
+        # not turn a stored patch into an error - and must not make the caller re-send it.
+        prev_op_id = str(uuid.uuid4())
+        op_id = str(uuid.uuid4())
+        stored = _project_wire_body("p9", op_id, "online")
+        stored["spec"]["description"] = "new desc"
+        requests_mock.get(
+            f"{ORCA_API_URL}/api/v1/projects/projects/p9",
+            [
+                {"json": _project_wire_body("p9", prev_op_id, "online")},
+                {"json": stored},
+            ],
+        )
+        requests_mock.patch(
+            f"{ORCA_API_URL}/api/v1/projects/projects/p9",
+            json=stored,
+            status_code=202,
+        )
+        requests_mock.get(
+            f"{ORCA_API_URL}/api/v1/trackable-actions/executions",
+            json={
+                "items": [
+                    {"status": {"state": "failed", "lastError": "connection refused"}}
+                ]
+            },
+        )
+        orca_client._orchestrator._logger = unittest.mock.Mock()
+
+        result = orca_client.patch_project("p9", {"spec": {"description": "new desc"}})
+
+        assert result.spec.description == "new desc"
+        assert str(result.status.op_id) == op_id
+        history = requests_mock.request_history
+        assert len([r for r in history if r.method == "PATCH"]) == 1
+        assert len([r for r in history if "trackable-actions" in r.url]) == 1
+        orca_client._orchestrator._logger.warning.assert_called_once()
+        assert (
+            orca_client._orchestrator._logger.warning.call_args.kwargs["op_id"] == op_id
+        )
+
+    @pytest.mark.parametrize("state", ["online", "archived"])
+    def test_update_project_failed_fan_out_returns_stored_project(
+        self, requests_mock, orca_client, state
+    ):
+        op_id = str(uuid.uuid4())
+        requests_mock.put(
+            f"{ORCA_API_URL}/api/v1/projects/projects/p10",
+            json=_project_wire_body("p10", op_id, state),
+            status_code=202,
+        )
+        requests_mock.get(
+            f"{ORCA_API_URL}/api/v1/trackable-actions/executions",
+            json={"items": [{"status": {"state": "failed"}}]},
+        )
+        requests_mock.get(
+            f"{ORCA_API_URL}/api/v1/projects/projects/p10",
+            json=_project_wire_body("p10", op_id, state),
+        )
+
+        project = mlrun.common.schemas.Project(
+            metadata=mlrun.common.schemas.ProjectMetadata(name="p10"),
+            spec=mlrun.common.schemas.ProjectSpec(owner="jsmith"),
+            status=mlrun.common.schemas.ProjectStatus(op_id=uuid.uuid4()),
+        )
+        result = orca_client.update_project("p10", project)
+
+        assert str(result.status.op_id) == op_id
+
+    def test_update_project_upsert_create_failed_fan_out_raises(
+        self, requests_mock, orca_client
+    ):
+        # a PUT on a missing project is a 2PC create inside Orca - its response carries no
+        # stored state, and a follower being down blocks it
+        op_id = str(uuid.uuid4())
+        requests_mock.get(
+            f"{ORCA_API_URL}/api/v1/projects/projects/p11",
+            status_code=404,
+        )
+        requests_mock.put(
+            f"{ORCA_API_URL}/api/v1/projects/projects/p11",
+            json={"status": {"opId": op_id}},
+            status_code=202,
+        )
+        requests_mock.get(
+            f"{ORCA_API_URL}/api/v1/trackable-actions/executions",
+            json={"items": [{"status": {"state": "failed"}}]},
+        )
+
+        with pytest.raises(mlrun.errors.MLRunRetryExhaustedError):
+            orca_client.update_project("p11", _mlrun_project("p11", owner="jsmith"))
+
+    def test_update_project_poll_timeout_still_raises(self, requests_mock, orca_client):
+        # only a terminal "failed" is tolerated for an update - an unknown outcome is not
+        op_id = str(uuid.uuid4())
+        requests_mock.put(
+            f"{ORCA_API_URL}/api/v1/projects/projects/p12",
+            json=_project_wire_body("p12", op_id, "online"),
+            status_code=202,
+        )
+        requests_mock.get(
+            f"{ORCA_API_URL}/api/v1/trackable-actions/executions",
+            json={"items": [{"status": {"state": "running"}}]},
+        )
+        orca_client._orchestrator._poll_timeout_seconds = 0.1
+
+        project = mlrun.common.schemas.Project(
+            metadata=mlrun.common.schemas.ProjectMetadata(name="p12"),
+            spec=mlrun.common.schemas.ProjectSpec(owner="jsmith"),
+            status=mlrun.common.schemas.ProjectStatus(op_id=uuid.uuid4()),
+        )
+        with pytest.raises(mlrun.errors.MLRunRetryExhaustedError, match="still in"):
+            orca_client.update_project("p12", project)
+
+    def test_create_project_failed_fan_out_raises(self, requests_mock, orca_client):
+        op_id = str(uuid.uuid4())
+        requests_mock.post(
+            f"{ORCA_API_URL}/api/v1/projects/projects",
+            json={"status": {"opId": op_id}},
+            status_code=202,
+        )
+        requests_mock.get(
+            f"{ORCA_API_URL}/api/v1/trackable-actions/executions",
+            json={"items": [{"status": {"state": "failed"}}]},
+        )
+
+        with pytest.raises(mlrun.errors.MLRunRetryExhaustedError):
+            orca_client.create_project(_mlrun_project("p13", owner="jsmith"))
+
     def test_create_project_poll_timeout_is_not_treated_as_failure(
         self, requests_mock, orca_client
     ):

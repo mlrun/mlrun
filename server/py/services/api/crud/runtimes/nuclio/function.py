@@ -289,7 +289,9 @@ def _compile_function_config(
     nuclio_spec = nuclio.ConfigSpec(
         env=env_dict,
         external_source_env=external_source_env_dict,
-        config=function.spec.config,
+        # ConfigSpec keeps a non-empty dict by reference, pass a copy so the nuclio
+        # config set below is not added to the function config
+        config=copy.deepcopy(function.spec.config),
     )
 
     handler = function.spec.function_handler

@@ -142,6 +142,8 @@ class ProjectsOrchestrator:
         response: requests.Response,
         op_id: uuid.UUID | str,
         wait_for_completion: bool,
+        *,
+        tolerate_failed_fan_out: bool,
     ) -> mlrun.common.schemas.Project | None:
         """Decide whether a create/update/patch response needs polling, and return the final
         project once it's known - or ``None`` if the caller didn't ask to wait.
@@ -151,22 +153,14 @@ class ProjectsOrchestrator:
         at here; ``op_id`` (already returned by :meth:`create`/:meth:`update`/:meth:`patch`) is
         their handle to check later. A synchronous (non-202) response is already terminal, so
         this fetches nothing further and parses the project out of it directly; a 202 is polled
-        to a terminal state via :meth:`wait_for_op`, then the final project is fetched fresh. An
-        update of an existing project whose fan-out failed still returns the project as Orca
-        holds it; a create never carries a stored state, so it stays strict (see
-        :func:`mlrun.utils.orca_projects.is_update_of_existing_project`).
+        to a terminal state via :meth:`wait_for_op`, then the final project is fetched fresh.
+        ``tolerate_failed_fan_out`` is passed through to :meth:`wait_for_op`.
         """
         if not wait_for_completion:
             return None
         if response.status_code != requests.codes.accepted:
             return orca_projects.to_mlproject(response.json())
-        self.wait_for_op(
-            name,
-            op_id,
-            tolerate_failed_fan_out=orca_projects.is_update_of_existing_project(
-                response.json()
-            ),
-        )
+        self.wait_for_op(name, op_id, tolerate_failed_fan_out=tolerate_failed_fan_out)
         return self.get(name)
 
     def resolve_prev_op_id(
@@ -197,8 +191,9 @@ class ProjectsOrchestrator:
         :param name: The project name.
         :param op_id: The operation id to wait for.
         :param tolerate_failed_fan_out: Treat a failed action as done, with a warning. Only for
-            an update of an existing project
-            (:func:`mlrun.utils.orca_projects.is_update_of_existing_project`).
+            an update of an existing project: unlike create/delete, an update is not 2PC - Orca
+            stores it before fanning it out, so a failed action only means some follower didn't
+            apply it (down, or rejected the change), and Orca's reconcile re-drives it.
         :raises mlrun.errors.MLRunRetryExhaustedError: if the poll times out, or the action
             fails and ``tolerate_failed_fan_out`` is ``False``.
         """

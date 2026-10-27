@@ -155,15 +155,12 @@ def extract_op_id(body: dict) -> uuid.UUID | str:
 
 
 def is_update_of_existing_project(body: dict) -> bool:
-    """Whether a create/update/patch response describes a CAS update of an existing project.
-    A create - including an upsert Orca turned into one - has no stored state yet (``creating``
-    is the proto default, so it's omitted from the JSON).
+    """Whether a ``PUT`` response describes a CAS update of an existing project, rather than an
+    upsert Orca turned into a create. Orca decides that from its own read, ignoring the
+    ``prevOpId`` sent, so the caller can't know it up front. A create has no stored state yet
+    (``creating`` is the proto default, so it's omitted from the JSON).
 
-    Unlike create/delete, an update is not 2PC: Orca stores it before fanning it out, so a
-    failed sync-project action only means some follower didn't apply it - whether it was down
-    or rejected the change - and Orca's reconcile re-drives it.
-
-    :param body: The parsed JSON body of an Orca create/update/patch response.
+    :param body: The parsed JSON body of an Orca ``PUT`` response.
     :return: Whether the response is for an update of an existing project.
     """
     return body["status"].get("state") in (

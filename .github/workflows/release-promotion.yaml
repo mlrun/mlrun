@@ -86,10 +86,40 @@ on:
 
 jobs:
 
+  resolve-approval:
+    name: Check if triggering actor is a release approver
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+    outputs:
+      is_approver: ${{ steps.check.outputs.is_approver }}
+    steps:
+      - name: Check prod-release environment reviewers
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          # triggering_actor (not actor) so re-running an approver's run still requires approval
+          TRIGGERING_ACTOR: ${{ github.triggering_actor }}
+        run: |
+
+          # Only individual user reviewers are matched; team reviewers fall back to manual approval
+          reviewers=$(gh api "repos/${{ github.repository }}/environments/prod-release" \
+            --jq '.protection_rules[] | select(.type == "required_reviewers") | .reviewers[] | select(.type == "User") | .reviewer.login')
+          if grep -qixF "$TRIGGERING_ACTOR" <<< "$reviewers"; then
+            echo "is_approver=true" >> $GITHUB_OUTPUT
+            echo "✅ $TRIGGERING_ACTOR is a prod-release approver, skipping manual approval"
+          else
+            echo "is_approver=false" >> $GITHUB_OUTPUT
+            echo "$TRIGGERING_ACTOR is not a prod-release approver, manual approval required"
+          fi
+
   approval-gate:
     name: Approval gate for production release
     runs-on: ubuntu-latest
-    environment: prod-release
+    needs: resolve-approval
+
+    # An empty environment runs the job without protection rules, so approvers aren't asked to approve themselves
+    environment: ${{ needs.resolve-approval.outputs.is_approver != 'true' && 'prod-release' || '' }}
     steps:
       - name: Manual approval checkpoint
         run: echo "✅ Production release approved, proceeding with promotion..."

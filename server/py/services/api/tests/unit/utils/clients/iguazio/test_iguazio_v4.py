@@ -861,17 +861,26 @@ def test_orca_create_project_action_failed_raises_without_retrying(
 
 
 @pytest.mark.parametrize("iguazio_client", [("v4", "sync")], indirect=True)
+@pytest.mark.parametrize(
+    "desired_state",
+    [
+        mlrun.common.schemas.ProjectDesiredState.online,
+        mlrun.common.schemas.ProjectDesiredState.archived,
+    ],
+)
 def test_orca_update_project_uses_prev_op_id_and_polls(
     api_url: str,
     iguazio_client,
     igv4_auth_info: mlrun.common.schemas.AuthInfo,
     fast_orca_poll,
     requests_mock: requests_mock_package.Mocker,
+    desired_state: mlrun.common.schemas.ProjectDesiredState,
 ):
     project = _generate_igv4_project()
     previous_op_id = str(uuid.uuid4())
     new_op_id = str(uuid.uuid4())
     project.status.op_id = previous_op_id
+    project.spec.desired_state = desired_state
 
     requests_mock.put(
         f"{api_url}/api/v1/projects/projects/{project.metadata.name}",
@@ -891,6 +900,7 @@ def test_orca_update_project_uses_prev_op_id_and_polls(
     assert put_request.json() == {
         "prevOpId": previous_op_id,
         "owner": TEST_PROJECT_OWNER,
+        "desiredState": str(desired_state),
     }
 
 
@@ -973,16 +983,18 @@ def test_orca_delete_project_check_does_not_delete(
 
 
 @pytest.mark.parametrize("iguazio_client", [("v4", "sync")], indirect=True)
+@pytest.mark.parametrize("state", ["online", "archived"])
 def test_orca_get_project(
     api_url: str,
     iguazio_client,
     igv4_auth_info: mlrun.common.schemas.AuthInfo,
     requests_mock: requests_mock_package.Mocker,
+    state: str,
 ):
     op_id = str(uuid.uuid4())
     requests_mock.get(
         f"{api_url}/api/v1/projects/projects/{TEST_PROJECT_NAME}",
-        json=_project_wire_body(TEST_PROJECT_NAME, op_id, "online"),
+        json=_project_wire_body(TEST_PROJECT_NAME, op_id, state),
     )
 
     project = iguazio_client.get_project(
@@ -991,7 +1003,8 @@ def test_orca_get_project(
 
     assert project.metadata.name == TEST_PROJECT_NAME
     assert str(project.status.op_id) == op_id
-    assert project.status.state == mlrun.common.schemas.ProjectState.online
+    assert project.status.state == state
+    assert project.spec.desired_state == state
 
 
 @pytest.mark.parametrize("iguazio_client", [("v4", "sync")], indirect=True)

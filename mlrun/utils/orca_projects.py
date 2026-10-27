@@ -36,6 +36,13 @@ ACTION_EXECUTIONS_ENDPOINT = "v1/trackable-actions/executions"
 PROJECT_SYNC_ACTION_TYPE = "sync-project"
 PROJECT_SYNC_SUBDOMAIN = "projects"
 
+# The observed Orca states that are also valid desired states - creating/deleting are transient
+# and system-managed.
+_SETTLED_ORCA_STATES = (
+    mlrun.common.schemas.ProjectState.online,
+    mlrun.common.schemas.ProjectState.archived,
+)
+
 
 class ActionExecutionState(mlrun.common.types.StrEnum):
     """Lifecycle state of one Orca Trackable Action execution - mirrors Orca's own
@@ -66,6 +73,7 @@ class ProjectSpecLike(typing.Protocol):
 
     owner: str | None
     description: str | None
+    desired_state: str | None
 
 
 class ProjectStatusLike(typing.Protocol):
@@ -117,10 +125,15 @@ def resolve_project_body(
     ``None`` is still a valid witness there, for a PUT that upserts a project that doesn't exist
     yet.
 
+    Only the update/patch shape carries ``desiredState`` - Orca's create has none, since a project
+    always starts out online. Orca reads an omitted ``desiredState`` as ``online``, so ``None`` and
+    MLRun's ``offline`` (no Orca equivalent) are left out; any other value goes through as-is, so
+    Orca rejects an invalid one instead of the SDK silently dropping it.
+
     Pass ``prev_op_id`` (even ``None``) to get the update/patch shape; omit it entirely to get the
-    create shape. For example, ``resolve_project_body(project)`` returns
+    create shape. For example, for an archived project ``resolve_project_body(project)`` returns
     ``{"name": "p1", "owner": "u1"}``, while ``resolve_project_body(project, op_id)`` returns
-    ``{"prevOpId": "...", "owner": "u1"}``.
+    ``{"prevOpId": "...", "owner": "u1", "desiredState": "archived"}``.
 
     :param project: The project's desired state.
     :param prev_op_id: The CAS witness for an update/patch - the ``op_id`` last observed by the
@@ -136,6 +149,11 @@ def resolve_project_body(
             "prevOpId": str(prev_op_id) if prev_op_id else None,
             "owner": project.spec.owner,
         }
+        if project.spec.desired_state not in (
+            None,
+            mlrun.common.schemas.ProjectDesiredState.offline,
+        ):
+            body["desiredState"] = str(project.spec.desired_state)
     if project.spec.description:
         body["description"] = project.spec.description
     if project.metadata.labels:
@@ -172,12 +190,22 @@ def to_mlproject(body: dict) -> mlrun.common.schemas.Project:
     camelize every field), so this can't just pydantic-validate the body directly - op_id/updated_at
     need explicit remapping.
 
+    Orca's responses have no ``spec.desiredState``, so this takes ``spec.desired_state`` from
+    ``status.state`` when it's ``online``/``archived``, and leaves the ``online`` default while the
+    project is still ``creating``/``deleting``.
+
     :param body: The parsed JSON body of an Orca project response.
     :return: The equivalent :class:`mlrun.common.schemas.Project`.
     """
     metadata = body.get("metadata", {})
     spec = body.get("spec", {})
     status = body.get("status", {})
+    state = status.get("state")
+    desired_state = (
+        state
+        if state in _SETTLED_ORCA_STATES
+        else mlrun.common.schemas.ProjectDesiredState.online
+    )
     return mlrun.common.schemas.Project(
         metadata=mlrun.common.schemas.ProjectMetadata(
             name=metadata["name"],
@@ -187,9 +215,10 @@ def to_mlproject(body: dict) -> mlrun.common.schemas.Project:
         spec=mlrun.common.schemas.ProjectSpec(
             owner=spec.get("owner"),
             description=spec.get("description"),
+            desired_state=desired_state,
         ),
         status=mlrun.common.schemas.ProjectStatus(
-            state=status.get("state"),
+            state=state,
             op_id=status.get("opId"),
             updated_at=status.get("updatedAt"),
         ),

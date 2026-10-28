@@ -1243,6 +1243,37 @@ class TestSpark3Runtime(services.api.tests.unit.runtimes.base.TestRuntimeBase):
             "use func.with_source_archive(pull_at_runtime=False)"
         )
 
+    @pytest.mark.parametrize(
+        "explicit_home, expected_home_envs",
+        [
+            (None, []),
+            ("/home/user", [{"name": "HOME", "value": "/home/user"}]),
+        ],
+    )
+    def test_run_non_root_default_security_context_keeps_home(
+        self,
+        db: sqlalchemy.orm.Session,
+        k8s_secrets_mock,
+        explicit_home,
+        expected_home_envs,
+    ):
+        mlrun.mlconf.function.spec.security_context.default = base64.b64encode(
+            json.dumps({"runAsNonRoot": True}).encode("utf-8")
+        ).decode("utf-8")
+        runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime()
+        if explicit_home:
+            runtime.set_env("HOME", explicit_home)
+        self.execute_function(runtime)
+
+        body = self._get_custom_object_creation_body()
+        for role in ["driver", "executor"]:
+            home_envs = [
+                env_var
+                for env_var in body["spec"][role]["env"]
+                if env_var["name"] == "HOME"
+            ]
+            assert home_envs == expected_home_envs
+
     def test_mount_secret_token_to_spark_driver_and_executor(
         self, db: sqlalchemy.orm.Session, k8s_secrets_mock
     ):

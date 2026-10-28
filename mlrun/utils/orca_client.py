@@ -216,24 +216,26 @@ class ProjectsOrchestrator:
     def wait_for_op(self, name: str, op_id: uuid.UUID | str) -> None:
         """Poll the sync-project trackable action for ``op_id`` to a terminal state.
 
-        :raises mlrun.errors.MLRunRetryExhaustedError: if the action fails (without further
-            polling - see :func:`is_action_failed`) or the poll times out.
+        :raises mlrun.errors.MLRunRuntimeError: if the action fails or the poll times out.
         """
         self._logger.debug(
             "Waiting for Orca sync-project action to reach a terminal state",
             name=name,
             op_id=op_id,
         )
-        mlrun.utils.helpers.retry_until_successful(
-            self._poll_interval_seconds,
-            self._poll_timeout_seconds,
-            self._logger,
-            False,
-            self._verify_op_terminal,
-            name,
-            op_id,
-            fatal_exceptions=(orca_projects.OrcaActionFailedError,),
-        )
+        try:
+            mlrun.utils.helpers.retry_until_successful(
+                self._poll_interval_seconds,
+                self._poll_timeout_seconds,
+                self._logger,
+                False,
+                self._verify_op_terminal,
+                name,
+                op_id,
+                fatal_exceptions=(orca_projects.OrcaActionFailedError,),
+            )
+        except orca_projects.OrcaActionFailedError as exc:
+            raise mlrun.errors.MLRunRuntimeError(str(exc)) from exc
 
     def _verify_op_terminal(self, name: str, op_id: uuid.UUID | str) -> None:
         response = self._send_request(

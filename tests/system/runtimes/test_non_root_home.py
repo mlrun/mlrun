@@ -20,6 +20,8 @@ import mlrun.common.schemas
 import tests.system.base
 
 NON_ROOT_UID = 12345
+# the generated non-root HOME default (function.spec.security_context.non_root_home)
+NON_ROOT_HOME = "/tmp"
 
 
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured
@@ -61,6 +63,34 @@ class TestNonRootHome(tests.system.base.TestMLRunSystem):
         result = function.invoke("/")
 
         self._assert_probe_result(result)
+
+    @pytest.mark.collect_pod_logs
+    def test_spark_with_mlrun_keeps_image_home(self):
+        # ML-13151: the security context is not applied to spark pods, so MLRun must not
+        # replace the image user's HOME, under which the build installs mlrun
+        if not mlrun.mlconf.spark_app_image:
+            pytest.skip("Spark application image is not configured")
+
+        function = mlrun.code_to_function(
+            name="non-root-home-spark",
+            kind="spark",
+            project=self.project_name,
+            filename=str(self.assets_path / "spark_home_probe.py"),
+        )
+        function.with_driver_requests(cpu=1, mem="512m")
+        function.with_executor_requests(cpu=1, mem="512m")
+        # the stored default that triggered the regression; with_security_context()
+        # is not supported for spark
+        function.spec.security_context = {"runAsNonRoot": True}
+        function.deploy(with_mlrun=True)
+
+        run = function.run(handler="probe")
+
+        assert run.status.state == mlrun.common.runtimes.constants.RunStates.completed
+        self._logger.info("Spark HOME probe result", **run.outputs)
+        assert run.outputs["home"] != NON_ROOT_HOME
+        assert run.outputs["user_site"]
+        assert run.outputs["mlrun_path"]
 
     def _set_non_root_security_context(self, function):
         # explicit context is allowed only when enrichment is disabled; otherwise

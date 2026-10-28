@@ -639,6 +639,12 @@ class Spark3Runtime(KubejobRuntime):
             "with_security_context is not supported with spark operator"
         )
 
+    def _generate_runtime_env(self, runobj: RunObject = None):
+        runtime_env, external_source_env = super()._generate_runtime_env(runobj)
+        # the non-root HOME default follows the security context, which is not applied to spark pods
+        runtime_env.pop("HOME", None)
+        return runtime_env, external_source_env
+
     def with_driver_host_path_volume(
         self,
         host_path: str,

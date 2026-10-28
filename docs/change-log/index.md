@@ -1676,7 +1676,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-9993|Pagination is not persistent upon browser refresh on Iguazio releases 3.6.0 and 3.6.1.|NA|v1.8.0|
 |ML-10004|Batch writes to TSDB fail when the ingestion rate for the TSDB target is greater than 1/s. The result is that you cannot monitor inferencing and at some point the influencing results are dropped. |NA|v1.11.0|
 |ML-10614|`project.log_model()` and `project.log_artifact()` do not account for the context folder.|NA|v1.11.0|
-|NA|Amazon RDS (or other external managed MySQL) as the MLRun API metadata database has not been qualified in v1.13.0 and is not supported; such deployments may not work correctly.|Use the in-cluster MySQL database installed with MLRun CE. See [MLRun CE installation](../install-mlrun-ce/index.md).|v1.13.0|
+|NA|Amazon RDS (or other external managed MySQL) as the MLRun API metadata database was not qualified in v1.13.0 and is not supported; such deployments may not work correctly.|Use the in-cluster MySQL database installed with MLRun CE. See [MLRun CE installation](../install-mlrun-ce/index.md).|v1.13.0|
 
 ## Deprecations and removed code
 

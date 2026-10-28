@@ -14,6 +14,7 @@
 
 import asyncio
 import base64
+import copy
 import os
 import shlex
 
@@ -288,7 +289,9 @@ def _compile_function_config(
     nuclio_spec = nuclio.ConfigSpec(
         env=env_dict,
         external_source_env=external_source_env_dict,
-        config=function.spec.config,
+        # ConfigSpec keeps a non-empty dict by reference, pass a copy so the nuclio
+        # config set below is not added to the function config
+        config=copy.deepcopy(function.spec.config),
     )
 
     handler = function.spec.function_handler
@@ -305,7 +308,8 @@ def _compile_function_config(
         or function.spec.build.source
         or function.kind == mlrun.runtimes.RuntimeKinds.serving  # serving can be empty
     ):
-        config = function.spec.base_spec
+        # compile on a copy so a redeploy does not treat generated values as user-set
+        config = copy.deepcopy(function.spec.base_spec)
         if not config:
             # if base_spec was not set (when not using code_to_function) and we have base64 code
             # we create the base spec with essential attributes
@@ -396,7 +400,21 @@ def _enrich_config_spec(
 
 def _resolve_env_vars(function):
     env_dict, external_source_env_dict = function._get_nuclio_config_spec_env()
+    # raw Nuclio config is merged later and must take precedence over generated HOME
+    if mlrun.runtimes.pod.get_non_root_home_env(
+        function.spec
+    ) and _is_env_set_in_raw_config(function, "HOME"):
+        env_dict.pop("HOME")
     return env_dict, external_source_env_dict
+
+
+def _is_env_set_in_raw_config(
+    function: mlrun.runtimes.nuclio.function.RemoteRuntime, name: str
+) -> bool:
+    raw_env = (function.spec.config.get("spec.env") or []) + (
+        mlrun.utils.get_in(function.spec.base_spec or {}, "spec.env", []) or []
+    )
+    return any(env_var.get("name") == name for env_var in raw_env)
 
 
 def _resolve_and_set_nuclio_runtime(

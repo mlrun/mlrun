@@ -229,6 +229,31 @@ def test_patch_project(
     _assert_project_in_follower(db, projects_follower, expected_patched_project)
 
 
+def test_nop_leader_does_not_mutate_caller_auth_info(
+    db: sqlalchemy.orm.Session,
+    projects_follower: framework.utils.projects.follower.Member,
+    nop_leader: framework.utils.projects.remotes.leader.Member,
+):
+    # The follower's auth_info defaults are shared instances, so marking the caller's
+    # auth_info as coming from the leader would leak into every later default call
+    auth_info = mlrun.common.schemas.AuthInfo()
+    project = _generate_project()
+
+    projects_follower.create_project(db, project, auth_info=auth_info)
+    projects_follower.store_project(
+        db, project.metadata.name, project, auth_info=auth_info
+    )
+    projects_follower.patch_project(
+        db,
+        project.metadata.name,
+        {"spec": {"description": "new description"}},
+        auth_info=auth_info,
+    )
+    nop_leader.get_project_owner(None, project.metadata.name, auth_info=auth_info)
+
+    assert auth_info.projects_role is None
+
+
 @pytest.mark.parametrize("field", ["source", "description", "owner"])
 def test_store_project_field_at_max_length(
     db: sqlalchemy.orm.Session,

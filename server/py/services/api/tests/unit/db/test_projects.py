@@ -617,6 +617,38 @@ class TestProjects(TestDatabaseBase):
         )
         assert output.projects == []
 
+    def test_list_projects_filter_updated_after_treats_null_as_epoch(self):
+        # A project that predates the follower interface has updated_at=NULL. A real
+        # cutoff must still exclude it (NULL has no meaningful recency), but a cutoff
+        # at or before the epoch floor must include it too -- both sides of the filter
+        # need to agree with keyset pagination's own NULL-as-epoch coalescing.
+        self._db.create_project(
+            self._db_session,
+            mlrun.common.schemas.Project(
+                metadata=mlrun.common.schemas.ProjectMetadata(name="legacy"),
+            ),
+        )
+        record = self._db_session.query(Project).filter(Project.name == "legacy").one()
+        assert record.updated_at is None
+
+        recent_cutoff = datetime.datetime.now(datetime.UTC) - datetime.timedelta(
+            hours=1
+        )
+        output = self._db.list_projects(
+            self._db_session,
+            format_=mlrun.common.formatters.ProjectFormat.name_only,
+            updated_after=recent_cutoff,
+        )
+        assert output.projects == []
+
+        epoch = datetime.datetime.min.replace(tzinfo=datetime.UTC)
+        output = self._db.list_projects(
+            self._db_session,
+            format_=mlrun.common.formatters.ProjectFormat.name_only,
+            updated_after=epoch,
+        )
+        assert output.projects == ["legacy"]
+
     def test_list_projects_custom_selection_status_columns(self):
         # The new sync columns must be selectable through the custom format and
         # populate project.status (not just metadata/spec).

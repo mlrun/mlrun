@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import datetime
+import threading
 import traceback
 
 import humanfriendly
@@ -34,9 +35,12 @@ from mlrun.utils import logger
 import framework.db.session
 import framework.utils.auth.verifier
 import framework.utils.background_tasks
+import framework.utils.clients.chief
 import framework.utils.clients.iguazio.v3
+import framework.utils.clients.iguazio.v4
 import framework.utils.helpers
 import framework.utils.periodic
+import framework.utils.project_formats
 import framework.utils.projects.member as project_member
 import framework.utils.projects.remotes.leader
 import framework.utils.projects.remotes.nop_leader
@@ -57,6 +61,9 @@ class Member(
             == "enabled"
         )
         self._sync_session = None
+        # Set immediately for every leader kind except orca, which has its own leader-driven
+        # startup sweep (Follower Contract HLD checklist item 10) that this event gates on.
+        self._followers_sync_ready = threading.Event()
         self._leader_client: framework.utils.projects.remotes.leader.Member
         if self._leader_name == "iguazio":
             self._leader_client = framework.utils.clients.iguazio.v3.Client()
@@ -67,12 +74,21 @@ class Member(
             self._sync_session = mlrun.mlconf.httpdb.projects.iguazio_access_key
         elif self._leader_name == "nop":
             self._leader_client = framework.utils.projects.remotes.nop_leader.Member()
+        elif self._leader_name == "orca":
+            # Orca is the IG4 API service - reuses the existing iguazio_api_url config
+            if not mlrun.mlconf.iguazio_api_url:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Iguazio API URL must be configured when the leader is Orca"
+                )
+            self._leader_client = framework.utils.clients.iguazio.v4.Client()
         else:
             raise NotImplementedError("Unsupported project leader")
         self._periodic_sync_interval_seconds = humanfriendly.parse_timespan(
             mlrun.mlconf.httpdb.projects.periodic_sync_interval
         )
         self._synced_until_datetime = None
+        if self._leader_name != "orca":
+            self._followers_sync_ready.set()
         # run one sync to start off on the right foot and fill out the cache but don't fail initialization on it
         if self._should_sync:
             try:
@@ -93,6 +109,18 @@ class Member(
                 )
 
     def start(self):
+        if self._leader_name == "orca":
+            # Only the chief actually triggers Orca's sweep - one trigger per boot event, not
+            # one per replica. Workers converge on the same readiness signal by asking the
+            # chief (see _start_periodic_followers_sync_wait_for_chief) instead of each
+            # independently triggering their own, redundant sweep against Orca.
+            if (
+                mlrun.mlconf.httpdb.clusterization.role
+                == mlrun.common.schemas.ClusterizationRole.chief
+            ):
+                self._start_periodic_followers_sync_trigger()
+            else:
+                self._start_periodic_followers_sync_wait_for_chief()
         if self._should_sync:
             self._start_periodic_sync()
 
@@ -100,6 +128,9 @@ class Member(
         logger.info("Shutting down projects leader")
         if self._should_sync:
             self._stop_periodic_sync()
+
+    def is_followers_sync_ready(self) -> bool:
+        return self._followers_sync_ready.is_set()
 
     def create_project(
         self,
@@ -154,7 +185,9 @@ class Member(
                     commit_before_get=True,
                 )
             else:
-                self._leader_client.update_project(auth_info.session, name, project)
+                self._leader_client.update_project(
+                    auth_info.session, name, project, auth_info
+                )
                 return framework.db.session.run_function_with_new_db_session(
                     self.get_project, name, auth_info
                 ), False
@@ -239,6 +272,42 @@ class Member(
             raise mlrun.errors.MLRunNotFoundError(f"Project {name} not found")
         return projects[0]
 
+    def ensure_project_open_for_resource_creation(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        name: str,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
+    ) -> None:
+        # Block new logical resource creation until this follower's own leader-driven startup
+        # sweep (orca only) reaches a terminal state.
+        if not self.is_followers_sync_ready():
+            raise mlrun.errors.MLRunPreconditionFailedError(
+                "MLRun is still syncing project state with the leader on startup; new "
+                "resource creation is temporarily blocked, retry shortly"
+            )
+        # Block new logical resource creation while this project's own sync-status isn't
+        # online. A project with no recorded state yet (pre-dates the 2PC follower interface)
+        # is treated as online, not blocked.
+        project = self.get_project(
+            db_session,
+            name,
+            auth_info=auth_info,
+            format_=framework.utils.project_formats.ProjectFormatCustomSelection(
+                [
+                    framework.utils.project_formats.ProjectFormatCustom.name,
+                    framework.utils.project_formats.ProjectFormatCustom.state,
+                ]
+            ),
+        )
+        if project.status.state in (
+            mlrun.common.schemas.ProjectState.creating,
+            mlrun.common.schemas.ProjectState.deleting,
+        ):
+            raise mlrun.errors.MLRunPreconditionFailedError(
+                f"Project {name} is {project.status.state.value}; new resource creation is "
+                "blocked until it reaches state 'online'"
+            )
+
     def get_project_owner(
         self,
         db_session: sqlalchemy.orm.Session,
@@ -301,6 +370,49 @@ class Member(
         return await services.api.crud.Projects().get_project_summary(
             db_session, name, auth_info
         )
+
+    @framework.utils.helpers.ensure_running_on_chief
+    def _start_periodic_followers_sync_trigger(self):
+        # One trigger per boot event against the leader, not one per replica. Workers
+        # converge on the resulting readiness via
+        # _start_periodic_followers_sync_wait_for_chief instead of triggering their own,
+        # independent sweep. Reuses the same periodic-function infra as _start_periodic_sync:
+        # backoff-with-logging on failure comes for free from run_function_periodically's
+        # wrapper, and the function cancels its own periodic slot once it succeeds.
+        # Floored so a `periodic_sync_interval` of 0 (used elsewhere to disable the unrelated
+        # legacy periodic sync) can't turn this into a tight retry loop against the leader.
+        framework.utils.periodic.run_function_periodically(
+            max(self._periodic_sync_interval_seconds, 5),
+            self._trigger_followers_sync.__name__,
+            False,
+            self._trigger_followers_sync,
+        )
+
+    def _trigger_followers_sync(self):
+        self._leader_client.trigger_followers_sync()
+        self._followers_sync_ready.set()
+        framework.utils.periodic.cancel_periodic_function(
+            self._trigger_followers_sync.__name__
+        )
+
+    def _start_periodic_followers_sync_wait_for_chief(self):
+        # Worker-only (see the call site in start()): asks the chief whether its trigger has
+        # completed instead of independently triggering Orca.
+        framework.utils.periodic.run_function_periodically(
+            max(self._periodic_sync_interval_seconds, 5),
+            self._wait_for_chief_followers_sync.__name__,
+            False,
+            self._wait_for_chief_followers_sync,
+        )
+
+    async def _wait_for_chief_followers_sync(self):
+        # Once the chief says ready, stop asking - readiness is monotonic, so there's nothing
+        # to re-check later.
+        if await framework.utils.clients.chief.Client().is_followers_sync_ready():
+            self._followers_sync_ready.set()
+            framework.utils.periodic.cancel_periodic_function(
+                self._wait_for_chief_followers_sync.__name__
+            )
 
     @framework.utils.helpers.ensure_running_on_chief
     def _start_periodic_sync(self):

@@ -140,6 +140,9 @@ class ClientSpec(
             authentication_mode=self._get_config_value_if_not_default(
                 "httpdb.authentication.mode"
             ),
+            projects_leader=self._get_config_value_if_not_default(
+                "httpdb.projects.leader"
+            ),
             authorization_namespaces_mlrun=self._get_config_value_if_not_default(
                 "httpdb.authorization.namespaces.mlrun"
             ),

@@ -12,6 +12,7 @@
 ### ✅ Checklist
 - [ ] I updated the documentation (if applicable)
 - [ ] I have tested the changes in this PR
+- [ ] Security fix: title, description and commit message contain no vulnerability details (neutral wording, Jira reference only)
 - [ ] I confirmed whether my changes are covered by system tests
   - [ ] If yes, I ran all relevant system tests and ensured they passed before submitting this PR
   - [ ] I updated existing system tests and/or added new ones if needed to cover my changes

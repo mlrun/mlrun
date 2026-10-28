@@ -88,7 +88,6 @@ def test_non_root_home_from_mlconf_default_security_context():
 
 
 def test_no_home_for_spark_with_non_root_default_security_context():
-    # MLRun does not apply the security context to Spark pods (ML-13151)
     mlrun.mlconf.function.spec.security_context.default = base64.b64encode(
         json.dumps({"runAsNonRoot": True}).encode("utf-8")
     ).decode("utf-8")

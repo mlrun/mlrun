@@ -22,7 +22,7 @@ import mlrun
 def probe(context):
     spark = SparkSession.builder.appName("non-root-home-probe").getOrCreate()
     spark.stop()
-    # an install into the image user's site is hidden when HOME is replaced (ML-13151)
+    # Replacing HOME hides packages installed in the image user's site
     context.log_results(
         {
             "uid": os.getuid(),

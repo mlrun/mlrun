@@ -66,8 +66,6 @@ class TestNonRootHome(tests.system.base.TestMLRunSystem):
 
     @pytest.mark.collect_pod_logs
     def test_spark_with_mlrun_keeps_image_home(self):
-        # ML-13151: the security context is not applied to spark pods, so MLRun must not
-        # replace the image user's HOME, under which the build installs mlrun
         if not mlrun.mlconf.spark_app_image:
             pytest.skip("Spark application image is not configured")
 

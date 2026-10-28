@@ -641,7 +641,7 @@ class Spark3Runtime(KubejobRuntime):
 
     def _generate_runtime_env(self, runobj: RunObject = None):
         runtime_env, external_source_env = super()._generate_runtime_env(runobj)
-        # the non-root HOME default follows the security context, which is not applied to spark pods
+        # Spark pods do not receive the security context that triggers this default
         runtime_env.pop("HOME", None)
         return runtime_env, external_source_env
 

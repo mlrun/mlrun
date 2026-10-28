@@ -1260,8 +1260,6 @@ class TestSpark3Runtime(services.api.tests.unit.runtimes.base.TestRuntimeBase):
         explicit_home,
         expected_home_envs,
     ):
-        # MLRun does not apply the security context to Spark pods, so it must not
-        # replace the image user's HOME (ML-13151)
         mlrun.mlconf.function.spec.security_context.default = base64.b64encode(
             json.dumps({"runAsNonRoot": True}).encode("utf-8")
         ).decode("utf-8")

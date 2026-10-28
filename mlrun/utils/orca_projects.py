@@ -189,7 +189,8 @@ def to_mlproject(body: dict) -> mlrun.common.schemas.Project:
             description=spec.get("description"),
         ),
         status=mlrun.common.schemas.ProjectStatus(
-            state=status.get("state"),
+            # creating is the proto default, so Orca omits it from the JSON
+            state=status.get("state", mlrun.common.schemas.ProjectState.creating),
             op_id=status.get("opId"),
             updated_at=status.get("updatedAt"),
         ),

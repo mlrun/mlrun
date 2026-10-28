@@ -694,15 +694,14 @@ def _generate_igv4_project(
 
 
 def _project_wire_body(name: str, op_id: str, state: str) -> dict:
-    # Orca's wire format is camelCase.
+    # Orca's wire format is camelCase, and it omits the proto-default "creating" state.
+    status = {"opId": op_id, "updatedAt": "2026-08-14T00:00:00+00:00"}
+    if state != mlrun.common.schemas.ProjectState.creating:
+        status["state"] = state
     return {
         "metadata": {"name": name, "labels": {}, "annotations": {}},
         "spec": {"owner": TEST_PROJECT_OWNER, "description": "desc"},
-        "status": {
-            "state": state,
-            "opId": op_id,
-            "updatedAt": "2026-08-14T00:00:00+00:00",
-        },
+        "status": status,
     }
 
 

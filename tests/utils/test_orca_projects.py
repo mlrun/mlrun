@@ -109,6 +109,13 @@ def test_to_mlproject_round_trip():
     assert project.status.op_id == op_id
 
 
+def test_to_mlproject_missing_state_is_creating():
+    # creating is the proto default, so Orca omits it from the JSON
+    body = {"metadata": {"name": "p1"}, "status": {"opId": str(uuid.uuid4())}}
+    project = orca_projects.to_mlproject(body)
+    assert project.status.state == mlrun.common.schemas.ProjectState.creating
+
+
 def test_action_execution_query_params():
     op_id = uuid.uuid4()
     assert orca_projects.action_execution_query_params(op_id) == {

@@ -25,6 +25,7 @@ from fastapi.concurrency import run_in_threadpool
 
 import mlrun.common.schemas
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
+import mlrun.runtimes.nuclio.function
 from mlrun.common.runtimes.validators import validate_sidecar_probes
 from mlrun.common.schemas.serving import DeployResponse
 from mlrun.config import config
@@ -327,9 +328,9 @@ async def deploy_status(
         mlrun.common.schemas.AuthorizationResourceTypes.function,
         project,
         name,
-        # store since with the current mechanism we update the status (and store the function) in the DB when a client
-        # query for the status
-        mlrun.common.schemas.AuthorizationAction.store,
+        # read, since storing the polled status is internal server synchronization rather than a
+        # caller-authored function update
+        mlrun.common.schemas.AuthorizationAction.read,
         auth_info,
     )
     fn = await run_in_threadpool(
@@ -724,14 +725,32 @@ def _handle_nuclio_deploy_status(
     # the built and pushed image name used to run the nuclio function container
     container_image = status.get("containerImage", "")
 
+    # The server owns the invocation command of a ready function, so a waiting client with read
+    # permissions only doesn't need to store it. Application runtimes are excluded since their
+    # command is the application entrypoint
+    command = None
+    if (
+        state == mlrun.common.schemas.FunctionState.ready
+        and fn.get("kind")
+        in mlrun.runtimes.RuntimeKinds.pure_nuclio_deployed_runtimes()
+    ):
+        command = mlrun.runtimes.nuclio.function.resolve_invocation_command(
+            external_invocation_urls=external_invocation_urls,
+            internal_invocation_urls=internal_invocation_urls,
+            address=address,
+        )
+
     # we don't want to store the function on all requests to get the deploy status, therefore we verify
-    # that changes were actually made and if that's the case then we store the function
+    # that changes were actually made and if that's the case then we store the function.
+    # A missing or stale command counts as a change, e.g. on a redeploy whose status is otherwise unchanged
     if _is_nuclio_deploy_status_changed(
         previous_status=fn.get("status", {}),
         new_status=status,
         new_state=state,
         new_nuclio_name=nuclio_name,
-    ):
+    ) or (command and fn.get("spec", {}).get("command") != command):
+        if command:
+            mlrun.utils.update_in(fn, "spec.command", command)
         mlrun.utils.update_in(fn, "status.nuclio_name", nuclio_name)
         mlrun.utils.update_in(
             fn, "status.internal_invocation_urls", internal_invocation_urls

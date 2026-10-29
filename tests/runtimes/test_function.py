@@ -367,6 +367,137 @@ def test_wait_for_deployment_clears_background_tasks_after_processing():
     assert function._deploy_background_tasks == {"background_tasks": []}
 
 
+@pytest.fixture
+def user_and_service_account_clients(monkeypatch):
+    monkeypatch.setattr(mlrun.mlconf, "dbpath", "https://mock-server")
+    user_client = mlrun.Client(credentials=mlrun.Credentials(token="user-token"))
+    service_account_client = mlrun.Client(
+        credentials=mlrun.Credentials(token="service-account-token")
+    )
+    for client in (user_client, service_account_client):
+        client._http_db.store_function = MagicMock()
+        client._http_db.deploy_nuclio_function = MagicMock()
+        client._http_db.get_nuclio_deploy_status = MagicMock()
+        client._http_db.remote_builder = MagicMock()
+        client._http_db.get_builder_status = MagicMock()
+    return user_client, service_account_client
+
+
+def test_wait_for_deployment_uses_active_session_db(user_and_service_account_clients):
+    """Submit as the user and wait as a read-only service account.
+
+    The wait must poll with the service account's DB rather than the DB cached at submit time,
+    and must not store the function, since the server persists the invocation command.
+    """
+    user_client, service_account_client = user_and_service_account_clients
+    function: mlrun.runtimes.RemoteRuntime = mlrun.new_function(
+        "tst", kind="nuclio", project="proj"
+    )
+    user_client._http_db.deploy_nuclio_function.return_value = {
+        "data": {"status": {"state": "deploying"}, "spec": function.spec.to_dict()}
+    }
+    ready_headers = {
+        "x-mlrun-function-status": "ready",
+        "x-mlrun-internal-invocation-urls": "tst.svc:8080",
+        "x-mlrun-external-invocation-urls": "tst.example.com",
+        "x-mlrun-address": "tst.example.com",
+    }
+
+    def get_ready_deploy_status(func, **kwargs):
+        mlrun.runtimes.nuclio.function.enrich_nuclio_function_from_headers(
+            func, ready_headers
+        )
+        return "", 1
+
+    service_account_client._http_db.get_nuclio_deploy_status.side_effect = (
+        get_ready_deploy_status
+    )
+
+    with user_client.session():
+        assert function.deploy(wait=False) is function
+    with (
+        service_account_client.session(),
+        patch("mlrun.runtimes.nuclio.function.sleep"),
+    ):
+        command = function.wait_for_deployment()
+
+    user_client._http_db.deploy_nuclio_function.assert_called_once()
+    service_account_client._http_db.deploy_nuclio_function.assert_not_called()
+    service_account_client._http_db.get_nuclio_deploy_status.assert_called_once()
+    user_client._http_db.get_nuclio_deploy_status.assert_not_called()
+    user_client._http_db.store_function.assert_not_called()
+    service_account_client._http_db.store_function.assert_not_called()
+    expected_command = mlrun.runtimes.nuclio.function.resolve_invocation_command(
+        external_invocation_urls=["tst.example.com"],
+        internal_invocation_urls=["tst.svc:8080"],
+        address="tst.example.com",
+    )
+    assert command == expected_command == "http://tst.example.com"
+    assert function.spec.command == expected_command
+
+
+def test_build_watch_uses_active_session_db(user_and_service_account_clients):
+    """Submit a job image build as the user and watch it as a service account."""
+    user_client, service_account_client = user_and_service_account_clients
+    function: mlrun.runtimes.KubejobRuntime = mlrun.new_function(
+        "tst", kind="job", project="proj", image="mlrun/mlrun"
+    )
+    function.spec.build.requirements = ["pandas"]
+    user_client._http_db.remote_builder.return_value = {
+        "data": {"status": {"state": "pending"}, "spec": {}},
+        "ready": False,
+    }
+    states = iter(["running", "ready"])
+
+    def get_builder_status(func, **kwargs):
+        func.status.state = next(states)
+        return "", None, None
+
+    service_account_client._http_db.get_builder_status.side_effect = get_builder_status
+
+    with user_client.session():
+        assert function.deploy(watch=False) is False
+    with service_account_client.session(), patch("mlrun.runtimes.pod.time.sleep"):
+        state = function._build_watch()
+
+    assert state == "ready"
+    user_client._http_db.remote_builder.assert_called_once()
+    service_account_client._http_db.remote_builder.assert_not_called()
+    assert service_account_client._http_db.get_builder_status.call_count == 2
+    user_client._http_db.get_builder_status.assert_not_called()
+    user_client._http_db.store_function.assert_not_called()
+    service_account_client._http_db.store_function.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "external_invocation_urls, internal_invocation_urls, address, expected",
+    [
+        (["ext"], ["int"], "addr", "http://ext"),
+        ([""], ["int"], "addr", "http://int"),
+        ([], [""], "addr", "http://addr"),
+        (None, None, "", None),
+        (
+            ["https://gateway.example.com/path"],
+            ["int"],
+            "",
+            "https://gateway.example.com/path",
+        ),
+        (["http://gateway.example.com"], [], "", "http://gateway.example.com"),
+    ],
+)
+def test_resolve_invocation_command(
+    external_invocation_urls, internal_invocation_urls, address, expected
+):
+    assert (
+        mlrun.runtimes.nuclio.function.resolve_invocation_command(
+            external_invocation_urls=external_invocation_urls,
+            internal_invocation_urls=internal_invocation_urls,
+            address=address,
+        )
+        == expected
+    )
+
+
 def test_v3io_stream_trigger():
     function: mlrun.runtimes.RemoteRuntime = mlrun.new_function("tst", kind="nuclio")
     function.add_v3io_stream_trigger(

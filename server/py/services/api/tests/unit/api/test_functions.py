@@ -92,6 +92,62 @@ def test_build_status_pod_not_found(
         assert response.status_code == HTTPStatus.NOT_FOUND.value
 
 
+def test_build_status_read_only_returns_logs(
+    mocked_k8s_helper, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+):
+    """A function reader can poll job build status, including its logs, while storing the
+    function directly stays forbidden."""
+    services.api.tests.unit.api.utils.create_project(client, PROJECT)
+    function = {
+        "kind": "job",
+        "metadata": {"name": "function-name", "project": PROJECT, "tag": "latest"},
+        "spec": {"build": {"image": "some-image"}},
+        "status": {
+            "state": mlrun.common.schemas.FunctionState.pending,
+            "build_pod": "build-pod",
+        },
+    }
+    response = client.post(
+        FUNCTIONS_API.format(project=PROJECT, name=function["metadata"]["name"]),
+        json=function,
+    )
+    assert response.status_code == HTTPStatus.OK.value
+    k8s_helper = framework.utils.singletons.k8s.get_k8s_helper()
+
+    with (
+        services.api.tests.unit.api.utils.mock_function_read_only_permissions(),
+        unittest.mock.patch.object(k8s_helper, "get_pod_phase", return_value="running"),
+        unittest.mock.patch.object(k8s_helper, "logs", return_value="build logs"),
+    ):
+        response = client.get(
+            BUILD_STATUS_API,
+            params={
+                "project": PROJECT,
+                "name": function["metadata"]["name"],
+                "tag": "latest",
+                "logs": True,
+            },
+        )
+        assert response.status_code == HTTPStatus.OK.value
+        assert response.text == "build logs"
+        assert (
+            response.headers["function_status"]
+            == mlrun.common.schemas.FunctionState.running
+        )
+
+        response = client.post(
+            FUNCTIONS_API.format(project=PROJECT, name=function["metadata"]["name"]),
+            json=function,
+        )
+        assert response.status_code == HTTPStatus.FORBIDDEN.value
+
+    # The polled state is still synchronized into the stored function
+    stored = services.api.crud.Functions().get_function(
+        db, function["metadata"]["name"], PROJECT, tag="latest"
+    )
+    assert stored["status"]["state"] == mlrun.common.schemas.FunctionState.running
+
+
 def test_build_status_with_missing_state(
     db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
 ):

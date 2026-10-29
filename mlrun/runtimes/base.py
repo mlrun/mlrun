@@ -21,6 +21,7 @@ from typing import Union
 import requests.exceptions
 from nuclio.build import mlrun_footer
 
+import mlrun.client
 import mlrun.common.constants
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.formatters
@@ -163,6 +164,9 @@ class BaseRuntime(ModelObj):
         self.kfp = None
         self._spec = None
         self.spec = spec
+        # A DB supplied via set_db_connection() is authoritative in every context; _db_conn is
+        # the legacy lazy cache, used only outside a Client.session()
+        self._explicit_db_conn = None
         self._db_conn = None
         self._secrets = None
         self._k8s = None
@@ -174,24 +178,32 @@ class BaseRuntime(ModelObj):
         self._enriched_image = False
 
     def __getstate__(self) -> dict:
-        """Exclude the live run-DB connection from copy/pickle.
+        """Exclude the live run-DB connections from copy/pickle.
 
-        ``_db_conn`` holds an ``HTTPRunDB`` with a live ``requests`` session and
+        ``_explicit_db_conn`` and ``_db_conn`` hold an ``HTTPRunDB`` with a live ``requests`` session and
         socket pool. Cloning a runtime - e.g. ``enrich_function_object`` deep-copies
         project functions during pipeline compilation - must not clone the
         connection; ``_get_db`` reconnects lazily (to the cached run-DB) on the
         copy. This avoids both cloning sockets and propagating a half-initialized
         session (see ML-12648).
 
-        :return: The instance state to pickle/copy, with ``_db_conn`` cleared.
+        :return: The instance state to pickle/copy, with both DB connections cleared.
         """
         state = self.__dict__.copy()
+        state["_explicit_db_conn"] = None
         state["_db_conn"] = None
         return state
 
     def set_db_connection(self, conn):
-        if not self._db_conn:
-            self._db_conn = conn
+        """Set an explicit run-DB connection, authoritative even inside a ``Client.session()``.
+
+        First set wins: the call is a no-op if an explicit connection or the legacy lazy cache
+        is already set.
+
+        :param conn: The run-DB connection to use.
+        """
+        if not self._explicit_db_conn and not self._db_conn:
+            self._explicit_db_conn = conn
 
     @property
     def metadata(self) -> BaseMetadata:
@@ -265,6 +277,11 @@ class BaseRuntime(ModelObj):
     def _get_db(self):
         # TODO: remove this function and use the launcher db instead
         self._ensure_run_db()
+        if self._explicit_db_conn:
+            return self._explicit_db_conn
+        if (active_client := mlrun.client.get_active_client()) is not None:
+            # Resolve per call, without caching, so the runtime follows session switches
+            return active_client._http_db
         if not self._db_conn:
             if self.spec.rundb:
                 self._db_conn = mlrun.db.get_run_db(

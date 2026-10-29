@@ -399,9 +399,9 @@ async def build_status(
         mlrun.common.schemas.AuthorizationResourceTypes.function,
         project,
         name,
-        # store since with the current mechanism we update the status (and store the function) in the DB when a client
-        # query for the status
-        mlrun.common.schemas.AuthorizationAction.store,
+        # read, since storing the polled status is internal server synchronization rather than a
+        # caller-authored function update
+        mlrun.common.schemas.AuthorizationAction.read,
         auth_info,
     )
     fn = await run_in_threadpool(

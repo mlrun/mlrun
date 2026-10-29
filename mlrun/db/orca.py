@@ -174,10 +174,10 @@ class OrcaProjectsClient:
             current and the incoming state: ``replace`` overwrites it outright; ``additive``
             extends it instead, for collection-typed values (``list``/``set``/``tuple``). Orca's
             own common-set fields merged here (``labels``/``annotations``/``owner``/
-            ``description``) are all plain strings or string-keyed dicts, not collections, so in
-            practice the two modes currently behave the same for this call - the same parameter
-            as MLRun's own ``patch_project``, which does merge collection-typed fields, is kept
-            here for a consistent API surface.
+            ``description``/``desired_state``) are all plain strings or string-keyed dicts, not
+            collections, so in practice the two modes currently behave the same for this call -
+            the same parameter as MLRun's own ``patch_project``, which does merge
+            collection-typed fields, is kept here for a consistent API surface.
         :param wait_for_completion: Block until Orca's patch operation reaches a terminal state
             and return the resulting project. If ``False``, return the operation's ``op_id``
             immediately instead.
@@ -299,6 +299,7 @@ def _as_project_like(project: ProjectInput) -> orca_projects.ProjectLike:
         spec=types.SimpleNamespace(
             owner=spec.get("owner"),
             description=spec.get("description"),
+            desired_state=spec.get("desired_state"),
         ),
         status=types.SimpleNamespace(op_id=status.get("op_id") or status.get("opId")),
     )

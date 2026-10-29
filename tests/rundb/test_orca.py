@@ -283,6 +283,80 @@ class TestOrcaProjectsClient:
         assert sent["labels"] == {"team": "ds", "env": "prod"}
         assert sent["annotations"] == {"note": "x"}
         assert sent["prevOpId"] == op_id
+        assert sent["desiredState"] == "online"
+
+    def test_update_project_archives_from_mlrun_project_dict(
+        self, requests_mock, orca_client
+    ):
+        # ORIS-4813 regression: MlrunProject.save() hands store_project its to_dict(), and the
+        # archive must survive that dict path onto the wire and back onto the returned project.
+        prev_op_id = str(uuid.uuid4())
+        op_id = str(uuid.uuid4())
+        requests_mock.put(
+            f"{ORCA_API_URL}/api/v1/projects/projects/p11",
+            json={"status": {"opId": op_id}},
+            status_code=202,
+        )
+        requests_mock.get(
+            f"{ORCA_API_URL}/api/v1/trackable-actions/executions",
+            json={"items": [{"status": {"state": "succeeded"}}]},
+        )
+        requests_mock.get(
+            f"{ORCA_API_URL}/api/v1/projects/projects/p11",
+            json=_project_wire_body("p11", op_id, "archived"),
+        )
+
+        project = _mlrun_project("p11", owner="jsmith")
+        project.spec.desired_state = "archived"
+        project.status.op_id = prev_op_id
+        result = orca_client.update_project("p11", project.to_dict())
+
+        put_request = [r for r in requests_mock.request_history if r.method == "PUT"][0]
+        assert put_request.json()["desiredState"] == "archived"
+        assert result.spec.desired_state == "archived"
+
+    def test_get_project_reports_archived_desired_state(
+        self, requests_mock, orca_client
+    ):
+        requests_mock.get(
+            f"{ORCA_API_URL}/api/v1/projects/projects/p12",
+            json=_project_wire_body("p12", str(uuid.uuid4()), "archived"),
+        )
+
+        assert orca_client.get_project("p12").spec.desired_state == "archived"
+
+    @pytest.mark.parametrize(
+        "patch_body, expected_desired_state",
+        [
+            # a partial patch that doesn't touch the state must not un-archive the project
+            ({"spec": {"description": "new desc"}}, "archived"),
+            ({"spec": {"desired_state": "online"}}, "online"),
+        ],
+    )
+    def test_patch_project_desired_state(
+        self, requests_mock, orca_client, patch_body, expected_desired_state
+    ):
+        op_id = str(uuid.uuid4())
+        requests_mock.get(
+            f"{ORCA_API_URL}/api/v1/projects/projects/p13",
+            json=_project_wire_body("p13", op_id, "archived"),
+        )
+        requests_mock.patch(
+            f"{ORCA_API_URL}/api/v1/projects/projects/p13",
+            json={"status": {"opId": op_id}},
+            status_code=202,
+        )
+        requests_mock.get(
+            f"{ORCA_API_URL}/api/v1/trackable-actions/executions",
+            json={"items": [{"status": {"state": "succeeded"}}]},
+        )
+
+        orca_client.patch_project("p13", patch_body)
+
+        patch_request = [
+            r for r in requests_mock.request_history if r.method == "PATCH"
+        ][0]
+        assert patch_request.json()["desiredState"] == expected_desired_state
 
     def test_delete_project_waits_for_completion(self, requests_mock, orca_client):
         op_id = str(uuid.uuid4())

@@ -244,6 +244,7 @@ def test_build_image_no_uid_fallback_when_no_static_security_context(monkeypatch
 
 def _patch_k8s_helper(monkeypatch):
     get_k8s_helper_mock = unittest.mock.Mock()
+    get_k8s_helper_mock.resolve_namespace.return_value = "some-namespace"
     get_k8s_helper_mock.create_pod = unittest.mock.Mock(
         side_effect=lambda pod: (pod, "some-namespace")
     )
@@ -991,13 +992,11 @@ def test_buildah_backend_mounts_v3io_source():
     }
     assert ("v3io", "/empty/source") in volume_mounts
 
-    # v3io_to_vol returns a plain dict (not a V1Volume), unlike the other mount_* helpers.
-    v3io_volume = next(
-        v
-        for v in pod.pod.spec.volumes or []
-        if (v["name"] if isinstance(v, dict) else v.name) == "v3io"
-    )
-    flex_volume_options = v3io_volume["flexVolume"].options
+    # v3io_to_vol returns a plain dict (not a V1Volume), unlike the other mount_* helpers, and depending on the
+    # kubernetes client version it may be kept as a dict or converted to a V1Volume - compare the serialized form
+    volumes = client.ApiClient().sanitize_for_serialization(pod.pod.spec.volumes or [])
+    v3io_volume = next(v for v in volumes if v["name"] == "v3io")
+    flex_volume_options = v3io_volume["flexVolume"]["options"]
     assert flex_volume_options["container"] == "bigdata"
     assert flex_volume_options["subPath"] == "/project"
 

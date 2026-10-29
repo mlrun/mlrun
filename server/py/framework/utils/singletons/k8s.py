@@ -2180,7 +2180,7 @@ class BasePod:
             command=self.command,
             args=self.args,
             volume_mounts=self._mounts,
-            resources=self.resources,
+            resources=sanitize_resource_quantities(self.resources),
             security_context=self.security_context,
         )
 
@@ -2204,7 +2204,11 @@ class BasePod:
             metadata=client.V1ObjectMeta(
                 generate_name=f"{self.task_name}-",
                 namespace=self.namespace,
-                labels=self._labels,
+                labels={
+                    key: value
+                    for key, value in self._labels.items()
+                    if value is not None
+                },
                 annotations=self._annotations,
             ),
             spec=pod_spec,
@@ -2231,6 +2235,64 @@ def kube_resource_spec_to_pod_spec(
         if len(mlrun.mlconf.get_valid_function_priority_class_names())
         else None,
         tolerations=tolerations or kube_resource_spec.tolerations,
-        security_context=kube_resource_spec.security_context,
+        security_context=to_pod_security_context(kube_resource_spec.security_context),
         termination_grace_period_seconds=kube_resource_spec.termination_grace_period_seconds,
     )
+
+
+def sanitize_resource_quantities(resources: dict | None) -> dict | None:
+    """
+    Convert numeric resource quantities (e.g. ``{"limits": {"nvidia.com/gpu": 1}}``) to strings,
+    as the kubernetes client models only accept string quantities.
+
+    :param resources: resource requirements dict (``limits`` / ``requests``)
+    :return: the resource requirements with string quantities
+    """
+    if not isinstance(resources, dict):
+        return resources
+    return {
+        requirement: {
+            resource: str(quantity) if isinstance(quantity, int | float) else quantity
+            for resource, quantity in quantities.items()
+        }
+        if isinstance(quantities, dict)
+        else quantities
+        for requirement, quantities in resources.items()
+    }
+
+
+# fields that exist only on the container-level security context, the API server drops them when set on the pod
+_container_only_security_context_fields = {
+    "allowPrivilegeEscalation",
+    "capabilities",
+    "privileged",
+    "procMount",
+    "readOnlyRootFilesystem",
+}
+
+
+def to_pod_security_context(security_context) -> dict | None:
+    """
+    The function spec security context is a container-level ``V1SecurityContext`` which is applied on the pod.
+    Kubernetes ignores the container-only fields on the pod level, while the kubernetes client rejects them,
+    so drop them explicitly.
+
+    :param security_context: container-level security context (model or sanitized dict)
+    :return: sanitized pod-level security context
+    """
+    if not security_context:
+        return security_context
+    security_context = mlrun.k8s_utils.sanitize_k8s_objects(security_context)
+    ignored_fields = sorted(
+        _container_only_security_context_fields.intersection(security_context)
+    )
+    if ignored_fields:
+        logger.warning(
+            "Ignoring container-only security context fields on the pod level",
+            fields=ignored_fields,
+        )
+    return {
+        field: value
+        for field, value in security_context.items()
+        if field not in _container_only_security_context_fields
+    }

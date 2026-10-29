@@ -694,15 +694,14 @@ def _generate_igv4_project(
 
 
 def _project_wire_body(name: str, op_id: str, state: str) -> dict:
-    # Orca's wire format is camelCase.
+    # Orca's wire format is camelCase, and it omits the proto-default "creating" state.
+    status = {"opId": op_id, "updatedAt": "2026-08-14T00:00:00+00:00"}
+    if state != mlrun.common.schemas.ProjectState.creating:
+        status["state"] = state
     return {
         "metadata": {"name": name, "labels": {}, "annotations": {}},
         "spec": {"owner": TEST_PROJECT_OWNER, "description": "desc"},
-        "status": {
-            "state": state,
-            "opId": op_id,
-            "updatedAt": "2026-08-14T00:00:00+00:00",
-        },
+        "status": status,
     }
 
 
@@ -831,7 +830,104 @@ def test_orca_create_project_poll_timeout_raises(
 
 
 @pytest.mark.parametrize("iguazio_client", [("v4", "sync")], indirect=True)
-def test_orca_create_project_action_failed_raises_without_retrying(
+@pytest.mark.parametrize(
+    "state_after_failure, expectation",
+    [
+        # Orca keeps a project creating when a follower fails, and its reconciler resumes it
+        ("creating", does_not_raise()),
+        ("online", pytest.raises(mlrun.errors.MLRunRetryExhaustedError)),
+    ],
+)
+def test_orca_create_project_action_failed(
+    api_url: str,
+    iguazio_client,
+    igv4_auth_info: mlrun.common.schemas.AuthInfo,
+    fast_orca_poll,
+    requests_mock: requests_mock_package.Mocker,
+    state_after_failure: str,
+    expectation,
+):
+    project = _generate_igv4_project()
+    op_id = str(uuid.uuid4())
+    requests_mock.post(
+        f"{api_url}/api/v1/projects/projects",
+        json={"status": {"opId": op_id}},
+        status_code=202,
+    )
+    executions_mock = requests_mock.get(
+        f"{api_url}/api/v1/trackable-actions/executions",
+        json=_action_execution_list_body("failed"),
+    )
+    requests_mock.get(
+        f"{api_url}/api/v1/projects/projects/{project.metadata.name}",
+        json=_project_wire_body(project.metadata.name, op_id, state_after_failure),
+    )
+
+    with expectation:
+        is_running_in_background = iguazio_client.create_project(
+            "unused-session", project, igv4_auth_info, wait_for_completion=True
+        )
+        assert is_running_in_background is True
+
+    # a failed action is fatal - it should stop polling immediately, not retry until timeout
+    assert executions_mock.call_count == 1
+
+
+@pytest.mark.parametrize("iguazio_client", [("v4", "sync")], indirect=True)
+@pytest.mark.parametrize(
+    "orca_get_response",
+    [
+        {"status_code": 404, "json": {}},
+        # the retry of a store whose create already reached Orca - it must re-create,
+        # since Orca rejects any update of a creating project with 412
+        {"json": _project_wire_body(TEST_PROJECT_NAME, str(uuid.uuid4()), "creating")},
+    ],
+)
+def test_orca_store_project_creates_missing_or_creating_project(
+    api_url: str,
+    iguazio_client,
+    igv4_auth_info: mlrun.common.schemas.AuthInfo,
+    fast_orca_poll,
+    requests_mock: requests_mock_package.Mocker,
+    orca_get_response: dict,
+):
+    project = _generate_igv4_project()
+    requests_mock.get(
+        f"{api_url}/api/v1/projects/projects/{project.metadata.name}",
+        **orca_get_response,
+    )
+    post_mock = requests_mock.post(
+        f"{api_url}/api/v1/projects/projects",
+        json={"status": {"opId": str(uuid.uuid4())}},
+        status_code=202,
+    )
+    put_mock = requests_mock.put(
+        f"{api_url}/api/v1/projects/projects/{project.metadata.name}",
+        status_code=412,
+    )
+    requests_mock.get(
+        f"{api_url}/api/v1/trackable-actions/executions",
+        json=_action_execution_list_body("succeeded"),
+    )
+
+    is_running_in_background = iguazio_client.store_project(
+        "unused-session",
+        project.metadata.name,
+        project,
+        igv4_auth_info,
+        wait_for_completion=True,
+    )
+
+    assert is_running_in_background is False
+    assert post_mock.last_request.json() == {
+        "name": project.metadata.name,
+        "owner": TEST_PROJECT_OWNER,
+    }
+    assert not put_mock.called
+
+
+@pytest.mark.parametrize("iguazio_client", [("v4", "sync")], indirect=True)
+def test_orca_store_project_create_action_failed_runs_in_background(
     api_url: str,
     iguazio_client,
     igv4_auth_info: mlrun.common.schemas.AuthInfo,
@@ -840,6 +936,13 @@ def test_orca_create_project_action_failed_raises_without_retrying(
 ):
     project = _generate_igv4_project()
     op_id = str(uuid.uuid4())
+    requests_mock.get(
+        f"{api_url}/api/v1/projects/projects/{project.metadata.name}",
+        [
+            {"status_code": 404, "json": {}},
+            {"json": _project_wire_body(project.metadata.name, op_id, "creating")},
+        ],
+    )
     requests_mock.post(
         f"{api_url}/api/v1/projects/projects",
         json={"status": {"opId": op_id}},
@@ -850,14 +953,58 @@ def test_orca_create_project_action_failed_raises_without_retrying(
         json=_action_execution_list_body("failed"),
     )
 
-    with pytest.raises(mlrun.errors.MLRunRetryExhaustedError):
-        iguazio_client.create_project(
-            "unused-session", project, igv4_auth_info, wait_for_completion=True
-        )
+    is_running_in_background = iguazio_client.store_project(
+        "unused-session",
+        project.metadata.name,
+        project,
+        igv4_auth_info,
+        wait_for_completion=True,
+    )
 
-    # a failed action is fatal - it should stop polling immediately, not retry until timeout
-    get_requests = [r for r in requests_mock.request_history if r.method == "GET"]
-    assert len(get_requests) == 1
+    assert is_running_in_background is True
+
+
+@pytest.mark.parametrize("iguazio_client", [("v4", "sync")], indirect=True)
+def test_orca_store_project_updates_online_project_with_observed_op_id(
+    api_url: str,
+    iguazio_client,
+    igv4_auth_info: mlrun.common.schemas.AuthInfo,
+    fast_orca_poll,
+    requests_mock: requests_mock_package.Mocker,
+):
+    project = _generate_igv4_project()
+    observed_op_id = str(uuid.uuid4())
+    project_get_mock = requests_mock.get(
+        f"{api_url}/api/v1/projects/projects/{project.metadata.name}",
+        json=_project_wire_body(project.metadata.name, observed_op_id, "online"),
+    )
+    post_mock = requests_mock.post(f"{api_url}/api/v1/projects/projects")
+    put_mock = requests_mock.put(
+        f"{api_url}/api/v1/projects/projects/{project.metadata.name}",
+        json={"status": {"opId": str(uuid.uuid4())}},
+        status_code=202,
+    )
+    requests_mock.get(
+        f"{api_url}/api/v1/trackable-actions/executions",
+        json=_action_execution_list_body("succeeded"),
+    )
+
+    is_running_in_background = iguazio_client.store_project(
+        "unused-session",
+        project.metadata.name,
+        project,
+        igv4_auth_info,
+        wait_for_completion=True,
+    )
+
+    assert is_running_in_background is False
+    assert put_mock.last_request.json() == {
+        "prevOpId": observed_op_id,
+        "owner": TEST_PROJECT_OWNER,
+    }
+    # the state read that chose the update doubles as the CAS witness - no second read
+    assert project_get_mock.call_count == 1
+    assert not post_mock.called
 
 
 @pytest.mark.parametrize("iguazio_client", [("v4", "sync")], indirect=True)

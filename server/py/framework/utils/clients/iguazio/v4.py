@@ -14,6 +14,7 @@
 import datetime
 import tempfile
 import typing
+import uuid
 
 import httpx
 import humanfriendly
@@ -312,12 +313,40 @@ class Client(BaseClient, project_leader.Member):
         """
         orchestrator = self._orca_orchestrator(auth_info)
         _, op_id = orchestrator.create(project)
-        if not wait_for_completion:
-            return True
-        # this leader-proxy only ever needs to know the operation settled, not the resulting
-        # project (unlike the SDK-direct client, which returns it) - wait_for_op alone, not
-        # settle(), which would also fetch it via an extra, unneeded GET.
-        orchestrator.wait_for_op(project.metadata.name, op_id)
+        return self._settle_create(
+            orchestrator=orchestrator,
+            name=project.metadata.name,
+            op_id=op_id,
+            wait_for_completion=wait_for_completion,
+        )
+
+    def store_project(
+        self,
+        session: str,
+        name: str,
+        project: mlrun.common.schemas.Project,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
+        wait_for_completion: bool = True,
+    ) -> bool:
+        """
+        Leader-proxy to Orca: create or update the project depending on Orca's state of it (see
+        :meth:`mlrun.utils.orca_client.ProjectsOrchestrator.store`), not MLRun's local DB - a project
+        MLRun has already prepared locally may still be ``creating`` in Orca, and only a create resumes it.
+
+        :return: whether the operation is still running in the background.
+        """
+        orchestrator = self._orca_orchestrator(auth_info)
+        response, op_id, created = orchestrator.store(name, project)
+        if created:
+            return self._settle_create(
+                orchestrator=orchestrator,
+                name=name,
+                op_id=op_id,
+                wait_for_completion=wait_for_completion,
+            )
+        self._settle_update(
+            orchestrator=orchestrator, name=name, response=response, op_id=op_id
+        )
         return False
 
     def update_project(
@@ -329,11 +358,9 @@ class Client(BaseClient, project_leader.Member):
     ):
         orchestrator = self._orca_orchestrator(auth_info)
         response, op_id = orchestrator.update(name, project)
-        # the shared leader-client interface has no wait_for_completion for update, so always wait here
-        # to match the legacy synchronous contract the caller expects. A synchronous (non-202) response
-        # is already terminal - nothing to poll for.
-        if response.status_code == requests.codes.accepted:
-            orchestrator.wait_for_op(name, op_id)
+        self._settle_update(
+            orchestrator=orchestrator, name=name, response=response, op_id=op_id
+        )
 
     def delete_project(
         self,
@@ -418,6 +445,51 @@ class Client(BaseClient, project_leader.Member):
         kwargs["headers"] = clients_helpers.enrich_headers(headers=headers)
         kwargs.setdefault("timeout", 20)
         return self._send_request_to_api(method, path, error_message, **kwargs)
+
+    def _settle_create(
+        self,
+        orchestrator: orca_client.ProjectsOrchestrator,
+        name: str,
+        op_id: uuid.UUID | str,
+        wait_for_completion: bool,
+    ) -> bool:
+        if not wait_for_completion:
+            return True
+        # this leader-proxy only ever needs to know the operation settled, not the resulting
+        # project (unlike the SDK-direct client, which returns it) - wait_for_op alone, not
+        # settle(), which would also fetch it via an extra, unneeded GET.
+        try:
+            orchestrator.wait_for_op(name, op_id)
+        except mlrun.errors.MLRunRetryExhaustedError as exc:
+            # A follower failing its step doesn't roll the create back - Orca keeps the project
+            # creating and its reconciler resumes the operation, so it is still in progress.
+            if (
+                orca_client.is_action_failed(exc)
+                and orchestrator.get(name).status.state
+                == mlrun.common.schemas.ProjectState.creating
+            ):
+                self._logger.warning(
+                    "Orca project create action failed, leaving it to Orca's reconciliation",
+                    name=name,
+                    op_id=op_id,
+                    exc=mlrun.errors.err_to_str(exc.__cause__),
+                )
+                return True
+            raise
+        return False
+
+    @staticmethod
+    def _settle_update(
+        orchestrator: orca_client.ProjectsOrchestrator,
+        name: str,
+        response: requests.Response,
+        op_id: uuid.UUID | str,
+    ) -> None:
+        # the shared leader-client interface has no wait_for_completion for update, so always wait here
+        # to match the legacy synchronous contract the caller expects. A synchronous (non-202) response
+        # is already terminal - nothing to poll for.
+        if response.status_code == requests.codes.accepted:
+            orchestrator.wait_for_op(name, op_id)
 
     def _orca_orchestrator(
         self, auth_info: mlrun.common.schemas.AuthInfo

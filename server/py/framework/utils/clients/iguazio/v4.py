@@ -331,9 +331,16 @@ class Client(BaseClient, project_leader.Member):
         response, op_id = orchestrator.update(name, project)
         # the shared leader-client interface has no wait_for_completion for update, so always wait here
         # to match the legacy synchronous contract the caller expects. A synchronous (non-202) response
-        # is already terminal - nothing to poll for.
+        # is already terminal - nothing to poll for. A follower missing an update Orca already stored
+        # isn't a failure, but Orca may turn a PUT into a create, which must stay strict.
         if response.status_code == requests.codes.accepted:
-            orchestrator.wait_for_op(name, op_id)
+            orchestrator.wait_for_op(
+                name,
+                op_id,
+                tolerate_failed_fan_out=orca_projects.is_update_of_existing_project(
+                    response.json()
+                ),
+            )
 
     def delete_project(
         self,

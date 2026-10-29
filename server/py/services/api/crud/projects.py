@@ -78,6 +78,7 @@ class Projects(
         session: sqlalchemy.orm.Session,
         project: mlrun.common.schemas.Project,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
+        emit_lifecycle_event: bool = True,
     ):
         logger.debug(
             "Creating project",
@@ -95,18 +96,20 @@ class Projects(
                 session, project, auth_info
             )
         except Exception as exc:
+            if emit_lifecycle_event:
+                self._emit_project_lifecycle_event(
+                    action=mlrun.common.schemas.ProjectLifecycleEventActions.creation_failed,
+                    project_name=project.metadata.name,
+                    actor=auth_info.username,
+                    error=exc,
+                )
+            raise
+        if emit_lifecycle_event:
             self._emit_project_lifecycle_event(
-                action=mlrun.common.schemas.ProjectLifecycleEventActions.creation_failed,
+                action=mlrun.common.schemas.ProjectLifecycleEventActions.creation_succeeded,
                 project_name=project.metadata.name,
                 actor=auth_info.username,
-                error=exc,
             )
-            raise
-        self._emit_project_lifecycle_event(
-            action=mlrun.common.schemas.ProjectLifecycleEventActions.creation_succeeded,
-            project_name=project.metadata.name,
-            actor=auth_info.username,
-        )
 
     def store_project(
         self,
@@ -153,6 +156,7 @@ class Projects(
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         background_task_name: str | None = None,
         model_monitoring_access_key: str | None = None,
+        emit_lifecycle_event: bool = True,
     ):
         logger.debug("Deleting project", name=name, deletion_strategy=deletion_strategy)
         self._enrich_project_with_deletion_background_task_name(
@@ -189,18 +193,20 @@ class Projects(
                 session, name, deletion_strategy
             )
         except Exception as exc:
+            if emit_lifecycle_event:
+                self._emit_project_lifecycle_event(
+                    action=mlrun.common.schemas.ProjectLifecycleEventActions.deletion_failed,
+                    project_name=name,
+                    actor=auth_info.username,
+                    error=exc,
+                )
+            raise
+        if emit_lifecycle_event:
             self._emit_project_lifecycle_event(
-                action=mlrun.common.schemas.ProjectLifecycleEventActions.deletion_failed,
+                action=mlrun.common.schemas.ProjectLifecycleEventActions.deletion_succeeded,
                 project_name=name,
                 actor=auth_info.username,
-                error=exc,
             )
-            raise
-        self._emit_project_lifecycle_event(
-            action=mlrun.common.schemas.ProjectLifecycleEventActions.deletion_succeeded,
-            project_name=name,
-            actor=auth_info.username,
-        )
 
     def verify_project_is_empty(
         self,
@@ -1162,7 +1168,9 @@ class Projects(
             if existing:
                 self.store_project(session, name, project)
             else:
-                self.create_project(session, project)
+                # Orca decides the create's outcome and publishes the event for it;
+                # this only stages the project as `creating`.
+                self.create_project(session, project, emit_lifecycle_event=False)
             return project
         finally:
             framework.db.session.close_session(session)
@@ -1329,10 +1337,12 @@ class Projects(
         """
         session = framework.db.session.create_session()
         try:
+            # Orca already decided this delete and publishes the event for it.
             self.delete_project(
                 session,
                 project.metadata.name,
                 deletion_strategy=mlrun.common.schemas.DeletionStrategy.cascading,
+                emit_lifecycle_event=False,
             )
         finally:
             framework.db.session.close_session(session)

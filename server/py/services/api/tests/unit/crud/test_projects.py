@@ -20,12 +20,16 @@ import unittest.mock
 import uuid
 
 import pytest
+import sqlalchemy.orm
 
 import mlrun
+import mlrun.common.formatters
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils.singleton
 
+import framework.tests.unit.common_fixtures
+import framework.utils.singletons.db
 import services.api.crud.projects as projects_crud
 
 
@@ -474,6 +478,16 @@ def patched_db_session(monkeypatch: pytest.MonkeyPatch) -> unittest.mock.MagicMo
     return session_mock
 
 
+def _patch_stored_project(
+    monkeypatch: pytest.MonkeyPatch, stored: mlrun.common.schemas.Project
+) -> unittest.mock.MagicMock:
+    """Serve `stored` as the full stored project and capture what gets stored back."""
+    monkeypatch.setattr(projects_crud.Projects, "get_project", lambda *a, **k: stored)
+    store_mock = unittest.mock.MagicMock()
+    monkeypatch.setattr(projects_crud.Projects, "store_project", store_mock)
+    return store_mock
+
+
 def test_get_follower_project_snapshot_for_update_reaches_the_db_layer(
     reset_projects_singleton: None,
     monkeypatch: pytest.MonkeyPatch,
@@ -686,8 +700,7 @@ def test_update_project_follower_cas_mismatch_is_rejected(
         "get_follower_project_snapshot",
         lambda *a, **k: existing,
     )
-    patch_mock = unittest.mock.MagicMock()
-    monkeypatch.setattr(projects_crud.Projects, "patch_project", patch_mock)
+    store_mock = _patch_stored_project(monkeypatch, existing)
 
     project = mlrun.common.schemas.Project(
         metadata=mlrun.common.schemas.ProjectMetadata(name="proj")
@@ -702,7 +715,32 @@ def test_update_project_follower_cas_mismatch_is_rejected(
             prev_op_id=wrong_prev_op_id,
         )
 
-    patch_mock.assert_not_called()
+    store_mock.assert_not_called()
+
+
+def test_update_project_follower_replay_does_not_write(
+    reset_projects_singleton: None,
+    patched_db_session: unittest.mock.MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    op_id = uuid.UUID(int=2)
+    existing = _make_follower_snapshot(op_id, mlrun.common.schemas.ProjectState.online)
+    monkeypatch.setattr(
+        projects_crud.Projects,
+        "get_follower_project_snapshot",
+        lambda *a, **k: existing,
+    )
+    store_mock = _patch_stored_project(monkeypatch, existing)
+
+    project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name="proj", labels={"a": "b"})
+    )
+    result = projects_crud.Projects().update_project_follower(
+        "proj", project, op_id, prev_op_id=uuid.UUID(int=1)
+    )
+
+    store_mock.assert_not_called()
+    assert result is existing
 
 
 def test_update_project_follower_first_touch_with_no_prior_op_id_applies(
@@ -720,8 +758,7 @@ def test_update_project_follower_first_touch_with_no_prior_op_id_applies(
         "get_follower_project_snapshot",
         lambda *a, **k: existing,
     )
-    patch_mock = unittest.mock.MagicMock()
-    monkeypatch.setattr(projects_crud.Projects, "patch_project", patch_mock)
+    store_mock = _patch_stored_project(monkeypatch, existing)
 
     new_op_id = uuid.UUID(int=1)
     project = mlrun.common.schemas.Project(
@@ -735,10 +772,10 @@ def test_update_project_follower_first_touch_with_no_prior_op_id_applies(
     )
     after = datetime.datetime.now(tz=datetime.UTC)
 
-    patched_dict = patch_mock.call_args.args[2]
-    assert patched_dict["status"]["op_id"] == new_op_id
+    stored_project = store_mock.call_args.args[2]
+    assert stored_project.status.op_id == new_op_id
     # No updated_at on the wire for this op: MLRun stamps its own local time.
-    assert before <= patched_dict["status"]["updated_at"] <= after
+    assert before <= stored_project.status.updated_at <= after
 
 
 def test_update_project_follower_applies_common_set_only(
@@ -755,8 +792,9 @@ def test_update_project_follower_applies_common_set_only(
         "get_follower_project_snapshot",
         lambda *a, **k: existing,
     )
-    patch_mock = unittest.mock.MagicMock()
-    monkeypatch.setattr(projects_crud.Projects, "patch_project", patch_mock)
+    stored = existing.copy(deep=True)
+    stored.spec.params = {"p": "v"}
+    store_mock = _patch_stored_project(monkeypatch, stored)
 
     new_op_id = uuid.UUID(int=2)
     project = mlrun.common.schemas.Project(
@@ -772,20 +810,114 @@ def test_update_project_follower_applies_common_set_only(
     )
     after = datetime.datetime.now(tz=datetime.UTC)
 
-    patched_dict = patch_mock.call_args.args[2]
-    assert patched_dict["metadata"] == {
-        "labels": {"team": "ml"},
-        "annotations": {"a": "b"},
-    }
-    assert patched_dict["spec"] == {"owner": "jsmith", "description": "desc"}
-    assert patched_dict["status"]["op_id"] == new_op_id
+    stored_project = store_mock.call_args.args[2]
+    assert stored_project.metadata.labels == {"team": "ml"}
+    assert stored_project.metadata.annotations == {"a": "b"}
+    assert stored_project.spec.owner == "jsmith"
+    assert stored_project.spec.description == "desc"
+    # MLRun-specific spec and state are never on the wire and must be kept.
+    assert stored_project.spec.params == {"p": "v"}
+    assert stored_project.status.state == mlrun.common.schemas.ProjectState.online
+    assert stored_project.status.op_id == new_op_id
     # No updated_at on the wire for this op: MLRun stamps its own local time.
-    assert before <= patched_dict["status"]["updated_at"] <= after
+    assert before <= stored_project.status.updated_at <= after
     # The endpoint builds its response from this return value with no follow-up
     # query — state doesn't change on update, but op_id must reflect the new one.
     assert result.status.op_id == new_op_id
     assert before <= result.status.updated_at <= after
     assert result.status.state == mlrun.common.schemas.ProjectState.online
+
+
+class TestUpdateProjectFollowerPersistence(
+    framework.tests.unit.common_fixtures.TestServiceBase
+):
+    """Runs the follower update against a real DB, so the stored labels and
+    annotations reflect the actual merge/store path."""
+
+    _seed_labels = {"suite": "qx", "color": "blue"}
+    _seed_annotations = {"a": "1", "b": "2"}
+
+    @pytest.mark.parametrize(
+        "sent_metadata, expected_labels, expected_annotations",
+        [
+            ({"labels": {"suite": "qx"}}, {"suite": "qx"}, _seed_annotations),
+            ({"annotations": {"a": "1"}}, _seed_labels, {"a": "1"}),
+            (
+                {"labels": {"suite": "qx-p5", "color": "blue"}},
+                {"suite": "qx-p5", "color": "blue"},
+                _seed_annotations,
+            ),
+            ({"labels": {}, "annotations": {}}, {}, {}),
+            ({}, _seed_labels, _seed_annotations),
+            ({"labels": None, "annotations": None}, _seed_labels, _seed_annotations),
+        ],
+        ids=[
+            "removes-dropped-label",
+            "removes-dropped-annotation",
+            "changes-label-value",
+            "empty-clears",
+            "absent-unchanged",
+            "null-unchanged",
+        ],
+    )
+    def test_update_replaces_labels_and_annotations(
+        self,
+        db: sqlalchemy.orm.Session,
+        reset_projects_singleton: None,
+        monkeypatch: pytest.MonkeyPatch,
+        sent_metadata: dict,
+        expected_labels: dict,
+        expected_annotations: dict,
+    ):
+        monkeypatch.setattr("framework.db.session.create_session", lambda: db)
+        monkeypatch.setattr("framework.db.session.close_session", lambda session: None)
+        stored_op_id = uuid.UUID(int=1)
+        framework.utils.singletons.db.get_db().create_project(
+            db,
+            mlrun.common.schemas.Project(
+                metadata=mlrun.common.schemas.ProjectMetadata(
+                    name="proj",
+                    labels=self._seed_labels,
+                    annotations=self._seed_annotations,
+                ),
+                spec=mlrun.common.schemas.ProjectSpec(params={"p": "v"}),
+                status=mlrun.common.schemas.ProjectStatus(
+                    state=mlrun.common.schemas.ProjectState.online, op_id=stored_op_id
+                ),
+            ),
+        )
+
+        new_op_id = uuid.UUID(int=2)
+        projects_crud.Projects().update_project_follower(
+            "proj",
+            mlrun.common.schemas.Project(
+                metadata=mlrun.common.schemas.ProjectMetadata(
+                    name="proj", **sent_metadata
+                ),
+                spec=mlrun.common.schemas.ProjectSpec(
+                    owner="jsmith", description="remove color"
+                ),
+            ),
+            new_op_id,
+            prev_op_id=stored_op_id,
+        )
+
+        stored = framework.utils.singletons.db.get_db().get_project(db, "proj")
+        assert stored.metadata.labels == expected_labels
+        assert stored.metadata.annotations == expected_annotations
+        assert stored.spec.description == "remove color"
+        assert stored.spec.params == {"p": "v"}
+        assert stored.status.state == mlrun.common.schemas.ProjectState.online
+        assert stored.status.op_id == new_op_id
+        # Label filtering reads the label rows, not the stored object.
+        for label, value in self._seed_labels.items():
+            matching = framework.utils.singletons.db.get_db().list_projects(
+                db,
+                format_=mlrun.common.formatters.ProjectFormat.name_only,
+                labels=[f"{label}={value}"],
+            )
+            expected_matches = ["proj"] if expected_labels.get(label) == value else []
+            assert matching.projects == expected_matches
 
 
 def test_prepare_delete_project_absent_project_is_noop(

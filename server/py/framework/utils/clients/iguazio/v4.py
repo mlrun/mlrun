@@ -703,10 +703,8 @@ class FollowerClient(Client, project_follower.Member):
         self._logger.debug("Creating default project policies in Iguazio")
 
         def _create_default_project_policies():
-            # TODO: Currently, create_default_project_policies relies on the auth info of the incoming request to
-            #       determine the owner of the project. The iguazio api needs to be updated to accept an explicit owner
-            #       parameter so we can use the service account token here.
-            #       This isn't required now, but will be for the project sync functionality.
+            # Iguazio takes the project owner from the caller's identity, so this relays the
+            # incoming request's auth headers rather than using the service account token.
             self._client.create_default_project_policies(project=project.metadata.name)
             self._logger.info(
                 "Successfully created default project policies in Iguazio"

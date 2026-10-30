@@ -19,12 +19,15 @@ import httpx
 import humanfriendly
 import iguazio
 import requests
+import sqlalchemy.orm
 from iguazio.schemas import (
     RefreshAccessTokenOptionsV1,
     RefreshAccessTokensOptionsV1,
     RevokeOfflineTokenOptionsV1,
+    UpdateProjectOwnerOptionsV1,
 )
 
+import mlrun.common.formatters
 import mlrun.common.schemas
 import mlrun.common.types
 import mlrun.errors
@@ -36,6 +39,7 @@ from mlrun.utils import get_in, logger
 
 import framework.utils.clients.helpers as clients_helpers
 import framework.utils.clients.service_account_token as service_account_token
+import framework.utils.projects.remotes.follower as project_follower
 import framework.utils.projects.remotes.leader as project_leader
 from framework.utils.clients.iguazio.base import BaseAsyncClient, BaseClient
 
@@ -679,6 +683,171 @@ class Client(BaseClient, project_leader.Member):
             )
 
         return username, user_id, group_ids, resource_type
+
+
+class FollowerClient(Client, project_follower.Member):
+    """
+    Iguazio as a project follower, used when MLRun is the projects leader (the "igz" follower):
+    keeps the project's default policies in Iguazio in sync with MLRun's projects.
+
+    Subclasses the Orca-leader ``Client`` only to reuse its SDK client and error handling - it is not
+    a usable leader member.
+    """
+
+    def create_project(
+        self,
+        session: sqlalchemy.orm.Session,
+        project: mlrun.common.schemas.Project,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
+    ):
+        self._logger.debug("Creating default project policies in Iguazio")
+
+        def _create_default_project_policies():
+            # TODO: Currently, create_default_project_policies relies on the auth info of the incoming request to
+            #       determine the owner of the project. The iguazio api needs to be updated to accept an explicit owner
+            #       parameter so we can use the service account token here.
+            #       This isn't required now, but will be for the project sync functionality.
+            self._client.create_default_project_policies(project=project.metadata.name)
+            self._logger.info(
+                "Successfully created default project policies in Iguazio"
+            )
+
+        self._try_callback_with_httpx_exceptions(
+            _create_default_project_policies,
+            mlrun.errors.MLRunInternalServerError,
+            "Failed to create default project policies in Iguazio",
+            auth_headers=auth_info.request_headers,
+        )
+
+    def store_project(
+        self,
+        session: sqlalchemy.orm.Session,
+        name: str,
+        project: mlrun.common.schemas.Project,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
+    ):
+        self._logger.debug(
+            "Ensuring default project policies exist in Iguazio", project=name
+        )
+
+        def _create_policies_if_not_exist():
+            try:
+                self._client.create_default_project_policies(project=name)
+                self._logger.info(
+                    "Successfully created default project policies in Iguazio",
+                    project=name,
+                )
+            except httpx.HTTPStatusError as exc:
+                if exc.response.status_code == httpx.codes.CONFLICT:
+                    # Conflict means policies already exist, which is expected when storing
+                    # an existing project (e.g., load_project, sync, or re-save).
+                    # We use "create and handle conflict" instead of "check then create"
+                    # because checking a non-existent project returns 401, not 404.
+                    self._logger.debug(
+                        "Project policies already exist, skipping", project=name
+                    )
+                else:
+                    # Unexpected error, re-raise
+                    raise
+
+        self._try_callback_with_httpx_exceptions(
+            _create_policies_if_not_exist,
+            mlrun.errors.MLRunInternalServerError,
+            "Failed to store project policies in Iguazio",
+            auth_headers=auth_info.request_headers,
+        )
+
+    def patch_project(
+        self,
+        session: sqlalchemy.orm.Session,
+        name: str,
+        project: dict,
+        patch_mode: mlrun.common.schemas.PatchMode = mlrun.common.schemas.PatchMode.replace,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
+    ):
+        self._logger.debug("Updating project owner in Iguazio")
+
+        def _update_project_owner():
+            owner = project.get("spec", {}).get("owner")
+            if not owner:
+                # No owner to update, nothing to do
+                return
+
+            options = UpdateProjectOwnerOptionsV1(owner=owner)
+            self._client.update_project_owner(project=name, options=options)
+            self._logger.info("Successfully updated project owner in Iguazio")
+
+        self._try_callback_with_httpx_exceptions(
+            _update_project_owner,
+            mlrun.errors.MLRunInternalServerError,
+            "Failed to update project owner in Iguazio",
+            auth_headers=auth_info.request_headers,
+        )
+
+    def delete_project(
+        self,
+        session: sqlalchemy.orm.Session,
+        name: str,
+        deletion_strategy: mlrun.common.schemas.DeletionStrategy = mlrun.common.schemas.DeletionStrategy.default(),
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
+    ):
+        if deletion_strategy == mlrun.common.schemas.DeletionStrategy.check:
+            return
+
+        self._logger.debug("Deleting project policies in Iguazio")
+
+        def _delete_project_policies():
+            self._client.delete_project_policies(project=name)
+            self._logger.info("Successfully deleted project policies in Iguazio")
+
+        self._try_callback_with_httpx_exceptions(
+            _delete_project_policies,
+            mlrun.errors.MLRunInternalServerError,
+            "Failed to delete project policies in Iguazio",
+        )
+
+    def get_project(
+        self,
+        session: sqlalchemy.orm.Session,
+        name: str,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
+    ) -> mlrun.common.schemas.Project:
+        raise NotImplementedError("Getting a project is not supported")
+
+    def list_projects(
+        self,
+        session: sqlalchemy.orm.Session,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
+        owner: str | None = None,
+        format_: mlrun.common.formatters.ProjectFormat = mlrun.common.formatters.ProjectFormat.full,
+        labels: list[str] | None = None,
+        state: mlrun.common.schemas.ProjectState = None,
+        names: list[str] | None = None,
+        updated_after: datetime.datetime | None = None,
+    ) -> mlrun.common.schemas.ProjectsOutput:
+        # Iguazio holds only project policies, no project records, so periodic project sync would see every
+        # project as missing here and retry creating its policies - deployments keep that sync disabled
+        # (periodic_sync_interval=0s).
+        return mlrun.common.schemas.ProjectsOutput(projects=[])
+
+    def list_project_summaries(
+        self,
+        session: sqlalchemy.orm.Session,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
+        owner: str | None = None,
+        labels: list[str] | None = None,
+        state: mlrun.common.schemas.ProjectState = None,
+        names: list[str] | None = None,
+    ) -> mlrun.common.schemas.ProjectSummariesOutput:
+        raise NotImplementedError("Listing project summaries is not supported")
+
+    def get_project_summary(
+        self,
+        session: sqlalchemy.orm.Session,
+        name: str,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
+    ) -> mlrun.common.schemas.ProjectSummary:
+        raise NotImplementedError("Get project summary is not supported")
 
 
 class AsyncClient(BaseAsyncClient, Client):

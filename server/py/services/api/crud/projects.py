@@ -1365,9 +1365,7 @@ class Projects(
             # No updated_at on the wire for this op either — MLRun stamps its own
             # local time for when it applied the change.
             updated_at = datetime.datetime.now(datetime.UTC)
-            # Store rather than patch: mergedeep merges nested dicts key by key even
-            # under PatchMode.replace, so a label the leader dropped would survive.
-            # Starting from the stored project keeps the MLRun-specific spec the leader
+            # Start from the stored project to keep the MLRun-specific spec the leader
             # never sends; only the common set (labels/annotations/owner/description)
             # is overwritten.
             stored = self.get_project(session, name)

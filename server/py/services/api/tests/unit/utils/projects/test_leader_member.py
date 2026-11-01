@@ -26,6 +26,7 @@ from mlrun.utils import logger
 
 import framework.utils.auth.providers.opa
 import framework.utils.auth.verifier
+import framework.utils.clients.iguazio.v4
 import framework.utils.projects.leader
 import framework.utils.projects.remotes.follower
 import framework.utils.singletons.project_member
@@ -583,6 +584,32 @@ def test_delete_project_follower_explicit_order(
 
     # nop2 runs first (explicit order) and fails, so nop and leader should be untouched
     _assert_project_in_followers([leader_follower, nop_follower], project)
+
+
+def test_initialize_igz_follower(
+    monkeypatch: pytest.MonkeyPatch,
+    projects_leader: framework.utils.projects.leader.Member,
+):
+    monkeypatch.setattr(mlrun.mlconf, "iguazio_api_url", "http://iguazio-api-url:8080")
+    with unittest.mock.patch("framework.utils.clients.iguazio.v4.iguazio.Client"):
+        follower = projects_leader._initialize_follower("igz")
+    assert isinstance(follower, framework.utils.clients.iguazio.v4.FollowerClient)
+
+
+def test_delete_project_runs_igz_follower_after_nuclio(
+    monkeypatch: pytest.MonkeyPatch,
+    projects_leader: framework.utils.projects.leader.Member,
+):
+    # "alpha" sorts before "igz", so igz only lands right after nuclio through the explicit order
+    monkeypatch.setattr(
+        projects_leader,
+        "_followers",
+        {name: unittest.mock.Mock() for name in ("alpha", "igz", "nuclio")},
+    )
+    ordered_names = [
+        name for name, _ in projects_leader._get_ordered_followers("delete_project")
+    ]
+    assert ordered_names == ["nuclio", "igz", "alpha"]
 
 
 def test_list_projects(

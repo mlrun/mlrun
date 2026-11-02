@@ -587,3 +587,54 @@ def test_client_spec_nuclio_function_authentication_enabled_sync(
 
     # Restore defaults so we don't leak into other tests.
     mlrun.mlconf.httpdb.nuclio.function_authentication_enabled = False
+
+
+@pytest.mark.parametrize(
+    "projects_leader, expected_log_level, unexpected_log_level, expected_message",
+    [
+        (
+            "orca",
+            "warning",
+            "error",
+            "Project deletion was accepted and is in progress. The system is "
+            "eventually consistent and will complete it automatically; there is no "
+            "need to retry. The project name can be reused once deletion completes.",
+        ),
+        ("mlrun", "error", "warning", "Project deletion failed"),
+    ],
+)
+def test_delete_project_failed_background_task(
+    requests_mock,
+    projects_leader,
+    expected_log_level,
+    unexpected_log_level,
+    expected_message,
+):
+    mlrun.mlconf.httpdb.projects.leader = projects_leader
+    task_error = "Orca sync-project action for project p1 (op_id=abc) failed"
+    requests_mock.delete(
+        "https://fake-url/api/v2/projects/p1",
+        status_code=202,
+        json=_background_task(state="running"),
+    )
+    requests_mock.get(
+        "https://fake-url/api/v1/background-tasks/delete-p1",
+        json=_background_task(state="failed", error=task_error),
+    )
+    db = mlrun.db.httpdb.HTTPRunDB("https://fake-url")
+
+    with unittest.mock.patch.object(mlrun.db.httpdb, "logger") as logger:
+        db.delete_project("p1")
+
+    getattr(logger, expected_log_level).assert_called_once_with(
+        expected_message, project_name="p1", error=task_error
+    )
+    getattr(logger, unexpected_log_level).assert_not_called()
+
+
+def _background_task(state: str, error: str | None = None) -> dict:
+    return {
+        "metadata": {"name": "delete-p1"},
+        "spec": {},
+        "status": {"state": state, "error": error},
+    }

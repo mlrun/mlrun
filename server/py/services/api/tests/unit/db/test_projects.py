@@ -943,6 +943,48 @@ class TestProjects(TestDatabaseBase):
             error_type=RuntimeError,
         )
 
+    def test_create_and_delete_project_skip_emit_when_disabled(self, monkeypatch):
+        client = self._mock_events_client(monkeypatch)
+
+        services.api.crud.Projects().create_project(
+            self._db_session,
+            self._generate_project_for_event_test("p-no-emit", owner="alice"),
+            auth_info=mlrun.common.schemas.AuthInfo(username="alice"),
+            emit_lifecycle_event=False,
+        )
+        services.api.crud.Projects().delete_project(
+            self._db_session,
+            "p-no-emit",
+            deletion_strategy=mlrun.common.schemas.DeletionStrategy.restricted,
+            auth_info=mlrun.common.schemas.AuthInfo(username="alice"),
+            emit_lifecycle_event=False,
+        )
+
+        assert not framework.utils.singletons.db.get_db().is_project_exists(
+            self._db_session, "p-no-emit"
+        )
+        client.generate_project_lifecycle_event.assert_not_called()
+        client.emit.assert_not_called()
+
+    def test_create_project_failure_reraises_without_emit_when_disabled(
+        self, monkeypatch
+    ):
+        client = self._mock_events_client(monkeypatch)
+        fake_db = unittest.mock.MagicMock()
+        fake_db.create_project.side_effect = RuntimeError("create exploded")
+        monkeypatch.setattr("framework.utils.singletons.db.get_db", lambda: fake_db)
+
+        with pytest.raises(RuntimeError, match="create exploded"):
+            services.api.crud.Projects().create_project(
+                self._db_session,
+                self._generate_project_for_event_test("p-no-emit-fail", owner="alice"),
+                auth_info=mlrun.common.schemas.AuthInfo(username="alice"),
+                emit_lifecycle_event=False,
+            )
+
+        client.generate_project_lifecycle_event.assert_not_called()
+        client.emit.assert_not_called()
+
     def test_emit_helpers_are_best_effort(self, monkeypatch):
         # If the events factory itself raises, the project operation must
         # still succeed — emission is fire-and-forget.

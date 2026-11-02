@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import types
 import uuid
 
 import pytest
@@ -21,12 +22,20 @@ import mlrun.projects.project
 import mlrun.utils.orca_projects as orca_projects
 
 
-def _project(owner=None, description=None, labels=None, annotations=None):
+def _project(
+    owner=None,
+    description=None,
+    labels=None,
+    annotations=None,
+    desired_state=mlrun.common.schemas.ProjectDesiredState.online,
+):
     return mlrun.common.schemas.Project(
         metadata=mlrun.common.schemas.ProjectMetadata(
             name="p1", labels=labels, annotations=annotations
         ),
-        spec=mlrun.common.schemas.ProjectSpec(owner=owner, description=description),
+        spec=mlrun.common.schemas.ProjectSpec(
+            owner=owner, description=description, desired_state=desired_state
+        ),
     )
 
 
@@ -37,9 +46,9 @@ def test_resolve_project_body_create_minimal():
 def test_resolve_project_body_create_does_not_leak_mlrun_only_spec_fields():
     # a real MlrunProject carries ~20 MLRun-specific spec fields (functions, artifacts,
     # workflows, build, ...) that aren't part of Orca's contract (the common set only:
-    # name/labels/annotations/owner/description). resolve_project_body only ever reads the
-    # common-set attributes by name, so passing the richer MlrunProject object directly (as
-    # mlrun/db/orca.py does) must never leak those extra fields onto the wire.
+    # name/labels/annotations/owner/description/desired_state). resolve_project_body only ever
+    # reads the common-set attributes by name, so passing the richer MlrunProject object directly
+    # (as mlrun/db/orca.py does) must never leak those extra fields onto the wire.
     project = mlrun.projects.project.MlrunProject(
         metadata=mlrun.projects.project.ProjectMetadata(name="p1"),
         spec=mlrun.projects.project.ProjectSpec(
@@ -77,6 +86,50 @@ def test_resolve_project_body_update_prev_op_id(prev_op_id):
     assert wire["owner"] == "jsmith"
 
 
+@pytest.mark.parametrize(
+    "desired_state",
+    [
+        mlrun.common.schemas.ProjectDesiredState.archived,
+        mlrun.common.schemas.ProjectDesiredState.online,
+        "archived",
+    ],
+)
+def test_resolve_project_body_update_sends_desired_state(desired_state):
+    wire = orca_projects.resolve_project_body(
+        _project(desired_state=desired_state), uuid.uuid4()
+    )
+    assert wire["desiredState"] == str(desired_state)
+
+
+@pytest.mark.parametrize(
+    "desired_state", [mlrun.common.schemas.ProjectDesiredState.offline, None]
+)
+def test_resolve_project_body_update_omits_desired_state_orca_lacks(desired_state):
+    # Orca has no offline, and an omitted desiredState means online to it
+    wire = orca_projects.resolve_project_body(
+        _project(desired_state=desired_state), uuid.uuid4()
+    )
+    assert "desiredState" not in wire
+
+
+def test_resolve_project_body_update_passes_invalid_desired_state_through():
+    # an invalid value must reach Orca and fail its validation, not be dropped - dropping it
+    # would silently leave the project online, which is exactly the ORIS-4813 failure mode
+    project = types.SimpleNamespace(
+        metadata=types.SimpleNamespace(name="p1", labels=None, annotations=None),
+        spec=types.SimpleNamespace(
+            owner="jsmith", description=None, desired_state="archive"
+        ),
+    )
+    wire = orca_projects.resolve_project_body(project, uuid.uuid4())
+    assert wire["desiredState"] == "archive"
+
+
+def test_resolve_project_body_create_never_sends_desired_state():
+    project = _project(desired_state=mlrun.common.schemas.ProjectDesiredState.archived)
+    assert orca_projects.resolve_project_body(project) == {"name": "p1"}
+
+
 def test_extract_op_id():
     op_id = str(uuid.uuid4())
     assert orca_projects.extract_op_id({"status": {"opId": op_id}}) == op_id
@@ -107,6 +160,28 @@ def test_to_mlproject_round_trip():
     assert project.spec.description == "desc"
     assert project.status.state == "online"
     assert project.status.op_id == op_id
+
+
+@pytest.mark.parametrize(
+    "state, expected_desired_state",
+    [
+        ("archived", "archived"),
+        ("online", "online"),
+        # transient, system-managed states aren't valid desired states - keep the default
+        ("creating", "online"),
+        ("deleting", "online"),
+        (None, "online"),
+    ],
+)
+def test_to_mlproject_desired_state_from_status(state, expected_desired_state):
+    body = {
+        "metadata": {"name": "p1"},
+        "spec": {"owner": "jsmith"},
+        "status": {"state": state, "opId": str(uuid.uuid4())},
+    }
+    project = orca_projects.to_mlproject(body)
+    assert project.spec.desired_state == expected_desired_state
+    assert project.status.state == state
 
 
 def test_action_execution_query_params():

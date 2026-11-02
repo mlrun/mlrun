@@ -229,12 +229,14 @@ class ProjectsOrchestrator:
             "annotations": dict(current.metadata.annotations or {}),
             "owner": current.spec.owner,
             "description": current.spec.description,
+            "desired_state": current.spec.desired_state,
         }
         patch_common = {
             "labels": project.metadata.labels,
             "annotations": project.metadata.annotations,
             "owner": project.spec.owner,
             "description": project.spec.description,
+            "desired_state": project.spec.desired_state,
         }
         patch_common = {k: v for k, v in patch_common.items() if v is not None}
         mergedeep.merge(
@@ -249,6 +251,7 @@ class ProjectsOrchestrator:
             spec=types.SimpleNamespace(
                 owner=merged_common["owner"],
                 description=merged_common["description"],
+                desired_state=merged_common["desired_state"],
             ),
             status=None,
         )

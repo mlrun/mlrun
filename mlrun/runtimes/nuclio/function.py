@@ -1104,8 +1104,7 @@ class RemoteRuntime(KubeResource):
         data = db.deploy_nuclio_function(func=self, builder_env=builder_env)
         self.status = data["data"].get("status")
 
-        # Extract the spec to avoid overwriting server-side updates during the later save in
-        # _enrich_command_from_status.
+        # Adopt the server's spec so the local object reflects server-side updates.
         self.spec = data["data"].get("spec")
 
         self._update_credentials_from_remote_build(data["data"])
@@ -1160,30 +1159,21 @@ class RemoteRuntime(KubeResource):
         return self._enrich_command_from_status()
 
     def _enrich_command_from_status(self):
-        # NOTE: on older mlrun versions & nuclio versions, function are exposed via NodePort
-        #       now, functions can be not exposed (using service type ClusterIP) and hence
-        #       for BC we first try to populate the external invocation url, and then
-        #       if not exists, take the internal invocation url
-        if (
-            self.status.external_invocation_urls
-            and self.status.external_invocation_urls[0] != ""
-        ):
-            self.spec.command = f"http://{self.status.external_invocation_urls[0]}"
-        elif (
-            self.status.internal_invocation_urls
-            and self.status.internal_invocation_urls[0] != ""
-        ):
-            self.spec.command = f"http://{self.status.internal_invocation_urls[0]}"
-        elif self.status.address and self.status.address != "":
-            self.spec.command = f"http://{self.status.address}"
+        # The server persists the same command when the deploy status becomes ready, so only the
+        # local object is updated here (a waiter may lack permission to store the function)
+        command = resolve_invocation_command(
+            external_invocation_urls=self.status.external_invocation_urls,
+            internal_invocation_urls=self.status.internal_invocation_urls,
+            address=self.status.address,
+        )
+        if command:
+            self.spec.command = command
 
         logger.info(
             "Successfully deployed function",
             internal_invocation_urls=self.status.internal_invocation_urls,
             external_invocation_urls=self.status.external_invocation_urls,
         )
-
-        self.save(versioned=False)
 
         return self.spec.command
 
@@ -1676,7 +1666,7 @@ class RemoteRuntime(KubeResource):
 
         logs = resp.headers.get("X-Nuclio-Logs")
         if logs:
-            log_std(self._db_conn, runobj, parse_logs(logs))
+            log_std(self._get_db(), runobj, parse_logs(logs))
 
         return self._update_state(resp.json())
 
@@ -1732,7 +1722,7 @@ class RemoteRuntime(KubeResource):
                     err_message = f"failed to access {url} - {resp}"
                     # TODO: store logs using async calls to improve performance
                     log_std(
-                        self._db_conn,
+                        self._get_db(),
                         task,
                         parse_logs(logs) if logs else None,
                         err_message,
@@ -1743,7 +1733,7 @@ class RemoteRuntime(KubeResource):
                     num_errors += 1
                 else:
                     if logs:
-                        log_std(self._db_conn, task, parse_logs(logs))
+                        log_std(self._get_db(), task, parse_logs(logs))
                     resp = self._update_run_state(json.loads(resp))
                     state = get_in(resp, "status.state", "")
                     if state == "error":
@@ -1960,6 +1950,29 @@ def get_fullname(name, project, tag):
     if tag and tag != "latest":
         name = f"{name}-{tag}"
     return name
+
+
+def resolve_invocation_command(
+    external_invocation_urls: list[str] | None,
+    internal_invocation_urls: list[str] | None,
+    address: str | None,
+) -> str | None:
+    """Select the invocation command of a deployed Nuclio function.
+
+    On older mlrun and nuclio versions functions are exposed via NodePort; now they may not be
+    exposed at all (service type ClusterIP). For BC, prefer the external invocation URL, then the
+    internal one, then the legacy address. A URL that already has a scheme (e.g. an API gateway URL)
+    is kept as is; otherwise ``http://`` is prepended.
+
+    :param external_invocation_urls: The function's external invocation URLs.
+    :param internal_invocation_urls: The function's internal invocation URLs.
+    :param address: The function's legacy address.
+    :return: The invocation command, or ``None`` if no URL or address is available.
+    """
+    for urls in (external_invocation_urls, internal_invocation_urls, [address]):
+        if urls and urls[0]:
+            return urls[0] if "://" in urls[0] else f"http://{urls[0]}"
+    return None
 
 
 def get_nuclio_deploy_status(

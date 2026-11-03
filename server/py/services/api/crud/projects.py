@@ -42,6 +42,7 @@ import framework.utils.project_formats
 import framework.utils.projects.follower_contract as follower_contract
 import framework.utils.projects.remotes.follower as project_follower
 import framework.utils.singletons.db
+import framework.utils.singletons.project_member
 import services.alerts.crud
 import services.api.crud
 import services.api.crud.model_monitoring
@@ -1327,20 +1328,28 @@ class Projects(
         finally:
             framework.db.session.close_session(session)
 
-    def _purge_follower_project_resources(
+    async def _purge_follower_project_resources(
         self, project: mlrun.common.schemas.Project
     ) -> None:
         """
-        Background-task body for `commit_delete_project`: runs on its own DB session,
-        since the request-scoped session it validated against is already closed by the
-        time this executes.
+        Background-task body for `commit_delete_project`: deletes the project on its own
+        DB session (the request-scoped session it validated against is already closed by
+        the time this executes), then cleans up the project's logs.
         """
+        await fastapi.concurrency.run_in_threadpool(
+            self._delete_follower_project, project.metadata.name
+        )
+        await framework.utils.singletons.project_member.get_project_member().post_delete_project(
+            project.metadata.name
+        )
+
+    def _delete_follower_project(self, name: str) -> None:
         session = framework.db.session.create_session()
         try:
             # Orca already decided this delete and publishes the event for it.
             self.delete_project(
                 session,
-                project.metadata.name,
+                name,
                 deletion_strategy=mlrun.common.schemas.DeletionStrategy.cascading,
                 emit_lifecycle_event=False,
             )

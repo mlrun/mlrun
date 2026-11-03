@@ -15,6 +15,7 @@
 import collections
 import collections.abc
 import datetime
+import functools
 import types
 import unittest.mock
 import uuid
@@ -29,6 +30,7 @@ import mlrun.errors
 import mlrun.utils.singleton
 
 import framework.tests.unit.common_fixtures
+import framework.utils.projects.member
 import framework.utils.singletons.db
 import services.api.crud.projects as projects_crud
 
@@ -1076,8 +1078,22 @@ def test_commit_delete_project_schedules_new_background_task(
     assert kind_arg == "project.deletion.proj"
 
 
-def test_purge_follower_project_resources_uses_cascading_strategy(
+@pytest.fixture
+def patched_project_member(
+    monkeypatch: pytest.MonkeyPatch,
+) -> unittest.mock.MagicMock:
+    member = unittest.mock.MagicMock()
+    member.post_delete_project = unittest.mock.AsyncMock()
+    monkeypatch.setattr(
+        "framework.utils.singletons.project_member.get_project_member",
+        lambda: member,
+    )
+    return member
+
+
+async def test_purge_follower_project_resources_uses_cascading_strategy(
     patched_db_session: unittest.mock.MagicMock,
+    patched_project_member: unittest.mock.MagicMock,
     monkeypatch: pytest.MonkeyPatch,
 ):
     """The scheduled task's body — invoked directly here, simulating FastAPI's
@@ -1091,7 +1107,7 @@ def test_purge_follower_project_resources_uses_cascading_strategy(
     delete_mock = unittest.mock.MagicMock()
     monkeypatch.setattr(projects_crud.Projects, "delete_project", delete_mock)
 
-    projects_crud.Projects()._purge_follower_project_resources(project)
+    await projects_crud.Projects()._purge_follower_project_resources(project)
 
     delete_mock.assert_called_once()
     assert delete_mock.call_args.args[1] == "proj"
@@ -1101,9 +1117,57 @@ def test_purge_follower_project_resources_uses_cascading_strategy(
     )
 
 
-def test_purge_follower_project_resources_does_not_emit_lifecycle_event(
+async def test_purge_follower_project_resources_stops_and_deletes_logs(
+    patched_db_session: unittest.mock.MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """Logs are cleaned up only after the project itself was deleted."""
+    monkeypatch.setattr(
+        mlrun.mlconf.log_collector,
+        "mode",
+        mlrun.common.schemas.LogsCollectorMode.sidecar,
+    )
+    calls = []
+    monkeypatch.setattr(
+        projects_crud.Projects,
+        "delete_project",
+        lambda *args, **kwargs: calls.append("delete_project"),
+    )
+    logs_mock = unittest.mock.MagicMock()
+    logs_mock.stop_logs_for_project = unittest.mock.AsyncMock(
+        side_effect=lambda *args: calls.append("stop_logs_for_project")
+    )
+    logs_mock.delete_project_logs = unittest.mock.AsyncMock(
+        side_effect=lambda *args: calls.append("delete_project_logs")
+    )
+    monkeypatch.setattr("services.api.crud.Logs", lambda: logs_mock)
+    member = unittest.mock.MagicMock()
+    member.post_delete_project = functools.partial(
+        framework.utils.projects.member.Member.post_delete_project, member
+    )
+    monkeypatch.setattr(
+        "framework.utils.singletons.project_member.get_project_member",
+        lambda: member,
+    )
+    project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name="proj")
+    )
+
+    await projects_crud.Projects()._purge_follower_project_resources(project)
+
+    assert calls == [
+        "delete_project",
+        "stop_logs_for_project",
+        "delete_project_logs",
+    ]
+    logs_mock.stop_logs_for_project.assert_awaited_once_with("proj")
+    logs_mock.delete_project_logs.assert_awaited_once_with("proj")
+
+
+async def test_purge_follower_project_resources_does_not_emit_lifecycle_event(
     reset_projects_singleton: None,
     patched_db_session: unittest.mock.MagicMock,
+    patched_project_member: unittest.mock.MagicMock,
     monkeypatch: pytest.MonkeyPatch,
 ):
     """Orca already decided the delete and publishes its outcome; MLRun's own
@@ -1123,7 +1187,7 @@ def test_purge_follower_project_resources_does_not_emit_lifecycle_event(
         metadata=mlrun.common.schemas.ProjectMetadata(name="proj")
     )
 
-    projects_crud.Projects()._purge_follower_project_resources(project)
+    await projects_crud.Projects()._purge_follower_project_resources(project)
 
     events_client.generate_project_lifecycle_event.assert_not_called()
     events_client.emit.assert_not_called()

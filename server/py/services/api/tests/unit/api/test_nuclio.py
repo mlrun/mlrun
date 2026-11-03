@@ -490,3 +490,184 @@ def test_nuclio_app_track_models_calls_credential_check(kind):
         )
 
     mock_check.assert_called_once()
+
+
+def _store_nuclio_function(db, kind, status=None, command=""):
+    func_name = f"test-{kind}"
+    fn = mlrun.new_function(name=func_name, kind=kind, project=PROJECT)
+    fn.spec.command = command
+    fn.status = status or {"state": mlrun.common.schemas.FunctionState.deploying}
+    services.api.crud.Functions().store_function(
+        db, fn.to_dict(), func_name, PROJECT, tag="latest", versioned=False
+    )
+    return func_name
+
+
+def _get_nuclio_deploy_status(client, func_name, nuclio_status, api_gateway_urls=None):
+    with (
+        patch(
+            "services.api.crud.runtimes.nuclio.function.get_nuclio_deploy_status",
+            return_value=(
+                mlrun.common.schemas.FunctionState.ready,
+                None,
+                f"nuclio-{func_name}",
+                1,
+                "deploy logs",
+                nuclio_status,
+            ),
+        ),
+        patch(
+            "services.api.api.endpoints.nuclio._get_api_gateways_urls_for_function",
+            return_value=api_gateway_urls or [],
+        ),
+        services.api.tests.unit.api.utils.mock_function_read_only_permissions(),
+    ):
+        return client.get(
+            f"projects/{PROJECT}/nuclio/{func_name}/deploy",
+            params={"tag": "latest"},
+        )
+
+
+@pytest.mark.parametrize("kind", ["remote", "serving"])
+def test_deploy_status_read_only_persists_invocation_command(
+    db: sqlalchemy.orm.Session,
+    client: fastapi.testclient.TestClient,
+    kind,
+):
+    """A function reader can poll deploy status (including its logs), and the server
+    persists the ready function's invocation command on both the latest and versioned copies."""
+    services.api.tests.unit.api.utils.create_project(client, PROJECT)
+    func_name = _store_nuclio_function(db, kind)
+
+    response = _get_nuclio_deploy_status(
+        client,
+        func_name,
+        nuclio_status={
+            "externalInvocationUrls": ["ext.example.com"],
+            "internalInvocationUrls": ["int.svc:8080"],
+            "containerImage": "some-image",
+        },
+    )
+
+    assert response.status_code == HTTPStatus.OK.value
+    assert response.text == "deploy logs"
+    assert response.headers["x-mlrun-function-status"] == "ready"
+    latest = services.api.crud.Functions().get_function(
+        db, func_name, PROJECT, tag="latest"
+    )
+    versioned = services.api.crud.Functions().get_function(
+        db, func_name, PROJECT, hash_key=latest["metadata"]["hash"]
+    )
+    for stored in (latest, versioned):
+        assert stored["spec"]["command"] == "http://ext.example.com"
+        assert stored["status"]["state"] == "ready"
+
+    # Storing the function directly is still forbidden for the reader
+    with services.api.tests.unit.api.utils.mock_function_read_only_permissions():
+        response = client.post(f"projects/{PROJECT}/functions/{func_name}", json=latest)
+    assert response.status_code == HTTPStatus.FORBIDDEN.value
+
+
+def test_deploy_status_redeploy_fixes_stale_invocation_command(
+    db: sqlalchemy.orm.Session,
+    client: fastapi.testclient.TestClient,
+):
+    """A ready redeploy with an unchanged status still stores the corrected command."""
+    services.api.tests.unit.api.utils.create_project(client, PROJECT)
+    func_name = _store_nuclio_function(
+        db,
+        "remote",
+        status={
+            "state": mlrun.common.schemas.FunctionState.ready,
+            "nuclio_name": "nuclio-test-remote",
+            "internal_invocation_urls": ["int.svc:8080"],
+            "external_invocation_urls": [],
+            "address": "",
+            "container_image": "some-image",
+        },
+        command="http://stale.example.com",
+    )
+
+    with patch.object(
+        services.api.crud.Functions,
+        "store_function",
+        wraps=services.api.crud.Functions().store_function,
+    ) as store_function:
+        response = _get_nuclio_deploy_status(
+            client,
+            func_name,
+            nuclio_status={
+                "internalInvocationUrls": ["int.svc:8080"],
+                "containerImage": "some-image",
+            },
+        )
+        assert response.status_code == HTTPStatus.OK.value
+        store_function.assert_called_once()
+
+        # Once the command is up to date, polling no longer stores the function
+        store_function.reset_mock()
+        response = _get_nuclio_deploy_status(
+            client,
+            func_name,
+            nuclio_status={
+                "internalInvocationUrls": ["int.svc:8080"],
+                "containerImage": "some-image",
+            },
+        )
+        assert response.status_code == HTTPStatus.OK.value
+        store_function.assert_not_called()
+
+    latest = services.api.crud.Functions().get_function(
+        db, func_name, PROJECT, tag="latest"
+    )
+    assert latest["spec"]["command"] == "http://int.svc:8080"
+
+
+def test_deploy_status_keeps_api_gateway_url_scheme(
+    db: sqlalchemy.orm.Session,
+    client: fastapi.testclient.TestClient,
+):
+    """An API gateway URL that already has a scheme is persisted without another prefix."""
+    services.api.tests.unit.api.utils.create_project(client, PROJECT)
+    func_name = _store_nuclio_function(db, "remote")
+
+    response = _get_nuclio_deploy_status(
+        client,
+        func_name,
+        nuclio_status={
+            "internalInvocationUrls": ["int.svc:8080"],
+            "containerImage": "some-image",
+        },
+        api_gateway_urls=["https://gateway.example.com/path"],
+    )
+
+    assert response.status_code == HTTPStatus.OK.value
+    latest = services.api.crud.Functions().get_function(
+        db, func_name, PROJECT, tag="latest"
+    )
+    assert latest["spec"]["command"] == "https://gateway.example.com/path"
+
+
+def test_deploy_status_keeps_application_entrypoint_command(
+    db: sqlalchemy.orm.Session,
+    client: fastapi.testclient.TestClient,
+):
+    """An application's command is its entrypoint and must not become an invocation URL."""
+    services.api.tests.unit.api.utils.create_project(client, PROJECT)
+    func_name = _store_nuclio_function(db, "application", command="app.py")
+
+    response = _get_nuclio_deploy_status(
+        client,
+        func_name,
+        nuclio_status={
+            "externalInvocationUrls": ["ext.example.com"],
+            "containerImage": "some-image",
+        },
+    )
+
+    assert response.status_code == HTTPStatus.OK.value
+    latest = services.api.crud.Functions().get_function(
+        db, func_name, PROJECT, tag="latest"
+    )
+    assert latest["status"]["state"] == "ready"
+    assert latest["spec"]["command"] == "app.py"

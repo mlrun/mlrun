@@ -3434,6 +3434,9 @@ class HTTPRunDB(RunDBInterface):
             - ``restrict`` (default) - Project must not have any related resources when deleted. If using
               this mode while related resources exist, the operation will fail.
             - ``cascade`` - Automatically delete all related resources when deleting the project.
+
+        If Orca manages projects and the server's deletion task fails, this logs a warning instead
+        of an error: Orca completes the deletion on its own, so there is no need to retry.
         """
         projects_client = self._resolve_projects_client()
         if projects_client is not None:
@@ -3462,11 +3465,22 @@ class HTTPRunDB(RunDBInterface):
                 background_task.status.state
                 == mlrun.common.schemas.BackgroundTaskState.failed
             ):
-                logger.error(
-                    "Project deletion failed",
-                    project_name=name,
-                    error=background_task.status.error,
-                )
+                # Under an Orca leader a failed task doesn't mean the deletion failed - Orca keeps
+                # reconciling the project until it's gone
+                if mlrun.mlconf.httpdb.projects.leader == "orca":
+                    logger.warning(
+                        "Project deletion was accepted and is in progress. The system is "
+                        "eventually consistent and will complete it automatically; there is no "
+                        "need to retry. The project name can be reused once deletion completes.",
+                        project_name=name,
+                        error=background_task.status.error,
+                    )
+                else:
+                    logger.error(
+                        "Project deletion failed",
+                        project_name=name,
+                        error=background_task.status.error,
+                    )
         elif response.status_code == http.HTTPStatus.NO_CONTENT:
             logger.info("Project deleted", project_name=name)
 

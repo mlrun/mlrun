@@ -32,6 +32,7 @@ from mlrun.errors import err_to_str
 from mlrun.utils import logger
 
 import framework.db.session
+import framework.utils.clients.iguazio.v4
 import framework.utils.clients.nuclio
 import framework.utils.periodic
 import framework.utils.projects.member
@@ -49,7 +50,9 @@ class Member(
     # the specified order; unlisted followers are appended alphabetically after them.
     # This allows controlling execution order as more followers might be added in the future (e.g. ecliptOS).
     _follower_operation_order: dict[str, list[str]] = {
-        "delete_project": ["nuclio"],
+        # Authorization (igz) last among the explicitly ordered followers - if an
+        # earlier follower fails, the project retains its policies and remains accessible.
+        "delete_project": ["nuclio", "igz"],
     }
 
     def initialize(self):
@@ -448,6 +451,8 @@ class Member(
         followers_classes_map = {
             "mlrun": services.api.crud.Projects,
             "nuclio": framework.utils.clients.nuclio.Client,
+            # leader follower logic doesn't support async, so we use the v4 sync client
+            "igz": framework.utils.clients.iguazio.v4.FollowerClient,
             # for tests
             "nop-self-leader": framework.utils.projects.remotes.nop_follower.Member,
             "nop": framework.utils.projects.remotes.nop_follower.Member,

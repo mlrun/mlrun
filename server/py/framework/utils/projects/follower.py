@@ -173,6 +173,21 @@ class Member(
         ):
             services.api.crud.Projects().store_project(db_session, name, project)
             return project, False
+        elif self._leader_name == "orca":
+            # The local DB can't tell create from update here - MLRun's own prepare-create already
+            # wrote the project locally while Orca may still hold it creating - so Orca decides.
+            is_running_in_background = self._leader_client.store_project(
+                session=auth_info.session,
+                name=name,
+                project=project,
+                auth_info=auth_info,
+                wait_for_completion=wait_for_completion,
+            )
+            if is_running_in_background:
+                return None, True
+            return framework.db.session.run_function_with_new_db_session(
+                self.get_project, name, auth_info
+            ), False
         else:
             try:
                 self.get_project(db_session, name, auth_info)
@@ -185,12 +200,9 @@ class Member(
                     commit_before_get=True,
                 )
             else:
-                self._leader_client.update_project(
-                    auth_info.session, name, project, auth_info
+                return self._update_project_in_leader(
+                    name=name, project=project, auth_info=auth_info
                 )
-                return framework.db.session.run_function_with_new_db_session(
-                    self.get_project, name, auth_info
-                ), False
 
     def patch_project(
         self,
@@ -212,6 +224,12 @@ class Member(
             current_project_dict = current_project.dict(exclude_unset=True)
             mergedeep.merge(current_project_dict, project, strategy=strategy)
             patched_project = mlrun.common.schemas.Project(**current_project_dict)
+            if self._leader_name == "orca":
+                # a patch only ever updates - it must not (re-)create a project Orca holds creating
+                self._validate_project(patched_project)
+                return self._update_project_in_leader(
+                    name=name, project=patched_project, auth_info=auth_info
+                )
             return self.store_project(
                 db_session,
                 name,
@@ -370,6 +388,17 @@ class Member(
         return await services.api.crud.Projects().get_project_summary(
             db_session, name, auth_info
         )
+
+    def _update_project_in_leader(
+        self,
+        name: str,
+        project: mlrun.common.schemas.Project,
+        auth_info: mlrun.common.schemas.AuthInfo,
+    ) -> tuple[mlrun.common.schemas.Project | None, bool]:
+        self._leader_client.update_project(auth_info.session, name, project, auth_info)
+        return framework.db.session.run_function_with_new_db_session(
+            self.get_project, name, auth_info
+        ), False
 
     @framework.utils.helpers.ensure_running_on_chief
     def _start_periodic_followers_sync_trigger(self):

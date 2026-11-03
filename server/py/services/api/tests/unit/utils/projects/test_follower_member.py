@@ -254,6 +254,51 @@ def test_nop_leader_does_not_mutate_caller_auth_info(
     assert auth_info.projects_role is None
 
 
+@pytest.mark.parametrize("is_running_in_background", [True, False])
+def test_store_project_orca_leader_delegates_to_leader_store(
+    db: sqlalchemy.orm.Session,
+    projects_follower: framework.utils.projects.follower.Member,
+    is_running_in_background: bool,
+):
+    # MLRun's own prepare-create already wrote the project locally while Orca still holds it
+    # creating - the local row must not turn the store into an update
+    project = _generate_project(state=mlrun.common.schemas.ProjectState.creating)
+    services.api.crud.Projects().create_project(db, project)
+    leader_client = _mock_orca_leader(projects_follower)
+    leader_client.store_project.return_value = is_running_in_background
+
+    stored_project, running_in_background = projects_follower.store_project(
+        db, project.metadata.name, project
+    )
+
+    assert running_in_background is is_running_in_background
+    if is_running_in_background:
+        assert stored_project is None
+    else:
+        _assert_projects_equal(project, stored_project)
+    leader_client.store_project.assert_called_once()
+    leader_client.update_project.assert_not_called()
+    leader_client.create_project.assert_not_called()
+
+
+def test_patch_project_orca_leader_only_updates(
+    db: sqlalchemy.orm.Session,
+    projects_follower: framework.utils.projects.follower.Member,
+):
+    project = _generate_project()
+    services.api.crud.Projects().create_project(db, project)
+    leader_client = _mock_orca_leader(projects_follower)
+
+    projects_follower.patch_project(
+        db, project.metadata.name, {"spec": {"description": "new description"}}
+    )
+
+    leader_client.update_project.assert_called_once()
+    patched_project = leader_client.update_project.call_args.args[2]
+    assert patched_project.spec.description == "new description"
+    leader_client.store_project.assert_not_called()
+
+
 @pytest.mark.parametrize("field", ["source", "description", "owner"])
 def test_store_project_field_at_max_length(
     db: sqlalchemy.orm.Session,
@@ -910,6 +955,16 @@ def _generate_project(
             state=state,
         ),
     )
+
+
+def _mock_orca_leader(
+    projects_follower: framework.utils.projects.follower.Member,
+) -> unittest.mock.MagicMock:
+    projects_follower._leader_name = "orca"
+    projects_follower._leader_client = unittest.mock.MagicMock(
+        spec=framework.utils.clients.iguazio.v4.Client
+    )
+    return projects_follower._leader_client
 
 
 def _assert_projects_equal(project_1, project_2):

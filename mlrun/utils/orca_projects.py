@@ -215,7 +215,8 @@ def to_mlproject(body: dict) -> mlrun.common.schemas.Project:
     metadata = body.get("metadata", {})
     spec = body.get("spec", {})
     status = body.get("status", {})
-    state = status.get("state")
+    # creating is the proto default, so Orca omits it from the JSON
+    state = status.get("state", mlrun.common.schemas.ProjectState.creating)
     desired_state = (
         state
         if state in _SETTLED_ORCA_STATES

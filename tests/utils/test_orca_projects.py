@@ -162,6 +162,14 @@ def test_to_mlproject_round_trip():
     assert project.status.op_id == op_id
 
 
+def test_to_mlproject_missing_state_is_creating():
+    # creating is the proto default, so Orca omits it from the JSON
+    body = {"metadata": {"name": "p1"}, "status": {"opId": str(uuid.uuid4())}}
+    project = orca_projects.to_mlproject(body)
+    assert project.status.state == mlrun.common.schemas.ProjectState.creating
+    assert project.spec.desired_state == mlrun.common.schemas.ProjectDesiredState.online
+
+
 @pytest.mark.parametrize(
     "state, expected_desired_state",
     [

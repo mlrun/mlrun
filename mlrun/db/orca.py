@@ -94,7 +94,11 @@ class OrcaProjectsClient:
             return op_id
         return self._to_mlrun_project(
             self._orchestrator.settle(
-                project_like.metadata.name, response, op_id, wait_for_completion=True
+                project_like.metadata.name,
+                response,
+                op_id,
+                wait_for_completion=True,
+                tolerate_failed_fan_out=False,
             )
         )
 
@@ -130,8 +134,17 @@ class OrcaProjectsClient:
         response, op_id = self._orchestrator.update(name, project_like)
         if not wait_for_completion:
             return op_id
+        # Orca may turn a PUT into a create, which must stay strict
         return self._to_mlrun_project(
-            self._orchestrator.settle(name, response, op_id, wait_for_completion=True)
+            self._orchestrator.settle(
+                name,
+                response,
+                op_id,
+                wait_for_completion=True,
+                tolerate_failed_fan_out=orca_projects.is_update_of_existing_project(
+                    response.json()
+                ),
+            )
         )
 
     @typing.overload
@@ -188,8 +201,15 @@ class OrcaProjectsClient:
         response, op_id = self._orchestrator.patch(name, project_like, patch_mode)
         if not wait_for_completion:
             return op_id
+        # Orca's PATCH 404s on a missing project, so this is always an update
         return self._to_mlrun_project(
-            self._orchestrator.settle(name, response, op_id, wait_for_completion=True)
+            self._orchestrator.settle(
+                name,
+                response,
+                op_id,
+                wait_for_completion=True,
+                tolerate_failed_fan_out=True,
+            )
         )
 
     @typing.overload

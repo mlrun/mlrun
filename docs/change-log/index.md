@@ -55,7 +55,7 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-13105 |the MLRun "internal" API (`/api/v1/_internal/*`) was removed.|
+|ML-13105 |The MLRun "internal" API (`/api/v1/_internal/*`) was removed.|
 
 
 (v1-12-0)=
@@ -232,7 +232,7 @@ ML-11820|Improved the time to access the monitoring page (V3IO).|
 
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-13105 |the MLRun "internal" API (`/api/v1/_internal/*`) was removed.|
+|ML-13105 |The MLRun "internal" API (`/api/v1/_internal/*`) was removed.|
 
 
 (#v1103)=

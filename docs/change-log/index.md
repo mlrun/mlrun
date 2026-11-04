@@ -226,9 +226,9 @@ ML-11820|Improved the time to access the monitoring page (V3IO).|
 ## v1.10.x
 
 (#v1-10-4)=
-## v1.10.4 (September 2026)
+### v1.10.4 (September 2026)
 
-### Closed issues
+#### Closed issues
 
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|

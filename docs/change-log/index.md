@@ -3,7 +3,7 @@
 
 The change log lists updates per version, open issues, limitations, and deprecations.
 - [v1.13.0](#v1-13-0)
-- [v1.12.0](#v1-12-0)
+- [v1.12.1](#v1-12-1) | [v1.12.0](#v1-12-0)
 - [v1.11.0](#v1110)
 - [v1.10.3](#v1103) | [v1.10.2](#v1102) | [v1.10.1](#v1101) | [v1.10.0](#v1100)
 - [v1.9.2](#v192) | [v1.9.1](#v191) | [v1.9.0](#v190)
@@ -47,6 +47,15 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 |ML-12701|`project.set_function()` with a single `.py` file source now supports `store://` artifact URIs (including Spark and other runtimes); code is resolved from the artifact store at build/run time instead of failing with an unsupported URL scheme.|
 |ML-12952|Concurrent calls to `get_or_create_project()` with the same local context directory no longer raise `FileExistsError`.|
 |ML-12849|Terminating a workflow from the UI no longer fails with a database conflict error when termination races with MLRun background run-state updates.|
+
+(#v1-12-1)=
+## v1.12.1 (September 2026)
+
+### Closed issues
+
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-13105 |the MLRun "internal" API (`/api/v1/_internal/*`) was removed.|
 
 
 (v1-12-0)=

@@ -154,9 +154,8 @@ def _resolve_spark_version_source(
         source_image = user_image
         image_version = extract_spark_version_from_image(user_image)
     else:
-        # No user image, or MLRun's default Spark image (built on top of the platform default):
-        # use the platform default, which names an image only when both spark_app_image and
-        # spark_app_image_tag are set.
+        # With no user image, or with MLRun's default image (built on the platform
+        # image), derive the Spark version from the configured platform image.
         source_image = configured_image_reference
         image_version = (
             _leading_semver_prefix(config.spark_app_image_tag)

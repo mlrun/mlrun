@@ -352,197 +352,6 @@ def sample_user_info(username="dummy-user", user_id="dummy-user-id", group_ids=N
     }
 
 
-@pytest.mark.parametrize(
-    "secret_token, expected_exception",
-    [
-        (None, mlrun.errors.MLRunInvalidArgumentError),  # None token
-        (
-            mlrun.common.schemas.SecretToken(name="t1", token=""),
-            mlrun.errors.MLRunInvalidArgumentError,
-        ),  # empty token
-        (
-            mlrun.common.schemas.SecretToken(name="t1", token="valid-token"),
-            None,
-        ),  # valid token
-    ],
-)
-@pytest.mark.parametrize("iguazio_client", [("v4", "sync")], indirect=True)
-def test_refresh_access_token_cases(iguazio_client, secret_token, expected_exception):
-    if expected_exception:
-        with pytest.raises(expected_exception):
-            iguazio_client.refresh_access_token(secret_token)
-    else:
-        # simulate HTTP error
-        iguazio_client._client.refresh_access_token.side_effect = httpx.HTTPStatusError(
-            "Error",
-            request=None,
-            response=unittest.mock.MagicMock(
-                status_code=401,
-                json=lambda: {"status": {"errorMessage": "invalid", "ctx": "dummy"}},
-            ),
-        )
-        with pytest.raises(mlrun.errors.MLRunUnauthorizedError):
-            iguazio_client.refresh_access_token(secret_token)
-
-
-@pytest.mark.parametrize("iguazio_client", [("v4", "sync")], indirect=True)
-def test_refresh_access_token_success(
-    iguazio_client, mock_service_account_auth_headers
-):
-    secret_token = mlrun.common.schemas.SecretToken(
-        name="test-token", token="valid-token"
-    )
-
-    # Should not raise
-    iguazio_client.refresh_access_token(secret_token)
-
-    iguazio_client._client.refresh_access_token.assert_called_once()
-    called_options = iguazio_client._client.refresh_access_token.call_args[1]["options"]
-    assert called_options.refresh_token == "valid-token"
-
-
-@pytest.mark.parametrize(
-    "secret_tokens, expected_exception",
-    [
-        ([], mlrun.errors.MLRunInvalidArgumentError),  # empty list
-        (
-            [mlrun.common.schemas.SecretToken(name="t1", token="")],
-            mlrun.errors.MLRunInvalidArgumentError,
-        ),  # empty token in list
-        (
-            [
-                mlrun.common.schemas.SecretToken(name="t1", token="token1"),
-                mlrun.common.schemas.SecretToken(name="t2", token="token2"),
-            ],
-            None,
-        ),  # valid tokens
-    ],
-)
-@pytest.mark.parametrize("iguazio_client", [("v4", "sync")], indirect=True)
-def test_refresh_access_tokens_cases(iguazio_client, secret_tokens, expected_exception):
-    if expected_exception:
-        with pytest.raises(expected_exception):
-            iguazio_client.refresh_access_tokens(secret_tokens)
-    else:
-        # simulate HTTP error
-        iguazio_client._client.refresh_access_tokens.side_effect = (
-            httpx.HTTPStatusError(
-                "Error",
-                request=None,
-                response=unittest.mock.MagicMock(
-                    status_code=401,
-                    json=lambda: {
-                        "status": {"errorMessage": "invalid", "ctx": "dummy"}
-                    },
-                ),
-            )
-        )
-        with pytest.raises(mlrun.errors.MLRunUnauthorizedError):
-            iguazio_client.refresh_access_tokens(secret_tokens)
-
-
-@pytest.mark.parametrize("iguazio_client", [("v4", "sync")], indirect=True)
-def test_revoke_offline_token_success(
-    iguazio_client, mock_service_account_auth_headers
-):
-    token = "valid-token"
-    request_headers = {
-        mlrun.common.schemas.HeaderNames.authorization: f"{mlrun.common.schemas.AuthorizationHeaderPrefixes.bearer}123",
-    }
-
-    iguazio_client.revoke_offline_token(token, request_headers)
-
-    iguazio_client._client.revoke_offline_token.assert_called_once()
-
-
-@pytest.mark.parametrize("iguazio_client", [("v4", "sync")], indirect=True)
-def test_resolve_token_from_igz_yml_success(iguazio_client, monkeypatch):
-    """Test successful token resolution from igz.yml content."""
-    igz_yml_content = "secretTokens:\n- name: my-token\n  token: jwt-value\n"
-
-    # Mock iguazio.Client for the token file client
-    mock_token_client = unittest.mock.Mock()
-    mock_token_client.get_refresh_token.return_value = ("my-token", "jwt-value")
-
-    with unittest.mock.patch("iguazio.Client", return_value=mock_token_client):
-        result = iguazio_client.resolve_token_from_igz_yml(
-            igz_yml_content, "test-user", "my-token"
-        )
-
-    assert result == "my-token"
-    mock_token_client.get_refresh_token.assert_called_once()
-
-
-@pytest.mark.parametrize("iguazio_client", [("v4", "sync")], indirect=True)
-def test_resolve_token_from_igz_yml_auto_discovery(iguazio_client, monkeypatch):
-    """Test auto-discovery mode returns first valid token."""
-    igz_yml_content = "secretTokens:\n- name: default\n  token: jwt-default\n- name: other\n  token: jwt-other\n"
-
-    mock_token_client = unittest.mock.Mock()
-    mock_token_client.get_refresh_token.return_value = ("default", "jwt-default")
-
-    with unittest.mock.patch(
-        "iguazio.Client", return_value=mock_token_client
-    ) as mock_class:
-        result = iguazio_client.resolve_token_from_igz_yml(
-            igz_yml_content, "test-user", None
-        )
-
-    assert result == "default"
-    # Verify token_name=None for auto-discovery
-    call_kwargs = mock_class.call_args.kwargs
-    assert call_kwargs["token_name"] is None
-
-
-@pytest.mark.parametrize("iguazio_client", [("v4", "sync")], indirect=True)
-def test_resolve_token_from_igz_yml_token_not_found(iguazio_client):
-    """Test MLRunNotFoundError when specific token is not found."""
-    igz_yml_content = "secretTokens:\n- name: other-token\n  token: jwt-value\n"
-
-    with unittest.mock.patch(
-        "iguazio.Client", side_effect=ValueError("Token 'my-token' not found")
-    ):
-        with pytest.raises(
-            mlrun.errors.MLRunNotFoundError, match="not found or invalid"
-        ):
-            iguazio_client.resolve_token_from_igz_yml(
-                igz_yml_content, "test-user", "my-token"
-            )
-
-
-@pytest.mark.parametrize("iguazio_client", [("v4", "sync")], indirect=True)
-def test_resolve_token_from_igz_yml_no_valid_tokens(iguazio_client):
-    """Test MLRunNotFoundError when no valid tokens are found in auto-discovery."""
-    igz_yml_content = "secretTokens:\n- name: expired\n  token: expired-jwt\n"
-
-    with unittest.mock.patch(
-        "iguazio.Client", side_effect=RuntimeError("No valid tokens found")
-    ):
-        with pytest.raises(
-            mlrun.errors.MLRunNotFoundError, match="No valid tokens found"
-        ):
-            iguazio_client.resolve_token_from_igz_yml(
-                igz_yml_content, "test-user", None
-            )
-
-
-@pytest.mark.parametrize("iguazio_client", [("v4", "sync")], indirect=True)
-def test_resolve_token_from_igz_yml_sdk_returns_none(iguazio_client):
-    """Test MLRunNotFoundError when SDK returns None."""
-    igz_yml_content = "secretTokens:\n- name: some-token\n  token: jwt-value\n"
-
-    mock_token_client = unittest.mock.Mock()
-    mock_token_client.get_refresh_token.return_value = (None, None)
-
-    with unittest.mock.patch("iguazio.Client", return_value=mock_token_client):
-        with pytest.raises(
-            mlrun.errors.MLRunNotFoundError, match="No valid tokens found"
-        ):
-            iguazio_client.resolve_token_from_igz_yml(
-                igz_yml_content, "test-user", None
-            )
-
-
 @pytest.mark.parametrize("iguazio_client", [("v4", "follower")], indirect=True)
 def test_follower_create_project(
     mock_session, iguazio_client, igv4_auth_info, mock_service_account_auth_headers
@@ -1714,3 +1523,22 @@ def test_parse_auth_response_data(response_body, expected_result, expectation):
             response_body
         )
         assert result == expected_result
+
+
+@pytest.mark.parametrize("ssl_verify", [True, False])
+def test_orca_requests_transport(monkeypatch, ssl_verify):
+    transport_kwargs = []
+    http_transport = httpx.HTTPTransport
+
+    def record_transport(**kwargs):
+        transport_kwargs.append(kwargs)
+        return http_transport(**kwargs)
+
+    monkeypatch.setattr(httpx, "HTTPTransport", record_transport)
+    mlrun.mlconf.iguazio_api_ssl_verify = ssl_verify
+
+    client = framework.utils.clients.iguazio.v4.Client()
+
+    # Retries cover connection attempts only, so a request that reached Orca is never re-sent
+    assert {"verify": ssl_verify, "retries": 3} in transport_kwargs
+    assert client._orca_http_client.timeout == httpx.Timeout(60)

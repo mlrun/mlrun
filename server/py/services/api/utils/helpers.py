@@ -80,13 +80,13 @@ def resolve_auth_token_name(
     provided_token_name: str | None,
 ) -> str:
     """
-    Resolve the token name for a user using the Iguazio SDK.
+    Resolve the token name for a user and validate the token against Orca.
 
     :param username: The username for which the token is being resolved.
     :param provided_token_name: Specific token to validate, or None to resolve from existing user tokens.
     :return: The resolved token name.
     :raises MLRunBadRequestError: If the provided token is not found in K8s secrets, or no tokens exist for the user.
-    :raises MLRunNotFoundError: If the token exists in K8s but is revoked or otherwise invalid (iguazio SDK validation).
+    :raises MLRunNotFoundError: If the token exists in K8s but is revoked or otherwise invalid (validated against Orca).
     """
     k8s_helper = framework.utils.singletons.k8s.get_k8s_helper()
     secret_tokens = k8s_helper.get_user_secret_tokens_as_igz_yml_data(
@@ -105,8 +105,8 @@ def resolve_auth_token_secret_name(
     provided_token_name: str | None, user_id: str | None
 ) -> str | None:
     """
-    Resolve the name of the secret that holds the user's auth token. Performs enrichment and validation of the
-    token name using the iguazio SDK's token resolution logic.
+    Resolve the name of the secret that holds the user's auth token. Enriches the token name and
+    validates the token against Orca.
 
     :param provided_token_name: The name of the token provided by the user, if any.
     :param user_id: The user ID for which the token is being resolved.

@@ -19,6 +19,7 @@ import subprocess
 import packaging.version
 import pytest
 
+import automation.version.version_file
 from automation.version.version_file import (
     create_or_update_version_file,
     get_current_version,
@@ -47,6 +48,16 @@ def git_repo(tmpdir, request):
         subprocess.run(["git", "commit", "-m", f"test commit {i}"])
 
     return tmpdir
+
+
+@pytest.fixture
+def released_tags(monkeypatch):
+    # stands in for the repo's GitHub releases; tests add the tags they "release"
+    tags = set()
+    monkeypatch.setattr(
+        automation.version.version_file, "_list_released_tags", lambda: tags
+    )
+    return tags
 
 
 # tags structure:
@@ -227,10 +238,22 @@ def test_is_stable_version(version: str, expected_is_stable: bool):
         ("1.12.0-rc1", ["1.11.0", "1.12.0-rc1"], "1.11.0"),
     ],
 )
-def test_previous_version(git_repo, target_version, tags, expected_previous_version):
+def test_previous_version(
+    git_repo, released_tags, target_version, tags, expected_previous_version
+):
     for tag in tags:
-        subprocess.run(["git", "tag", "-a", "-m", f"test tag {tag}", f"v{tag}", "HEAD"])
+        _create_released_tag(released_tags, tag)
     assert get_previous_version(target_version) == expected_previous_version
+
+
+def test_previous_version_ignores_unreleased_tags(git_repo, released_tags):
+    for tag in ["1.12.1", "1.13.0-rc10"]:
+        _create_released_tag(released_tags, tag)
+    # stray tags without a GitHub release must not be picked, even when greater
+    for tag in ["1.13.401", "1.13.0-rc12"]:
+        subprocess.run(["git", "tag", "-a", "-m", f"test tag {tag}", f"v{tag}", "HEAD"])
+    assert get_previous_version("1.14.0-rc1") == "1.13.0-rc10"
+    assert get_previous_version("1.14.0") == "1.12.1"
 
 
 def test_resolve_promotion_inputs_with_override():
@@ -250,17 +273,17 @@ def test_resolve_promotion_inputs_with_override():
     }
 
 
-def test_resolve_promotion_inputs_derives_previous(git_repo):
+def test_resolve_promotion_inputs_derives_previous(git_repo, released_tags):
     for tag in ["1.4.0", "1.4.0-rc1", "1.3.0"]:
-        subprocess.run(["git", "tag", "-a", "-m", f"test tag {tag}", f"v{tag}", "HEAD"])
+        _create_released_tag(released_tags, tag)
     resolved = resolve_promotion_inputs(version="1.5.0")
     assert resolved["previous_version"] == "1.4.0"
     assert resolved["make_latest"] == "true"
 
 
-def test_resolve_promotion_inputs_derives_previous_rc(git_repo):
+def test_resolve_promotion_inputs_derives_previous_rc(git_repo, released_tags):
     for tag in ["1.11.0", "1.12.0-rc16", "1.12.0-rc17"]:
-        subprocess.run(["git", "tag", "-a", "-m", f"test tag {tag}", f"v{tag}", "HEAD"])
+        _create_released_tag(released_tags, tag)
     resolved = resolve_promotion_inputs(version="1.12.0-rc17")
     assert resolved == {
         "version": "1.12.0-rc17",
@@ -275,6 +298,11 @@ def test_resolve_promotion_inputs_invalid_version():
         resolve_promotion_inputs(version="not-a-version", previous_version="1.4.0")
 
 
-def test_resolve_promotion_inputs_no_previous(git_repo):
+def test_resolve_promotion_inputs_no_previous(git_repo, released_tags):
     with pytest.raises(ValueError):
         resolve_promotion_inputs(version="1.5.0")
+
+
+def _create_released_tag(released_tags: set[str], tag: str):
+    subprocess.run(["git", "tag", "-a", "-m", f"test tag {tag}", f"v{tag}", "HEAD"])
+    released_tags.add(f"v{tag}")

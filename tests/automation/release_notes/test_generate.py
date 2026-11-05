@@ -210,3 +210,56 @@ fd6c5a86 [Requirements] Bump storey to 0.8.15 and v3io-frames to 0.10.2 (#1553)
                     raise
             diff = deepdiff.DeepDiff(case["expected_response"], stdout_mock.getvalue())
             assert diff == {}
+
+
+def test_release_notes_within_max_length_are_kept():
+    release_generator = automation.release_notes.generate.ReleaseNotesGenerator(
+        "v1.14.0-rc1", "v1.13.0-rc12", "development"
+    )
+    release_notes = "\n### Features / Enhancements\n* **A**: b, #1, @c\n\n#### Pull requests:\nabc [A] b (#1)\n"
+    assert (
+        release_generator._fit_release_notes_to_max_length(release_notes)
+        == release_notes
+    )
+
+
+def test_release_notes_over_max_length_drop_pull_requests_section():
+    release_generator = automation.release_notes.generate.ReleaseNotesGenerator(
+        "v1.14.0-rc1", "v1.13.0-rc12", "development"
+    )
+    release_generator.max_release_notes_length = 1000
+    highlights = "\n### Features / Enhancements\n" + "* **A**: b, #1, @c\n" * 10
+    pull_requests = "\n\n#### Pull requests:\n" + "abc1234 [A] b (#1)\n" * 100
+    failed_parsing = "\n#### Failed parsing:\nabc1234 {c} b\n"
+
+    release_notes = release_generator._fit_release_notes_to_max_length(
+        highlights + pull_requests + failed_parsing
+    )
+
+    assert len(release_notes) <= release_generator.max_release_notes_length
+    assert "#### Pull requests:" not in release_notes
+    assert release_notes.startswith(highlights)
+    assert failed_parsing.strip() in release_notes
+    assert release_notes.endswith(
+        "https://github.com/mlrun/mlrun/compare/v1.13.0-rc12...v1.14.0-rc1_\n"
+    )
+
+
+def test_release_notes_over_max_length_cut_at_line_boundary():
+    release_generator = automation.release_notes.generate.ReleaseNotesGenerator(
+        "v1.14.0-rc1", "v1.13.0-rc12", "development"
+    )
+    release_generator.max_release_notes_length = 1000
+    note_line = "* **A**: b, #1, @c\n"
+    highlights = "\n### Features / Enhancements\n" + note_line * 200
+
+    release_notes = release_generator._fit_release_notes_to_max_length(highlights)
+
+    assert len(release_notes) <= release_generator.max_release_notes_length
+    body, truncation_note = release_notes.split("\n\n_Release notes were truncated")
+    # only whole note lines are kept
+    assert body.startswith("\n### Features / Enhancements\n")
+    kept_lines = body.removeprefix("\n### Features / Enhancements\n").split("\n")
+    assert kept_lines
+    assert all(line == note_line.rstrip("\n") for line in kept_lines)
+    assert truncation_note.endswith("v1.13.0-rc12...v1.14.0-rc1_\n")

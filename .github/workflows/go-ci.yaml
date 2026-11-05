@@ -46,15 +46,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - name: Determine Go minor version
-        id: go-version
-        run: |
-          echo "version=$(grep -m1 '^go ' server/go/go.mod | awk '{split($2,a,"."); print a[1]"."a[2]}')" >> "$GITHUB_OUTPUT"
       - uses: actions/setup-go@v7
         with:
-          # use the major.minor from go.mod but let setup-go resolve the latest patch,
-          # so lint/test always run on the same patch used to build the log-collector image
-          go-version: ${{ steps.go-version.outputs.version }}
+          # govulncheck also checks the Go standard library, and setup-go otherwise uses whichever 1.26.x the runner
+          # image has cached (older than the Go used to build the log-collector image).
+          # Bump this when govulncheck reports a standard library finding fixed in a newer 1.26 patch.
+          go-version: "1.26.10"
           cache-dependency-path: "server/go/go.sum"
           cache: true
       - name: Install protobuf compiler

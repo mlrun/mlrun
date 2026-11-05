@@ -242,14 +242,16 @@ class TestKubejobRuntime(TestRuntimeBase):
             assert pod.spec.node_name is None
 
         if affinity:
-            assert pod.spec.affinity == mlrun.k8s_utils.sanitize_k8s_objects(affinity)
+            assert mlrun.k8s_utils.sanitize_k8s_objects(
+                pod.spec.affinity
+            ) == mlrun.k8s_utils.sanitize_k8s_objects(affinity)
         else:
             assert pod.spec.affinity is None
 
         if tolerations:
-            assert pod.spec.tolerations == mlrun.k8s_utils.sanitize_k8s_objects(
-                tolerations
-            )
+            assert mlrun.k8s_utils.sanitize_k8s_objects(
+                pod.spec.tolerations
+            ) == mlrun.k8s_utils.sanitize_k8s_objects(tolerations)
         else:
             assert pod.spec.tolerations is None
 
@@ -258,7 +260,9 @@ class TestKubejobRuntime(TestRuntimeBase):
         security_context=None,
     ):
         pod = self._get_pod_creation_args()
-        assert pod.spec.security_context == (security_context or {})
+        assert k8s_client.ApiClient().sanitize_for_serialization(
+            pod.spec.security_context
+        ) == (mlrun.k8s_utils.sanitize_k8s_objects(security_context) or {})
 
     def test_run_with_priority_class_name(self, db: Session, k8s_secrets_mock):
         runtime = self._generate_runtime()

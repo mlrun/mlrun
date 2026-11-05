@@ -146,16 +146,24 @@ class TestDaskRuntime(TestRuntimeBase):
         worker=True,
         scheduler=True,
     ):
+        api_client = k8s_client.ApiClient()
+        expected_security_context = (
+            api_client.sanitize_for_serialization(security_context) or {}
+        )
         if worker:
             pod = self._get_pod_creation_args()
-            assert pod.spec.security_context == (security_context or {}), (
-                "Failed asserting security context in worker pod"
-            )
+            assert (
+                api_client.sanitize_for_serialization(pod.spec.security_context)
+                == expected_security_context
+            ), "Failed asserting security context in worker pod"
         if scheduler:
             scheduler_pod = self._get_scheduler_pod_creation_args()
-            assert scheduler_pod.spec.security_context == (security_context or {}), (
-                "Failed asserting security context in scheduler pod"
-            )
+            assert (
+                api_client.sanitize_for_serialization(
+                    scheduler_pod.spec.security_context
+                )
+                == expected_security_context
+            ), "Failed asserting security context in scheduler pod"
 
     def test_dask_runtime(self, db: Session, client: TestClient):
         runtime: mlrun.runtimes.DaskCluster = self._generate_runtime()
@@ -562,10 +570,13 @@ class TestDaskRuntime(TestRuntimeBase):
             "--memory-limit",
             "1Gi",
         ]
-        assert worker_pod.spec.containers[0].resources == expected_resources
-        assert scheduler_pod.spec.containers[0].resources == expected_resources
-        assert worker_pod.spec.containers[0].env == expected_env
-        assert scheduler_pod.spec.containers[0].env == expected_env
+        api_client = k8s_client.ApiClient()
+        for pod in [worker_pod, scheduler_pod]:
+            container = api_client.sanitize_for_serialization(pod.spec.containers[0])
+            assert container["resources"] == expected_resources
+            assert container["env"] == api_client.sanitize_for_serialization(
+                expected_env
+            )
         assert scheduler_pod.spec.node_selector == expected_node_selector
         assert worker_pod.spec.node_selector == expected_node_selector
         assert scheduler_pod.spec.affinity == expected_affinity

@@ -88,46 +88,9 @@ def warning_log():
         yield warning
 
 
-def _make_client(
-    service_name: str = "api", role: str = "chief"
-) -> iguazio_v4_events.Client:
-    mlrun.mlconf.services.service_name = service_name
-    mlrun.mlconf.httpdb.clusterization.role = role
-    return iguazio_v4_events.Client()
-
-
 @pytest.fixture
 def client(orca):
     return _make_client()
-
-
-def _published_body(orca: pytest_httpserver.HTTPServer, client, event) -> dict:
-    orca.expect_oneshot_request(EVENTS_PATH, method="POST").respond_with_json(
-        ACTIVATION_RESPONSE, status=201
-    )
-    client.emit(event)
-    assert len(orca.log) == 1
-    return orca.log[0][0].get_json()
-
-
-def _system_event(
-    config_name: str,
-    description: str,
-    details: dict,
-    entity_name: str = "mlrun-api-chief",
-) -> dict:
-    """System events leave kind, class and severity unset so Orca's catalog fills them in."""
-    return {
-        "configName": config_name,
-        "description": description,
-        "details": details,
-        "entityName": entity_name,
-        "kind": "",
-        "projectName": "",
-        "severity": "unspecified",
-        "source": "",
-        "traceId": "",
-    }
 
 
 # ---------------------------------------------------------------------------
@@ -793,3 +756,40 @@ def test_emit_failure_log_omits_token(orca, client, warning_log):
 def test_emit_none_sends_nothing(orca, client):
     client.emit(None)
     assert orca.log == []
+
+
+def _make_client(
+    service_name: str = "api", role: str = "chief"
+) -> iguazio_v4_events.Client:
+    mlrun.mlconf.services.service_name = service_name
+    mlrun.mlconf.httpdb.clusterization.role = role
+    return iguazio_v4_events.Client()
+
+
+def _published_body(orca: pytest_httpserver.HTTPServer, client, event) -> dict:
+    orca.expect_oneshot_request(EVENTS_PATH, method="POST").respond_with_json(
+        ACTIVATION_RESPONSE, status=201
+    )
+    client.emit(event)
+    assert len(orca.log) == 1
+    return orca.log[0][0].get_json()
+
+
+def _system_event(
+    config_name: str,
+    description: str,
+    details: dict,
+    entity_name: str = "mlrun-api-chief",
+) -> dict:
+    """System events leave kind, class and severity unset so Orca's catalog fills them in."""
+    return {
+        "configName": config_name,
+        "description": description,
+        "details": details,
+        "entityName": entity_name,
+        "kind": "",
+        "projectName": "",
+        "severity": "unspecified",
+        "source": "",
+        "traceId": "",
+    }

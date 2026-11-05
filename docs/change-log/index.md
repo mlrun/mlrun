@@ -2,6 +2,7 @@
 # Change log
 
 The change log lists updates per version, open issues, limitations, and deprecations.
+- [v1.14.0](#v1-14-0)
 - [v1.13.0](#v1-13-0)
 - [v1.12.0](#v1-12-0)
 - [v1.11.0](#v1110)
@@ -26,6 +27,19 @@ Upgrading these MLRun dependencies spans several releases.  The upgrades are com
 - Pydantic: from version 1 to 2.
 
 See a full description of KFP, Python, and the workflow engines in {ref}`local-remote`. Specific changes are listed under the relevant versions.
+
+(v1-14-0)=
+## v1.14.0
+
+### Runtimes
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-12913|MLRun now supports Spark 4.|
+
+### Closed issues
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-13180|The log collector now has a stoplogs option for runs with `requested_logs=False`.|
 
 (v1-13-0)=
 ## v1.13.0 (October 2026)

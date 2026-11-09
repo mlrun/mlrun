@@ -11,62 +11,121 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+"""
+Wire-level contract of the events MLRun publishes to Orca.
 
+A local HTTP server stands in for Orca. Every test generates an event, emits it, and asserts
+on the JSON body Orca receives, so the tests don't depend on what the generators return.
+"""
+
+import socket
 import unittest.mock
 
-import iguazio
 import pytest
+import pytest_httpserver
 
 import mlrun.common.schemas
+import mlrun.errors
+import mlrun.utils
+from mlrun.utils.logger import context_id_var
 
+import framework.utils.clients.service_account_token
 import services.api.utils.events.iguazio_v4 as iguazio_v4_events
+
+SA_TOKEN = "sa-token"
+CTX_ID = "test-context-id"
+EVENTS_PATH = "/api/v1/events/activations"
+LONG_ERROR = "x" * 4096
+TRUNCATED_ERROR = "x" * 1010 + "...[truncated]"
+
+MIGRATION_FAILED_DESCRIPTION = (
+    "MLRun database migration failed, functionality may be impaired"
+)
+DB_CONNECTION_DESCRIPTION = "MLRun cannot connect to its database"
+LOG_COLLECTOR_DESCRIPTION = "MLRun log collector failed to retrieve logs"
+# What Orca returns for a published event
+ACTIVATION_RESPONSE = {
+    "metadata": {"id": "activation-1"},
+    "spec": {"configName": "MLRun.DB.Migration.Started"},
+    "status": {},
+}
+
+
+@pytest.fixture(autouse=True)
+def service_account_token(monkeypatch):
+    monkeypatch.setattr(
+        framework.utils.clients.service_account_token.Client,
+        "token",
+        property(lambda self: SA_TOKEN),
+    )
 
 
 @pytest.fixture
-def client(monkeypatch):
-    monkeypatch.setattr(iguazio, "Client", unittest.mock.MagicMock())
-    monkeypatch.setattr(
-        "framework.utils.clients.service_account_token.Client",
-        unittest.mock.MagicMock(),
-    )
-    mlrun.mlconf.services.service_name = "api"
-    mlrun.mlconf.httpdb.clusterization.role = "chief"
-    return iguazio_v4_events.Client()
+def orca(httpserver: pytest_httpserver.HTTPServer):
+    mlrun.mlconf.iguazio_api_url = httpserver.url_for("").rstrip("/")
+    yield httpserver
+    httpserver.check_assertions()
+
+
+@pytest.fixture
+def unreachable_orca():
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        port = sock.getsockname()[1]
+    mlrun.mlconf.iguazio_api_url = f"http://127.0.0.1:{port}"
+
+
+@pytest.fixture
+def context_id():
+    reset_token = context_id_var.set(CTX_ID)
+    yield CTX_ID
+    context_id_var.reset(reset_token)
+
+
+@pytest.fixture
+def warning_log():
+    with unittest.mock.patch.object(mlrun.utils.logger, "warning") as warning:
+        yield warning
+
+
+@pytest.fixture
+def client(orca):
+    return _make_client()
+
+
+# ---------------------------------------------------------------------------
+# DB migration
+# ---------------------------------------------------------------------------
 
 
 @pytest.mark.parametrize(
-    "action,expected_config_name",
+    "action,config_name,description",
     [
         (
             mlrun.common.schemas.MigrationEventActions.required,
-            iguazio_v4_events.DB_MIGRATION_REQUIRED,
+            "MLRun.DB.Migration.Required",
+            "MLRun database migration required, functionality may be impaired",
         ),
         (
             mlrun.common.schemas.MigrationEventActions.started,
-            iguazio_v4_events.DB_MIGRATION_STARTED,
+            "MLRun.DB.Migration.Started",
+            "MLRun database migration started",
         ),
         (
             mlrun.common.schemas.MigrationEventActions.completed,
-            iguazio_v4_events.DB_MIGRATION_COMPLETED,
+            "MLRun.DB.Migration.Completed",
+            "MLRun database migration completed successfully",
         ),
         (
             mlrun.common.schemas.MigrationEventActions.failed,
-            iguazio_v4_events.DB_MIGRATION_FAILED,
+            "MLRun.DB.Migration.Failed",
+            MIGRATION_FAILED_DESCRIPTION,
         ),
     ],
 )
-def test_generate_db_migration_event_basic(client, action, expected_config_name):
-    event = client.generate_db_migration_event(action)
-    assert event.config_name == expected_config_name
-    assert event.entity_name == "mlrun-api-chief"
-    # severity, class and kind are left unset so the orca catalog enriches them
-    assert event.source == ""
-    # description is the catalog default for non-failed actions
-    if action != mlrun.common.schemas.MigrationEventActions.failed:
-        assert event.description and "MLRun database migration" in event.description
-    # error/duration are only populated when supplied
-    assert "error" not in event.details
-    assert "duration_seconds" not in event.details
+def test_db_migration_event_payload(orca, client, action, config_name, description):
+    body = _published_body(orca, client, client.generate_db_migration_event(action))
+    assert body == _system_event(config_name, description, details={})
 
 
 @pytest.mark.parametrize(
@@ -78,54 +137,51 @@ def test_generate_db_migration_event_basic(client, action, expected_config_name)
     ],
 )
 def test_entity_name_reflects_deployment(
-    monkeypatch, service_name, role, expected_entity_name
+    orca, service_name, role, expected_entity_name
 ):
-    monkeypatch.setattr(iguazio, "Client", unittest.mock.MagicMock())
-    monkeypatch.setattr(
-        "framework.utils.clients.service_account_token.Client",
-        unittest.mock.MagicMock(),
-    )
-    mlrun.mlconf.services.service_name = service_name
-    mlrun.mlconf.httpdb.clusterization.role = role
-    c = iguazio_v4_events.Client()
-    event = c.generate_db_migration_event(
+    client = _make_client(service_name=service_name, role=role)
+    event = client.generate_db_migration_event(
         mlrun.common.schemas.MigrationEventActions.started
     )
-    assert event.entity_name == expected_entity_name
-    assert event.source == ""
+    body = _published_body(orca, client, event)
+    assert body == _system_event(
+        "MLRun.DB.Migration.Started",
+        "MLRun database migration started",
+        details={},
+        entity_name=expected_entity_name,
+    )
 
 
-def test_completed_event_carries_duration(client):
+def test_db_migration_completed_carries_duration(orca, client):
     event = client.generate_db_migration_event(
         mlrun.common.schemas.MigrationEventActions.completed,
         duration_seconds=12.3456,
     )
-    assert event.details == {"duration_seconds": 12.346}
+    body = _published_body(orca, client, event)
+    assert body["details"] == {"duration_seconds": 12.346}
 
 
 @pytest.mark.parametrize(
-    "scope,expected",
+    "scope,expected_details",
     [
-        (["schema"], ["schema"]),
-        (["data"], ["data"]),
-        (["schema", "data"], ["data", "schema"]),
-        (["data", "schema"], ["data", "schema"]),
-        (None, None),
-        ([], None),
+        (["schema"], {"scope": ["schema"]}),
+        (["data"], {"scope": ["data"]}),
+        (["schema", "data"], {"scope": ["data", "schema"]}),
+        (["data", "schema"], {"scope": ["data", "schema"]}),
+        (None, {}),
+        ([], {}),
     ],
 )
-def test_scope_in_details(client, scope, expected):
+def test_db_migration_scope_in_details(orca, client, scope, expected_details):
     event = client.generate_db_migration_event(
         mlrun.common.schemas.MigrationEventActions.started,
         scope=scope,
     )
-    if expected is None:
-        assert "scope" not in event.details
-    else:
-        assert event.details["scope"] == expected
+    body = _published_body(orca, client, event)
+    assert body["details"] == expected_details
 
 
-def test_versions_merged_into_details(client):
+def test_db_migration_versions_merged_into_details(orca, client):
     event = client.generate_db_migration_event(
         mlrun.common.schemas.MigrationEventActions.required,
         scope=["schema", "data"],
@@ -136,14 +192,17 @@ def test_versions_merged_into_details(client):
             "target_data_version": 10,
         },
     )
-    assert event.details["current_schema_revision"] == "abc123"
-    assert event.details["target_schema_revision"] == "def456"
-    assert event.details["current_data_version"] == 9
-    assert event.details["target_data_version"] == 10
-    assert event.details["scope"] == ["data", "schema"]
+    body = _published_body(orca, client, event)
+    assert body["details"] == {
+        "scope": ["data", "schema"],
+        "current_schema_revision": "abc123",
+        "target_schema_revision": "def456",
+        "current_data_version": 9,
+        "target_data_version": 10,
+    }
 
 
-def test_versions_drops_none_values(client):
+def test_db_migration_versions_drop_none_values(orca, client):
     event = client.generate_db_migration_event(
         mlrun.common.schemas.MigrationEventActions.required,
         versions={
@@ -153,160 +212,115 @@ def test_versions_drops_none_values(client):
             "target_data_version": None,
         },
     )
-    assert event.details == {
+    body = _published_body(orca, client, event)
+    assert body["details"] == {
         "current_schema_revision": "abc123",
         "target_schema_revision": "def456",
     }
 
 
-def test_versions_empty_or_none(client):
-    e1 = client.generate_db_migration_event(
-        mlrun.common.schemas.MigrationEventActions.started, versions=None
+@pytest.mark.parametrize("versions", [None, {}])
+def test_db_migration_versions_empty_or_none(orca, client, versions):
+    event = client.generate_db_migration_event(
+        mlrun.common.schemas.MigrationEventActions.started,
+        versions=versions,
     )
-    e2 = client.generate_db_migration_event(
-        mlrun.common.schemas.MigrationEventActions.started, versions={}
-    )
-    assert e1.details == {} == e2.details
+    body = _published_body(orca, client, event)
+    assert body["details"] == {}
 
 
-def test_failed_event_with_exception_includes_summary_and_duration(client):
-    err = RuntimeError("schema head mismatch")
+def test_db_migration_failed_with_exception(orca, client):
     event = client.generate_db_migration_event(
         mlrun.common.schemas.MigrationEventActions.failed,
-        error=err,
+        error=RuntimeError("schema head mismatch"),
         duration_seconds=4.0,
     )
-    assert event.config_name == iguazio_v4_events.DB_MIGRATION_FAILED
-    assert event.details["error"] == "schema head mismatch"
-    assert event.details["error_type"] == "RuntimeError"
-    assert event.details["duration_seconds"] == 4.0
-    # description stays the generic catalog wording; per-instance error lives
-    # in details only (the events service enriches description from the catalog)
-    assert event.description == (
-        "MLRun database migration failed, functionality may be impaired"
+    body = _published_body(orca, client, event)
+    # The per-instance error goes to details only; the description stays the catalog text.
+    assert body == _system_event(
+        "MLRun.DB.Migration.Failed",
+        MIGRATION_FAILED_DESCRIPTION,
+        details={
+            "duration_seconds": 4.0,
+            "error": "schema head mismatch",
+            "error_type": "RuntimeError",
+        },
     )
 
 
-def test_failed_event_with_string_error(client):
+def test_db_migration_failed_with_string_error(orca, client):
     event = client.generate_db_migration_event(
         mlrun.common.schemas.MigrationEventActions.failed,
         error="boom",
     )
-    assert event.details["error"] == "boom"
+    body = _published_body(orca, client, event)
     # error_type is only set for exceptions, not raw strings
-    assert "error_type" not in event.details
-    # error is recorded in details, not appended to the generic description
-    assert event.description == (
-        "MLRun database migration failed, functionality may be impaired"
-    )
-
-
-def test_failed_event_truncates_long_error(client):
-    long_err = "x" * 4096
-    event = client.generate_db_migration_event(
-        mlrun.common.schemas.MigrationEventActions.failed,
-        error=long_err,
-    )
-    assert event.details["error"].endswith("...[truncated]")
-    # Truncation budget is hard — output must not exceed the documented limit
-    assert len(event.details["error"]) <= iguazio_v4_events.ERROR_DETAIL_LIMIT
-    # description is untouched by the error — stays the generic catalog text
-    assert event.description == (
-        "MLRun database migration failed, functionality may be impaired"
+    assert body == _system_event(
+        "MLRun.DB.Migration.Failed",
+        MIGRATION_FAILED_DESCRIPTION,
+        details={"error": "boom"},
     )
 
 
 @pytest.mark.parametrize("falsy_error", ["", None])
-def test_failed_event_with_falsy_error_uses_catalog_description(client, falsy_error):
+def test_db_migration_failed_falsy_error(orca, client, falsy_error):
     event = client.generate_db_migration_event(
         mlrun.common.schemas.MigrationEventActions.failed,
         error=falsy_error,
     )
-    # No error context appended; description stays as the catalog default,
-    # and details contain neither error nor error_type.
-    assert event.description == (
-        "MLRun database migration failed, functionality may be impaired"
-    )
-    assert "error" not in event.details
-    assert "error_type" not in event.details
+    body = _published_body(orca, client, event)
+    assert body["details"] == {}
+    assert body["description"] == MIGRATION_FAILED_DESCRIPTION
 
 
-def test_emit_calls_publish_event(client):
-    spec = client.generate_db_migration_event(
-        mlrun.common.schemas.MigrationEventActions.started
-    )
-    client.emit(spec)
-    client._client.with_headers.assert_called_once()
-    client._client.publish_event.assert_called_once_with(spec)
+# ---------------------------------------------------------------------------
+# DB connection
+# ---------------------------------------------------------------------------
 
 
-def test_emit_swallows_exceptions(client):
-    spec = client.generate_db_migration_event(
-        mlrun.common.schemas.MigrationEventActions.required
-    )
-    client._client.publish_event.side_effect = RuntimeError("network down")
-    client.emit(spec)
-
-
-def test_emit_none_event_is_noop(client):
-    client.emit(None)
-    client._client.publish_event.assert_not_called()
-
-
-def test_unsupported_action_raises(client):
-    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
-        client.generate_db_migration_event("bogus")  # type: ignore[arg-type]
-
-
-def test_generate_db_connection_event_basic(client):
+def test_db_connection_event_payload(orca, client):
     event = client.generate_db_connection_event(
         mlrun.common.schemas.DBConnectionEventActions.failed,
     )
-    assert event.config_name == iguazio_v4_events.DB_CONNECTION_FAILED
-    assert event.entity_name == "mlrun-api-chief"
-    # severity, class and kind are left unset so the orca catalog enriches them
-    assert event.source == ""
-    assert event.description == "MLRun cannot connect to its database"
-    assert event.details == {}
+    body = _published_body(orca, client, event)
+    assert body == _system_event(
+        "MLRun.DB.Connection.Failed", DB_CONNECTION_DESCRIPTION, details={}
+    )
 
 
 @pytest.mark.parametrize(
     "kwargs",
     [
-        # falsy error — None
         {"error": None},
-        # all metadata fields explicitly None
         {"error_category": None, "error_code": None, "dialect": None},
     ],
     ids=["none_error", "none_metadata"],
 )
-def test_db_connection_event_no_context_uses_catalog_description(client, kwargs):
-    """Empty/None inputs → details stay empty and description is the catalog wording."""
+def test_db_connection_no_context(orca, client, kwargs):
     event = client.generate_db_connection_event(
         mlrun.common.schemas.DBConnectionEventActions.failed,
         **kwargs,
     )
-    assert event.description == "MLRun cannot connect to its database"
-    assert event.details == {}
+    body = _published_body(orca, client, event)
+    assert body["details"] == {}
+    assert body["description"] == DB_CONNECTION_DESCRIPTION
 
 
 @pytest.mark.parametrize(
-    "error,expected_error_substring,expected_error_type",
+    "error,expected_error_fields",
     [
-        # Exception → carries error_type
         (
             TimeoutError("Lock wait timeout exceeded; try restarting transaction"),
-            "Lock wait timeout",
-            "TimeoutError",
+            {
+                "error": "Lock wait timeout exceeded; try restarting transaction",
+                "error_type": "TimeoutError",
+            },
         ),
-        # Raw string → no error_type
-        ("connection lost", "connection lost", None),
+        ("connection lost", {"error": "connection lost"}),
     ],
     ids=["exception", "string"],
 )
-def test_db_connection_event_renders_error(
-    client, error, expected_error_substring, expected_error_type
-):
+def test_db_connection_renders_error(orca, client, error, expected_error_fields):
     event = client.generate_db_connection_event(
         mlrun.common.schemas.DBConnectionEventActions.failed,
         error=error,
@@ -314,279 +328,468 @@ def test_db_connection_event_renders_error(
         error_code=1205,
         dialect="mysql",
     )
-    assert event.details["error_category"] == "lock_wait_timeout"
-    assert event.details["error_code"] == 1205
-    assert event.details["dialect"] == "mysql"
-    assert expected_error_substring in event.details["error"]
-    # error goes to details only; description stays the generic catalog text
-    assert event.description == "MLRun cannot connect to its database"
-    if expected_error_type is None:
-        assert "error_type" not in event.details
-    else:
-        assert event.details["error_type"] == expected_error_type
-
-
-def test_db_connection_event_truncates_long_error(client):
-    long_err = "x" * 4096
-    event = client.generate_db_connection_event(
-        mlrun.common.schemas.DBConnectionEventActions.failed,
-        error=long_err,
+    body = _published_body(orca, client, event)
+    assert body == _system_event(
+        "MLRun.DB.Connection.Failed",
+        DB_CONNECTION_DESCRIPTION,
+        details={
+            "error_category": "lock_wait_timeout",
+            "error_code": 1205,
+            "dialect": "mysql",
+            **expected_error_fields,
+        },
     )
-    assert event.details["error"].endswith("...[truncated]")
-    assert len(event.details["error"]) <= iguazio_v4_events.ERROR_DETAIL_LIMIT
-    # description is untouched by the error
-    assert event.description == "MLRun cannot connect to its database"
 
 
-def test_db_connection_unsupported_action_raises(client):
-    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
-        client.generate_db_connection_event("bogus")  # type: ignore[arg-type]
+# ---------------------------------------------------------------------------
+# Log collector
+# ---------------------------------------------------------------------------
 
 
-def test_generate_log_collector_event_basic(client):
+def test_log_collector_event_payload(orca, client):
     event = client.generate_log_collector_event(
         mlrun.common.schemas.LogCollectorEventActions.failed,
     )
-    assert event.config_name == iguazio_v4_events.LOG_COLLECTOR_FAILED
-    assert event.entity_name == "mlrun-api-chief"
-    # severity, class and kind are left unset so the orca catalog enriches them
-    assert event.source == ""
-    assert event.description == "MLRun log collector failed to retrieve logs"
-    assert event.details == {}
+    body = _published_body(orca, client, event)
+    assert body == _system_event(
+        "MLRun.LogCollector.Failed", LOG_COLLECTOR_DESCRIPTION, details={}
+    )
 
 
-def test_log_collector_event_renders_context(client):
+def test_log_collector_renders_context(orca, client):
     event = client.generate_log_collector_event(
         mlrun.common.schemas.LogCollectorEventActions.failed,
         error=RuntimeError("collector unreachable"),
         run_uid="run-7",
         project="proj-a",
     )
-    assert event.details["run_uid"] == "run-7"
-    assert event.details["project"] == "proj-a"
-    assert event.details["error_type"] == "RuntimeError"
-    assert "collector unreachable" in event.details["error"]
-    # Per-instance error lives in details only; description stays the generic
-    # catalog text (the events service enriches it from the catalog).
-    assert event.description == "MLRun log collector failed to retrieve logs"
-
-
-def test_log_collector_event_truncates_long_error(client):
-    long_err = "x" * 4096
-    event = client.generate_log_collector_event(
-        mlrun.common.schemas.LogCollectorEventActions.failed,
-        error=long_err,
+    body = _published_body(orca, client, event)
+    assert body == _system_event(
+        "MLRun.LogCollector.Failed",
+        LOG_COLLECTOR_DESCRIPTION,
+        details={
+            "run_uid": "run-7",
+            "project": "proj-a",
+            "error": "collector unreachable",
+            "error_type": "RuntimeError",
+        },
     )
-    assert event.details["error"].endswith("...[truncated]")
-    assert len(event.details["error"]) <= iguazio_v4_events.ERROR_DETAIL_LIMIT
-    # description is untouched by the error
-    assert event.description == "MLRun log collector failed to retrieve logs"
 
 
-def test_log_collector_unsupported_action_raises(client):
-    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
-        client.generate_log_collector_event("bogus")  # type: ignore[arg-type]
+# ---------------------------------------------------------------------------
+# Project lifecycle
+# ---------------------------------------------------------------------------
 
 
 @pytest.mark.parametrize(
-    "action,expected_config_name",
+    "action,config_name,description",
     [
         (
             mlrun.common.schemas.ProjectLifecycleEventActions.creation_succeeded,
-            iguazio_v4_events.PROJECT_CREATION_SUCCEEDED,
+            "MLRun.Project.Creation.Succeeded",
+            "Project was successfully created",
         ),
         (
             mlrun.common.schemas.ProjectLifecycleEventActions.creation_failed,
-            iguazio_v4_events.PROJECT_CREATION_FAILED,
+            "MLRun.Project.Creation.Failed",
+            "Project creation failed",
         ),
         (
             mlrun.common.schemas.ProjectLifecycleEventActions.deletion_succeeded,
-            iguazio_v4_events.PROJECT_DELETION_SUCCEEDED,
+            "MLRun.Project.Deletion.Succeeded",
+            "Project was successfully deleted",
         ),
         (
             mlrun.common.schemas.ProjectLifecycleEventActions.deletion_failed,
-            iguazio_v4_events.PROJECT_DELETION_FAILED,
+            "MLRun.Project.Deletion.Failed",
+            "Project deletion failed",
         ),
     ],
 )
-def test_generate_project_lifecycle_event_basic(client, action, expected_config_name):
+def test_project_lifecycle_event_payload(
+    orca, client, action, config_name, description
+):
     event = client.generate_project_lifecycle_event(
         action=action, project_name="my-project", actor="alice"
     )
-    assert event.config_name == expected_config_name
-    # severity, class and kind are left unset so the orca catalog enriches them
-    assert event.entity_name == "mlrun-api-chief"
-    assert event.source == ""
-    assert event.details["project_name"] == "my-project"
-    assert event.details["actor"] == "alice"
-    # error is only included on failed actions, and only when supplied
-    assert "error" not in event.details
+    body = _published_body(orca, client, event)
+    assert body == _system_event(
+        config_name,
+        description,
+        details={"project_name": "my-project", "actor": "alice"},
+    )
 
 
-def test_project_lifecycle_omits_actor_when_missing(client):
+def test_project_lifecycle_omits_actor_when_missing(orca, client):
     event = client.generate_project_lifecycle_event(
         action=mlrun.common.schemas.ProjectLifecycleEventActions.creation_succeeded,
         project_name="p",
         actor=None,
     )
-    assert event.details == {"project_name": "p"}
+    body = _published_body(orca, client, event)
+    assert body["details"] == {"project_name": "p"}
 
 
 @pytest.mark.parametrize(
-    "failed_action",
+    "failed_action,description",
     [
-        mlrun.common.schemas.ProjectLifecycleEventActions.creation_failed,
-        mlrun.common.schemas.ProjectLifecycleEventActions.deletion_failed,
+        (
+            mlrun.common.schemas.ProjectLifecycleEventActions.creation_failed,
+            "Project creation failed",
+        ),
+        (
+            mlrun.common.schemas.ProjectLifecycleEventActions.deletion_failed,
+            "Project deletion failed",
+        ),
     ],
 )
-def test_project_lifecycle_failed_carries_error(client, failed_action):
-    err = RuntimeError("db unavailable")
+def test_project_lifecycle_failed_carries_error(
+    orca, client, failed_action, description
+):
     event = client.generate_project_lifecycle_event(
         action=failed_action,
         project_name="my-project",
         actor="alice",
-        error=err,
+        error=RuntimeError("db unavailable"),
     )
-    assert event.details["error"] == "db unavailable"
-    assert event.details["error_type"] == "RuntimeError"
-    # error in details only; description stays the generic per-action catalog text
-    _, expected_description = iguazio_v4_events.PROJECT_LIFECYCLE_EVENTS[failed_action]
-    assert event.description == expected_description
+    body = _published_body(orca, client, event)
+    assert body["details"] == {
+        "project_name": "my-project",
+        "actor": "alice",
+        "error": "db unavailable",
+        "error_type": "RuntimeError",
+    }
+    assert body["description"] == description
 
 
-def test_project_lifecycle_failed_truncates_long_error(client):
-    long_err = "y" * 4096
-    event = client.generate_project_lifecycle_event(
-        action=mlrun.common.schemas.ProjectLifecycleEventActions.deletion_failed,
-        project_name="my-project",
-        actor=None,
-        error=long_err,
-    )
-    assert event.details["error"].endswith("...[truncated]")
-    assert len(event.details["error"]) <= iguazio_v4_events.ERROR_DETAIL_LIMIT
-    # description is untouched by the error
-    assert event.description == "Project deletion failed"
-
-
-def test_project_lifecycle_succeeded_ignores_error(client):
-    # even if an `error` is passed for a succeeded action it must not leak into details
+def test_project_lifecycle_succeeded_ignores_error(orca, client):
     event = client.generate_project_lifecycle_event(
         action=mlrun.common.schemas.ProjectLifecycleEventActions.creation_succeeded,
         project_name="my-project",
         actor="alice",
         error=RuntimeError("should be ignored"),
     )
-    assert "error" not in event.details
-    assert event.description == "Project was successfully created"
-
-
-def test_project_lifecycle_unsupported_action_raises(client):
-    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
-        client.generate_project_lifecycle_event(
-            action="bogus",  # type: ignore[arg-type]
-            project_name="my-project",
-            actor=None,
-        )
+    body = _published_body(orca, client, event)
+    assert body["details"] == {"project_name": "my-project", "actor": "alice"}
+    assert body["description"] == "Project was successfully created"
 
 
 # ---------------------------------------------------------------------------
-# generate_project_secret_event
+# Audit events: project secret, permission denied
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.parametrize(
-    "action,expected_config_name,expected_description",
+    "action,config_name,description",
     [
         (
             mlrun.common.schemas.SecretEventActions.created,
-            iguazio_v4_events.PROJECT_SECRET_CREATED,
+            "UserAction.Project.MLRunSecret.Created",
             "Project my-project secret created",
         ),
         (
             mlrun.common.schemas.SecretEventActions.updated,
-            iguazio_v4_events.PROJECT_SECRET_UPDATED,
+            "UserAction.Project.MLRunSecret.Updated",
             "Project my-project secret updated",
         ),
         (
             mlrun.common.schemas.SecretEventActions.deleted,
-            iguazio_v4_events.PROJECT_SECRET_DELETED,
+            "UserAction.Project.MLRunSecret.Deleted",
             "Project my-project secret deleted",
         ),
     ],
 )
-def test_generate_project_secret_event_audit_fields(
-    client, action, expected_config_name, expected_description
+@pytest.mark.parametrize("initiator", ["alice", None])
+def test_project_secret_event_payload(
+    orca, client, action, config_name, description, initiator
 ):
     event = client.generate_project_secret_event(
         project="my-project",
         secret_name="mlrun.secret.k8s",
+        secret_keys=["key"],
         action=action,
+        initiator=initiator,
     )
-    assert event.config_name == expected_config_name
-    assert event.kind == "audit"
-    assert event.class_ == "user action"
-    assert event.project_name == "my-project"
-    assert event.entity_name == "my-project"
-    assert event.description == expected_description
-    assert event.source == ""
-    assert event.initiator is None
-    assert event.details == {}
+    body = _published_body(orca, client, event)
+    expected = {
+        "class": "user action",
+        "configName": config_name,
+        "description": description,
+        "details": {},
+        "entityName": "my-project",
+        "kind": "audit",
+        "projectName": "my-project",
+        "severity": "unspecified",
+        "source": "",
+        "traceId": "",
+    }
+    # An unknown initiator is left out of the body, not sent as null
+    if initiator is not None:
+        expected["initiator"] = initiator
+    assert body == expected
 
 
-def test_generate_project_secret_event_with_initiator(client):
-    event = client.generate_project_secret_event(
-        project="my-project",
-        secret_name="mlrun.secret.k8s",
-        action=mlrun.common.schemas.SecretEventActions.created,
-        initiator="alice",
-    )
-    assert event.initiator == "alice"
-
-
-def test_generate_project_secret_event_no_initiator(client):
-    event = client.generate_project_secret_event(
-        project="my-project",
-        secret_name="mlrun.secret.k8s",
-        action=mlrun.common.schemas.SecretEventActions.updated,
-    )
-    assert event.initiator is None
-
-
-def test_generate_project_secret_event_unsupported_action_raises(client):
-    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
-        client.generate_project_secret_event(
-            project="my-project",
-            secret_name="mlrun.secret.k8s",
-            action="bogus",  # type: ignore[arg-type]
-        )
-
-
-def test_generate_permission_denied_event_audit_fields(client):
+def test_permission_denied_event_payload(orca, client):
     event = client.generate_permission_denied_event(
         resource="/projects/my-project/functions/my-function",
         action="create",
         username="alice",
     )
-    assert event.config_name == iguazio_v4_events.PERMISSION_DENIED
-    assert event.kind == "audit"
-    assert event.class_ == "user action"
-    assert event.entity_name == "/projects/my-project/functions/my-function"
-    assert event.initiator == "alice"
-    assert event.description == (
-        "Permission denied for user alice to perform action create in resource "
-        "/projects/my-project/functions/my-function"
-    )
-    assert event.details == {
-        "username": "alice",
-        "action": "create",
-        "resource": "/projects/my-project/functions/my-function",
+    body = _published_body(orca, client, event)
+    assert body == {
+        "class": "user action",
+        "configName": "UserAction.General.PermissionDenied",
+        "description": (
+            "Permission denied for user alice to perform action create in resource "
+            "/projects/my-project/functions/my-function"
+        ),
+        "details": {
+            "username": "alice",
+            "action": "create",
+            "resource": "/projects/my-project/functions/my-function",
+        },
+        "entityName": "/projects/my-project/functions/my-function",
+        "initiator": "alice",
+        "kind": "audit",
+        "projectName": "",
+        "severity": "unspecified",
+        "source": "",
+        "traceId": "",
     }
 
 
-def test_generate_permission_denied_event_no_username(client):
+def test_permission_denied_event_no_username(orca, client):
     event = client.generate_permission_denied_event(
         resource="/projects/my-project/functions/my-function",
         action="read",
     )
-    assert event.initiator is None
-    assert event.details["username"] is None
+    body = _published_body(orca, client, event)
+    assert "initiator" not in body
+    # details carry the username as an explicit null
+    assert body["details"] == {
+        "username": None,
+        "action": "read",
+        "resource": "/projects/my-project/functions/my-function",
+    }
+    assert body["description"] == (
+        "Permission denied for user None to perform action read in resource "
+        "/projects/my-project/functions/my-function"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Behavior shared by the generators
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "generate,description",
+    [
+        (
+            lambda c, error: c.generate_db_migration_event(
+                mlrun.common.schemas.MigrationEventActions.failed, error=error
+            ),
+            MIGRATION_FAILED_DESCRIPTION,
+        ),
+        (
+            lambda c, error: c.generate_db_connection_event(
+                mlrun.common.schemas.DBConnectionEventActions.failed, error=error
+            ),
+            DB_CONNECTION_DESCRIPTION,
+        ),
+        (
+            lambda c, error: c.generate_log_collector_event(
+                mlrun.common.schemas.LogCollectorEventActions.failed, error=error
+            ),
+            LOG_COLLECTOR_DESCRIPTION,
+        ),
+        (
+            lambda c, error: c.generate_project_lifecycle_event(
+                action=mlrun.common.schemas.ProjectLifecycleEventActions.deletion_failed,
+                project_name="my-project",
+                error=error,
+            ),
+            "Project deletion failed",
+        ),
+    ],
+    ids=["db_migration", "db_connection", "log_collector", "project_lifecycle"],
+)
+def test_error_detail_truncated(orca, client, generate, description):
+    body = _published_body(orca, client, generate(client, LONG_ERROR))
+    assert body["details"]["error"] == TRUNCATED_ERROR
+    assert body["description"] == description
+
+
+@pytest.mark.parametrize(
+    "generate",
+    [
+        lambda c: c.generate_db_migration_event("bogus"),
+        lambda c: c.generate_db_connection_event("bogus"),
+        lambda c: c.generate_log_collector_event("bogus"),
+        lambda c: c.generate_project_lifecycle_event(
+            action="bogus", project_name="my-project"
+        ),
+        lambda c: c.generate_project_secret_event(
+            project="my-project", secret_name="mlrun.secret.k8s", action="bogus"
+        ),
+    ],
+    ids=[
+        "db_migration",
+        "db_connection",
+        "log_collector",
+        "project_lifecycle",
+        "project_secret",
+    ],
+)
+def test_unsupported_action_raises(orca, client, generate):
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+        generate(client)
+    assert orca.log == []
+
+
+def test_auth_secret_event_is_noop(orca, client):
+    event = client.generate_auth_secret_event(
+        username="alice",
+        secret_name="secret",
+        action=mlrun.common.schemas.AuthSecretEventActions.created,
+    )
+    assert event is None
+    client.emit(event)
+    assert orca.log == []
+
+
+# ---------------------------------------------------------------------------
+# emit
+# ---------------------------------------------------------------------------
+
+
+def test_emit_request_contract(orca, client):
+    orca.expect_oneshot_request(EVENTS_PATH, method="POST").respond_with_json(
+        ACTIVATION_RESPONSE, status=201
+    )
+    client.emit(
+        client.generate_db_migration_event(
+            mlrun.common.schemas.MigrationEventActions.started
+        )
+    )
+    assert len(orca.log) == 1
+    request = orca.log[0][0]
+    assert request.method == "POST"
+    assert request.path == EVENTS_PATH
+    assert request.query_string == b""
+    # Events are published with the API server's service-account identity
+    assert request.headers["Authorization"] == f"Bearer {SA_TOKEN}"
+    assert request.headers["X-Igz-Authenticator-Kind"] == "sa"
+    assert request.headers["Content-Type"] == "application/json"
+
+
+@pytest.mark.parametrize("with_context_id", [True, False], ids=["set", "unset"])
+def test_emit_propagates_context_id(orca, client, request, with_context_id):
+    if with_context_id:
+        request.getfixturevalue("context_id")
+    orca.expect_oneshot_request(EVENTS_PATH, method="POST").respond_with_json(
+        ACTIVATION_RESPONSE, status=201
+    )
+    client.emit(
+        client.generate_db_migration_event(
+            mlrun.common.schemas.MigrationEventActions.started
+        )
+    )
+    headers = orca.log[0][0].headers
+    if with_context_id:
+        assert headers["x-igz-ctx"] == CTX_ID
+    else:
+        assert "x-igz-ctx" not in headers
+
+
+@pytest.mark.parametrize("status", [200, 201])
+def test_emit_success_logs_no_warning(orca, client, warning_log, status):
+    orca.expect_oneshot_request(EVENTS_PATH, method="POST").respond_with_json(
+        ACTIVATION_RESPONSE, status=status
+    )
+    client.emit(
+        client.generate_db_migration_event(
+            mlrun.common.schemas.MigrationEventActions.started
+        )
+    )
+    assert len(orca.log) == 1
+    warning_log.assert_not_called()
+
+
+@pytest.mark.parametrize("status", [400, 404, 500, 503])
+def test_emit_error_status_swallowed_without_retry(orca, client, warning_log, status):
+    orca.expect_request(EVENTS_PATH, method="POST").respond_with_json(
+        {"status": {"errorMessage": "rejected"}}, status=status
+    )
+    client.emit(
+        client.generate_db_migration_event(
+            mlrun.common.schemas.MigrationEventActions.started
+        )
+    )
+    # Publishing is best-effort: the failure is logged, not raised, and not retried
+    assert len(orca.log) == 1
+    warning_log.assert_called_once()
+    assert warning_log.call_args.kwargs["config_name"] == "MLRun.DB.Migration.Started"
+
+
+def test_emit_connection_failure_swallowed(unreachable_orca, warning_log):
+    client = _make_client()
+    client.emit(
+        client.generate_db_migration_event(
+            mlrun.common.schemas.MigrationEventActions.started
+        )
+    )
+    warning_log.assert_called_once()
+
+
+def test_emit_failure_log_omits_token(orca, client, warning_log):
+    orca.expect_request(EVENTS_PATH, method="POST").respond_with_json({}, status=500)
+    client.emit(
+        client.generate_db_migration_event(
+            mlrun.common.schemas.MigrationEventActions.started
+        )
+    )
+    warning_log.assert_called_once()
+    assert SA_TOKEN not in str(warning_log.call_args)
+
+
+def test_emit_none_sends_nothing(orca, client):
+    client.emit(None)
+    assert orca.log == []
+
+
+def _make_client(
+    service_name: str = "api", role: str = "chief"
+) -> iguazio_v4_events.Client:
+    mlrun.mlconf.services.service_name = service_name
+    mlrun.mlconf.httpdb.clusterization.role = role
+    return iguazio_v4_events.Client()
+
+
+def _published_body(orca: pytest_httpserver.HTTPServer, client, event) -> dict:
+    orca.expect_oneshot_request(EVENTS_PATH, method="POST").respond_with_json(
+        ACTIVATION_RESPONSE, status=201
+    )
+    client.emit(event)
+    assert len(orca.log) == 1
+    return orca.log[0][0].get_json()
+
+
+def _system_event(
+    config_name: str,
+    description: str,
+    details: dict,
+    entity_name: str = "mlrun-api-chief",
+) -> dict:
+    """System events leave kind, class and severity unset so Orca's catalog fills them in."""
+    return {
+        "configName": config_name,
+        "description": description,
+        "details": details,
+        "entityName": entity_name,
+        "kind": "",
+        "projectName": "",
+        "severity": "unspecified",
+        "source": "",
+        "traceId": "",
+    }

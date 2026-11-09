@@ -218,6 +218,8 @@ def test_store_secret_tokens_refresh_failure(
             auth_info=_user_auth_info(),
         )
 
+    # pytest.raises also accepts subclasses, and some mapped classes have them
+    # (e.g. MLRunNotFoundError), so pin the exact class.
     assert exc_info.type is expected_error
     _assert_upstream_details(exc_info.value)
     _only_request(orca, "POST", REFRESH_TOKENS_PATH)
@@ -244,7 +246,7 @@ def test_store_secret_tokens_refresh_non_json_error(orca, secrets_provider):
 
 
 def test_store_secret_tokens_refresh_unreachable(unreachable_orca, secrets_provider):
-    with pytest.raises(mlrun.errors.MLRunUnauthorizedError) as exc_info:
+    with pytest.raises(mlrun.errors.MLRunUnauthorizedError):
         services.api.crud.Secrets().store_secret_tokens(
             secret_tokens=[
                 mlrun.common.schemas.SecretToken(
@@ -254,7 +256,6 @@ def test_store_secret_tokens_refresh_unreachable(unreachable_orca, secrets_provi
             auth_info=_user_auth_info(),
         )
 
-    assert exc_info.type is mlrun.errors.MLRunUnauthorizedError
     secrets_provider.store_user_token_secret.assert_not_called()
 
 
@@ -346,6 +347,8 @@ def test_delete_secret_token_revoke_failure_keeps_secret(
             token_name="my-token", username="jane", auth_info=_user_auth_info()
         )
 
+    # pytest.raises also accepts subclasses, and some mapped classes have them
+    # (e.g. MLRunNotFoundError), so pin the exact class.
     assert exc_info.type is expected_error
     _assert_upstream_details(exc_info.value)
     # Revoking is not idempotent, so a failed attempt is never retried
@@ -372,12 +375,11 @@ def test_delete_secret_token_revoke_not_found_reports_not_deleted(
 def test_delete_secret_token_revoke_unreachable(
     unreachable_orca, secrets_provider, revocation_required
 ):
-    with pytest.raises(mlrun.errors.MLRunUnauthorizedError) as exc_info:
+    with pytest.raises(mlrun.errors.MLRunUnauthorizedError):
         services.api.crud.Secrets().delete_secret_token(
             token_name="my-token", username="jane", auth_info=_user_auth_info()
         )
 
-    assert exc_info.type is mlrun.errors.MLRunUnauthorizedError
     secrets_provider.delete_user_token_secret.assert_not_called()
 
 
@@ -459,6 +461,8 @@ def test_delete_secret_token_user_lookup_failure(
             token_name="my-token", username="jane", auth_info=_admin_auth_info()
         )
 
+    # pytest.raises also accepts subclasses, and some mapped classes have them
+    # (e.g. MLRunNotFoundError), so pin the exact class.
     assert exc_info.type is expected_error
     _assert_upstream_details(exc_info.value)
     _only_request(orca, "GET", "/api/v1/profile/users/jane")
@@ -468,12 +472,11 @@ def test_delete_secret_token_user_lookup_failure(
 def test_delete_secret_token_user_lookup_unreachable(
     unreachable_orca, secrets_provider, revocation_owned_by_platform
 ):
-    with pytest.raises(mlrun.errors.MLRunUnauthorizedError) as exc_info:
+    with pytest.raises(mlrun.errors.MLRunUnauthorizedError):
         services.api.crud.Secrets().delete_secret_token(
             token_name="my-token", username="jane", auth_info=_admin_auth_info()
         )
 
-    assert exc_info.type is mlrun.errors.MLRunUnauthorizedError
     secrets_provider.delete_user_token_secret.assert_not_called()
 
 
@@ -774,9 +777,10 @@ def _requests(
 def _only_request(
     server: pytest_httpserver.HTTPServer, method: str, path: str
 ) -> werkzeug.Request:
-    assert [(request.method, request.path) for request, _ in server.log] == [
-        (method, path)
-    ]
+    all_requests = [(request.method, request.path) for request, _ in server.log]
+    # Compare against every received request, not just the count, so a failure shows
+    # which extra or unexpected requests Orca got.
+    assert all_requests == [(method, path)]
     return server.log[0][0]
 
 

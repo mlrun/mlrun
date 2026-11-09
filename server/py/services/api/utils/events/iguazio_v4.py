@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import typing
 
 import requests
 import requests.adapters
@@ -31,6 +32,25 @@ EVENTS_REQUEST_TIMEOUT_SECONDS = 60
 # Only failed connections are retried: a request that reached Orca may have published
 # the event already
 EVENTS_CONNECT_RETRIES = 3
+
+# Body of POST /api/v1/events/activations. Functional syntax because "class" is a
+# Python keyword; "class" and "initiator" are only sent when set.
+EventActivation = typing.TypedDict(
+    "EventActivation",
+    {
+        "configName": str,
+        "source": str,
+        "kind": str,
+        "severity": str,
+        "projectName": str,
+        "entityName": str,
+        "traceId": str,
+        "details": dict[str, typing.Any],
+        "description": str,
+        "class": typing.NotRequired[str],
+        "initiator": typing.NotRequired[str],
+    },
+)
 
 DB_MIGRATION_REQUIRED = "MLRun.DB.Migration.Required"
 DB_MIGRATION_STARTED = "MLRun.DB.Migration.Started"
@@ -151,7 +171,7 @@ class Client(base_events.BaseEventClient):
         self._service_account_token_client = service_account_token.Client()
         self._entity_name = self._resolve_entity_name()
 
-    def emit(self, event: dict | None):
+    def emit(self, event: EventActivation | None):
         if event is None:
             return
         try:
@@ -186,7 +206,7 @@ class Client(base_events.BaseEventClient):
         duration_seconds: float | None = None,
         scope: list[str] | None = None,
         versions: dict | None = None,
-    ) -> dict:
+    ) -> EventActivation:
         try:
             config_name, description = DB_MIGRATION_EVENTS[action]
         except KeyError as exc:
@@ -194,7 +214,7 @@ class Client(base_events.BaseEventClient):
                 f"Unsupported DB migration action {action}"
             ) from exc
 
-        details: dict = {}
+        details: dict[str, typing.Any] = {}
         if scope:
             details["scope"] = sorted(scope)
         if versions:
@@ -221,7 +241,7 @@ class Client(base_events.BaseEventClient):
         error_category: str | None = None,
         error_code: int | str | None = None,
         dialect: str | None = None,
-    ) -> dict:
+    ) -> EventActivation:
         try:
             config_name, description = DB_CONNECTION_EVENTS[action]
         except KeyError as exc:
@@ -229,7 +249,7 @@ class Client(base_events.BaseEventClient):
                 f"Unsupported DB connection action {action}"
             ) from exc
 
-        details: dict = {}
+        details: dict[str, typing.Any] = {}
         if error_category:
             details["error_category"] = error_category
         if error_code is not None:
@@ -252,7 +272,7 @@ class Client(base_events.BaseEventClient):
         error: BaseException | str | None = None,
         run_uid: str | None = None,
         project: str | None = None,
-    ) -> dict:
+    ) -> EventActivation:
         try:
             config_name, description = LOG_COLLECTOR_EVENTS[action]
         except KeyError as exc:
@@ -260,7 +280,7 @@ class Client(base_events.BaseEventClient):
                 f"Unsupported log collector action {action}"
             ) from exc
 
-        details: dict = {}
+        details: dict[str, typing.Any] = {}
         if run_uid:
             details["run_uid"] = run_uid
         if project:
@@ -281,7 +301,7 @@ class Client(base_events.BaseEventClient):
         project_name: str,
         actor: str | None = None,
         error: BaseException | str | None = None,
-    ) -> dict:
+    ) -> EventActivation:
         try:
             config_name, description = PROJECT_LIFECYCLE_EVENTS[action]
         except KeyError as exc:
@@ -289,7 +309,7 @@ class Client(base_events.BaseEventClient):
                 f"Unsupported project lifecycle action {action}"
             ) from exc
 
-        details: dict = {"project_name": project_name}
+        details: dict[str, typing.Any] = {"project_name": project_name}
         if actor:
             details["actor"] = actor
 
@@ -322,7 +342,7 @@ class Client(base_events.BaseEventClient):
         secret_keys: list[str] | None = None,
         action: mlrun.common.schemas.SecretEventActions = mlrun.common.schemas.SecretEventActions.created,
         initiator: str | None = None,
-    ) -> dict:
+    ) -> EventActivation:
         """
         Generate a project secret audit event.
         :param project: project name
@@ -354,7 +374,7 @@ class Client(base_events.BaseEventClient):
         resource: str,
         action: str,
         username: str | None = None,
-    ) -> dict:
+    ) -> EventActivation:
         """
         Generate a permission-denied audit event.
         :param resource: the OPA resource path the action was attempted on
@@ -381,17 +401,17 @@ class Client(base_events.BaseEventClient):
         config_name: str,
         entity_name: str,
         description: str,
-        details: dict | None = None,
+        details: dict[str, typing.Any] | None = None,
         kind: str = "",
         class_: str | None = None,
         project_name: str = "",
         initiator: str | None = None,
-    ) -> dict:
+    ) -> EventActivation:
         """
         Build the Orca event activation body. For catalog events, kind and class are left
         unset and severity is "unspecified", so Orca fills them in from the catalog entry.
         """
-        event = {
+        event: EventActivation = {
             "configName": config_name,
             "source": "",
             "kind": kind,
@@ -446,7 +466,7 @@ class Client(base_events.BaseEventClient):
     @classmethod
     def _record_error(
         cls,
-        details: dict,
+        details: dict[str, typing.Any],
         error: BaseException | str | None,
     ) -> None:
         """

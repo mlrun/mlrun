@@ -3,9 +3,9 @@
 
 
 The change log lists updates per version, open issues, limitations, and deprecations:
-- [v1.12.0](#v1-12-0)
+- [v1.12.1](v1-12-1) | [v1.12.0](#v1-12-0)
 - [v1.11.0](#v1110)
-- [v1.10.3](#v1103) | [v1.10.2](#v1102) | [v1.10.1](#v1101) | [v1.10.0](#v1100)
+- [v1.10.4](v1-10-4) | [v1.10.3](v1-10-3) | [v1.10.2](#v1102) | [v1.10.1](#v1101) | [v1.10.0](#v1100)
 - [v1.9.2](#v192) | [v1.9.1](#v191) | [v1.9.0](#v190)
 - [v1.8.0](#v180)
 - [v1.7.2](#v172-16-january-2025) | [v1.7.1](#v171-2-december-2024) | [v1.7.0](#v170-1-november-2024)
@@ -26,6 +26,15 @@ Upgrading these MLRun dependencies spans several releases.  The upgrades are com
 - Pydantic: from version 1 to 2.
 
 See a full description of KFP, Python, and the workflow engines in {ref}`local-remote`. Specific changes are listed under the relevant versions.
+
+(v1-12-1)=
+## v1.12.1 (September 2026)
+
+### Closed issues
+
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-13105 |The MLRun "internal" API (`/api/v1/_internal/*`) was removed.|
 
 (v1-12-0)=
 ## v1.12.0 (September 2026)
@@ -193,8 +202,24 @@ ML-11820|Improved the time to access the monitoring page (V3IO).|
 
 
 ## v1.10.x
-(#v1103)=
-### v1.10.3
+
+```{admonition} Important
+**v1.10.x are the last versions that support Python 3.9 and TDEngine. They will not be supported in MLRun v1.11.0.<br>
+TDEngine will be replaced with TimescaleDB. Model monitoring data in TDEngine will not be migrated.**
+```
+
+(v1-10-4)=
+### v1.10.4 (September 2026)
+
+#### Closed issues
+
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-13105 |The MLRun "internal" API (`/api/v1/_internal/*`) was removed.|
+
+
+(v1-10-3)=
+### v1.10.3 (April 2026)
 #### Closed issues
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
@@ -203,10 +228,6 @@ ML-11820|Improved the time to access the monitoring page (V3IO).|
 (v1102)=
 ### v1.10.2 (February 2025)
 
-```{admonition} Important
-**v1.10.x are the last versions that support Python 3.9 and TDEngine. They will not be supported in MLRun v1.11.0.<br>
-TDEngine will be replaced with TimescaleDB. Model monitoring data in TDEngine will not be migrated.**
-```
 
 #### Closed issues
 | ID    |Description                                                                 |

@@ -12,12 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """
-Wire-level contract of the token, user and version calls MLRun makes to Orca.
+Wire-level contract of the token, user, version and project-policy calls MLRun makes to Orca.
 
 A local HTTP server stands in for Orca, so the tests apply to whichever HTTP client MLRun
 uses to reach it. Most call the callers (``crud.Secrets``, ``utils.helpers``); token-file shapes the
-helper never builds, and calls without a caller's request, go to the client directly. Each asserts what
-Orca receives (method, path, body, whose identity) and what MLRun raises.
+helper never builds, calls without a caller's request, and the igz follower's project-policy calls go
+to the client directly. Each asserts what Orca receives (method, path, body, whose identity) and what
+MLRun raises.
 """
 
 import asyncio
@@ -54,6 +55,44 @@ REFRESH_TOKENS_PATH = "/api/v1/authentication/refresh-access-tokens"
 REFRESH_TOKEN_PATH = "/api/v1/authentication/refresh-access-token"
 REVOKE_PATH = "/api/v1/authentication/revoke-offline-token"
 SYSTEM_INFO_PATH = "/api/v1/info/system"
+
+PROJECT = "my-project"
+PROJECT_OWNER = "new-owner"
+PROJECT_POLICIES_PATH = "/api/v1/authorization/projects/policies"
+PROJECT_OWNER_PATH = f"/api/v1/authorization/projects/{PROJECT}/owner"
+PROJECT_POLICIES_DELETE_PATH = f"/api/v1/authorization/projects/{PROJECT}/policies"
+
+# The igz follower's calls that relay the caller's identity:
+# (operation, method, path, body, success status, failure message)
+FORWARDED_POLICY_CALLS = [
+    pytest.param(
+        "create",
+        "POST",
+        PROJECT_POLICIES_PATH,
+        {"project": PROJECT},
+        201,
+        "Failed to create default project policies in Iguazio",
+        id="create",
+    ),
+    pytest.param(
+        "store",
+        "POST",
+        PROJECT_POLICIES_PATH,
+        {"project": PROJECT},
+        201,
+        "Failed to store project policies in Iguazio",
+        id="store",
+    ),
+    pytest.param(
+        "patch",
+        "PUT",
+        PROJECT_OWNER_PATH,
+        {"owner": PROJECT_OWNER},
+        200,
+        "Failed to update project owner in Iguazio",
+        id="patch",
+    ),
+]
 
 # Statuses MLRun maps to a specific error class, plus unmapped ones that fall back to the
 # class each call raises by default.
@@ -1050,6 +1089,248 @@ async def test_concurrent_calls_carry_only_their_own_identity(
     assert len(refresh_requests) == iterations
     for request in refresh_requests:
         _assert_service_account_identity(request)
+
+
+# --- Project policies (igz follower): create/store/patch as the caller, delete as the service account ---
+
+
+@pytest.mark.parametrize(
+    "operation, method, path, body, success_status, failure_message",
+    FORWARDED_POLICY_CALLS,
+)
+def test_project_policies_forward_caller_identity(
+    orca, operation, method, path, body, success_status, failure_message
+):
+    orca.expect_request(path, method=method).respond_with_json(
+        {}, status=success_status
+    )
+
+    _call_project_policies(operation, _user_auth_info())
+
+    request = _only_request(orca, method, path)
+    _assert_forwarded_identity(request, USER_BEARER)
+    assert _json_body(request) == body
+
+
+@pytest.mark.parametrize(
+    "operation, method, path, body, success_status, failure_message",
+    FORWARDED_POLICY_CALLS,
+)
+@pytest.mark.parametrize(
+    "status_code, expected_error",
+    MAPPED_ERRORS
+    + [(status, mlrun.errors.MLRunInternalServerError) for status in UNMAPPED_STATUSES],
+)
+def test_project_policies_failure(
+    orca,
+    operation,
+    method,
+    path,
+    body,
+    success_status,
+    failure_message,
+    status_code,
+    expected_error,
+):
+    if operation == "store" and status_code == 409:
+        pytest.skip("A conflict on store means the policies already exist")
+    orca.expect_request(path, method=method).respond_with_json(
+        _error_body(status_code), status=status_code
+    )
+
+    with pytest.raises(expected_error) as exc_info:
+        _call_project_policies(operation, _user_auth_info())
+
+    assert exc_info.type is expected_error
+    assert failure_message in str(exc_info.value)
+    _assert_upstream_details(exc_info.value)
+    _only_request(orca, method, path)
+
+
+@pytest.mark.parametrize(
+    "operation, method, path, body, success_status, failure_message",
+    FORWARDED_POLICY_CALLS,
+)
+def test_project_policies_with_cookie_only_forward_only_the_cookie(
+    orca, operation, method, path, body, success_status, failure_message
+):
+    orca.expect_request(path, method=method).respond_with_json(
+        {}, status=success_status
+    )
+
+    _call_project_policies(operation, _cookie_auth_info())
+
+    request = _only_request(orca, method, path)
+    _assert_cookie_only_identity(request)
+
+
+@pytest.mark.parametrize(
+    "operation, method, path, body, success_status, failure_message",
+    FORWARDED_POLICY_CALLS,
+)
+def test_project_policies_without_request_headers_send_no_identity(
+    orca, operation, method, path, body, success_status, failure_message
+):
+    orca.expect_request(path, method=method).respond_with_json(
+        _error_body(401), status=401
+    )
+
+    with pytest.raises(mlrun.errors.MLRunUnauthorizedError):
+        _call_project_policies(operation)
+
+    request = _only_request(orca, method, path)
+    assert "Authorization" not in request.headers
+    assert (
+        mlrun.common.schemas.HeaderNames.igz_authenticator_kind not in request.headers
+    )
+    _assert_absent_from_headers(request, SA_TOKEN)
+
+
+@pytest.mark.parametrize(
+    "operation, method, path, success_status",
+    [
+        ("create", "POST", PROJECT_POLICIES_PATH, 200),
+        ("store", "POST", PROJECT_POLICIES_PATH, 202),
+        ("patch", "PUT", PROJECT_OWNER_PATH, 204),
+        ("delete", "DELETE", PROJECT_POLICIES_DELETE_PATH, 204),
+    ],
+)
+def test_project_policies_any_success_status_succeeds(
+    orca, operation, method, path, success_status
+):
+    orca.expect_request(path, method=method).respond_with_data(
+        "", status=success_status
+    )
+
+    _call_project_policies(operation, _user_auth_info())
+
+    _only_request(orca, method, path)
+
+
+def test_store_project_with_existing_policies_succeeds(orca):
+    orca.expect_request(PROJECT_POLICIES_PATH, method="POST").respond_with_json(
+        _error_body(409), status=409
+    )
+
+    _call_project_policies("store", _user_auth_info())
+
+    _only_request(orca, "POST", PROJECT_POLICIES_PATH)
+
+
+def test_patch_project_without_owner_sends_no_request(orca):
+    framework.utils.clients.iguazio.v4.FollowerClient().patch_project(
+        None,
+        PROJECT,
+        {"metadata": {"name": PROJECT}, "spec": {}},
+        auth_info=_user_auth_info(),
+    )
+
+    assert orca.log == []
+
+
+@pytest.mark.parametrize(
+    "deletion_strategy",
+    [
+        mlrun.common.schemas.DeletionStrategy.restricted,
+        mlrun.common.schemas.DeletionStrategy.cascading,
+    ],
+)
+def test_delete_project_policies_uses_service_account(orca, deletion_strategy):
+    orca.expect_request(
+        PROJECT_POLICIES_DELETE_PATH, method="DELETE"
+    ).respond_with_json({})
+
+    framework.utils.clients.iguazio.v4.FollowerClient().delete_project(
+        None, PROJECT, deletion_strategy=deletion_strategy, auth_info=_user_auth_info()
+    )
+
+    request = _only_request(orca, "DELETE", PROJECT_POLICIES_DELETE_PATH)
+    _assert_service_account_identity(request)
+    assert request.get_data() == b""
+
+
+def test_delete_project_check_strategy_sends_no_request(orca):
+    framework.utils.clients.iguazio.v4.FollowerClient().delete_project(
+        None,
+        PROJECT,
+        deletion_strategy=mlrun.common.schemas.DeletionStrategy.check,
+        auth_info=_user_auth_info(),
+    )
+
+    assert orca.log == []
+
+
+@pytest.mark.parametrize(
+    "status_code, expected_error",
+    MAPPED_ERRORS
+    + [(status, mlrun.errors.MLRunInternalServerError) for status in UNMAPPED_STATUSES],
+)
+def test_delete_project_policies_failure(orca, status_code, expected_error):
+    orca.expect_request(
+        PROJECT_POLICIES_DELETE_PATH, method="DELETE"
+    ).respond_with_json(_error_body(status_code), status=status_code)
+
+    with pytest.raises(expected_error) as exc_info:
+        _call_project_policies("delete")
+
+    assert exc_info.type is expected_error
+    assert "Failed to delete project policies in Iguazio" in str(exc_info.value)
+    _assert_upstream_details(exc_info.value)
+    _only_request(orca, "DELETE", PROJECT_POLICIES_DELETE_PATH)
+
+
+@pytest.mark.parametrize(
+    "operation, method, path, success_status",
+    [
+        ("create", "POST", PROJECT_POLICIES_PATH, 201),
+        ("store", "POST", PROJECT_POLICIES_PATH, 201),
+        ("patch", "PUT", PROJECT_OWNER_PATH, 200),
+        ("delete", "DELETE", PROJECT_POLICIES_DELETE_PATH, 200),
+    ],
+)
+def test_project_policies_propagate_context_id(
+    orca, context_id, operation, method, path, success_status
+):
+    orca.expect_request(path, method=method).respond_with_json(
+        {}, status=success_status
+    )
+
+    _call_project_policies(operation, _user_auth_info())
+
+    request = _only_request(orca, method, path)
+    assert request.headers.get(mlrun.common.schemas.HeaderNames.igz_ctx) == context_id
+
+
+@pytest.mark.parametrize("operation", ["create", "store", "patch", "delete"])
+def test_project_policies_unreachable(unreachable_orca, operation):
+    with pytest.raises(mlrun.errors.MLRunInternalServerError) as exc_info:
+        _call_project_policies(operation, _user_auth_info())
+
+    assert exc_info.type is mlrun.errors.MLRunInternalServerError
+
+
+def _call_project_policies(
+    operation: str, auth_info: mlrun.common.schemas.AuthInfo | None = None
+) -> None:
+    follower = framework.utils.clients.iguazio.v4.FollowerClient()
+    auth_info = auth_info or mlrun.common.schemas.AuthInfo()
+    project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name=PROJECT),
+        spec=mlrun.common.schemas.ProjectSpec(owner=PROJECT_OWNER),
+    )
+    if operation == "create":
+        follower.create_project(None, project, auth_info=auth_info)
+    elif operation == "store":
+        follower.store_project(None, PROJECT, project, auth_info=auth_info)
+    elif operation == "patch":
+        follower.patch_project(
+            None,
+            PROJECT,
+            {"metadata": {"name": PROJECT}, "spec": {"owner": PROJECT_OWNER}},
+            auth_info=auth_info,
+        )
+    else:
+        follower.delete_project(None, PROJECT, auth_info=auth_info)
 
 
 def _user_auth_info() -> mlrun.common.schemas.AuthInfo:

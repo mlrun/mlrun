@@ -13,16 +13,15 @@
 # limitations under the License.
 import dataclasses
 import datetime
+import http
 import typing
 import uuid
 
 import httpx
 import humanfriendly
-import iguazio
 import requests
 import sqlalchemy.orm
 import yaml
-from iguazio.schemas import UpdateProjectOwnerOptionsV1
 
 import mlrun.common.formatters
 import mlrun.common.schemas
@@ -80,18 +79,10 @@ class Client(BaseClient, project_leader.Member):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self._service_account_token_client = service_account_token.Client()
-        self._client = iguazio.Client(
-            api_url=self._api_url,
-            auto_login=False,
-            use_token_file=False,
-            verify_ssl=mlrun.mlconf.iguazio_api_ssl_verify,
-            logger=clients_helpers.iguazio_sdk_logger(self._logger),
-        )
-        # Token, user and version calls
+        # Token, user, version and project-policy calls
         self._orca_session = clients_helpers.new_orca_session()
         # Used by the Orca project-leader-proxy methods below (create/update/delete/get project), which go
-        # through requests/BaseClient._send_request_to_api rather than the iguazio SDK client, since Orca's
-        # project endpoints aren't modeled there.
+        # through requests/BaseClient._send_request_to_api.
         self._session = mlrun.utils.HTTPSessionWithRetry(
             retry_on_exception=(
                 mlrun.mlconf.httpdb.projects.retry_leader_request_on_exception
@@ -609,6 +600,7 @@ class Client(BaseClient, project_leader.Member):
         default_error_class: type[Exception],
         identity: OrcaIdentity,
         json_body: dict | None = None,
+        handled_error_statuses: tuple[int, ...] = (),
     ) -> requests.Response:
         """
         Send a request to Orca's /api/v1 API with an explicit identity.
@@ -620,6 +612,8 @@ class Client(BaseClient, project_leader.Member):
             matching class in ``mlrun.errors.STATUS_ERRORS``.
         :param identity: Who the request is sent as.
         :param json_body: JSON body of the request.
+        :param handled_error_statuses: Error statuses the caller expects and handles; they still
+            raise, but are logged at debug level.
         :return: The response, for any 2xx status.
         """
         try:
@@ -661,7 +655,12 @@ class Client(BaseClient, project_leader.Member):
         # Redirects aren't followed, so a 3xx fails too
         if not 200 <= response.status_code < 300:
             error_message, ctx = self._extract_response_error(response)
-            self._logger.warning(
+            log = (
+                self._logger.debug
+                if response.status_code in handled_error_statuses
+                else self._logger.warning
+            )
+            log(
                 "Request to Orca failed",
                 failure_message=failure_message,
                 path=path,
@@ -772,41 +771,6 @@ class Client(BaseClient, project_leader.Member):
                 "Request must include either an Authorization header or _oauth2_proxy cookie"
             )
 
-    def _try_callback_with_httpx_exceptions(
-        self,
-        callback: typing.Callable[..., typing.Any],
-        exception_type: type[Exception],
-        failure_message: str,
-        auth_headers: dict[str, str] | None = None,
-    ) -> typing.Any:
-        try:
-            headers = auth_headers or self._service_account_token_client.auth_headers
-            # Inject auth headers and context id to headers for logging correlation
-            with self._client.with_headers(
-                clients_helpers.enrich_headers(headers=headers)
-            ):
-                return callback()
-        except httpx.HTTPStatusError as exc:
-            error_message, ctx = self._extract_response_error(exc.response)
-            self._logger.warning(
-                failure_message,
-                status_code=exc.response.status_code,
-                error_message=error_message,
-                ctx=ctx,
-                exc=mlrun.errors.err_to_str(exc),
-            )
-            full_message = f"{failure_message}: {error_message}, ctx={ctx}"
-            error_cls = mlrun.errors.STATUS_ERRORS.get(
-                exc.response.status_code, exception_type
-            )
-            raise error_cls(full_message) from exc
-        except Exception as exc:
-            self._logger.warning(
-                f"{failure_message} (unexpected error)",
-                exc=mlrun.errors.err_to_str(exc),
-            )
-            raise exception_type(failure_message) from exc
-
     def _extract_ctx(self, response_body: dict) -> str | None:
         # Also used for the Orca project calls via _send_project_request/_send_request_to_api.
         return orca_projects.extract_error_details(response_body)[1]
@@ -865,7 +829,7 @@ class FollowerClient(Client, project_follower.Member):
     Iguazio as a project follower, used when MLRun is the projects leader (the "igz" follower):
     keeps the project's default policies in Iguazio in sync with MLRun's projects.
 
-    Subclasses the Orca-leader ``Client`` only to reuse its SDK client and error handling - it is not
+    Subclasses the Orca-leader ``Client`` only to reuse its Orca request handling - it is not
     a usable leader member.
     """
 
@@ -876,21 +840,17 @@ class FollowerClient(Client, project_follower.Member):
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ):
         self._logger.debug("Creating default project policies in Iguazio")
-
-        def _create_default_project_policies():
-            # Iguazio takes the project owner from the caller's identity, so this relays the
-            # incoming request's auth headers rather than using the service account token.
-            self._client.create_default_project_policies(project=project.metadata.name)
-            self._logger.info(
-                "Successfully created default project policies in Iguazio"
-            )
-
-        self._try_callback_with_httpx_exceptions(
-            _create_default_project_policies,
-            mlrun.errors.MLRunInternalServerError,
+        # Iguazio takes the project owner from the caller's identity, so this relays the
+        # incoming request's auth headers rather than using the service account token.
+        self._send_orca_request(
+            "POST",
+            "authorization/projects/policies",
             "Failed to create default project policies in Iguazio",
-            auth_headers=auth_info.request_headers,
+            mlrun.errors.MLRunInternalServerError,
+            identity=ForwardedIdentity(auth_info.request_headers),
+            json_body={"project": project.metadata.name},
         )
+        self._logger.info("Successfully created default project policies in Iguazio")
 
     def store_project(
         self,
@@ -903,31 +863,25 @@ class FollowerClient(Client, project_follower.Member):
             "Ensuring default project policies exist in Iguazio", project=name
         )
 
-        def _create_policies_if_not_exist():
-            try:
-                self._client.create_default_project_policies(project=name)
-                self._logger.info(
-                    "Successfully created default project policies in Iguazio",
-                    project=name,
-                )
-            except httpx.HTTPStatusError as exc:
-                if exc.response.status_code == httpx.codes.CONFLICT:
-                    # Conflict means policies already exist, which is expected when storing
-                    # an existing project (e.g., load_project, sync, or re-save).
-                    # We use "create and handle conflict" instead of "check then create"
-                    # because checking a non-existent project returns 401, not 404.
-                    self._logger.debug(
-                        "Project policies already exist, skipping", project=name
-                    )
-                else:
-                    # Unexpected error, re-raise
-                    raise
-
-        self._try_callback_with_httpx_exceptions(
-            _create_policies_if_not_exist,
-            mlrun.errors.MLRunInternalServerError,
-            "Failed to store project policies in Iguazio",
-            auth_headers=auth_info.request_headers,
+        try:
+            self._send_orca_request(
+                "POST",
+                "authorization/projects/policies",
+                "Failed to store project policies in Iguazio",
+                mlrun.errors.MLRunInternalServerError,
+                identity=ForwardedIdentity(auth_info.request_headers),
+                json_body={"project": name},
+                handled_error_statuses=(http.HTTPStatus.CONFLICT,),
+            )
+        except mlrun.errors.MLRunConflictError:
+            # Conflict means policies already exist, which is expected when storing
+            # an existing project (e.g., load_project, sync, or re-save).
+            # We use "create and handle conflict" instead of "check then create"
+            # because checking a non-existent project returns 401, not 404.
+            self._logger.debug("Project policies already exist, skipping", project=name)
+            return
+        self._logger.info(
+            "Successfully created default project policies in Iguazio", project=name
         )
 
     def patch_project(
@@ -939,23 +893,20 @@ class FollowerClient(Client, project_follower.Member):
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ):
         self._logger.debug("Updating project owner in Iguazio")
+        owner = project.get("spec", {}).get("owner")
+        if not owner:
+            # No owner to update, nothing to do
+            return
 
-        def _update_project_owner():
-            owner = project.get("spec", {}).get("owner")
-            if not owner:
-                # No owner to update, nothing to do
-                return
-
-            options = UpdateProjectOwnerOptionsV1(owner=owner)
-            self._client.update_project_owner(project=name, options=options)
-            self._logger.info("Successfully updated project owner in Iguazio")
-
-        self._try_callback_with_httpx_exceptions(
-            _update_project_owner,
-            mlrun.errors.MLRunInternalServerError,
+        self._send_orca_request(
+            "PUT",
+            f"authorization/projects/{name}/owner",
             "Failed to update project owner in Iguazio",
-            auth_headers=auth_info.request_headers,
+            mlrun.errors.MLRunInternalServerError,
+            identity=ForwardedIdentity(auth_info.request_headers),
+            json_body={"owner": owner},
         )
+        self._logger.info("Successfully updated project owner in Iguazio")
 
     def delete_project(
         self,
@@ -968,16 +919,14 @@ class FollowerClient(Client, project_follower.Member):
             return
 
         self._logger.debug("Deleting project policies in Iguazio")
-
-        def _delete_project_policies():
-            self._client.delete_project_policies(project=name)
-            self._logger.info("Successfully deleted project policies in Iguazio")
-
-        self._try_callback_with_httpx_exceptions(
-            _delete_project_policies,
-            mlrun.errors.MLRunInternalServerError,
+        self._send_orca_request(
+            "DELETE",
+            f"authorization/projects/{name}/policies",
             "Failed to delete project policies in Iguazio",
+            mlrun.errors.MLRunInternalServerError,
+            identity=ServiceAccountIdentity(),
         )
+        self._logger.info("Successfully deleted project policies in Iguazio")
 
     def get_project(
         self,

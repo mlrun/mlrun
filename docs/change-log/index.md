@@ -115,15 +115,15 @@ ML-11820|Improved the time to access the monitoring page (V3IO).|
 |ML-12328|Fixed KFP experiments pagination.|
 |ML-12372|Fixed workflows pagination.|
 
+(v1-10-4)=
+## v1.10.4 (September 2026)
+
 ```{admonition} Important
 **v1.10.x are the last versions that support Python 3.9 and TDEngine. They will not be supported in MLRun v1.11.0.<br>
 TDEngine will be replaced with TimescaleDB. Model monitoring data in TDEngine will not be migrated.**
 ```
 
-(v1-10-4)=
-### v1.10.4 (September 2026)
-
-#### Closed issues
+### Closed issues
 
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|

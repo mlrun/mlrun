@@ -63,7 +63,7 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 |ML-1811|The realtime pipelines page now displays: a table of serving graphs with a few parameters that can be filtered; the total number of graphs/pipelines, the main function status, and the total number of endpoints; icons and details of the graph steps according to the step category; a model endpoints tab.|
 |ML-11445| In the **Model endpoints > Metrics** tab, you can now select aggregation functions, which appear as multiple lines in the values graphs. Also, you can select a period of time greater than 1 month. See [Model endpoints metrics](../model-monitoring/monitoring-models.ipynb#model-endpoints-metrics). Supported for TimescaleDB (PostgreSQL).|
 
-## Packagers
+### Packagers
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |ML-3474|MLRun now suports packagers for moving data in and out of MLRun functions by using standard Python functions with type hints and returning values. See {ref}`packagers`.|
@@ -1387,7 +1387,7 @@ capabilities of Iguazio, and provide quick access to common tasks.
 - [MLRun change log in GitHub](https://github.com/mlrun/mlrun/releases/tag/v1.1.0)
 - [UI change log in GitHub](https://github.com/mlrun/ui/releases/tag/v1.1.0)
 
-## 1.0.x
+## v1.0.x
 
 ### v1.0.6 (16 August 2022)
 

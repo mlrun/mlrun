@@ -385,6 +385,30 @@ def test_client_spec_includes_oauth_config_in_iguazio_v4_mode(
     )
 
 
+@pytest.mark.parametrize(
+    "mode, expected",
+    [
+        (mlrun.common.types.AuthenticationMode.ORCA, "iguazio-v4"),
+        (mlrun.common.types.AuthenticationMode.IGUAZIO_V4, "iguazio-v4"),
+        (mlrun.common.types.AuthenticationMode.IGUAZIO, "iguazio"),
+        (mlrun.common.types.AuthenticationMode.BASIC, "basic"),
+    ],
+)
+def test_client_spec_maps_orca_authentication_mode_to_iguazio_v4(
+    db: sqlalchemy.orm.Session,
+    client: fastapi.testclient.TestClient,
+    mode: mlrun.common.types.AuthenticationMode,
+    expected: str,
+) -> None:
+    # clients before 1.14.0 only enable the OAuth token flow for "iguazio-v4"
+    mlrun.mlconf.httpdb.authentication.mode = mode
+    services.api.api.endpoints.client_spec.get_cached_client_spec.cache_clear()
+
+    response = client.get("client-spec")
+    assert response.status_code == http.HTTPStatus.OK.value
+    assert response.json()["authentication_mode"] == expected
+
+
 def test_client_spec_kfp_default_workflow_timeout(
     db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
 ) -> None:

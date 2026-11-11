@@ -24,6 +24,5 @@ pydantic>=2,<3
 # object usage. Capped on the API server only, so the SDK is not limited. Remove the cap once the migration lands.
 kubernetes>=25.3, !=36.0.0, <37
 mlrun-pipelines-kfp-v1-8~=0.9.0
-iguazio~=0.2.1
 opentelemetry-sdk~=1.42
 opentelemetry-exporter-otlp-proto-grpc~=1.42

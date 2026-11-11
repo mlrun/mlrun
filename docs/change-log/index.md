@@ -41,7 +41,7 @@ TDEngine will be replaced with TimescaleDB. Model monitoring data in TDEngine wi
 
 
 (#v1103)=
-## v1.10.3
+## v1.10.3 (April 2026)
 ### Closed issues
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|

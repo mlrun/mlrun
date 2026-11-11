@@ -20,6 +20,7 @@ import os
 import sys
 import time
 import typing
+import warnings
 from collections import namedtuple
 from contextlib import contextmanager
 from os import environ
@@ -777,6 +778,42 @@ def test_connect_syncs_projects_leader_from_client_spec():
         db = HTTPRunDB("http://some-server:1919")
         db.connect()
     assert mlrun.mlconf.httpdb.projects.leader == "orca"
+
+
+@pytest.mark.parametrize("spec_mode", ["iguazio-v4", "orca"])
+def test_connect_reads_both_ig4_authentication_modes_from_client_spec(spec_mode):
+    """The server sends "iguazio-v4" to support clients before 1.14.0. It is read as "orca" without a warning."""
+    mlrun.mlconf.httpdb.authentication.mode = "none"
+    server_cfg = {"version": mlrun.mlconf.version, "authentication_mode": spec_mode}
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", FutureWarning)
+        with _mock_httpdb_connect(server_cfg), _skip_token_provider_init():
+            HTTPRunDB("http://some-server:1919").connect()
+    assert mlrun.mlconf.httpdb.authentication.mode == "orca"
+    assert mlrun.mlconf.is_iguazio_v4_mode()
+
+
+def test_connect_warns_on_locally_configured_iguazio_v4_mode():
+    mlrun.mlconf.httpdb.authentication.mode = "iguazio-v4"
+    server_cfg = {"version": mlrun.mlconf.version}
+    with pytest.warns(FutureWarning, match="'iguazio-v4' authentication mode"):
+        with _mock_httpdb_connect(server_cfg), _skip_token_provider_init():
+            HTTPRunDB("http://some-server:1919").connect()
+    assert mlrun.mlconf.httpdb.authentication.mode == "orca"
+
+
+def test_connect_warns_on_shared_deprecated_keys_once_the_mode_is_synced(monkeypatch):
+    """The mode of a client is only known after ``connect()``, so shared deprecated keys warn only then."""
+    monkeypatch.setenv("MLRUN_IGUAZIO_API_URL", "https://orca.internal")
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", FutureWarning)
+        mlrun.mlconf.reload()
+
+    server_cfg = {"version": mlrun.mlconf.version, "authentication_mode": "iguazio-v4"}
+    with pytest.warns(FutureWarning, match="MLRUN_IGUAZIO_API_URL"):
+        with _mock_httpdb_connect(server_cfg), _skip_token_provider_init():
+            HTTPRunDB("http://some-server:1919").connect()
+    assert mlrun.mlconf.orca_api_url == "https://orca.internal"
 
 
 def test_connect_preserves_explicit_credentials_in_iguazio_v4(monkeypatch):
@@ -1952,3 +1989,10 @@ def _configure_run_db_server(create_server):
     mlrun.db._last_db_url = server.url
 
     return server, db
+
+
+@contextmanager
+def _skip_token_provider_init():
+    """The orca modes initialize an OAuth token provider that needs endpoints the tests don't care about."""
+    with patch.object(HTTPRunDB, "_init_token_provider_from_env"):
+        yield

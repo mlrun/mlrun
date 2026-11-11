@@ -698,10 +698,21 @@ class HTTPRunDB(RunDBInterface):
                         prefix,
                         store_prefix_value,
                     )
+            # the server may still send the deprecated "iguazio-v4" value to support older clients. That is the
+            # server's remap and not a user setting, so it is read as "orca" without a warning. A locally
+            # configured "iguazio-v4" does warn.
+            # TODO: Remove "iguazio-v4" in 1.16.0
             config.httpdb.authentication.mode = (
-                server_cfg.get("authentication_mode")
-                or config.httpdb.authentication.mode
+                mlrun.config.resolve_deprecated_authentication_mode(
+                    server_cfg["authentication_mode"], warn=False
+                )
+                if server_cfg.get("authentication_mode")
+                else mlrun.config.resolve_deprecated_authentication_mode(
+                    config.httpdb.authentication.mode
+                )
             )
+            # the mode is only known now, so shared deprecated keys that were skipped at load can warn
+            config.warn_on_deprecated_keys()
             config.httpdb.projects.leader = (
                 server_cfg.get("projects_leader") or config.httpdb.projects.leader
             )
@@ -712,10 +723,7 @@ class HTTPRunDB(RunDBInterface):
             )
 
             # Iguazio V4 OAuth token config auto-initialization
-            if (
-                config.httpdb.authentication.mode
-                == mlrun.common.types.AuthenticationMode.IGUAZIO_V4.value
-            ):
+            if config.is_iguazio_v4_mode():
                 if not config.auth_with_oauth_token.token_file:
                     # runtimes
                     if mlrun.utils.helpers.is_running_in_runtime():

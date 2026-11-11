@@ -1235,9 +1235,12 @@ async def _delete_project(
             auth_info,
         )
 
-    await framework.utils.singletons.project_member.get_project_member().post_delete_project(
-        project_name
-    )
+    # Under Orca, the follower purge (commit_delete) cleans up logs once MLRun has
+    # actually removed the project, unless this task deleted it locally.
+    if force_delete or mlrun.mlconf.httpdb.projects.leader != "orca":
+        await framework.utils.singletons.project_member.get_project_member().post_delete_project(
+            project_name
+        )
 
 
 def verify_project_is_deleted(project_name, auth_info):

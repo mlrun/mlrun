@@ -1246,6 +1246,37 @@ class TestSpark3Runtime(services.api.tests.unit.runtimes.base.TestRuntimeBase):
             "use func.with_source_archive(pull_at_runtime=False)"
         )
 
+    @pytest.mark.parametrize(
+        "explicit_home, expected_home_envs",
+        [
+            (None, []),
+            ("/home/user", [{"name": "HOME", "value": "/home/user"}]),
+        ],
+    )
+    def test_run_non_root_default_security_context_keeps_home(
+        self,
+        db: sqlalchemy.orm.Session,
+        k8s_secrets_mock,
+        explicit_home,
+        expected_home_envs,
+    ):
+        mlrun.mlconf.function.spec.security_context.default = base64.b64encode(
+            json.dumps({"runAsNonRoot": True}).encode("utf-8")
+        ).decode("utf-8")
+        runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime()
+        if explicit_home:
+            runtime.set_env("HOME", explicit_home)
+        self.execute_function(runtime)
+
+        body = self._get_custom_object_creation_body()
+        for role in ["driver", "executor"]:
+            home_envs = [
+                env_var
+                for env_var in body["spec"][role]["env"]
+                if env_var["name"] == "HOME"
+            ]
+            assert home_envs == expected_home_envs
+
     def test_mount_secret_token_to_spark_driver_and_executor(
         self, db: sqlalchemy.orm.Session, k8s_secrets_mock
     ):
@@ -1447,6 +1478,24 @@ class TestSpark3Runtime(services.api.tests.unit.runtimes.base.TestRuntimeBase):
 
         body = self._get_custom_object_creation_body()
         assert body["spec"]["sparkVersion"] == "4.2.0"
+
+    def test_spark_version_resolved_from_deployed_default_image(
+        self, db: sqlalchemy.orm.Session, k8s_secrets_mock, spark_platform_image_config
+    ):
+        mlrun.mlconf.spark_app_image = (
+            "mckinsey-ig4-next-gen-docker-local.jfrog.io/spark-app"
+        )
+        mlrun.mlconf.spark_app_image_tag = "3.5.6-scala2.12-java17-ubuntu-1"
+        mlrun.mlconf.httpdb.builder.docker_registry = "test_registry"
+        runtime = mlrun.runtimes.Spark3Runtime()
+        runtime.spec.image = mlrun.runtimes.Spark3Runtime.default_mlrun_image
+        runtime.with_executor_requests(cpu=1, mem="512m")
+        runtime.with_driver_requests(cpu=1, mem="512m")
+        self.execute_function(runtime)
+
+        body = self._get_custom_object_creation_body()
+        assert body["spec"]["sparkVersion"] == "3.5.6"
+        assert body["spec"]["image"].endswith("spark-job-default-image")
 
     def test_spark_version_resolved_from_built_function_base_image(
         self, db: sqlalchemy.orm.Session, k8s_secrets_mock

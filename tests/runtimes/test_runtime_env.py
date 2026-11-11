@@ -87,6 +87,17 @@ def test_non_root_home_from_mlconf_default_security_context():
     assert runtime_env["HOME"] == NON_ROOT_HOME
 
 
+def test_no_home_for_spark_with_non_root_default_security_context():
+    mlrun.mlconf.function.spec.security_context.default = base64.b64encode(
+        json.dumps({"runAsNonRoot": True}).encode("utf-8")
+    ).decode("utf-8")
+    function = mlrun.new_function(
+        "test-home", project="p", kind="spark", image="mlrun/mlrun"
+    )
+    runtime_env, _ = function._generate_runtime_env()
+    assert "HOME" not in runtime_env
+
+
 def test_no_home_for_root_function():
     function = _new_job()
     runtime_env, external_source_env = function._generate_runtime_env()

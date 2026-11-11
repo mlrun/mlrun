@@ -43,15 +43,18 @@ class Client(
     def __init__(self) -> None:
         self._token_cache = None
 
-    def escalate_request_headers(self, headers: dict[str, str]) -> dict[str, str]:
+    def escalate_request_headers(
+        self, headers: dict[str, str] | None
+    ) -> dict[str, str]:
         """
         Add service account authentication headers to the given headers.
 
-        :param headers: Original request headers.
+        :param headers: Original request headers, if any (e.g. a service-account-origin
+            caller, such as a leader's follower call, has none to carry forward).
         :return: Headers with added service account authentication.
         """
         auth_headers = self.auth_headers
-        combined_headers = headers.copy()
+        combined_headers = (headers or {}).copy()
         combined_headers.update(auth_headers)
         return combined_headers
 

@@ -1,0 +1,328 @@
+# Copyright 2026 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+import types
+import typing
+import uuid
+
+import mergedeep
+import requests
+
+import mlrun.common.schemas
+import mlrun.errors
+import mlrun.utils.helpers
+import mlrun.utils.orca_projects as orca_projects
+
+
+class RequestSender(typing.Protocol):
+    """Sends one authenticated request to an Orca endpoint and returns the response, having
+    already applied the caller's own status-code-to-exception mapping. Each caller of
+    :class:`ProjectsOrchestrator` supplies its own - see
+    ``mlrun.db.orca.OrcaProjectsClient._send_request`` (SDK, own credentials) and
+    ``server/py/framework/utils/clients/iguazio/v4.py``'s ``Client._send_project_request``
+    (server, relays the acting user's identity).
+    """
+
+    def __call__(
+        self, method: str, path: str, error_message: str, **kwargs
+    ) -> requests.Response: ...
+
+
+class ProjectsOrchestrator:
+    """The sequence of Orca requests behind create/update/patch/delete/get, and how each polls
+    to completion. Returns raw pieces (responses, op_ids, schema objects) rather than any one
+    caller's own public return contract - callers adapt those into whatever shape their own
+    interface promises (e.g. the SDK returns ``mlrun.projects.MlrunProject``/``op_id``; the
+    server-side leader-proxy returns ``bool``/``None`` per ``project_leader.Member``).
+    """
+
+    def __init__(
+        self,
+        send_request: RequestSender,
+        logger,
+        poll_interval_seconds: float,
+        poll_timeout_seconds: float,
+    ):
+        self._send_request = send_request
+        self._logger = logger
+        self._poll_interval_seconds = poll_interval_seconds
+        self._poll_timeout_seconds = poll_timeout_seconds
+
+    def create(
+        self, project: orca_projects.ProjectLike
+    ) -> tuple[requests.Response, uuid.UUID | str]:
+        """``POST`` a new project - always async (no synchronous-create case).
+
+        :return: The raw response, and the minted ``op_id``.
+        """
+        name = project.metadata.name
+        self._logger.debug("Creating project", project=name)
+        response = self._send_request(
+            "POST",
+            orca_projects.PROJECTS_ENDPOINT,
+            f"Failed creating project {name} in Orca",
+            json=orca_projects.resolve_project_body(project),
+        )
+        return response, orca_projects.extract_op_id(response.json())
+
+    def store(
+        self, name: str, project: orca_projects.ProjectLike
+    ) -> tuple[requests.Response, uuid.UUID | str, bool]:
+        """Create or update a project, choosing by Orca's own state of it. A project that is
+        missing or still ``creating`` is (re-)created - Orca's create is idempotent for a
+        ``creating`` project and re-drives its pending operation, while an update of it would
+        be rejected with 412. Any other state is updated, CAS'd against the ``op_id`` just read.
+
+        :return: The raw response, the ``op_id`` of the operation, and whether it was a create.
+        """
+        try:
+            current = self.get(name)
+        except mlrun.errors.MLRunNotFoundError:
+            current = None
+        if (
+            current is None
+            or current.status.state == mlrun.common.schemas.ProjectState.creating
+        ):
+            response, op_id = self.create(project)
+            return response, op_id, True
+        response, op_id = self.update(
+            name, project, observed_op_id=current.status.op_id
+        )
+        return response, op_id, False
+
+    def update(
+        self,
+        name: str,
+        project: orca_projects.ProjectLike,
+        observed_op_id: uuid.UUID | str | None = None,
+    ) -> tuple[requests.Response, uuid.UUID | str]:
+        """``PUT`` a project's desired state. Resolves the CAS witness (``prev_op_id``) first
+        if the caller didn't supply one. May settle synchronously (200) or asynchronously (202).
+
+        :param observed_op_id: The project's current ``op_id``, if already read from Orca -
+            used as the CAS witness instead of reading it again.
+        :return: The raw response, and the ``op_id`` this update minted.
+        """
+        prev_op_id = self.resolve_prev_op_id(
+            name, project, observed_op_id=observed_op_id
+        )
+        self._logger.debug("Updating project", name=name, prev_op_id=prev_op_id)
+        response = self._send_request(
+            "PUT",
+            orca_projects.PROJECT_ENDPOINT_TEMPLATE.format(name=name),
+            f"Failed updating project {name} in Orca",
+            json=orca_projects.resolve_project_body(project, prev_op_id),
+        )
+        return response, orca_projects.extract_op_id(response.json())
+
+    def patch(
+        self,
+        name: str,
+        project: orca_projects.ProjectLike,
+        patch_mode: mlrun.common.schemas.PatchMode,
+    ) -> tuple[requests.Response, uuid.UUID | str]:
+        """``PATCH`` a project. Orca's ``PATCH`` is full-replace, not merge (see
+        :mod:`mlrun.utils.orca_projects`), so this reads the project's current state first and
+        merges ``project``'s changes into it (:mod:`mergedeep`, keyed by ``patch_mode``) before
+        sending the merged result as a full object.
+
+        :return: The raw response, and the ``op_id`` this patch minted.
+        """
+        current = self.get(name)
+        merged = self._merge_for_patch(current, project, patch_mode)
+        response = self._send_request(
+            "PATCH",
+            orca_projects.PROJECT_ENDPOINT_TEMPLATE.format(name=name),
+            f"Failed patching project {name} in Orca",
+            json=orca_projects.resolve_project_body(merged, current.status.op_id),
+        )
+        return response, orca_projects.extract_op_id(response.json())
+
+    def delete(self, name: str) -> requests.Response:
+        """``DELETE`` a project. Callers handle any deletion-strategy short-circuit themselves
+        before calling this - Orca's ``DeleteProjectOptions`` has no strategy concept yet.
+        """
+        self._logger.debug("Deleting project", name=name)
+        return self._send_request(
+            "DELETE",
+            orca_projects.PROJECT_ENDPOINT_TEMPLATE.format(name=name),
+            f"Failed deleting project {name} in Orca",
+        )
+
+    def get(self, name: str) -> mlrun.common.schemas.Project:
+        """``GET`` a project."""
+        response = self._send_request(
+            "GET",
+            orca_projects.PROJECT_ENDPOINT_TEMPLATE.format(name=name),
+            f"Failed getting project {name} from Orca",
+        )
+        return orca_projects.to_mlproject(response.json())
+
+    def settle(
+        self,
+        name: str,
+        response: requests.Response,
+        op_id: uuid.UUID | str,
+        wait_for_completion: bool,
+        *,
+        tolerate_failed_fan_out: bool,
+    ) -> mlrun.common.schemas.Project | None:
+        """Decide whether a create/update/patch response needs polling, and return the final
+        project once it's known - or ``None`` if the caller didn't ask to wait.
+
+        ``wait_for_completion=False`` always returns ``None`` immediately, regardless of how the
+        response actually settled - callers that asked not to wait get nothing further to look
+        at here; ``op_id`` (already returned by :meth:`create`/:meth:`update`/:meth:`patch`) is
+        their handle to check later. A synchronous (non-202) response is already terminal, so
+        this fetches nothing further and parses the project out of it directly; a 202 is polled
+        to a terminal state via :meth:`wait_for_op`, then the final project is fetched fresh.
+        ``tolerate_failed_fan_out`` is passed through to :meth:`wait_for_op`.
+        """
+        if not wait_for_completion:
+            return None
+        if response.status_code != requests.codes.accepted:
+            return orca_projects.to_mlproject(response.json())
+        self.wait_for_op(name, op_id, tolerate_failed_fan_out=tolerate_failed_fan_out)
+        return self.get(name)
+
+    def resolve_prev_op_id(
+        self,
+        name: str,
+        project: orca_projects.ProjectLike,
+        observed_op_id: uuid.UUID | str | None = None,
+    ) -> uuid.UUID | str | None:
+        # The CAS witness Orca requires for an update is the last op_id the caller observed; if
+        # the caller didn't supply one, read the current state from Orca first (client reads
+        # the project, then PUT/PATCH with prev_op_id). A missing
+        # project (an upsert-create case: PUT on a project that doesn't exist yet) has no prior
+        # op_id to CAS against - fall through with None.
+        prev_op_id = project.status.op_id if project.status else None
+        if prev_op_id:
+            return prev_op_id
+        if observed_op_id:
+            return observed_op_id
+        try:
+            return self.get(name).status.op_id
+        except mlrun.errors.MLRunNotFoundError:
+            return None
+
+    def wait_for_op(
+        self,
+        name: str,
+        op_id: uuid.UUID | str,
+        *,
+        tolerate_failed_fan_out: bool = False,
+    ) -> None:
+        """Poll the sync-project trackable action for ``op_id`` to a terminal state.
+
+        :param name: The project name.
+        :param op_id: The operation id to wait for.
+        :param tolerate_failed_fan_out: Treat a failed action as done, with a warning. Only for
+            an update of an existing project: unlike create/delete, an update is not 2PC - Orca
+            stores it before fanning it out, so a failed action only means some follower didn't
+            apply it (down, or rejected the change), and Orca's reconcile re-drives it.
+        :raises mlrun.errors.MLRunRetryExhaustedError: if the poll times out, or the action
+            fails and ``tolerate_failed_fan_out`` is ``False``.
+        """
+        self._logger.debug(
+            "Waiting for Orca sync-project action to reach a terminal state",
+            name=name,
+            op_id=op_id,
+        )
+        mlrun.utils.helpers.retry_until_successful(
+            self._poll_interval_seconds,
+            self._poll_timeout_seconds,
+            self._logger,
+            False,
+            self._verify_op_terminal,
+            name,
+            op_id,
+            tolerate_failed_fan_out=tolerate_failed_fan_out,
+            fatal_exceptions=(orca_projects.OrcaActionFailedError,),
+        )
+
+    def _verify_op_terminal(
+        self, name: str, op_id: uuid.UUID | str, tolerate_failed_fan_out: bool
+    ) -> None:
+        response = self._send_request(
+            "GET",
+            orca_projects.ACTION_EXECUTIONS_ENDPOINT,
+            "Failed getting Orca sync-project action execution",
+            params=orca_projects.action_execution_query_params(op_id),
+        )
+        try:
+            orca_projects.verify_action_execution_terminal(response.json(), name, op_id)
+        except orca_projects.OrcaActionFailedError as exc:
+            if not tolerate_failed_fan_out:
+                raise
+            self._logger.warning(
+                "Orca stored the project update but not every follower applied it, "
+                "Orca's reconcile will re-drive it",
+                name=name,
+                op_id=op_id,
+                error=mlrun.errors.err_to_str(exc),
+            )
+
+    @staticmethod
+    def _merge_for_patch(
+        current: mlrun.common.schemas.Project,
+        project: orca_projects.ProjectLike,
+        patch_mode: mlrun.common.schemas.PatchMode,
+    ) -> orca_projects.ProjectLike:
+        """Merge ``project``'s changes into ``current``'s common-set fields, since Orca's
+        ``PATCH`` is full-replace rather than merge - sending ``project`` as-is would wipe out
+        every field it didn't set.
+
+        For example, patching ``current`` (``labels={"team": "ds"}, owner="jsmith"``) with
+        ``project`` (``labels={"env": "prod"}``) under ``patch_mode=additive`` returns
+        ``labels={"team": "ds", "env": "prod"}, owner="jsmith"`` - the existing label and owner
+        both survive, only the new label is added.
+        """
+        merged_common = {
+            "labels": dict(current.metadata.labels or {}),
+            "annotations": dict(current.metadata.annotations or {}),
+            "owner": current.spec.owner,
+            "description": current.spec.description,
+            "desired_state": current.spec.desired_state,
+        }
+        patch_common = {
+            "labels": project.metadata.labels,
+            "annotations": project.metadata.annotations,
+            "owner": project.spec.owner,
+            "description": project.spec.description,
+            "desired_state": project.spec.desired_state,
+        }
+        patch_common = {k: v for k, v in patch_common.items() if v is not None}
+        mergedeep.merge(
+            merged_common, patch_common, strategy=patch_mode.to_mergedeep_strategy()
+        )
+        return types.SimpleNamespace(
+            metadata=types.SimpleNamespace(
+                name=current.metadata.name,
+                labels=merged_common["labels"],
+                annotations=merged_common["annotations"],
+            ),
+            spec=types.SimpleNamespace(
+                owner=merged_common["owner"],
+                description=merged_common["description"],
+                desired_state=merged_common["desired_state"],
+            ),
+            status=None,
+        )
+
+
+def is_action_failed(exc: BaseException) -> bool:
+    """Whether ``exc``, raised by :meth:`ProjectsOrchestrator.wait_for_op`, means the action
+    reached a terminal ``failed`` state - as opposed to the poll timing out.
+    """
+    return isinstance(exc.__cause__, orca_projects.OrcaActionFailedError)

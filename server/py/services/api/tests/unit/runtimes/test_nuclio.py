@@ -1801,6 +1801,43 @@ class TestNuclioRuntime(TestRuntimeBase):
         assert attributes["s3SecretAccessKey"] == ""
         assert attributes["s3Endpoint"] == ""
 
+    @pytest.mark.parametrize(
+        "source, builder_env, build_param_keys",
+        [
+            (
+                "s3://my-bucket/path/in/bucket/my-functions-archive.tar.gz",
+                {
+                    "AWS_ACCESS_KEY_ID": "my-access-key-id",
+                    "AWS_SECRET_ACCESS_KEY": "my-secret-access-key",
+                },
+                ["s3AccessKeyId", "s3SecretAccessKey"],
+            ),
+            (
+                "git://github.com/org/repo#my-branch",
+                {"GIT_USERNAME": "my-user", "GIT_PASSWORD": "my-password"},
+                ["username", "password"],
+            ),
+        ],
+    )
+    def test_deploy_source_archive_build_config_not_saved_in_function_config(
+        self, db: Session, k8s_secrets_mock, source, builder_env, build_param_keys
+    ):
+        """The nuclio build config must not be added to the function config."""
+        function = self._generate_runtime(self.runtime_kind)
+        function.with_source_archive(source, handler="main:Handler")
+        function.with_http(workers=1)  # a non-empty config is shared with nuclio
+        assert function.spec.config
+
+        self._execute_run(function, builder_env=builder_env)
+
+        deployed_attributes = self._get_deployed_config()["spec"]["build"][
+            "codeEntryAttributes"
+        ]
+        for key in build_param_keys:
+            assert deployed_attributes[key], f"nuclio must still receive {key}"
+
+        assert "spec.build.codeEntryAttributes" not in function.spec.config
+
     def test_load_function_with_source_archive_v3io(self):
         fn = self._generate_runtime(self.runtime_kind)
         fn.with_source_archive(

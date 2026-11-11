@@ -617,6 +617,38 @@ class TestProjects(TestDatabaseBase):
         )
         assert output.projects == []
 
+    def test_list_projects_filter_updated_after_treats_null_as_epoch(self):
+        # A project that predates the follower interface has updated_at=NULL. A real
+        # cutoff must still exclude it (NULL has no meaningful recency), but a cutoff
+        # at or before the epoch floor must include it too -- both sides of the filter
+        # need to agree with keyset pagination's own NULL-as-epoch coalescing.
+        self._db.create_project(
+            self._db_session,
+            mlrun.common.schemas.Project(
+                metadata=mlrun.common.schemas.ProjectMetadata(name="legacy"),
+            ),
+        )
+        record = self._db_session.query(Project).filter(Project.name == "legacy").one()
+        assert record.updated_at is None
+
+        recent_cutoff = datetime.datetime.now(datetime.UTC) - datetime.timedelta(
+            hours=1
+        )
+        output = self._db.list_projects(
+            self._db_session,
+            format_=mlrun.common.formatters.ProjectFormat.name_only,
+            updated_after=recent_cutoff,
+        )
+        assert output.projects == []
+
+        epoch = datetime.datetime.min.replace(tzinfo=datetime.UTC)
+        output = self._db.list_projects(
+            self._db_session,
+            format_=mlrun.common.formatters.ProjectFormat.name_only,
+            updated_after=epoch,
+        )
+        assert output.projects == ["legacy"]
+
     def test_list_projects_custom_selection_status_columns(self):
         # The new sync columns must be selectable through the custom format and
         # populate project.status (not just metadata/spec).
@@ -910,6 +942,48 @@ class TestProjects(TestDatabaseBase):
             actor="alice",
             error_type=RuntimeError,
         )
+
+    def test_create_and_delete_project_skip_emit_when_disabled(self, monkeypatch):
+        client = self._mock_events_client(monkeypatch)
+
+        services.api.crud.Projects().create_project(
+            self._db_session,
+            self._generate_project_for_event_test("p-no-emit", owner="alice"),
+            auth_info=mlrun.common.schemas.AuthInfo(username="alice"),
+            emit_lifecycle_event=False,
+        )
+        services.api.crud.Projects().delete_project(
+            self._db_session,
+            "p-no-emit",
+            deletion_strategy=mlrun.common.schemas.DeletionStrategy.restricted,
+            auth_info=mlrun.common.schemas.AuthInfo(username="alice"),
+            emit_lifecycle_event=False,
+        )
+
+        assert not framework.utils.singletons.db.get_db().is_project_exists(
+            self._db_session, "p-no-emit"
+        )
+        client.generate_project_lifecycle_event.assert_not_called()
+        client.emit.assert_not_called()
+
+    def test_create_project_failure_reraises_without_emit_when_disabled(
+        self, monkeypatch
+    ):
+        client = self._mock_events_client(monkeypatch)
+        fake_db = unittest.mock.MagicMock()
+        fake_db.create_project.side_effect = RuntimeError("create exploded")
+        monkeypatch.setattr("framework.utils.singletons.db.get_db", lambda: fake_db)
+
+        with pytest.raises(RuntimeError, match="create exploded"):
+            services.api.crud.Projects().create_project(
+                self._db_session,
+                self._generate_project_for_event_test("p-no-emit-fail", owner="alice"),
+                auth_info=mlrun.common.schemas.AuthInfo(username="alice"),
+                emit_lifecycle_event=False,
+            )
+
+        client.generate_project_lifecycle_event.assert_not_called()
+        client.emit.assert_not_called()
 
     def test_emit_helpers_are_best_effort(self, monkeypatch):
         # If the events factory itself raises, the project operation must

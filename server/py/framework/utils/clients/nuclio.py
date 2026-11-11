@@ -16,7 +16,6 @@ import copy
 import datetime
 import enum
 import http
-import uuid
 
 import requests.adapters
 import requests.auth
@@ -215,42 +214,6 @@ class Client(
         response = self._send_request_to_api("GET", "versions")
         response_body = response.json()
         return response_body["dashboard"]["label"]
-
-    def prepare_create_project(
-        self,
-        project: mlrun.common.schemas.Project,
-        op_id: uuid.UUID,
-    ) -> None:
-        raise NotImplementedError
-
-    def commit_create_project(
-        self,
-        name: str,
-        op_id: uuid.UUID,
-    ) -> None:
-        raise NotImplementedError
-
-    def prepare_delete_project(
-        self,
-        name: str,
-        op_id: uuid.UUID,
-    ) -> None:
-        raise NotImplementedError
-
-    def commit_delete_project(
-        self,
-        name: str,
-        op_id: uuid.UUID,
-    ) -> None:
-        raise NotImplementedError
-
-    def update_project_follower(
-        self,
-        name: str,
-        project: mlrun.common.schemas.Project,
-        op_id: uuid.UUID,
-    ) -> None:
-        raise NotImplementedError
 
     def _get_project_from_nuclio(
         self, name, auth_info: mlrun.common.schemas.AuthInfo = None

@@ -50,7 +50,7 @@ class Member(
     # the specified order; unlisted followers are appended alphabetically after them.
     # This allows controlling execution order as more followers might be added in the future (e.g. ecliptOS).
     _follower_operation_order: dict[str, list[str]] = {
-        # Authorization (igz/Orca) last among the explicitly ordered followers - if an
+        # Authorization (igz) last among the explicitly ordered followers - if an
         # earlier follower fails, the project retains its policies and remains accessible.
         "delete_project": ["nuclio", "igz"],
     }
@@ -452,7 +452,7 @@ class Member(
             "mlrun": services.api.crud.Projects,
             "nuclio": framework.utils.clients.nuclio.Client,
             # leader follower logic doesn't support async, so we use the v4 sync client
-            "igz": framework.utils.clients.iguazio.v4.Client,
+            "igz": framework.utils.clients.iguazio.v4.FollowerClient,
             # for tests
             "nop-self-leader": framework.utils.projects.remotes.nop_follower.Member,
             "nop": framework.utils.projects.remotes.nop_follower.Member,

@@ -305,9 +305,9 @@ def test_tracking_datastore_profile(
     )
 
     output_stream = server.context.stream.output_stream
-    assert isinstance(
-        output_stream, serving_output_stream
-    ), f"The output stream is of unexpected type {type(output_stream)}"
+    assert isinstance(output_stream, serving_output_stream), (
+        f"The output stream is of unexpected type {type(output_stream)}"
+    )
     mocked_stream = output_stream._mock_queue
     assert len(mocked_stream) == 2
 
@@ -881,9 +881,9 @@ def test_set_untracked_with_model_runner(rundb_mock):
     server = function.to_mock_server()
     server.test("/", {"n": 1})
     server.wait_for_completion()
-    assert (
-        len(dummy_stream.event_list) == 1
-    ), "expected stream to still have single message"
+    assert len(dummy_stream.event_list) == 1, (
+        "expected stream to still have single message"
+    )
 
 
 def test_tracked_multiple_to_mock_with_model_runner(rundb_mock):
@@ -1024,9 +1024,9 @@ def test_tracked_model_runner_shared(rundb_mock, enable_tracking: bool):
 
     assert "my_model" in res, "expected response to contain model name 'my_model'"
     assert "my_model-2" in res, "expected response to contain model name 'my_model-2'"
-    assert (
-        "shared-model" not in res
-    ), "expected response to not contain model name 'shared_model'"
+    assert "shared-model" not in res, (
+        "expected response to not contain model name 'shared_model'"
+    )
 
     dummy_stream = server.context.stream.output_stream
     if enable_tracking:

@@ -134,17 +134,17 @@ class TestRedisDataStore:
 
         dir_item = mlrun.datastore.store_manager.object(list_dir)
         actual = dir_item.listdir()
-        assert set(expected) == set(
-            actual
-        ), f"expected != actual,\n actual:{actual}\nexpected:{expected}"
+        assert set(expected) == set(actual), (
+            f"expected != actual,\n actual:{actual}\nexpected:{expected}"
+        )
 
         # clean test objects
         dir_item.store.rm("/dir-0/", recursive=True)
         expected = []
         actual = dir_item.listdir()
-        assert set(expected) == set(
-            actual
-        ), f"expected != actual,\n actual:{actual}\nexpected:{expected}"
+        assert set(expected) == set(actual), (
+            f"expected != actual,\n actual:{actual}\nexpected:{expected}"
+        )
         dir_item.store.rm("/not-exist-dir/", recursive=True)
 
     def test_wrong_credential_rm(self, use_datastore_profile):

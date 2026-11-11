@@ -262,7 +262,9 @@ class HuggingFaceProvider(ModelProvider):
 
             # Using custom pipeline for image classification
             image = Image.open(image_path)
-            pipeline_object = pipeline("image-classification", model="microsoft/resnet-50")
+            pipeline_object = pipeline(
+                "image-classification", model="microsoft/resnet-50"
+            )
             result = hf_provider.custom_invoke(
                 pipeline_object,
                 inputs=image,
@@ -286,7 +288,7 @@ class HuggingFaceProvider(ModelProvider):
         if operation:
             if not isinstance(operation, self._expected_operation_type):
                 raise mlrun.errors.MLRunInvalidArgumentError(
-                    "Huggingface operation must inherit" " from 'Pipeline' object"
+                    "Huggingface operation must inherit from 'Pipeline' object"
                 )
             return operation(**invoke_kwargs)
         else:

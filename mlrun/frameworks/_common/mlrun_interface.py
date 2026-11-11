@@ -136,9 +136,9 @@ class MLRunInterface(ABC, Generic[CommonTypes.MLRunInterfaceableType]):
 
         # Remove the interface from the object:
         for attribute_name in [*cls._PROPERTIES, *cls._METHODS, *cls._FUNCTIONS]:
-            assert hasattr(
-                obj, attribute_name
-            ), f"Can't remove the attribute '{attribute_name}' as the object doesn't has it."
+            assert hasattr(obj, attribute_name), (
+                f"Can't remove the attribute '{attribute_name}' as the object doesn't has it."
+            )
             # Mark it first as None so the actual object won't be deleted:
             setattr(obj, attribute_name, None)
             delattr(obj, attribute_name)
@@ -271,9 +271,9 @@ class MLRunInterface(ABC, Generic[CommonTypes.MLRunInterfaceableType]):
         # Replace the properties in the object:
         for property_name, property_value in properties.items():
             # Verify there is a property with this name in the object to replace:
-            assert hasattr(
-                obj, property_name
-            ), f"Can't replace the property '{property_name}' as the object doesn't have a property with this name."
+            assert hasattr(obj, property_name), (
+                f"Can't replace the property '{property_name}' as the object doesn't have a property with this name."
+            )
             # Replace the property:
             cls._replace_property(
                 obj=obj,

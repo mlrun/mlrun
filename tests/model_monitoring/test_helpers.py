@@ -300,17 +300,17 @@ class TestBatchInterval:
     def test_touching_intervals(intervals: list[_Interval]) -> None:
         assert len(intervals) > 1, "There should be more than one interval"
         for prev, curr in zip(intervals[:-1], intervals[1:]):
-            assert prev[1] == curr[0] - datetime.timedelta(
-                microseconds=1
-            ), "The intervals should be touching"
+            assert prev[1] == curr[0] - datetime.timedelta(microseconds=1), (
+                "The intervals should be touching"
+            )
 
     @staticmethod
     def test_intervals(
         intervals: list[_Interval], expected_intervals: list[_Interval]
     ) -> None:
-        assert len(intervals) == len(
-            expected_intervals
-        ), "The number of intervals is not as expected"
+        assert len(intervals) == len(expected_intervals), (
+            "The number of intervals is not as expected"
+        )
         assert intervals == [
             _Interval(interval.start, interval.end - datetime.timedelta(microseconds=1))
             for interval in expected_intervals
@@ -320,9 +320,9 @@ class TestBatchInterval:
     def test_last_interval_does_not_overflow(
         intervals: list[_Interval], last_updated: int
     ) -> None:
-        assert (
-            intervals[-1][1].timestamp() <= last_updated
-        ), "The last interval should be after last_updated"
+        assert intervals[-1][1].timestamp() <= last_updated, (
+            "The last interval should be after last_updated"
+        )
 
     @staticmethod
     @pytest.mark.parametrize(
@@ -397,9 +397,9 @@ class TestBatchWindowGenerator:
             not_old_batch_endpoint=True,
         )
         assert last_updated
-        assert (
-            last_updated < last_request.timestamp()
-        ), "The last updated time should be before the last request"
+        assert last_updated < last_request.timestamp(), (
+            "The last updated time should be before the last request"
+        )
 
         last_updated = _BatchWindowGenerator._get_last_updated_time(
             last_request=last_request,
@@ -408,9 +408,9 @@ class TestBatchWindowGenerator:
         )
 
         assert last_updated
-        assert (
-            last_updated == last_request.timestamp()
-        ), "The last updated time should similar to the last request time for batch endpoints"
+        assert last_updated == last_request.timestamp(), (
+            "The last updated time should similar to the last request time for batch endpoints"
+        )
 
 
 class TestBumpModelEndpointLastRequest:
@@ -619,9 +619,9 @@ def test_get_output_stream(
         monkeypatch.setenv("V3IO_API", mlrun.mlconf.v3io_api)
 
     output_stream = get_output_stream(profile=profile, project="test-proj", mock=True)
-    assert isinstance(
-        output_stream, expected_output_stream_type
-    ), "The output stream is of an unexpected type"
+    assert isinstance(output_stream, expected_output_stream_type), (
+        "The output stream is of an unexpected type"
+    )
 
     output_stream.push(2 * [{"k1": 0, "jump": "high"}])
     output_stream.push([{"k1": 1, "jump": "mid"}])

@@ -64,12 +64,12 @@ class TestAPIArtifacts(TestMLRunSystem):
         first_run = runs.to_objects()[0]
         output_uri_from_list_runs = first_run.output("file_result")
         outputs_uri_from_list_runs = first_run.outputs["file_result"]
-        assert (
-            "v3" in output_uri_from_list_runs
-        ), "Expected 'v3' tag in output_uri_from_list_runs"
-        assert (
-            "v3" in outputs_uri_from_list_runs
-        ), "Expected 'v3' tag in outputs_uri_from_list_runs"
+        assert "v3" in output_uri_from_list_runs, (
+            "Expected 'v3' tag in output_uri_from_list_runs"
+        )
+        assert "v3" in outputs_uri_from_list_runs, (
+            "Expected 'v3' tag in outputs_uri_from_list_runs"
+        )
 
         func_v1_run = self.project.run_function(
             "test", handler="log_artifact_with_tag", params={"tag": "v1"}

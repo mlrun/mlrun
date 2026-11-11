@@ -94,7 +94,9 @@ class AlertConfig(ModelObj):
                 ),
                 trigger=alert_objects.AlertTrigger(events=[event_name]),
                 criteria=alert_objects.AlertCriteria(count=3, period="1h"),
-                notifications=[alert_objects.AlertNotification(notification=notification)],
+                notifications=[
+                    alert_objects.AlertNotification(notification=notification)
+                ],
             )
             project.store_alert_config(alert_data)
 
@@ -335,7 +337,9 @@ class AlertConfig(ModelObj):
         Examples::
 
             # Fetch first page of alert activations with page size of 5
-            alert_activations, token = alert_config.paginated_list_activations(page_size=5)
+            alert_activations, token = alert_config.paginated_list_activations(
+                page_size=5
+            )
             # Fetch next page using the pagination token from the previous response
             alert_activations, token = alert_config.paginated_list_activations(
                 page_token=token

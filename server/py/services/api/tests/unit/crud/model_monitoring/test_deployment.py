@@ -217,9 +217,9 @@ def test_apply_and_create_kafka_source(
 
     kafka_trigger_conf = fn.spec.config.get("spec.triggers.kafka")
     assert kafka_trigger_conf, "Expected a Kafka trigger"
-    assert (
-        kafka_trigger_conf.get("kind") == "kafka-cluster"
-    ), "Expected `kafka-cluster` kind"
+    assert kafka_trigger_conf.get("kind") == "kafka-cluster", (
+        "Expected `kafka-cluster` kind"
+    )
     assert (
         fn.spec.base_spec.get("metadata", {}).get("annotations") == nuclio_annotations
     ), "The set annotations are different than expected"

@@ -38,9 +38,9 @@ def test_log_object_signature(method: str) -> None:
     project_parameters = list(
         inspect.signature(getattr(MlrunProject, method)).parameters.keys()
     )
-    assert (
-        project_parameters <= monitoring_parameters
-    ), f"All MlrunProject {method} params should appear in MonitoringApplicationContext {method}"
+    assert project_parameters <= monitoring_parameters, (
+        f"All MlrunProject {method} params should appear in MonitoringApplicationContext {method}"
+    )
 
 
 def test_from_graph_context(tmp_path: Path) -> None:

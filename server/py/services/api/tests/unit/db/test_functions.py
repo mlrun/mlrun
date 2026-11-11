@@ -921,9 +921,9 @@ class TestFunctions(TestDatabaseBase):
 
         functions = self._db.list_functions(self._db_session, project=self.project)
 
-        assert (
-            len(functions) == number_of_functions
-        ), f"Expected {number_of_functions} results, got {len(functions)}"
+        assert len(functions) == number_of_functions, (
+            f"Expected {number_of_functions} results, got {len(functions)}"
+        )
 
         expected_names = [
             f"function-{i}" for i in range(number_of_functions - 1, -1, -1)
@@ -931,9 +931,9 @@ class TestFunctions(TestDatabaseBase):
 
         for function, expected_name in zip(functions, expected_names):
             function_name = function["metadata"]["name"]
-            assert (
-                function_name == expected_name
-            ), f"Expected {expected_name}, got {function_name}"
+            assert function_name == expected_name, (
+                f"Expected {expected_name}, got {function_name}"
+            )
 
     def test_list_functions_orders_by_id_when_updated_is_identical(self):
         # this test verifies that when updated date is identical, functions should be ordered by function id
@@ -963,9 +963,9 @@ class TestFunctions(TestDatabaseBase):
 
         functions = self._db.list_functions(self._db_session, project=self.project)
 
-        assert (
-            len(functions) == number_of_functions
-        ), f"Expected {number_of_functions} results, got {len(functions)}"
+        assert len(functions) == number_of_functions, (
+            f"Expected {number_of_functions} results, got {len(functions)}"
+        )
 
         expected_names = [
             f"function-{i}" for i in range(number_of_functions - 1, -1, -1)
@@ -973,9 +973,9 @@ class TestFunctions(TestDatabaseBase):
 
         for function, expected_name in zip(functions, expected_names):
             function_name = function["metadata"]["name"]
-            assert (
-                function_name == expected_name
-            ), f"Expected {expected_name}, got {function_name}"
+            assert function_name == expected_name, (
+                f"Expected {expected_name}, got {function_name}"
+            )
 
     def test_list_functions_orders_by_tag_id(self):
         # This test verifies that when a function has multiple tags, the returned list is ordered by tag ID descending.
@@ -996,9 +996,9 @@ class TestFunctions(TestDatabaseBase):
 
         functions = self._db.list_functions(self._db_session, project=self.project)
 
-        assert (
-            len(functions) == number_of_tags
-        ), f"Expected {number_of_tags} results, got {len(functions)}"
+        assert len(functions) == number_of_tags, (
+            f"Expected {number_of_tags} results, got {len(functions)}"
+        )
 
         # Extract the tags from returned functions
         returned_tags = [function["metadata"]["tag"] for function in functions]

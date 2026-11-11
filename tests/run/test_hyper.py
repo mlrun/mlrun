@@ -48,9 +48,9 @@ def test_handler_hyper(rundb_mock):
     run_spec.with_hyper_params({"p1": [1, 5, 3]}, selector="max.accuracy")
     result = new_function().run(run_spec, handler=my_func)
     assert len(result.status.iterations) == 3 + 1, "hyper parameters test failed"
-    assert (
-        result.status.results["best_iteration"] == 2
-    ), "failed to select best iteration"
+    assert result.status.results["best_iteration"] == 2, (
+        "failed to select best iteration"
+    )
     verify_state(result)
 
 

@@ -258,8 +258,8 @@ def run_function(
         if run_result:
             run_result._notified = False
             pipeline_context.runs_map[run_result.uid()] = run_result
-            run_result.after = (
-                lambda x: run_result
+            run_result.after = lambda x: (
+                run_result
             )  # emulate KFP op, .after() will be ignored
         return run_result
 

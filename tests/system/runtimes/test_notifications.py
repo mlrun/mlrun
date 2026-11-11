@@ -248,9 +248,9 @@ class TestNotifications(tests.system.base.TestMLRunSystem):
             assert run.status.state == mlrun.common.runtimes.constants.RunStates.error
 
             notifications = run.status.notifications
-            assert (
-                len(notifications) == 1
-            ), f"Expected one notification, got: {len(notifications)}"
+            assert len(notifications) == 1, (
+                f"Expected one notification, got: {len(notifications)}"
+            )
 
             # Validate final failure notification
             notification = notifications[notification_name]

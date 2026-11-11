@@ -705,9 +705,9 @@ class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
             .endpoints
         )
 
-        assert (
-            len(model_endpoints) == 2
-        ), f"Expected 2 endpoints, got {len(model_endpoints)}"
+        assert len(model_endpoints) == 2, (
+            f"Expected 2 endpoints, got {len(model_endpoints)}"
+        )
         assert (
             model_endpoints[0].metadata.name == "my-model-1"
             and model_endpoints[1].metadata.name == "my-model-2"
@@ -796,9 +796,9 @@ class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
         }
 
         meps = self.project.list_model_endpoints()
-        assert (
-            len(meps.endpoints) == 3
-        ), f"Expected 3 endpoints, got {len(meps.endpoints)}"
+        assert len(meps.endpoints) == 3, (
+            f"Expected 3 endpoints, got {len(meps.endpoints)}"
+        )
         mep_2: ModelEndpoint = self.project.list_model_endpoints(
             names="my-model-2"
         ).endpoints[0]
@@ -1906,12 +1906,12 @@ class TestModelInferenceTSDBRecord(TestMLRunSystemModelMonitoring):
         )
 
         assert not df.empty, "No TSDB data"
-        assert (
-            len(df) == 1
-        ), "Expects a single result from the histogram data drift app in the TSDB"
-        assert set(df.application_name) == {
-            "histogram-data-drift"
-        }, "The application name is different than expected"
+        assert len(df) == 1, (
+            "Expects a single result from the histogram data drift app in the TSDB"
+        )
+        assert set(df.application_name) == {"histogram-data-drift"}, (
+            "The application name is different than expected"
+        )
         assert df.endpoint_id.nunique() == 1, "Expects a single model endpoint"
         assert set(df.result_name) == {
             "general_drift",
@@ -2250,9 +2250,9 @@ class TestModelMonitoringOverJob(TestMLRunSystemModelMonitoring):
             read_back_df = pd.read_parquet(
                 f"v3io:///projects/{self.project_name}/out.parquet"
             )
-            assert (
-                "extra" in read_back_df.columns
-            ), "Extra column was not added by model"
+            assert "extra" in read_back_df.columns, (
+                "Extra column was not added by model"
+            )
 
             model_endpoints = (
                 mlrun.get_run_db().list_model_endpoints(self.project_name).endpoints

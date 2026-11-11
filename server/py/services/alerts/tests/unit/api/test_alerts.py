@@ -248,9 +248,9 @@ class TestAlerts(services.alerts.tests.unit.conftest.TestAlertsBase):
         resp = client.get(ALERTS_PATH.format(project=project), params=params)
         assert resp.status_code == HTTPStatus.OK.value
         alerts = resp.json().get("alerts", [])
-        assert (
-            len(alerts) == expected_length
-        ), f"Unexpected number of alerts for params: {params}"
+        assert len(alerts) == expected_length, (
+            f"Unexpected number of alerts for params: {params}"
+        )
 
     # TODO: Move to test utils framework
     @staticmethod

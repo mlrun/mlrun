@@ -33,12 +33,12 @@ def test_compiled_function_config_nuclio_golang():
     ) = services.api.crud.runtimes.nuclio.function._compile_function_config(fn)
     assert fn.kind == "remote", "kind not set, test failed"
     assert mlrun.utils.get_in(config, "spec.build.functionSourceCode"), "no source code"
-    assert mlrun.utils.get_in(config, "spec.runtime").startswith(
-        "py"
-    ), "runtime not set"
-    assert (
-        mlrun.utils.get_in(config, "spec.handler") == "training-nuclio:my_hand"
-    ), "wrong handler"
+    assert mlrun.utils.get_in(config, "spec.runtime").startswith("py"), (
+        "runtime not set"
+    )
+    assert mlrun.utils.get_in(config, "spec.handler") == "training-nuclio:my_hand", (
+        "wrong handler"
+    )
 
 
 def test_compiled_function_config_nuclio_python():
@@ -53,12 +53,12 @@ def test_compiled_function_config_nuclio_python():
     ) = services.api.crud.runtimes.nuclio.function._compile_function_config(fn)
     assert fn.kind == "remote", "kind not set, test failed"
     assert mlrun.utils.get_in(config, "spec.build.functionSourceCode"), "no source code"
-    assert mlrun.utils.get_in(config, "spec.runtime").startswith(
-        "py"
-    ), "runtime not set"
-    assert (
-        mlrun.utils.get_in(config, "spec.handler") == "training-nuclio:my_hand"
-    ), "wrong handler"
+    assert mlrun.utils.get_in(config, "spec.runtime").startswith("py"), (
+        "runtime not set"
+    )
+    assert mlrun.utils.get_in(config, "spec.handler") == "training-nuclio:my_hand", (
+        "wrong handler"
+    )
     assert mlrun.utils.get_in(config, "metadata.annotations.something") == "somewhat"
 
 

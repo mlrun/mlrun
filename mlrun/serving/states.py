@@ -1310,7 +1310,10 @@ class LLModel(Model):
 
         [
             {"role": "system", "content": "You are a travel planning assistant."},
-            {"role": "user", "content": "Create a {{days}}-day itinerary for {{city}}."},
+            {
+                "role": "user",
+                "content": "Create a {{days}}-day itinerary for {{city}}.",
+            },
         ]
 
     Result after enrichment::
@@ -2552,7 +2555,7 @@ class FlowStep(BaseStep):
             len(responders) > 1
         ):  # should not have multiple steps which respond to request
             raise GraphError(
-                f'there are more than one responder steps in the graph ({",".join(responders)})'
+                f"there are more than one responder steps in the graph ({','.join(responders)})"
             )
 
         if self.from_step:

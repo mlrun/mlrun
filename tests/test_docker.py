@@ -50,6 +50,6 @@ def test_docker():
         with clean_docker("rm", cid):
             url = f"http://localhost:{port}/{HTTPRunDB.get_api_path_prefix()}/healthz"
             timeout = 30
-            assert wait_for_server(
-                url, timeout
-            ), f"server failed to start after {timeout} seconds, url={url}"
+            assert wait_for_server(url, timeout), (
+                f"server failed to start after {timeout} seconds, url={url}"
+            )

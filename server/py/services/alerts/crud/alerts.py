@@ -48,7 +48,9 @@ class Alerts(
         force_reset: bool = False,
     ) -> mlrun.common.schemas.AlertConfig:
         existing_alert, existing_alert_state = (
-            framework.utils.singletons.db.get_db().get_alert(session, project, name, with_state=True)
+            framework.utils.singletons.db.get_db().get_alert(
+                session, project, name, with_state=True
+            )
         )
 
         self._validate_alert(alert_data, name, project)

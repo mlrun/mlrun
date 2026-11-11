@@ -171,17 +171,17 @@ class TestLocalPipeline(tests.projects.base_pipeline.TestPipeline):
         run_result: mlrun.RunObject = mlrun.projects.pipeline_context._test_result
         print(run_result.to_yaml())
         # expect p1 = param1, p2 = default for param2 (abc)
-        assert (
-            run_result.output("p1") == 6 and run_result.output("p2") == "abc"
-        ), "wrong arg values"
+        assert run_result.output("p1") == 6 and run_result.output("p2") == "abc", (
+            "wrong arg values"
+        )
 
         self.project.run("main", local=True, arguments={"param1": 6, "param2": "xy"})
         run_result: mlrun.RunObject = mlrun.projects.pipeline_context._test_result
         print(run_result.to_yaml())
         # expect p1=param1, p2=xy
-        assert (
-            run_result.output("p1") == 6 and run_result.output("p2") == "xy"
-        ), "wrong arg values"
+        assert run_result.output("p1") == 6 and run_result.output("p2") == "xy", (
+            "wrong arg values"
+        )
 
     def test_run_pipeline_artifact_path(self):
         mlrun.projects.pipeline_context.clear(with_project=True)

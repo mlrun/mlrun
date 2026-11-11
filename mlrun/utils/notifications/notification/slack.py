@@ -180,12 +180,12 @@ class SlackNotification(NotificationBase):
         if state != runtimes_constants.RunStates.skipped and (
             url and not kind or kind == "run"
         ):
-            line = f'<{url}|*{meta.get("name")}*>'
+            line = f"<{url}|*{meta.get('name')}*>"
         else:
             line = meta.get("name")
         if kind:
-            line = f'{line} *({run.get("step_kind", run.get("kind", ""))})*'
-        line = f'{self.emojis.get(state, ":question:")}  {line}'
+            line = f"{line} *({run.get('step_kind', run.get('kind', ''))})*"
+        line = f"{self.emojis.get(state, ':question:')}  {line}"
         return self._get_slack_row(line)
 
     def _get_run_result(self, run: dict) -> dict:

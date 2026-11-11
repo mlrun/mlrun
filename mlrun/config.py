@@ -1632,9 +1632,12 @@ class Config:
         )
 
     def is_iguazio_v4_mode(self):
-        return (
-            config.httpdb.authentication.mode
-            == mlrun.common.types.AuthenticationMode.IGUAZIO_V4
+        # "iguazio-v4" is the deprecated name of "orca". Load time and connect() normalize it, but the mode can also
+        # be assigned programmatically afterwards, so both values are accepted here
+        # TODO: Remove "iguazio-v4" in 1.16.0
+        return config.httpdb.authentication.mode in (
+            mlrun.common.types.AuthenticationMode.ORCA,
+            mlrun.common.types.AuthenticationMode.IGUAZIO_V4,
         )
 
     @staticmethod
@@ -1751,6 +1754,9 @@ def _do_populate(env=None, skip_errors=False, skip_env_file=False):
     if env_data:
         config.update(env_data, skip_errors=skip_errors)
 
+    config.httpdb.authentication.mode = resolve_deprecated_authentication_mode(
+        config.httpdb.authentication.mode
+    )
     config.warn_on_deprecated_keys()
 
     _configure_ssl_verification(config.httpdb.http.verify)
@@ -1930,6 +1936,43 @@ def read_env(env=None, prefix=env_prefix):
     return config
 
 
+def resolve_deprecated_authentication_mode(mode: str, *, warn: bool = True) -> str:
+    """
+    Resolve the deprecated "iguazio-v4" authentication mode to its replacement, "orca".
+
+    :param mode: the authentication mode
+    :param warn: whether to warn (once per config load) when the deprecated value is resolved. Pass False when the
+                 value comes from the server and not from the user's own configuration.
+    :return:     "orca" for "iguazio-v4", any other mode unchanged
+    """
+    # TODO: Remove in 1.16.0
+    import mlrun.utils
+
+    if mode != mlrun.common.types.AuthenticationMode.IGUAZIO_V4:
+        return mode
+
+    if warn and _AUTHENTICATION_MODE_KEY not in _warned_deprecated_keys:
+        _warned_deprecated_keys.add(_AUTHENTICATION_MODE_KEY)
+        old, new = (
+            mlrun.common.types.AuthenticationMode.IGUAZIO_V4,
+            mlrun.common.types.AuthenticationMode.ORCA,
+        )
+        mlrun.utils.logger.warning(
+            "Deprecated authentication mode is set",
+            deprecated_mode=old,
+            replacement=new,
+            deprecated_in="1.14.0",
+            removal_version="1.16.0",
+        )
+        warnings.warn(
+            f"The '{old}' authentication mode is deprecated in 1.14.0 and will be removed in 1.16.0, "
+            f"use '{new}' instead.",
+            FutureWarning,
+            stacklevel=2,
+        )
+    return mlrun.common.types.AuthenticationMode.ORCA
+
+
 # TODO: Remove in 1.16.0
 @dataclasses.dataclass(frozen=True)
 class _DeprecatedKeyAlias:
@@ -1996,6 +2039,7 @@ _DEPRECATED_KEY_ALIASES = (
 # ones already warned about
 _provided_deprecated_keys: set[str] = set()
 _warned_deprecated_keys: set[str] = set()
+_AUTHENTICATION_MODE_KEY = "httpdb.authentication.mode"
 
 
 def _resolve_deprecated_key_aliases(*sources: dict) -> set[str]:

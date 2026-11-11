@@ -903,7 +903,7 @@ def test_deprecated_key_alone_is_aliased_and_warns_once(
     monkeypatch, old_env, new_env, old_path, new_path, value
 ):
     # shared keys warn only in IG4 mode
-    monkeypatch.setenv("MLRUN_HTTPDB__AUTHENTICATION__MODE", "iguazio-v4")
+    monkeypatch.setenv("MLRUN_HTTPDB__AUTHENTICATION__MODE", "orca")
     monkeypatch.setenv(old_env, _env_value(value))
     with pytest.warns(FutureWarning, match=_deprecation_message(old_env, new_env)):
         mlrun.mlconf.reload()
@@ -935,7 +935,7 @@ def test_new_key_alone_does_not_warn(
 def test_both_keys_set_new_wins(
     monkeypatch, old_env, new_env, old_path, new_path, value
 ):
-    monkeypatch.setenv("MLRUN_HTTPDB__AUTHENTICATION__MODE", "iguazio-v4")
+    monkeypatch.setenv("MLRUN_HTTPDB__AUTHENTICATION__MODE", "orca")
     monkeypatch.setenv(old_env, _env_value(_other_value(value)))
     monkeypatch.setenv(new_env, _env_value(value))
     with pytest.warns(FutureWarning, match=_deprecation_message(old_env, new_env)):
@@ -945,7 +945,7 @@ def test_both_keys_set_new_wins(
 
 @pytest.mark.parametrize("new_in_file", [True, False])
 def test_deprecated_keys_across_config_file_and_env(monkeypatch, tmp_path, new_in_file):
-    monkeypatch.setenv("MLRUN_HTTPDB__AUTHENTICATION__MODE", "iguazio-v4")
+    monkeypatch.setenv("MLRUN_HTTPDB__AUTHENTICATION__MODE", "orca")
     config_file = tmp_path / "mlrun.yaml"
     if new_in_file:
         config_file.write_text(yaml.safe_dump({"orca_api_url": "https://from-file"}))
@@ -986,6 +986,102 @@ def test_deprecation_warning_repeats_after_reload(monkeypatch):
     for _ in range(2):
         with pytest.warns(FutureWarning):
             mlrun.mlconf.reload()
+
+
+def test_server_mode_iguazio_v4_resolves_to_orca_and_warns(monkeypatch):
+    monkeypatch.setenv("MLRUN_HTTPDB__AUTHENTICATION__MODE", "iguazio-v4")
+    with pytest.warns(
+        FutureWarning, match="'iguazio-v4' authentication mode is deprecated"
+    ) as record:
+        mlrun.mlconf.reload()
+    assert len(record) == 1
+    assert mlrun.mlconf.httpdb.authentication.mode == "orca"
+    assert mlrun.mlconf.is_iguazio_v4_mode()
+
+
+def test_authentication_mode_iguazio_v4_in_config_file_resolves_to_orca(
+    monkeypatch, tmp_path
+):
+    config_file = tmp_path / "mlrun.yaml"
+    config_file.write_text(
+        yaml.safe_dump({"httpdb": {"authentication": {"mode": "iguazio-v4"}}})
+    )
+    monkeypatch.setenv("MLRUN_CONFIG_FILE", str(config_file))
+    with pytest.warns(FutureWarning, match="authentication mode is deprecated"):
+        mlrun.mlconf.reload()
+    assert mlrun.mlconf.httpdb.authentication.mode == "orca"
+
+
+def test_authentication_mode_orca_does_not_warn(monkeypatch):
+    monkeypatch.setenv("MLRUN_HTTPDB__AUTHENTICATION__MODE", "orca")
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        mlrun.mlconf.reload()
+    assert mlrun.mlconf.is_iguazio_v4_mode()
+
+
+@pytest.mark.parametrize(
+    "mode, expected",
+    [
+        ("orca", True),
+        ("iguazio-v4", True),
+        ("iguazio", False),
+        ("none", False),
+    ],
+)
+def test_is_iguazio_v4_mode(mode, expected):
+    mlrun.mlconf.httpdb.authentication.mode = mode
+    assert mlrun.mlconf.is_iguazio_v4_mode() is expected
+
+
+def test_resolve_deprecated_authentication_mode():
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        assert (
+            mlrun.config.resolve_deprecated_authentication_mode(
+                "iguazio-v4", warn=False
+            )
+            == "orca"
+        )
+        assert mlrun.config.resolve_deprecated_authentication_mode("orca") == "orca"
+        assert mlrun.config.resolve_deprecated_authentication_mode("none") == "none"
+    with pytest.warns(FutureWarning):
+        assert (
+            mlrun.config.resolve_deprecated_authentication_mode("iguazio-v4") == "orca"
+        )
+
+
+@pytest.mark.parametrize("mode", ["none", "iguazio"])
+def test_shared_deprecated_key_in_non_ig4_mode_is_untouched_without_warning(
+    monkeypatch, mode
+):
+    monkeypatch.setenv("MLRUN_HTTPDB__AUTHENTICATION__MODE", mode)
+    monkeypatch.setenv("MLRUN_IGUAZIO_API_URL", "https://igz3")
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        mlrun.mlconf.reload()
+    assert mlrun.mlconf.iguazio_api_url == "https://igz3"
+
+
+def test_shared_deprecated_key_warns_once_the_mode_becomes_ig4(monkeypatch):
+    monkeypatch.setenv("MLRUN_IGUAZIO_API_URL", "https://igz")
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        mlrun.mlconf.reload()
+
+    mlrun.mlconf.httpdb.authentication.mode = "orca"
+    with pytest.warns(FutureWarning, match="MLRUN_IGUAZIO_API_URL"):
+        mlrun.mlconf.warn_on_deprecated_keys()
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        mlrun.mlconf.warn_on_deprecated_keys()
+
+
+def test_ig4_only_deprecated_key_warns_in_any_mode(monkeypatch):
+    monkeypatch.setenv("MLRUN_HTTPDB__AUTHENTICATION__MODE", "none")
+    monkeypatch.setenv("MLRUN_IGUAZIO_API_URL_INGRESS", "https://x")
+    with pytest.warns(FutureWarning, match="MLRUN_IGUAZIO_API_URL_INGRESS"):
+        mlrun.mlconf.reload()
 
 
 def _exec_mlrun(cmd, cwd=None):

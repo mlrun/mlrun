@@ -31,6 +31,7 @@ import yaml
 import mlrun
 import mlrun.errors
 import mlrun.projects.project
+import mlrun.utils
 from mlrun.common.schemas import SecurityContextEnrichmentModes
 from tests.conftest import out_path
 
@@ -991,7 +992,8 @@ def test_deprecation_warning_repeats_after_reload(monkeypatch):
 def test_server_mode_iguazio_v4_resolves_to_orca_and_warns(monkeypatch):
     monkeypatch.setenv("MLRUN_HTTPDB__AUTHENTICATION__MODE", "iguazio-v4")
     with pytest.warns(
-        FutureWarning, match="'iguazio-v4' authentication mode is deprecated"
+        FutureWarning,
+        match="'iguazio-v4' \\(httpdb.authentication.mode\\) is deprecated",
     ) as record:
         mlrun.mlconf.reload()
     assert len(record) == 1
@@ -1007,7 +1009,9 @@ def test_authentication_mode_iguazio_v4_in_config_file_resolves_to_orca(
         yaml.safe_dump({"httpdb": {"authentication": {"mode": "iguazio-v4"}}})
     )
     monkeypatch.setenv("MLRUN_CONFIG_FILE", str(config_file))
-    with pytest.warns(FutureWarning, match="authentication mode is deprecated"):
+    with pytest.warns(
+        FutureWarning, match="httpdb.authentication.mode\\) is deprecated"
+    ):
         mlrun.mlconf.reload()
     assert mlrun.mlconf.httpdb.authentication.mode == "orca"
 
@@ -1082,6 +1086,29 @@ def test_ig4_only_deprecated_key_warns_in_any_mode(monkeypatch):
     monkeypatch.setenv("MLRUN_IGUAZIO_API_URL_INGRESS", "https://x")
     with pytest.warns(FutureWarning, match="MLRUN_IGUAZIO_API_URL_INGRESS"):
         mlrun.mlconf.reload()
+
+
+def test_deprecated_key_warning_is_also_logged_with_structured_fields(monkeypatch):
+    monkeypatch.setenv("MLRUN_IGUAZIO_API_URL_INGRESS", "https://x")
+    with unittest.mock.patch.object(mlrun.utils.logger, "warning") as logger_warning:
+        with pytest.warns(FutureWarning):
+            mlrun.mlconf.reload()
+    logger_warning.assert_any_call(
+        "Deprecated config key is set",
+        deprecated_key="MLRUN_IGUAZIO_API_URL_INGRESS",
+        replacement="MLRUN_ORCA_API_URL_INGRESS",
+        deprecated_in="1.14.0",
+        removal_version="1.16.0",
+    )
+
+
+def test_importing_mlrun_with_a_deprecated_key_set():
+    env = {**environ, "MLRUN_IGUAZIO_API_URL_INGRESS": "https://x"}
+    for module in ("mlrun.config", "mlrun"):
+        out = subprocess.run(
+            [sys.executable, "-c", f"import {module}"], capture_output=True, env=env
+        )
+        assert out.returncode == 0, out.stderr.decode()
 
 
 def _exec_mlrun(cmd, cwd=None):

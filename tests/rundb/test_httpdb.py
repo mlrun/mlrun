@@ -796,7 +796,9 @@ def test_connect_reads_both_ig4_authentication_modes_from_client_spec(spec_mode)
 def test_connect_warns_on_locally_configured_iguazio_v4_mode():
     mlrun.mlconf.httpdb.authentication.mode = "iguazio-v4"
     server_cfg = {"version": mlrun.mlconf.version}
-    with pytest.warns(FutureWarning, match="'iguazio-v4' authentication mode"):
+    with pytest.warns(
+        FutureWarning, match="'iguazio-v4' \\(httpdb.authentication.mode\\)"
+    ):
         with _mock_httpdb_connect(server_cfg), _skip_token_provider_init():
             HTTPRunDB("http://some-server:1919").connect()
     assert mlrun.mlconf.httpdb.authentication.mode == "orca"

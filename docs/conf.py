@@ -244,6 +244,7 @@ linkcheck_ignore = [
     r"https://kubernetes.io/.*",
     # linkcheck failing for some reason on valid iguazio links
     r"https://www.iguazio.com/docs/latest-release/.*",
+    "https://mlopslive.slack.com",
 ]
 
 # -- Autosummary -------------------------------------------------------------

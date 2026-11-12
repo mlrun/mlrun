@@ -775,6 +775,22 @@ def test_emit_accepts_non_error_2xx(orca, client, warning_log, status):
     warning_log.assert_not_called()
 
 
+@pytest.mark.parametrize("status", [301, 302, 307, 308])
+def test_emit_redirect_logs_warning(orca, client, warning_log, status):
+    orca.expect_oneshot_request(EVENTS_PATH, method="POST").respond_with_data(
+        "", status=status, headers={"Location": orca.url_for("/elsewhere")}
+    )
+    client.emit(
+        client.generate_db_migration_event(
+            mlrun.common.schemas.MigrationEventActions.started
+        )
+    )
+    # The redirect is not followed, so the event is not published
+    assert len(orca.log) == 1
+    warning_log.assert_called_once()
+    assert warning_log.call_args.kwargs["config_name"] == "MLRun.DB.Migration.Started"
+
+
 @pytest.mark.parametrize("ssl_verify", [True, False])
 def test_emit_request_options(client, ssl_verify):
     mlrun.mlconf.iguazio_api_ssl_verify = ssl_verify

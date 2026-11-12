@@ -14,13 +14,8 @@
 
 import typing
 
-import requests
-import requests.adapters
-import urllib3.util
-
 import mlrun.common.schemas
 import mlrun.errors
-import mlrun.utils.http
 from mlrun.utils import logger
 
 import framework.utils.clients.helpers as clients_helpers
@@ -28,10 +23,6 @@ import framework.utils.clients.service_account_token as service_account_token
 import services.api.utils.events.base as base_events
 
 EVENTS_ACTIVATIONS_PATH = "/api/v1/events/activations"
-EVENTS_REQUEST_TIMEOUT_SECONDS = 60
-# Only failed connections are retried: a request that reached Orca may have published
-# the event already
-EVENTS_CONNECT_RETRIES = 3
 
 # Body of POST /api/v1/events/activations. Functional syntax because "class" is a
 # Python keyword; "class" and "initiator" are only sent when set.
@@ -167,7 +158,7 @@ class Client(base_events.BaseEventClient):
     """
 
     def __init__(self, **_kwargs):
-        self._session = self._new_session()
+        self._session = clients_helpers.new_orca_session()
         self._service_account_token_client = service_account_token.Client()
         self._entity_name = self._resolve_entity_name()
 
@@ -186,12 +177,17 @@ class Client(base_events.BaseEventClient):
                 headers=clients_helpers.enrich_headers(
                     headers=self._service_account_token_client.auth_headers,
                 ),
-                timeout=EVENTS_REQUEST_TIMEOUT_SECONDS,
+                timeout=clients_helpers.ORCA_REQUEST_TIMEOUT_SECONDS,
                 verify=mlrun.mlconf.iguazio_api_ssl_verify,
                 allow_redirects=False,
             )
-            # Any non-error status counts as published
             mlrun.errors.raise_for_status(response)
+            # Redirects aren't followed, so only a 2xx means Orca published the event
+            if not 200 <= response.status_code < 300:
+                raise mlrun.errors.MLRunHTTPError(
+                    f"Unexpected response status {response.status_code}",
+                    response=response,
+                )
         except Exception as exc:
             logger.warning(
                 "Failed to emit event",
@@ -427,24 +423,6 @@ class Client(base_events.BaseEventClient):
         if initiator is not None:
             event["initiator"] = initiator
         return event
-
-    @staticmethod
-    def _new_session() -> requests.Session:
-        session = requests.Session()
-        session.cookies = mlrun.utils.http.DummyCookieJar()
-        retry = urllib3.util.Retry(
-            total=EVENTS_CONNECT_RETRIES,
-            connect=EVENTS_CONNECT_RETRIES,
-            read=0,
-            status=0,
-            other=0,
-            backoff_factor=0.5,
-            raise_on_status=False,
-        )
-        adapter = requests.adapters.HTTPAdapter(max_retries=retry)
-        session.mount("http://", adapter)
-        session.mount("https://", adapter)
-        return session
 
     @staticmethod
     def _resolve_entity_name() -> str:

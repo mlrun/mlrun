@@ -644,7 +644,9 @@ class BaseRuntime(ModelObj):
 
             if not resp:
                 self.store_run(task)
-                return task.to_dict()
+                if not err:
+                    return task.to_dict()
+                resp = task.to_dict()
 
             if task.status.status_text:
                 update_in(resp, "status.status_text", task.status.status_text)

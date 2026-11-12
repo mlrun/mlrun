@@ -15,10 +15,12 @@
 Wire-level contract of the token, user and version calls MLRun makes to Orca.
 
 A local HTTP server stands in for Orca, so the tests apply to whichever HTTP client MLRun
-uses to reach it. They call the callers (``crud.Secrets``, ``utils.helpers``) and assert what Orca
-receives (method, path, body, whose identity) and what MLRun raises.
+uses to reach it. Most call the callers (``crud.Secrets``, ``utils.helpers``); token-file shapes the
+helper never builds, and calls without a caller's request, go to the client directly. Each asserts what
+Orca receives (method, path, body, whose identity) and what MLRun raises.
 """
 
+import asyncio
 import socket
 import time
 import unittest.mock
@@ -33,6 +35,7 @@ import mlrun.common.secrets
 import mlrun.errors
 from mlrun.utils.logger import context_id_var
 
+import framework.utils.clients.iguazio.v4
 import framework.utils.clients.service_account_token
 import framework.utils.singletons.k8s
 import services.api.crud
@@ -41,6 +44,7 @@ import services.api.utils.helpers
 SA_TOKEN = "sa-token"
 USER_BEARER = "Bearer user-jwt"
 ADMIN_BEARER = "Bearer admin-jwt"
+COOKIE_SESSION = "cookie-session"
 CTX_ID = "test-context-id"
 OFFLINE_TOKEN = "offline-xyz"
 UPSTREAM_MESSAGE = "upstream-message"
@@ -194,6 +198,51 @@ def test_store_secret_tokens_multi_status_stores_every_token(orca, secrets_provi
     # stored. Known and kept on purpose; checking per-token status is a separate change.
     assert secrets_provider.store_user_token_secret.call_count == 2
     assert response.created_tokens == ["valid", "rejected"]
+
+
+def test_store_secret_tokens_any_success_status_stores_every_token(
+    orca, secrets_provider
+):
+    first, second = _offline_token("jane-id"), _offline_token("jane-id")
+    orca.expect_request(REFRESH_TOKENS_PATH, method="POST").respond_with_json(
+        {}, status=202
+    )
+
+    response = services.api.crud.Secrets().store_secret_tokens(
+        secret_tokens=[
+            mlrun.common.schemas.SecretToken(name="first", token=first),
+            mlrun.common.schemas.SecretToken(name="second", token=second),
+        ],
+        auth_info=_user_auth_info(),
+    )
+
+    assert secrets_provider.store_user_token_secret.call_count == 2
+    assert response.created_tokens == ["first", "second"]
+
+
+def test_response_cookies_are_not_sent_on_later_calls(
+    orca, secrets_provider, revocation_required
+):
+    stored_token = _offline_token("jane-id")
+    orca.expect_request(REFRESH_TOKENS_PATH, method="POST").respond_with_json(
+        _refresh_tokens_response(stored_token),
+        headers={"Set-Cookie": "session=service-account-session; Path=/"},
+    )
+    orca.expect_request(REVOKE_PATH, method="POST").respond_with_json({})
+
+    services.api.crud.Secrets().store_secret_tokens(
+        secret_tokens=[
+            mlrun.common.schemas.SecretToken(name="first", token=stored_token)
+        ],
+        auth_info=_user_auth_info(),
+    )
+    services.api.crud.Secrets().delete_secret_token(
+        token_name="first", username="jane", auth_info=_user_auth_info()
+    )
+
+    (revoke_request,) = _requests(orca, "POST", REVOKE_PATH)
+    assert "Cookie" not in revoke_request.headers
+    _assert_forwarded_identity(revoke_request, USER_BEARER)
 
 
 @pytest.mark.parametrize(
@@ -396,6 +445,50 @@ def test_delete_secret_token_revoke_propagates_context_id(
     assert request.headers.get(mlrun.common.schemas.HeaderNames.igz_ctx) == context_id
 
 
+def test_delete_secret_token_revoke_any_success_status_deletes(
+    orca, secrets_provider, revocation_required
+):
+    orca.expect_request(REVOKE_PATH, method="POST").respond_with_data("", status=202)
+
+    response = services.api.crud.Secrets().delete_secret_token(
+        token_name="my-token", username="jane", auth_info=_user_auth_info()
+    )
+
+    assert response.deleted is True
+    secrets_provider.delete_user_token_secret.assert_called_once()
+
+
+def test_delete_secret_token_revoke_with_cookie_only_forwards_only_the_cookie(
+    orca, secrets_provider, revocation_required
+):
+    orca.expect_request(REVOKE_PATH, method="POST").respond_with_json({})
+
+    services.api.crud.Secrets().delete_secret_token(
+        token_name="my-token", username="jane", auth_info=_cookie_auth_info()
+    )
+
+    request = _only_request(orca, "POST", REVOKE_PATH)
+    _assert_cookie_only_identity(request)
+
+
+def test_revoke_without_request_headers_sends_no_identity(orca):
+    orca.expect_request(REVOKE_PATH, method="POST").respond_with_json(
+        _error_body(401), status=401
+    )
+
+    with pytest.raises(mlrun.errors.MLRunUnauthorizedError):
+        framework.utils.clients.iguazio.v4.Client().revoke_offline_token(
+            OFFLINE_TOKEN, request_headers=None
+        )
+
+    request = _only_request(orca, "POST", REVOKE_PATH)
+    assert "Authorization" not in request.headers
+    assert (
+        mlrun.common.schemas.HeaderNames.igz_authenticator_kind not in request.headers
+    )
+    _assert_absent_from_headers(request, SA_TOKEN)
+
+
 # --- User lookup: GET profile/users/{username}, forwarded user identity ---
 
 
@@ -493,6 +586,60 @@ def test_user_lookup_propagates_context_id(
 
     request = _only_request(orca, "GET", "/api/v1/profile/users/jane")
     assert request.headers.get(mlrun.common.schemas.HeaderNames.igz_ctx) == context_id
+
+
+def test_user_lookup_with_cookie_only_forwards_only_the_cookie(
+    orca, secrets_provider, revocation_owned_by_platform
+):
+    orca.expect_request("/api/v1/profile/users/jane", method="GET").respond_with_json(
+        _user_response(user_id="jane-id", username="jane")
+    )
+    auth_info = _cookie_auth_info()
+    auth_info.username = "admin"
+
+    services.api.crud.Secrets().delete_secret_token(
+        token_name="my-token", username="jane", auth_info=auth_info
+    )
+
+    request = _only_request(orca, "GET", "/api/v1/profile/users/jane")
+    _assert_cookie_only_identity(request)
+
+
+def test_user_lookup_reads_only_the_user_id(
+    orca, secrets_provider, revocation_owned_by_platform
+):
+    orca.expect_request("/api/v1/profile/users/jane", method="GET").respond_with_json(
+        {"metadata": {"id": "jane-id"}}
+    )
+
+    services.api.crud.Secrets().delete_secret_token(
+        token_name="my-token", username="jane", auth_info=_admin_auth_info()
+    )
+
+    secrets_provider.delete_user_token_secret.assert_called_once_with(
+        user_id="jane-id", token_name="my-token"
+    )
+
+
+@pytest.mark.parametrize(
+    "response_body",
+    ["{}", '{"metadata": {}}', '{"metadata": {"id": ""}}', "not-json"],
+    ids=["empty", "no-id", "empty-id", "not-json"],
+)
+def test_user_lookup_without_user_id_fails(
+    orca, secrets_provider, revocation_owned_by_platform, response_body
+):
+    orca.expect_request("/api/v1/profile/users/jane", method="GET").respond_with_data(
+        response_body, content_type="application/json"
+    )
+
+    with pytest.raises(mlrun.errors.MLRunUnauthorizedError) as exc_info:
+        services.api.crud.Secrets().delete_secret_token(
+            token_name="my-token", username="jane", auth_info=_admin_auth_info()
+        )
+
+    assert exc_info.type is mlrun.errors.MLRunUnauthorizedError
+    secrets_provider.delete_user_token_secret.assert_not_called()
 
 
 # --- Platform version: GET info/system, service-account identity ---
@@ -626,6 +773,49 @@ def test_revocation_gate_propagates_context_id(
     assert request.headers.get(mlrun.common.schemas.HeaderNames.igz_ctx) == context_id
 
 
+def test_revocation_gate_reads_only_the_platform_version(
+    orca, secrets_provider, unknown_platform_version
+):
+    orca.expect_request(SYSTEM_INFO_PATH, method="GET").respond_with_json(
+        {"metadata": {"version": {"orisVersion": "1.0.0"}}}
+    )
+    orca.expect_request(REVOKE_PATH, method="POST").respond_with_json({})
+
+    services.api.crud.Secrets().delete_secret_token(
+        token_name="my-token", username="jane", auth_info=_user_auth_info()
+    )
+
+    assert len(_requests(orca, "POST", REVOKE_PATH)) == 1
+    assert mlrun.mlconf.oris_version == "1.0.0"
+
+
+@pytest.mark.parametrize(
+    "response_body",
+    [
+        {},
+        {"metadata": {"version": {}}},
+        {"metadata": {"version": {"orisVersion": ""}}},
+    ],
+    ids=["empty", "no-version", "empty-version"],
+)
+def test_revocation_gate_missing_platform_version_is_not_cached(
+    orca, secrets_provider, unknown_platform_version, response_body
+):
+    orca.expect_request(SYSTEM_INFO_PATH, method="GET").respond_with_json(response_body)
+
+    for _ in range(2):
+        response = services.api.crud.Secrets().delete_secret_token(
+            token_name="my-token", username="jane", auth_info=_user_auth_info()
+        )
+        assert response.deleted is True
+
+    assert [(request.method, request.path) for request, _ in orca.log] == [
+        ("GET", SYSTEM_INFO_PATH),
+        ("GET", SYSTEM_INFO_PATH),
+    ]
+    assert mlrun.mlconf.oris_version == ""
+
+
 # --- Token-file resolution: POST refresh-access-token, no identity ---
 
 
@@ -748,6 +938,120 @@ def test_resolve_auth_token_name_no_stored_token(
     assert orca.log == []
 
 
+def test_resolve_auth_token_name_any_success_response_is_valid(orca, user_tokens):
+    user_tokens.append(("first", "T-1"))
+    orca.expect_request(REFRESH_TOKEN_PATH, method="POST").respond_with_json({})
+
+    assert (
+        services.api.utils.helpers.resolve_auth_token_name(
+            user_id="jane-id", provided_token_name=None
+        )
+        == "first"
+    )
+
+
+def test_resolve_auth_token_name_propagates_context_id(orca, user_tokens, context_id):
+    user_tokens.append(("first", "T-1"))
+    orca.expect_request(REFRESH_TOKEN_PATH, method="POST").respond_with_json(
+        _refresh_token_response()
+    )
+
+    services.api.utils.helpers.resolve_auth_token_name(
+        user_id="jane-id", provided_token_name=None
+    )
+
+    request = _only_request(orca, "POST", REFRESH_TOKEN_PATH)
+    assert request.headers.get(mlrun.common.schemas.HeaderNames.igz_ctx) == context_id
+    assert "Authorization" not in request.headers
+
+
+@pytest.mark.parametrize(
+    "token_file_content, token_name, expected_message",
+    [
+        ("{}", None, "^No valid tokens found for user$"),
+        ("{}", "x", "^Token 'x' not found or invalid for user$"),
+        ("secretTokens:", None, "^No valid tokens found for user$"),
+        ("secretTokens: []", "x", "^Token 'x' not found or invalid for user$"),
+        (
+            "secretTokens: [{name: other, token: T-O}]",
+            "x",
+            "^Token 'x' not found or invalid for user$",
+        ),
+        (
+            "secretTokens: [{name: first, token: ''}, {name: second, token: T-2}]",
+            None,
+            "^No valid tokens found for user$",
+        ),
+        ("secretTokens: [{token: T-1}]", None, "^No valid tokens found for user$"),
+    ],
+    ids=[
+        "no-tokens-key",
+        "no-tokens-key-named",
+        "null-tokens",
+        "empty-tokens-named",
+        "named-token-absent",
+        "first-token-empty",
+        "first-token-unnamed",
+    ],
+)
+def test_resolve_token_from_token_file_without_usable_token(
+    orca, token_file_content, token_name, expected_message
+):
+    with pytest.raises(mlrun.errors.MLRunNotFoundError, match=expected_message):
+        framework.utils.clients.iguazio.v4.Client().resolve_token_from_igz_yml(
+            token_file_content, "jane-id", token_name
+        )
+
+    assert orca.log == []
+
+
+# --- Identity isolation across concurrent calls ---
+
+
+async def test_concurrent_calls_carry_only_their_own_identity(
+    orca, revocation_required
+):
+    orca.expect_request(REVOKE_PATH, method="POST").respond_with_json({})
+    orca.expect_request(REFRESH_TOKENS_PATH, method="POST").respond_with_json(
+        _refresh_tokens_response(OFFLINE_TOKEN)
+    )
+    orca.expect_request("/api/v1/profile/users/jane", method="GET").respond_with_json(
+        _user_response(user_id="jane-id", username="jane")
+    )
+    client = framework.utils.clients.iguazio.v4.AsyncClient()
+    iterations = 5
+
+    for _ in range(iterations):
+        await asyncio.gather(
+            client.revoke_offline_token("user-revoked", {"authorization": USER_BEARER}),
+            client.revoke_offline_token(
+                "cookie-revoked", _cookie_auth_info().request_headers
+            ),
+            client.get_user_id_by_username("jane", _admin_auth_info()),
+            client.refresh_access_tokens(
+                [mlrun.common.schemas.SecretToken(name="t", token=OFFLINE_TOKEN)]
+            ),
+        )
+
+    revoke_requests = _requests(orca, "POST", REVOKE_PATH)
+    assert len(revoke_requests) == 2 * iterations
+    for request in revoke_requests:
+        if _json_body(request)["token"] == "user-revoked":
+            _assert_forwarded_identity(request, USER_BEARER)
+            _assert_absent_from_headers(request, ADMIN_BEARER)
+        else:
+            _assert_cookie_only_identity(request)
+    lookup_requests = _requests(orca, "GET", "/api/v1/profile/users/jane")
+    assert len(lookup_requests) == iterations
+    for request in lookup_requests:
+        _assert_forwarded_identity(request, ADMIN_BEARER)
+        _assert_absent_from_headers(request, USER_BEARER)
+    refresh_requests = _requests(orca, "POST", REFRESH_TOKENS_PATH)
+    assert len(refresh_requests) == iterations
+    for request in refresh_requests:
+        _assert_service_account_identity(request)
+
+
 def _user_auth_info() -> mlrun.common.schemas.AuthInfo:
     return mlrun.common.schemas.AuthInfo(
         username="jane",
@@ -761,6 +1065,14 @@ def _admin_auth_info() -> mlrun.common.schemas.AuthInfo:
         username="admin",
         user_id="admin-id",
         request_headers={"authorization": ADMIN_BEARER},
+    )
+
+
+def _cookie_auth_info() -> mlrun.common.schemas.AuthInfo:
+    return mlrun.common.schemas.AuthInfo(
+        username="jane",
+        user_id="jane-id",
+        request_headers={"cookie": f"_oauth2_proxy={COOKIE_SESSION}"},
     )
 
 
@@ -804,6 +1116,16 @@ def _assert_forwarded_identity(request: werkzeug.Request, bearer: str) -> None:
         mlrun.common.schemas.HeaderNames.igz_authenticator_kind not in request.headers
     )
     _assert_absent_from_headers(request, SA_TOKEN)
+
+
+def _assert_cookie_only_identity(request: werkzeug.Request) -> None:
+    # A caller authenticated by cookie alone reaches Orca with that cookie and nothing added
+    assert request.headers.get("Cookie") == f"_oauth2_proxy={COOKIE_SESSION}"
+    assert "Authorization" not in request.headers
+    assert (
+        mlrun.common.schemas.HeaderNames.igz_authenticator_kind not in request.headers
+    )
+    _assert_absent_from_headers(request, SA_TOKEN, USER_BEARER, ADMIN_BEARER)
 
 
 def _assert_absent_from_headers(request: werkzeug.Request, *secrets: str) -> None:

@@ -1564,3 +1564,21 @@ def test_orca_requests_do_not_follow_redirects():
             )
 
     assert not login.called
+
+
+def test_orca_request_rejects_unknown_identity():
+    api_url = "https://orca.example.com"
+    mlrun.mlconf.iguazio_api_url = api_url
+    client = framework.utils.clients.iguazio.v4.Client()
+
+    with requests_mock_package.Mocker(session=client._orca_session) as mocker:
+        with pytest.raises(TypeError, match="Unsupported Orca identity: dict"):
+            client._send_orca_request(
+                "GET",
+                "info/system",
+                failure_message="Failed",
+                default_error_class=mlrun.errors.MLRunRuntimeError,
+                identity={"authorization": "Bearer T-1"},
+            )
+
+    assert not mocker.called

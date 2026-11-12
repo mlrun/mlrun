@@ -631,6 +631,10 @@ class Client(BaseClient, project_leader.Member):
                     headers.pop("content-length", None)
                 case NoIdentity():
                     headers = {}
+                case _:
+                    raise TypeError(
+                        f"Unsupported Orca identity: {type(identity).__name__}"
+                    )
             response = self._orca_session.request(
                 method,
                 f"{self._api_url}/api/v1/{path}",

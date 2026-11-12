@@ -367,8 +367,8 @@ def test_client_spec_includes_oauth_config_in_iguazio_v4_mode(
     mlrun.mlconf.httpdb.authentication.mode = (
         mlrun.common.types.AuthenticationMode.IGUAZIO_V4
     )
-    mlrun.mlconf.iguazio_api_url = "http://x.local"
-    mlrun.mlconf.iguazio_api_url_ingress = "https://x.com"
+    mlrun.mlconf.orca_api_url = "http://x.local"
+    mlrun.mlconf.orca_api_url_ingress = "https://x.com"
     services.api.api.endpoints.client_spec.get_cached_client_spec.cache_clear()
 
     response = client.get("client-spec")

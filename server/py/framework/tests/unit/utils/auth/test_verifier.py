@@ -215,7 +215,7 @@ async def test_lru_eviction(
     monkeypatch: pytest.MonkeyPatch,
 ):
     monkeypatch.setattr(
-        mlrun.mlconf.httpdb.authentication.iguazio.token_cache, "max_size", 2
+        mlrun.mlconf.httpdb.authentication.orca.token_cache, "max_size", 2
     )
 
     tokens = [_make_jwt(exp=time.time() + 3600, sub=f"user_{i}") for i in range(3)]
@@ -244,7 +244,7 @@ async def test_ttl_expiry(
 ):
     client, _ = mock_client
     base_time = 0
-    ttl: int = mlrun.mlconf.httpdb.authentication.iguazio.token_cache.ttl_seconds
+    ttl: int = mlrun.mlconf.httpdb.authentication.orca.token_cache.ttl_seconds
     token = _make_jwt(exp=base_time + ttl * 10)
     request = _make_request(token)
 
@@ -282,7 +282,7 @@ async def test_ttl_capped_at_token_expiry(
 ):
     """The cache entry expires at the token's own expiry when that is sooner than the TTL."""
     monkeypatch.setattr(
-        mlrun.mlconf.httpdb.authentication.iguazio.token_cache, "ttl_seconds", 300
+        mlrun.mlconf.httpdb.authentication.orca.token_cache, "ttl_seconds", 300
     )
     curr_time = 0
     token_expires_at = 100  # expires before the 300s TTL
@@ -355,7 +355,7 @@ async def test_stale_done_callback_doesnt_evict_refreshed_task(
     """
     client, _ = mock_client
     base_time = 0
-    ttl = mlrun.mlconf.httpdb.authentication.iguazio.token_cache.ttl_seconds
+    ttl = mlrun.mlconf.httpdb.authentication.orca.token_cache.ttl_seconds
     token = _make_jwt(exp=base_time + ttl * 10)
 
     backend_proceed = asyncio.Event()
@@ -383,7 +383,7 @@ async def test_stale_done_callback_doesnt_evict_refreshed_task(
     with unittest.mock.patch("framework.utils.auth.verifier.time") as mock_time:
         mock_time.time.return_value = (
             base_time
-            + mlrun.mlconf.httpdb.authentication.iguazio.token_cache.ttl_seconds
+            + mlrun.mlconf.httpdb.authentication.orca.token_cache.ttl_seconds
             + 1
         )
         result = await verifier._authenticate_iguazio_v4(_make_request(token))

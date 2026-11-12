@@ -551,11 +551,11 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
 
     @property
     def _token_cache_max_size(self) -> int:
-        return mlrun.mlconf.httpdb.authentication.iguazio.token_cache.max_size
+        return mlrun.mlconf.httpdb.authentication.orca.token_cache.max_size
 
     @property
     def _token_cache_ttl_seconds(self) -> float:
-        return mlrun.mlconf.httpdb.authentication.iguazio.token_cache.ttl_seconds
+        return mlrun.mlconf.httpdb.authentication.orca.token_cache.ttl_seconds
 
     def _on_verify_complete(
         self, key: bytes, task: asyncio.Task[schemas.AuthInfo]

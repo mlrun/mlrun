@@ -60,10 +60,10 @@ class OrcaProjectsClient:
             self._send_request,
             mlrun.utils.logger,
             poll_interval_seconds=humanfriendly.parse_timespan(
-                mlrun.mlconf.httpdb.projects.iguazio_project_states_poll_interval
+                mlrun.mlconf.httpdb.projects.orca_project_states_poll_interval
             ),
             poll_timeout_seconds=humanfriendly.parse_timespan(
-                mlrun.mlconf.httpdb.projects.iguazio_project_states_poll_timeout
+                mlrun.mlconf.httpdb.projects.orca_project_states_poll_timeout
             ),
         )
 
@@ -262,16 +262,16 @@ class OrcaProjectsClient:
     def _send_request(
         self, method: str, path: str, error_message: str, **kwargs
     ) -> requests.Response:
-        url = f"{mlrun.mlconf.iguazio_api_url}/api/{path}"
+        url = f"{mlrun.mlconf.orca_api_url}/api/{path}"
         kwargs.update(self._run_db._auth_request_kwargs(kwargs.pop("headers", None)))
         try:
             response = self._session.request(
                 method,
                 url,
                 timeout=humanfriendly.parse_timespan(
-                    mlrun.mlconf.httpdb.projects.iguazio_request_timeout
+                    mlrun.mlconf.httpdb.projects.orca_request_timeout
                 ),
-                verify=mlrun.mlconf.iguazio_api_ssl_verify,
+                verify=mlrun.mlconf.orca_api_ssl_verify,
                 **kwargs,
             )
         except requests.RequestException as exc:

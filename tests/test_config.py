@@ -12,11 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import os
 import pathlib
 import subprocess
 import sys
 import unittest.mock
+import warnings
 from contextlib import contextmanager
 from os import environ
 from tempfile import NamedTemporaryFile
@@ -29,6 +31,7 @@ import yaml
 import mlrun
 import mlrun.errors
 import mlrun.projects.project
+import mlrun.utils
 from mlrun.common.schemas import SecurityContextEnrichmentModes
 from tests.conftest import out_path
 
@@ -819,6 +822,295 @@ def test_config_keys_and_values():
     assert sorted(iter_keys) == ["a", "b", "nested"]
 
 
+_DEPRECATED_KEY_ALIAS_CASES = [
+    # (old env var, new env var, old config path, new config path, a non default value)
+    (
+        "MLRUN_IGUAZIO_API_URL",
+        "MLRUN_ORCA_API_URL",
+        "iguazio_api_url",
+        "orca_api_url",
+        "https://orca.internal",
+    ),
+    (
+        "MLRUN_IGUAZIO_API_URL_INGRESS",
+        "MLRUN_ORCA_API_URL_INGRESS",
+        "iguazio_api_url_ingress",
+        "orca_api_url_ingress",
+        "https://orca.external",
+    ),
+    (
+        "MLRUN_IGUAZIO_API_SSL_VERIFY",
+        "MLRUN_ORCA_API_SSL_VERIFY",
+        "iguazio_api_ssl_verify",
+        "orca_api_ssl_verify",
+        False,
+    ),
+    (
+        "MLRUN_HTTPDB__AUTHENTICATION__IGUAZIO__SESSION_VERIFICATION_ENDPOINT",
+        "MLRUN_HTTPDB__AUTHENTICATION__ORCA__SESSION_VERIFICATION_ENDPOINT",
+        "httpdb.authentication.iguazio.session_verification_endpoint",
+        "httpdb.authentication.orca.session_verification_endpoint",
+        "custom/verification",
+    ),
+    (
+        "MLRUN_HTTPDB__AUTHENTICATION__IGUAZIO__AUTHENTICATION_ENDPOINT",
+        "MLRUN_HTTPDB__AUTHENTICATION__ORCA__AUTHENTICATION_ENDPOINT",
+        "httpdb.authentication.iguazio.authentication_endpoint",
+        "httpdb.authentication.orca.authentication_endpoint",
+        "custom/refresh",
+    ),
+    (
+        "MLRUN_HTTPDB__AUTHENTICATION__IGUAZIO__TOKEN_CACHE__MAX_SIZE",
+        "MLRUN_HTTPDB__AUTHENTICATION__ORCA__TOKEN_CACHE__MAX_SIZE",
+        "httpdb.authentication.iguazio.token_cache.max_size",
+        "httpdb.authentication.orca.token_cache.max_size",
+        7,
+    ),
+    (
+        "MLRUN_HTTPDB__AUTHENTICATION__IGUAZIO__TOKEN_CACHE__TTL_SECONDS",
+        "MLRUN_HTTPDB__AUTHENTICATION__ORCA__TOKEN_CACHE__TTL_SECONDS",
+        "httpdb.authentication.iguazio.token_cache.ttl_seconds",
+        "httpdb.authentication.orca.token_cache.ttl_seconds",
+        9,
+    ),
+    (
+        "MLRUN_HTTPDB__PROJECTS__IGUAZIO_PROJECT_STATES_POLL_INTERVAL",
+        "MLRUN_HTTPDB__PROJECTS__ORCA_PROJECT_STATES_POLL_INTERVAL",
+        "httpdb.projects.iguazio_project_states_poll_interval",
+        "httpdb.projects.orca_project_states_poll_interval",
+        "7 seconds",
+    ),
+    (
+        "MLRUN_HTTPDB__PROJECTS__IGUAZIO_PROJECT_STATES_POLL_TIMEOUT",
+        "MLRUN_HTTPDB__PROJECTS__ORCA_PROJECT_STATES_POLL_TIMEOUT",
+        "httpdb.projects.iguazio_project_states_poll_timeout",
+        "httpdb.projects.orca_project_states_poll_timeout",
+        "11 seconds",
+    ),
+    (
+        "MLRUN_HTTPDB__PROJECTS__IGUAZIO_REQUEST_TIMEOUT",
+        "MLRUN_HTTPDB__PROJECTS__ORCA_REQUEST_TIMEOUT",
+        "httpdb.projects.iguazio_request_timeout",
+        "httpdb.projects.orca_request_timeout",
+        "13 seconds",
+    ),
+]
+
+
+@pytest.mark.parametrize(
+    "old_env, new_env, old_path, new_path, value", _DEPRECATED_KEY_ALIAS_CASES
+)
+def test_deprecated_key_alone_is_aliased_and_warns_once(
+    monkeypatch, old_env, new_env, old_path, new_path, value
+):
+    # shared keys warn only in IG4 mode
+    monkeypatch.setenv("MLRUN_HTTPDB__AUTHENTICATION__MODE", "orca")
+    monkeypatch.setenv(old_env, _env_value(value))
+    with pytest.warns(FutureWarning, match=_deprecation_message(old_env, new_env)):
+        mlrun.mlconf.reload()
+    assert _get_config_value(new_path) == value
+    assert _get_config_value(old_path) == value
+
+    # warns once per config load
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        mlrun.mlconf.warn_on_deprecated_keys()
+
+
+@pytest.mark.parametrize(
+    "old_env, new_env, old_path, new_path, value", _DEPRECATED_KEY_ALIAS_CASES
+)
+def test_new_key_alone_does_not_warn(
+    monkeypatch, old_env, new_env, old_path, new_path, value
+):
+    monkeypatch.setenv(new_env, _env_value(value))
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        mlrun.mlconf.reload()
+    assert _get_config_value(new_path) == value
+
+
+@pytest.mark.parametrize(
+    "old_env, new_env, old_path, new_path, value", _DEPRECATED_KEY_ALIAS_CASES
+)
+def test_both_keys_set_new_wins(
+    monkeypatch, old_env, new_env, old_path, new_path, value
+):
+    monkeypatch.setenv("MLRUN_HTTPDB__AUTHENTICATION__MODE", "orca")
+    monkeypatch.setenv(old_env, _env_value(_other_value(value)))
+    monkeypatch.setenv(new_env, _env_value(value))
+    with pytest.warns(FutureWarning, match=_deprecation_message(old_env, new_env)):
+        mlrun.mlconf.reload()
+    assert _get_config_value(new_path) == value
+
+
+@pytest.mark.parametrize("new_in_file", [True, False])
+def test_deprecated_keys_across_config_file_and_env(monkeypatch, tmp_path, new_in_file):
+    monkeypatch.setenv("MLRUN_HTTPDB__AUTHENTICATION__MODE", "orca")
+    config_file = tmp_path / "mlrun.yaml"
+    if new_in_file:
+        config_file.write_text(yaml.safe_dump({"orca_api_url": "https://from-file"}))
+        monkeypatch.setenv("MLRUN_IGUAZIO_API_URL", "https://from-env")
+        expected = "https://from-file"
+    else:
+        config_file.write_text(yaml.safe_dump({"iguazio_api_url": "https://from-file"}))
+        monkeypatch.setenv("MLRUN_ORCA_API_URL", "https://from-env")
+        expected = "https://from-env"
+    monkeypatch.setenv("MLRUN_CONFIG_FILE", str(config_file))
+
+    with pytest.warns(FutureWarning):
+        mlrun.mlconf.reload()
+    assert mlrun.mlconf.orca_api_url == expected
+
+
+def test_deprecated_key_in_config_file_is_aliased(monkeypatch, tmp_path):
+    config_file = tmp_path / "mlrun.yaml"
+    config_file.write_text(
+        yaml.safe_dump(
+            {"httpdb": {"projects": {"iguazio_request_timeout": "3 seconds"}}}
+        )
+    )
+    monkeypatch.setenv("MLRUN_CONFIG_FILE", str(config_file))
+
+    with pytest.warns(FutureWarning):
+        mlrun.mlconf.reload()
+    assert mlrun.mlconf.httpdb.projects.orca_request_timeout == "3 seconds"
+
+
+def test_new_keys_default_to_the_deprecated_keys_defaults():
+    for _, _, old_path, new_path, _ in _DEPRECATED_KEY_ALIAS_CASES:
+        assert _get_config_value(new_path) == _get_config_value(old_path), new_path
+
+
+def test_deprecation_warning_repeats_after_reload(monkeypatch):
+    monkeypatch.setenv("MLRUN_IGUAZIO_API_URL_INGRESS", "https://x")
+    for _ in range(2):
+        with pytest.warns(FutureWarning):
+            mlrun.mlconf.reload()
+
+
+def test_server_mode_iguazio_v4_resolves_to_orca_and_warns(monkeypatch):
+    monkeypatch.setenv("MLRUN_HTTPDB__AUTHENTICATION__MODE", "iguazio-v4")
+    with pytest.warns(
+        FutureWarning,
+        match="'iguazio-v4' \\(httpdb.authentication.mode\\) is deprecated",
+    ) as record:
+        mlrun.mlconf.reload()
+    assert len(record) == 1
+    assert mlrun.mlconf.httpdb.authentication.mode == "orca"
+    assert mlrun.mlconf.is_iguazio_v4_mode()
+
+
+def test_authentication_mode_iguazio_v4_in_config_file_resolves_to_orca(
+    monkeypatch, tmp_path
+):
+    config_file = tmp_path / "mlrun.yaml"
+    config_file.write_text(
+        yaml.safe_dump({"httpdb": {"authentication": {"mode": "iguazio-v4"}}})
+    )
+    monkeypatch.setenv("MLRUN_CONFIG_FILE", str(config_file))
+    with pytest.warns(
+        FutureWarning, match="httpdb.authentication.mode\\) is deprecated"
+    ):
+        mlrun.mlconf.reload()
+    assert mlrun.mlconf.httpdb.authentication.mode == "orca"
+
+
+def test_authentication_mode_orca_does_not_warn(monkeypatch):
+    monkeypatch.setenv("MLRUN_HTTPDB__AUTHENTICATION__MODE", "orca")
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        mlrun.mlconf.reload()
+    assert mlrun.mlconf.is_iguazio_v4_mode()
+
+
+@pytest.mark.parametrize(
+    "mode, expected",
+    [
+        ("orca", True),
+        ("iguazio-v4", True),
+        ("iguazio", False),
+        ("none", False),
+    ],
+)
+def test_is_iguazio_v4_mode(mode, expected):
+    mlrun.mlconf.httpdb.authentication.mode = mode
+    assert mlrun.mlconf.is_iguazio_v4_mode() is expected
+
+
+def test_resolve_deprecated_authentication_mode():
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        assert (
+            mlrun.config.resolve_deprecated_authentication_mode(
+                "iguazio-v4", warn=False
+            )
+            == "orca"
+        )
+        assert mlrun.config.resolve_deprecated_authentication_mode("orca") == "orca"
+        assert mlrun.config.resolve_deprecated_authentication_mode("none") == "none"
+    with pytest.warns(FutureWarning):
+        assert (
+            mlrun.config.resolve_deprecated_authentication_mode("iguazio-v4") == "orca"
+        )
+
+
+@pytest.mark.parametrize("mode", ["none", "iguazio"])
+def test_shared_deprecated_key_in_non_ig4_mode_is_untouched_without_warning(
+    monkeypatch, mode
+):
+    monkeypatch.setenv("MLRUN_HTTPDB__AUTHENTICATION__MODE", mode)
+    monkeypatch.setenv("MLRUN_IGUAZIO_API_URL", "https://igz3")
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        mlrun.mlconf.reload()
+    assert mlrun.mlconf.iguazio_api_url == "https://igz3"
+
+
+def test_shared_deprecated_key_warns_once_the_mode_becomes_ig4(monkeypatch):
+    monkeypatch.setenv("MLRUN_IGUAZIO_API_URL", "https://igz")
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        mlrun.mlconf.reload()
+
+    mlrun.mlconf.httpdb.authentication.mode = "orca"
+    with pytest.warns(FutureWarning, match="MLRUN_IGUAZIO_API_URL"):
+        mlrun.mlconf.warn_on_deprecated_keys()
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        mlrun.mlconf.warn_on_deprecated_keys()
+
+
+def test_ig4_only_deprecated_key_warns_in_any_mode(monkeypatch):
+    monkeypatch.setenv("MLRUN_HTTPDB__AUTHENTICATION__MODE", "none")
+    monkeypatch.setenv("MLRUN_IGUAZIO_API_URL_INGRESS", "https://x")
+    with pytest.warns(FutureWarning, match="MLRUN_IGUAZIO_API_URL_INGRESS"):
+        mlrun.mlconf.reload()
+
+
+def test_deprecated_key_warning_is_also_logged_with_structured_fields(monkeypatch):
+    monkeypatch.setenv("MLRUN_IGUAZIO_API_URL_INGRESS", "https://x")
+    with unittest.mock.patch.object(mlrun.utils.logger, "warning") as logger_warning:
+        with pytest.warns(FutureWarning):
+            mlrun.mlconf.reload()
+    logger_warning.assert_any_call(
+        "Deprecated config key is set",
+        deprecated_key="MLRUN_IGUAZIO_API_URL_INGRESS",
+        replacement="MLRUN_ORCA_API_URL_INGRESS",
+        deprecated_in="1.14.0",
+        removal_version="1.16.0",
+    )
+
+
+def test_importing_mlrun_with_a_deprecated_key_set():
+    env = {**environ, "MLRUN_IGUAZIO_API_URL_INGRESS": "https://x"}
+    for module in ("mlrun.config", "mlrun"):
+        out = subprocess.run(
+            [sys.executable, "-c", f"import {module}"], capture_output=True, env=env
+        )
+        assert out.returncode == 0, out.stderr.decode()
+
+
 def _exec_mlrun(cmd, cwd=None):
     cmd = [sys.executable, "-m", "mlrun"] + cmd.split()
     out = subprocess.run(cmd, capture_output=True, cwd=cwd)
@@ -827,3 +1119,29 @@ def _exec_mlrun(cmd, cwd=None):
         print(out.stdout.decode("utf-8"), file=sys.stderr)
         raise Exception(out.stderr.decode("utf-8"))
     return out.stdout.decode("utf-8")
+
+
+def _env_value(value) -> str:
+    return json.dumps(value) if not isinstance(value, str) else value
+
+
+def _other_value(value):
+    if isinstance(value, bool):
+        return not value
+    if isinstance(value, int):
+        return value + 1
+    return f"{value}-other"
+
+
+def _deprecation_message(old_env: str, new_env: str) -> str:
+    return (
+        f"'{old_env}' is deprecated in 1.14.0 and will be removed in 1.16.0, "
+        f"use '{new_env}' instead"
+    )
+
+
+def _get_config_value(path: str):
+    value = mlrun.mlconf
+    for name in path.split("."):
+        value = getattr(value, name)
+    return value

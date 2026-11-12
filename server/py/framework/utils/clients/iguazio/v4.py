@@ -12,21 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import datetime
-import tempfile
+import http.cookiejar
 import typing
 import uuid
 
 import httpx
 import humanfriendly
-import iguazio
 import requests
 import sqlalchemy.orm
-from iguazio.schemas import (
-    RefreshAccessTokenOptionsV1,
-    RefreshAccessTokensOptionsV1,
-    RevokeOfflineTokenOptionsV1,
-    UpdateProjectOwnerOptionsV1,
-)
+import yaml
 
 import mlrun.common.formatters
 import mlrun.common.schemas
@@ -56,21 +50,43 @@ FOLLOWERS_SYNC_ENDPOINT = "v1/projects/followers/sync"
 FOLLOWERS_SYNC_ACTION_TYPE = "follower-sync"
 FOLLOWERS_SYNC_SUBDOMAIN = "projects"
 
+# Token, user, version and project-policy calls: one attempt per request, retried only when the connection
+# could not be established (so nothing reached Orca) - revoke-offline-token is not idempotent.
+_ORCA_REQUEST_TIMEOUT_SECONDS = 60
+_ORCA_CONNECT_RETRIES = 3
+
 
 class Client(BaseClient, project_leader.Member):
+    # IG4 reads the orca_* config keys. The base class reads the deprecated iguazio_* ones, which IG3 still uses.
+    @property
+    def _api_url(self) -> str:
+        return mlrun.mlconf.orca_api_url
+
+    @property
+    def _api_ssl_verify(self) -> bool:
+        return mlrun.mlconf.orca_api_ssl_verify
+
+    @property
+    def _session_verification_endpoint(self) -> str:
+        return mlrun.mlconf.httpdb.authentication.orca.session_verification_endpoint
+
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self._service_account_token_client = service_account_token.Client()
-        self._client = iguazio.Client(
-            api_url=self._api_url,
-            auto_login=False,
-            use_token_file=False,
-            verify_ssl=mlrun.mlconf.iguazio_api_ssl_verify,
-            logger=clients_helpers.iguazio_sdk_logger(self._logger),
+        transport = httpx.HTTPTransport(
+            verify=self._api_ssl_verify, retries=_ORCA_CONNECT_RETRIES
+        )
+        self._orca_http_client = httpx.Client(
+            timeout=_ORCA_REQUEST_TIMEOUT_SECONDS,
+            mounts={"http://": transport, "https://": transport},
+            # The client is shared by calls made for different identities, so it must never store a
+            # cookie from one response and send it on a later request
+            cookies=http.cookiejar.CookieJar(
+                policy=http.cookiejar.DefaultCookiePolicy(allowed_domains=[])
+            ),
         )
         # Used by the Orca project-leader-proxy methods below (create/update/delete/get project), which go
-        # through requests/BaseClient._send_request_to_api rather than the iguazio SDK client, since Orca's
-        # project endpoints aren't modeled there.
+        # through requests/BaseClient._send_request_to_api.
         self._session = mlrun.utils.HTTPSessionWithRetry(
             retry_on_exception=(
                 mlrun.mlconf.httpdb.projects.retry_leader_request_on_exception
@@ -79,55 +95,17 @@ class Client(BaseClient, project_leader.Member):
             verbose=True,
         )
         self._poll_interval_seconds = humanfriendly.parse_timespan(
-            mlrun.mlconf.httpdb.projects.iguazio_project_states_poll_interval
+            mlrun.mlconf.httpdb.projects.orca_project_states_poll_interval
         )
         self._poll_timeout_seconds = humanfriendly.parse_timespan(
-            mlrun.mlconf.httpdb.projects.iguazio_project_states_poll_timeout
-        )
-
-    def refresh_access_token(
-        self, secret_token: mlrun.common.schemas.SecretToken
-    ) -> None:
-        """
-        Refreshes the access token by validating the provided token via the Iguazio client.
-
-        :param secret_token: SecretToken object containing the token name and offline token string.
-        :raises mlrun.errors.MLRunInvalidArgumentError: If the secret_token is None or the offline token is empty.
-        :raises mlrun.errors.MLRunUnauthorizedError: If the offline token is invalid, expired, or an error
-        occurs while refreshing.
-        """
-        if not secret_token:
-            raise mlrun.errors.MLRunInvalidArgumentError("SecretToken is None")
-
-        if not secret_token.token:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Offline token for '{secret_token.name}' is empty"
-            )
-
-        self._logger.info(
-            "Refreshing access token via Iguazio", token_name=secret_token.name
-        )
-
-        # Validate the offline token by sending it to Iguazio
-        def _refresh_access_token():
-            options = RefreshAccessTokenOptionsV1(refresh_token=secret_token.token)
-            self._client.refresh_access_token(options=options)
-            self._logger.info(
-                "Successfully refreshed access token via Iguazio",
-                token_name=secret_token.name,
-            )
-
-        return self._try_callback_with_httpx_exceptions(
-            _refresh_access_token,
-            mlrun.errors.MLRunUnauthorizedError,
-            f"Failed to refresh access token '{secret_token.name}' from Iguazio",
+            mlrun.mlconf.httpdb.projects.orca_project_states_poll_timeout
         )
 
     def refresh_access_tokens(
         self, secret_tokens: list[mlrun.common.schemas.SecretToken]
     ) -> None:
         """
-        Refresh all offline tokens using the Iguazio client to validate them.
+        Validate offline tokens by refreshing them against Orca, as the service account.
 
         :param secret_tokens: List of SecretToken
         :raises mlrun.errors.MLRunInvalidArgumentError: If the list is empty or any token is empty
@@ -147,14 +125,15 @@ class Client(BaseClient, project_leader.Member):
 
         self._logger.debug("Refreshing access tokens", token_names=token_names)
 
-        def _refresh_access_tokens():
-            options = RefreshAccessTokensOptionsV1(refresh_tokens=token_values)
-            self._client.refresh_access_tokens(options=options)
-
-        return self._try_callback_with_httpx_exceptions(
-            _refresh_access_tokens,
-            mlrun.errors.MLRunUnauthorizedError,
-            f"Failed to refresh tokens '{', '.join(token_names)}' from Iguazio",
+        # Orca answers 207 when only some of the tokens are invalid. MLRun accepts it without reading
+        # the per-token results, so a partially invalid batch is stored as-is.
+        self._send_orca_request(
+            method=mlrun.common.types.HTTPMethod.POST,
+            path="authentication/refresh-access-tokens",
+            failure_message=f"Failed to refresh tokens '{', '.join(token_names)}' from Iguazio",
+            default_error_class=mlrun.errors.MLRunUnauthorizedError,
+            use_service_account=True,
+            json_body={"refreshTokens": token_values},
         )
 
     def revoke_offline_token(
@@ -168,7 +147,7 @@ class Client(BaseClient, project_leader.Member):
         used to obtain access tokens.
 
         :param token: The offline token string to revoke.
-        :param request_headers: Optional request headers to use for authenticating with the Iguazio management service.
+        :param request_headers: The caller's request headers, relayed as the identity of the request.
         :raises mlrun.errors.MLRunInvalidArgumentError: If the provided token is empty.
         :raises mlrun.errors.MLRunUnauthorizedError: If the revocation request fails.
         """
@@ -176,36 +155,36 @@ class Client(BaseClient, project_leader.Member):
             raise mlrun.errors.MLRunInvalidArgumentError("Offline token is empty")
 
         self._logger.info("Revoking offline token via Iguazio")
-
-        # Use Iguazio client to revoke the token
-        def _revoke_offline_token():
-            options = RevokeOfflineTokenOptionsV1(token=token)
-            self._client.revoke_offline_token(options=options)
-            self._logger.info("Successfully revoked offline token via Iguazio")
-
-        return self._try_callback_with_httpx_exceptions(
-            _revoke_offline_token,
-            mlrun.errors.MLRunUnauthorizedError,
-            "Failed to revoke offline token from Iguazio",
-            auth_headers=request_headers,
+        self._send_orca_request(
+            method=mlrun.common.types.HTTPMethod.POST,
+            path="authentication/revoke-offline-token",
+            failure_message="Failed to revoke offline token from Iguazio",
+            default_error_class=mlrun.errors.MLRunUnauthorizedError,
+            request_headers=request_headers,
+            json_body={"token": token},
         )
+        self._logger.info("Successfully revoked offline token via Iguazio")
 
     def get_oris_version(self) -> str:
         """
         Fetch Oris's own release version from its system-info API.
 
         :return: Oris's version string (e.g. "1.2.0").
-        :raises mlrun.errors.MLRunRuntimeError: If the request to Oris fails.
+        :raises mlrun.errors.MLRunRuntimeError: If the request to Oris fails or carries no version.
         """
-
-        def _get_oris_version():
-            system_info = self._client.get_system_info()
-            return system_info.metadata.version.oris_version
-
-        return self._try_callback_with_httpx_exceptions(
-            _get_oris_version,
-            mlrun.errors.MLRunRuntimeError,
-            "Failed to get Oris version from its system-info API",
+        failure_message = "Failed to get Oris version from its system-info API"
+        response = self._send_orca_request(
+            method=mlrun.common.types.HTTPMethod.GET,
+            path="info/system",
+            failure_message=failure_message,
+            default_error_class=mlrun.errors.MLRunRuntimeError,
+            use_service_account=True,
+        )
+        return self._read_response_field(
+            response=response,
+            field="metadata.version.orisVersion",
+            failure_message=failure_message,
+            default_error_class=mlrun.errors.MLRunRuntimeError,
         )
 
     def get_user_id_by_username(
@@ -220,19 +199,23 @@ class Client(BaseClient, project_leader.Member):
         The admin provides a username, but K8s secrets are indexed by user_id.
 
         :param username: The username to translate to user_id.
-        :param request_headers: Request headers for authentication with the Iguazio API.
+        :param auth_info: The caller's auth info, whose request headers are relayed as the identity of the request.
         :return: The user_id corresponding to the username.
         :raises mlrun.errors.MLRunUnauthorizedError: If the request fails or the user is not found.
         """
-
-        def _get_user_id():
-            return self._client.get_user(username).metadata.id
-
-        return self._try_callback_with_httpx_exceptions(
-            _get_user_id,
-            mlrun.errors.MLRunUnauthorizedError,
-            f"Failed to get user id of '{username}' from Iguazio",
-            auth_headers=auth_info.request_headers,
+        failure_message = f"Failed to get user id of '{username}' from Iguazio"
+        response = self._send_orca_request(
+            method=mlrun.common.types.HTTPMethod.GET,
+            path=f"profile/users/{username}",
+            failure_message=failure_message,
+            default_error_class=mlrun.errors.MLRunUnauthorizedError,
+            request_headers=auth_info.request_headers,
+        )
+        return self._read_response_field(
+            response=response,
+            field="metadata.id",
+            failure_message=failure_message,
+            default_error_class=mlrun.errors.MLRunUnauthorizedError,
         )
 
     def resolve_token_from_igz_yml(
@@ -242,10 +225,10 @@ class Client(BaseClient, project_leader.Member):
         token_name: str | None = None,
     ) -> str:
         """
-        Use the iguazio SDK to resolve/validate a token from igz.yml content.
+        Resolve a token from igz.yml content and validate it against Orca.
 
-        Creates a temporary file with the provided YAML content and uses the
-        Iguazio SDK's token file resolution to find and validate the token.
+        With a token name, that token is selected. Without one, the token named "default" is selected,
+        else the first token. Only the selected token is validated, by refreshing it.
 
         :param igz_yml_content: YAML content with tokens in igz.yml format.
         :param user_id: The user_id for error messages.
@@ -253,51 +236,28 @@ class Client(BaseClient, project_leader.Member):
         :return: The resolved token name.
         :raises MLRunNotFoundError: If no valid token found or validation fails.
         """
-
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".yml", delete=True
-        ) as temp_file:
-            temp_file.write(igz_yml_content)
-            temp_file.flush()
-
-            try:
-                # Create a separate client configured for token file resolution
-                token_file_client = iguazio.Client(
-                    api_url=self._api_url,
-                    auto_login=False,
-                    use_token_file=True,
-                    token_file_path=temp_file.name,
-                    token_name=token_name,
-                    verify_ssl=mlrun.mlconf.iguazio_api_ssl_verify,
-                    logger=clients_helpers.iguazio_sdk_logger(self._logger),
-                )
-                result = token_file_client.get_refresh_token()
-                if not result or not result[0]:
-                    self._logger.warning(
-                        "No valid tokens found for user", user_id=user_id
-                    )
-                    raise mlrun.errors.MLRunNotFoundError(
-                        "No valid tokens found for user"
-                    )
-                resolved_name, _ = result
-                return resolved_name
-
-            except ValueError as exc:
-                # Token not found, empty, or failed validation
-                self._logger.warning(
-                    "Token not found or invalid for user",
-                    token_name=token_name,
-                    user_id=user_id,
-                )
-                raise mlrun.errors.MLRunNotFoundError(
-                    f"Token '{token_name}' not found or invalid for user"
-                ) from exc
-            except RuntimeError as exc:
-                # No valid tokens found after trying all
-                self._logger.warning("No valid tokens found for user", user_id=user_id)
-                raise mlrun.errors.MLRunNotFoundError(
-                    "No valid tokens found for user"
-                ) from exc
+        secret_tokens = (yaml.safe_load(igz_yml_content) or {}).get(
+            "secretTokens"
+        ) or []
+        resolved_name, token_value = self._select_igz_yml_token(
+            secret_tokens=secret_tokens, token_name=token_name, user_id=user_id
+        )
+        try:
+            # Validation is unauthenticated: the refresh token itself is the credential
+            self._send_orca_request(
+                method=mlrun.common.types.HTTPMethod.POST,
+                path="authentication/refresh-access-token",
+                failure_message="Failed to validate token",
+                default_error_class=mlrun.errors.MLRunNotFoundError,
+                json_body={"refreshToken": token_value},
+            )
+        except mlrun.errors.MLRunBaseError as exc:
+            # Any failure, including Orca being unreachable, counts as an invalid token
+            self._logger.warning("No valid tokens found for user", user_id=user_id)
+            raise mlrun.errors.MLRunNotFoundError(
+                "No valid tokens found for user"
+            ) from exc
+        return resolved_name
 
     def create_project(
         self,
@@ -635,6 +595,134 @@ class Client(BaseClient, project_leader.Member):
             )
         return error_message, ctx
 
+    def _send_orca_request(
+        self,
+        method: str,
+        path: str,
+        failure_message: str,
+        default_error_class: type[Exception],
+        request_headers: dict[str, str] | None = None,
+        use_service_account: bool = False,
+        json_body: dict | None = None,
+        handled_error_statuses: tuple[int, ...] = (),
+    ) -> httpx.Response:
+        """
+        Send a request to Orca's /api/v1 API with an explicit identity.
+
+        :param method: HTTP method.
+        :param path: Path under /api/v1.
+        :param failure_message: Message of the raised error.
+        :param default_error_class: Raised on a transport failure, or on an error status with no
+            matching class in ``mlrun.errors.STATUS_ERRORS``.
+        :param request_headers: The caller's headers, relayed as-is as the identity of the request.
+            Nothing is added when they carry no Authorization header.
+        :param use_service_account: Authenticate as the service account instead of the caller.
+        :param json_body: JSON body of the request.
+        :param handled_error_statuses: Error statuses the caller expects and handles; they still
+            raise, but are logged at debug level.
+        :return: The response, for any 2xx status.
+        """
+        try:
+            if use_service_account:
+                headers = self._service_account_token_client.auth_headers
+            else:
+                headers = dict(request_headers or {})
+                headers.pop("content-length", None)
+            response = self._orca_http_client.request(
+                method,
+                f"{self._api_url}/api/v1/{path}",
+                headers=clients_helpers.enrich_headers(headers=headers),
+                json=json_body,
+            )
+        except (
+            httpx.HTTPError,
+            # the service-account token can't be read, or the cached one is malformed
+            OSError,
+            mlrun.errors.MLRunInvalidArgumentError,
+        ) as exc:
+            self._logger.warning(
+                "Request to Orca failed",
+                failure_message=failure_message,
+                path=path,
+                exc=mlrun.errors.err_to_str(exc),
+            )
+            raise default_error_class(failure_message) from exc
+
+        if not response.is_success:
+            error_message, ctx = self._extract_response_error(response)
+            log = (
+                self._logger.debug
+                if response.status_code in handled_error_statuses
+                else self._logger.warning
+            )
+            log(
+                "Request to Orca failed",
+                failure_message=failure_message,
+                path=path,
+                status_code=response.status_code,
+                error_message=error_message,
+                ctx=ctx,
+            )
+            error_class = mlrun.errors.STATUS_ERRORS.get(
+                response.status_code, default_error_class
+            )
+            raise error_class(f"{failure_message}: {error_message}, ctx={ctx}")
+        return response
+
+    def _read_response_field(
+        self,
+        response: httpx.Response,
+        field: str,
+        failure_message: str,
+        default_error_class: type[Exception],
+    ) -> str:
+        try:
+            value = get_in(response.json(), field)
+        except ValueError:
+            value = None
+        if not value or not isinstance(value, str):
+            self._logger.warning(
+                "Orca response is missing a field", field=field, path=response.url.path
+            )
+            raise default_error_class(failure_message)
+        return value
+
+    def _select_igz_yml_token(
+        self,
+        secret_tokens: list[dict],
+        token_name: str | None,
+        user_id: str,
+    ) -> tuple[str, str]:
+        if token_name:
+            entry = next(
+                (token for token in secret_tokens if token.get("name") == token_name),
+                None,
+            )
+            if not entry or not entry.get("token"):
+                self._logger.warning(
+                    "Token not found or invalid for user",
+                    token_name=token_name,
+                    user_id=user_id,
+                )
+                raise mlrun.errors.MLRunNotFoundError(
+                    f"Token '{token_name}' not found or invalid for user"
+                )
+            return token_name, entry["token"]
+
+        default_entries = [
+            token for token in secret_tokens if token.get("name") == "default"
+        ]
+        # Several "default" entries are ambiguous, so none of them is selected
+        entry = None
+        if len(default_entries) == 1:
+            entry = default_entries[0]
+        elif not default_entries and secret_tokens:
+            entry = secret_tokens[0]
+        if not entry or not entry.get("name") or not entry.get("token"):
+            self._logger.warning("No valid tokens found for user", user_id=user_id)
+            raise mlrun.errors.MLRunNotFoundError("No valid tokens found for user")
+        return entry["name"], entry["token"]
+
     def _generate_auth_info_from_session_verification_response(
         self,
         response_headers: typing.Mapping[str, typing.Any],
@@ -675,41 +763,6 @@ class Client(BaseClient, project_leader.Member):
             raise mlrun.errors.MLRunUnauthorizedError(
                 "Request must include either an Authorization header or _oauth2_proxy cookie"
             )
-
-    def _try_callback_with_httpx_exceptions(
-        self,
-        callback: typing.Callable[..., typing.Any],
-        exception_type: type[Exception],
-        failure_message: str,
-        auth_headers: dict[str, str] | None = None,
-    ) -> typing.Any:
-        try:
-            headers = auth_headers or self._service_account_token_client.auth_headers
-            # Inject auth headers and context id to headers for logging correlation
-            with self._client.with_headers(
-                clients_helpers.enrich_headers(headers=headers)
-            ):
-                return callback()
-        except httpx.HTTPStatusError as exc:
-            error_message, ctx = self._extract_response_error(exc.response)
-            self._logger.warning(
-                failure_message,
-                status_code=exc.response.status_code,
-                error_message=error_message,
-                ctx=ctx,
-                exc=mlrun.errors.err_to_str(exc),
-            )
-            full_message = f"{failure_message}: {error_message}, ctx={ctx}"
-            error_cls = mlrun.errors.STATUS_ERRORS.get(
-                exc.response.status_code, exception_type
-            )
-            raise error_cls(full_message) from exc
-        except Exception as exc:
-            self._logger.warning(
-                f"{failure_message} (unexpected error)",
-                exc=mlrun.errors.err_to_str(exc),
-            )
-            raise exception_type(failure_message) from exc
 
     def _extract_ctx(self, response_body: dict) -> str | None:
         # Also used for the Orca project calls via _send_project_request/_send_request_to_api.
@@ -769,7 +822,7 @@ class FollowerClient(Client, project_follower.Member):
     Iguazio as a project follower, used when MLRun is the projects leader (the "igz" follower):
     keeps the project's default policies in Iguazio in sync with MLRun's projects.
 
-    Subclasses the Orca-leader ``Client`` only to reuse its SDK client and error handling - it is not
+    Subclasses the Orca-leader ``Client`` only to reuse its Orca request handling - it is not
     a usable leader member.
     """
 
@@ -780,21 +833,17 @@ class FollowerClient(Client, project_follower.Member):
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ):
         self._logger.debug("Creating default project policies in Iguazio")
-
-        def _create_default_project_policies():
-            # Iguazio takes the project owner from the caller's identity, so this relays the
-            # incoming request's auth headers rather than using the service account token.
-            self._client.create_default_project_policies(project=project.metadata.name)
-            self._logger.info(
-                "Successfully created default project policies in Iguazio"
-            )
-
-        self._try_callback_with_httpx_exceptions(
-            _create_default_project_policies,
-            mlrun.errors.MLRunInternalServerError,
+        # Iguazio takes the project owner from the caller's identity, so this relays the
+        # incoming request's auth headers rather than using the service account token.
+        self._send_orca_request(
+            "POST",
+            "authorization/projects/policies",
             "Failed to create default project policies in Iguazio",
-            auth_headers=auth_info.request_headers,
+            mlrun.errors.MLRunInternalServerError,
+            request_headers=auth_info.request_headers,
+            json_body={"project": project.metadata.name},
         )
+        self._logger.info("Successfully created default project policies in Iguazio")
 
     def store_project(
         self,
@@ -807,31 +856,25 @@ class FollowerClient(Client, project_follower.Member):
             "Ensuring default project policies exist in Iguazio", project=name
         )
 
-        def _create_policies_if_not_exist():
-            try:
-                self._client.create_default_project_policies(project=name)
-                self._logger.info(
-                    "Successfully created default project policies in Iguazio",
-                    project=name,
-                )
-            except httpx.HTTPStatusError as exc:
-                if exc.response.status_code == httpx.codes.CONFLICT:
-                    # Conflict means policies already exist, which is expected when storing
-                    # an existing project (e.g., load_project, sync, or re-save).
-                    # We use "create and handle conflict" instead of "check then create"
-                    # because checking a non-existent project returns 401, not 404.
-                    self._logger.debug(
-                        "Project policies already exist, skipping", project=name
-                    )
-                else:
-                    # Unexpected error, re-raise
-                    raise
-
-        self._try_callback_with_httpx_exceptions(
-            _create_policies_if_not_exist,
-            mlrun.errors.MLRunInternalServerError,
-            "Failed to store project policies in Iguazio",
-            auth_headers=auth_info.request_headers,
+        try:
+            self._send_orca_request(
+                "POST",
+                "authorization/projects/policies",
+                "Failed to store project policies in Iguazio",
+                mlrun.errors.MLRunInternalServerError,
+                request_headers=auth_info.request_headers,
+                json_body={"project": name},
+                handled_error_statuses=(httpx.codes.CONFLICT,),
+            )
+        except mlrun.errors.MLRunConflictError:
+            # Conflict means policies already exist, which is expected when storing
+            # an existing project (e.g., load_project, sync, or re-save).
+            # We use "create and handle conflict" instead of "check then create"
+            # because checking a non-existent project returns 401, not 404.
+            self._logger.debug("Project policies already exist, skipping", project=name)
+            return
+        self._logger.info(
+            "Successfully created default project policies in Iguazio", project=name
         )
 
     def patch_project(
@@ -843,23 +886,20 @@ class FollowerClient(Client, project_follower.Member):
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ):
         self._logger.debug("Updating project owner in Iguazio")
+        owner = project.get("spec", {}).get("owner")
+        if not owner:
+            # No owner to update, nothing to do
+            return
 
-        def _update_project_owner():
-            owner = project.get("spec", {}).get("owner")
-            if not owner:
-                # No owner to update, nothing to do
-                return
-
-            options = UpdateProjectOwnerOptionsV1(owner=owner)
-            self._client.update_project_owner(project=name, options=options)
-            self._logger.info("Successfully updated project owner in Iguazio")
-
-        self._try_callback_with_httpx_exceptions(
-            _update_project_owner,
-            mlrun.errors.MLRunInternalServerError,
+        self._send_orca_request(
+            "PUT",
+            f"authorization/projects/{name}/owner",
             "Failed to update project owner in Iguazio",
-            auth_headers=auth_info.request_headers,
+            mlrun.errors.MLRunInternalServerError,
+            request_headers=auth_info.request_headers,
+            json_body={"owner": owner},
         )
+        self._logger.info("Successfully updated project owner in Iguazio")
 
     def delete_project(
         self,
@@ -872,16 +912,14 @@ class FollowerClient(Client, project_follower.Member):
             return
 
         self._logger.debug("Deleting project policies in Iguazio")
-
-        def _delete_project_policies():
-            self._client.delete_project_policies(project=name)
-            self._logger.info("Successfully deleted project policies in Iguazio")
-
-        self._try_callback_with_httpx_exceptions(
-            _delete_project_policies,
-            mlrun.errors.MLRunInternalServerError,
+        self._send_orca_request(
+            "DELETE",
+            f"authorization/projects/{name}/policies",
             "Failed to delete project policies in Iguazio",
+            mlrun.errors.MLRunInternalServerError,
+            use_service_account=True,
         )
+        self._logger.info("Successfully deleted project policies in Iguazio")
 
     def get_project(
         self,
@@ -938,7 +976,7 @@ class AsyncClient(BaseAsyncClient, Client):
 # since this is a heavy operation (sending requests to API), and it's unlikely that the version
 # will change - only fetch it once
 def resolve_oris_version() -> str:
-    if not config.oris_version and config.iguazio_api_url:
+    if not config.oris_version and config.orca_api_url:
         try:
             config.oris_version = Client().get_oris_version()
         except Exception as exc:

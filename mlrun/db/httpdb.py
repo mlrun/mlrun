@@ -698,10 +698,21 @@ class HTTPRunDB(RunDBInterface):
                         prefix,
                         store_prefix_value,
                     )
-            config.httpdb.authentication.mode = (
-                server_cfg.get("authentication_mode")
-                or config.httpdb.authentication.mode
-            )
+            # the server may still send the deprecated "iguazio-v4" value to support older clients. That is the
+            # server's remap and not a user setting, so it is read as "orca" without a warning. A locally
+            # configured "iguazio-v4" does warn.
+            # TODO: Remove "iguazio-v4" in 1.16.0
+            if server_mode := server_cfg.get("authentication_mode"):
+                mode = mlrun.config.resolve_deprecated_authentication_mode(
+                    server_mode, warn=False
+                )
+            else:
+                mode = mlrun.config.resolve_deprecated_authentication_mode(
+                    config.httpdb.authentication.mode
+                )
+            config.httpdb.authentication.mode = mode
+            # the mode is only known now, so shared deprecated keys that were skipped at load can warn
+            config.warn_on_deprecated_keys()
             config.httpdb.projects.leader = (
                 server_cfg.get("projects_leader") or config.httpdb.projects.leader
             )
@@ -712,10 +723,7 @@ class HTTPRunDB(RunDBInterface):
             )
 
             # Iguazio V4 OAuth token config auto-initialization
-            if (
-                config.httpdb.authentication.mode
-                == mlrun.common.types.AuthenticationMode.IGUAZIO_V4.value
-            ):
+            if config.is_iguazio_v4_mode():
                 if not config.auth_with_oauth_token.token_file:
                     # runtimes
                     if mlrun.utils.helpers.is_running_in_runtime():
@@ -3580,7 +3588,7 @@ class HTTPRunDB(RunDBInterface):
         """
         if not (
             mlrun.mlconf.is_iguazio_v4_mode()
-            and mlrun.mlconf.iguazio_api_url
+            and mlrun.mlconf.orca_api_url
             and mlrun.mlconf.httpdb.projects.leader == "orca"
         ):
             return None

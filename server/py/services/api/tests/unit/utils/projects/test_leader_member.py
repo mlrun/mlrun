@@ -590,9 +590,8 @@ def test_initialize_igz_follower(
     monkeypatch: pytest.MonkeyPatch,
     projects_leader: framework.utils.projects.leader.Member,
 ):
-    monkeypatch.setattr(mlrun.mlconf, "iguazio_api_url", "http://iguazio-api-url:8080")
-    with unittest.mock.patch("framework.utils.clients.iguazio.v4.iguazio.Client"):
-        follower = projects_leader._initialize_follower("igz")
+    monkeypatch.setattr(mlrun.mlconf, "orca_api_url", "http://iguazio-api-url:8080")
+    follower = projects_leader._initialize_follower("igz")
     assert isinstance(follower, framework.utils.clients.iguazio.v4.FollowerClient)
 
 

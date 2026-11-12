@@ -44,6 +44,10 @@ class BaseClient(ABC, metaclass=mlrun.utils.singleton.AbstractSingleton):
         return mlrun.mlconf.iguazio_api_url
 
     @property
+    def _api_ssl_verify(self) -> bool:
+        return mlrun.mlconf.iguazio_api_ssl_verify
+
+    @property
     def _session_verification_endpoint(self) -> str:
         return mlrun.mlconf.httpdb.authentication.iguazio.session_verification_endpoint
 
@@ -82,7 +86,7 @@ class BaseClient(ABC, metaclass=mlrun.utils.singleton.AbstractSingleton):
         if retry_on_post and self._retry_on_post_session:
             http_session = self._retry_on_post_session
         response = http_session.request(
-            method, url, verify=mlrun.mlconf.iguazio_api_ssl_verify, **kwargs
+            method, url, verify=self._api_ssl_verify, **kwargs
         )
         if not response.ok:
             try:
@@ -245,7 +249,7 @@ class BaseAsyncClient(BaseClient):
             response = await async_session.request(
                 method,
                 url,
-                verify_ssl=mlrun.mlconf.iguazio_api_ssl_verify,
+                verify_ssl=self._api_ssl_verify,
                 retry_options=retry_options,
                 **kwargs,
             )

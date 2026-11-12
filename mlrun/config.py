@@ -24,6 +24,7 @@ mapped to config.httpdb.port. Values should be in JSON format.
 import base64
 import binascii
 import copy
+import dataclasses
 import json
 import os
 import typing
@@ -95,9 +96,13 @@ default_config = {
     "dask_kfp_image": "mlrun/mlrun",  # image to use for dask KFP runner
     "igz_version": "",  # the version of the iguazio system the API is running on
     "oris_version": "",  # resolved lazily from Oris's own info API, see resolve_oris_version()
+    # TODO: Remove in 1.16.0 - deprecated in 1.14.0, use the orca_* keys instead (still read by IG3)
     "iguazio_api_url": "",  # the url to iguazio api (internal / external access with priority to internal)
     "iguazio_api_url_ingress": "",  # the url to iguazio api ingress (for external access)
     "iguazio_api_ssl_verify": True,  # verify ssl certificate of iguazio api
+    "orca_api_url": "",  # the url to orca api (internal / external access with priority to internal)
+    "orca_api_url_ingress": "",  # the url to orca api ingress (for external access)
+    "orca_api_ssl_verify": True,  # verify ssl certificate of orca api
     "spark_app_image": "",  # image to use for spark operator app runtime
     "spark_app_image_tag": "",  # image tag to use for spark operator app runtime
     "spark_history_server_path": "",  # spark logs directory for spark history server
@@ -454,10 +459,21 @@ default_config = {
             "allow_local_run": False,
         },
         "authentication": {
-            "mode": "none",  # one of none, basic, bearer, iguazio, iguazio-v4
+            # one of none, basic, bearer, iguazio, orca. "iguazio-v4" is a deprecated alias of "orca"
+            "mode": "none",
             "basic": {"username": "", "password": ""},
             "bearer": {"token": ""},
+            # IG3 settings. The IG4 (orca) code reads the "orca" section below instead. The keys of this section
+            # that IG4 used to read are deprecated aliases of their "orca" counterparts
             "iguazio": {
+                "session_verification_endpoint": "data_sessions/verifications/app_service",
+                "authentication_endpoint": "api/v1/authentication/refresh-access-token",
+                "token_cache": {
+                    "max_size": 128,
+                    "ttl_seconds": 30,
+                },
+            },
+            "orca": {
                 "session_verification_endpoint": "data_sessions/verifications/app_service",
                 "authentication_endpoint": "api/v1/authentication/refresh-access-token",
                 "token_cache": {
@@ -565,9 +581,13 @@ default_config = {
             # when the leader is orca, how often to poll GET /api/v1/trackable-actions/executions while waiting
             # for an operation (create/update/delete) to reach a terminal state, and how long to wait before
             # giving up
+            "orca_project_states_poll_interval": "2 seconds",
+            "orca_project_states_poll_timeout": "300 seconds",
+            # when the leader is orca, the SDK's own per-request timeout for talking to Orca directly
+            "orca_request_timeout": "20 seconds",
+            # TODO: Remove in 1.16.0 - deprecated in 1.14.0, use the orca_* counterparts above
             "iguazio_project_states_poll_interval": "2 seconds",
             "iguazio_project_states_poll_timeout": "300 seconds",
-            # when the leader is orca, the SDK's own per-request timeout for talking to Orca directly
             "iguazio_request_timeout": "20 seconds",
             "summaries": {
                 # Number of days back to include when calculating the project pipeline summary.
@@ -1612,10 +1632,48 @@ class Config:
         )
 
     def is_iguazio_v4_mode(self):
-        return (
-            config.httpdb.authentication.mode
-            == mlrun.common.types.AuthenticationMode.IGUAZIO_V4
+        # "iguazio-v4" is the deprecated name of "orca". Load time and connect() normalize it, but the mode can also
+        # be assigned programmatically afterwards, so both values are accepted here
+        # TODO: Remove "iguazio-v4" in 1.16.0
+        return config.httpdb.authentication.mode in (
+            mlrun.common.types.AuthenticationMode.ORCA,
+            mlrun.common.types.AuthenticationMode.IGUAZIO_V4,
         )
+
+    @staticmethod
+    def warn_on_deprecated_keys():
+        """
+        Warn (once per key per config load) about the deprecated IG4 config keys that were provided.
+
+        Keys only IG4 reads always warn. Keys IG3 also reads warn only in IG4 mode: the server knows its mode at
+        load, but clients learn it from the client spec, so this is called again after ``HTTPRunDB.connect()``
+        syncs the mode.
+        """
+        # TODO: Remove in 1.16.0
+        # imported lazily: this runs while mlrun.config is being imported, before mlrun.utils can be
+        import mlrun.utils
+
+        for alias in _DEPRECATED_KEY_ALIASES:
+            if alias.old not in _provided_deprecated_keys:
+                continue
+            if alias.old in _warned_deprecated_keys:
+                continue
+            if alias.shared and not config.is_iguazio_v4_mode():
+                continue
+            _warned_deprecated_keys.add(alias.old)
+            old_name, new_name = alias.old_env_name, alias.new_env_name
+            mlrun.utils.logger.warning(
+                "Deprecated config key is set",
+                deprecated_key=old_name,
+                replacement=new_name,
+                deprecated_in="1.14.0",
+                removal_version="1.16.0",
+            )
+            warnings.warn(
+                f"'{old_name}' is deprecated in 1.14.0 and will be removed in 1.16.0, use '{new_name}' instead.",
+                FutureWarning,
+                stacklevel=2,
+            )
 
     def is_using_v3io(self) -> bool:
         return not self.is_iguazio_v4_mode() and not self.is_ce_mode()
@@ -1675,18 +1733,32 @@ def _do_populate(env=None, skip_errors=False, skip_env_file=False):
     else:
         config.update(default_config)
     config_path = os.environ.get(env_file_key)
+    file_data = {}
     if config_path:
         with open(config_path) as fp:
-            data = yaml.safe_load(fp)
+            file_data = yaml.safe_load(fp)
 
-        if not isinstance(data, dict):
+        if not isinstance(file_data, dict):
             raise TypeError(f"configuration in {config_path} not a dict")
 
-        config.update(data, skip_errors=skip_errors)
+    env_data = read_env(env)
 
-    data = read_env(env)
-    if data:
-        config.update(data, skip_errors=skip_errors)
+    # TODO: Remove in 1.16.0
+    _provided_deprecated_keys.clear()
+    _warned_deprecated_keys.clear()
+    _provided_deprecated_keys.update(
+        _resolve_deprecated_key_aliases(file_data, env_data)
+    )
+
+    if file_data:
+        config.update(file_data, skip_errors=skip_errors)
+    if env_data:
+        config.update(env_data, skip_errors=skip_errors)
+
+    config.httpdb.authentication.mode = resolve_deprecated_authentication_mode(
+        config.httpdb.authentication.mode
+    )
+    config.warn_on_deprecated_keys()
 
     _configure_ssl_verification(config.httpdb.http.verify)
     _validate_config(config)
@@ -1863,6 +1935,169 @@ def read_env(env=None, prefix=env_prefix):
             config = {"httpdb": httpdb, **config}
 
     return config
+
+
+def resolve_deprecated_authentication_mode(mode: str, *, warn: bool = True) -> str:
+    """
+    Resolve the deprecated "iguazio-v4" authentication mode to its replacement, "orca".
+
+    :param mode: the authentication mode
+    :param warn: whether to warn (once per config load) when the deprecated value is resolved. Pass False when the
+                 value comes from the server and not from the user's own configuration.
+    :return:     "orca" for "iguazio-v4", any other mode unchanged
+    """
+    # TODO: Remove in 1.16.0
+    # imported lazily: this runs while mlrun.config is being imported, before mlrun.utils can be
+    import mlrun.utils
+
+    if mode != mlrun.common.types.AuthenticationMode.IGUAZIO_V4:
+        return mode
+
+    if warn and _AUTHENTICATION_MODE_KEY not in _warned_deprecated_keys:
+        _warned_deprecated_keys.add(_AUTHENTICATION_MODE_KEY)
+        old, new = (
+            mlrun.common.types.AuthenticationMode.IGUAZIO_V4,
+            mlrun.common.types.AuthenticationMode.ORCA,
+        )
+        mlrun.utils.logger.warning(
+            "Deprecated authentication mode is set",
+            deprecated_mode=old,
+            replacement=new,
+            deprecated_in="1.14.0",
+            removal_version="1.16.0",
+        )
+        warnings.warn(
+            f"'{old}' (httpdb.authentication.mode) is deprecated in 1.14.0 and will be removed in 1.16.0, "
+            f"use '{new}' instead.",
+            FutureWarning,
+            stacklevel=2,
+        )
+    return mlrun.common.types.AuthenticationMode.ORCA
+
+
+# TODO: Remove in 1.16.0
+@dataclasses.dataclass(frozen=True)
+class _DeprecatedKeyAlias:
+    """
+    A config key deprecated in 1.14.0 in favor of an orca_* key.
+
+    :param old:     dotted path of the deprecated key
+    :param new:     dotted path of the key that replaces it
+    :param shared:  whether IG3 also reads the old key. Shared keys stay valid for IG3 and warn only in IG4 mode
+    """
+
+    old: str
+    new: str
+    shared: bool = False
+
+    @property
+    def old_env_name(self) -> str:
+        return _env_name(self.old)
+
+    @property
+    def new_env_name(self) -> str:
+        return _env_name(self.new)
+
+
+# TODO: Remove in 1.16.0
+_DEPRECATED_KEY_ALIASES = (
+    _DeprecatedKeyAlias("iguazio_api_url", "orca_api_url", shared=True),
+    _DeprecatedKeyAlias("iguazio_api_url_ingress", "orca_api_url_ingress"),
+    _DeprecatedKeyAlias("iguazio_api_ssl_verify", "orca_api_ssl_verify", shared=True),
+    _DeprecatedKeyAlias(
+        "httpdb.authentication.iguazio.session_verification_endpoint",
+        "httpdb.authentication.orca.session_verification_endpoint",
+        shared=True,
+    ),
+    _DeprecatedKeyAlias(
+        "httpdb.authentication.iguazio.authentication_endpoint",
+        "httpdb.authentication.orca.authentication_endpoint",
+    ),
+    _DeprecatedKeyAlias(
+        "httpdb.authentication.iguazio.token_cache.max_size",
+        "httpdb.authentication.orca.token_cache.max_size",
+        shared=True,
+    ),
+    _DeprecatedKeyAlias(
+        "httpdb.authentication.iguazio.token_cache.ttl_seconds",
+        "httpdb.authentication.orca.token_cache.ttl_seconds",
+        shared=True,
+    ),
+    _DeprecatedKeyAlias(
+        "httpdb.projects.iguazio_project_states_poll_interval",
+        "httpdb.projects.orca_project_states_poll_interval",
+    ),
+    _DeprecatedKeyAlias(
+        "httpdb.projects.iguazio_project_states_poll_timeout",
+        "httpdb.projects.orca_project_states_poll_timeout",
+    ),
+    _DeprecatedKeyAlias(
+        "httpdb.projects.iguazio_request_timeout",
+        "httpdb.projects.orca_request_timeout",
+    ),
+)
+
+# the deprecated keys that were provided (by the config file or the environment) in the current config load, and the
+# ones already warned about
+_provided_deprecated_keys: set[str] = set()
+_warned_deprecated_keys: set[str] = set()
+_AUTHENTICATION_MODE_KEY = "httpdb.authentication.mode"
+
+
+def _resolve_deprecated_key_aliases(*sources: dict) -> set[str]:
+    """
+    Copy every deprecated key that was provided to its replacement, unless the replacement was provided as well,
+    in which case the replacement wins.
+
+    Works on the raw provided values (config file, environment), not on the loaded config, so a deprecated key
+    that merely holds its default is never mistaken for user input.
+
+    A replacement provided by any source wins over a deprecated key provided by any source, even a later one (an env
+    var). Only values provided while the config loads are aliased: assigning a deprecated key afterwards
+    (``mlrun.mlconf.iguazio_api_url = ...``) is not seen by the IG4 code.
+
+    :param sources: raw nested config dicts, in the order they are applied (later ones take precedence).
+                    Modified in place.
+    :return:        the dotted paths of the deprecated keys that were provided
+    """
+    provided = set()
+    for alias in _DEPRECATED_KEY_ALIASES:
+        old_path, new_path = alias.old.split("."), alias.new.split(".")
+        old_sources = [s for s in sources if _has_nested_key(s, old_path)]
+        if not old_sources:
+            continue
+        provided.add(alias.old)
+        if any(_has_nested_key(s, new_path) for s in sources):
+            continue
+        _set_nested_key(
+            old_sources[-1], new_path, _get_nested_key(old_sources[-1], old_path)
+        )
+    return provided
+
+
+def _env_name(dotted_path: str) -> str:
+    return env_prefix + dotted_path.upper().replace(".", "__")
+
+
+def _has_nested_key(data: dict, path: list[str]) -> bool:
+    for name in path:
+        if not isinstance(data, dict) or name not in data:
+            return False
+        data = data[name]
+    return True
+
+
+def _get_nested_key(data: dict, path: list[str]):
+    for name in path:
+        data = data[name]
+    return data
+
+
+def _set_nested_key(data: dict, path: list[str], value) -> None:
+    *parents, leaf = path
+    for name in parents:
+        data = data.setdefault(name, {})
+    data[leaf] = value
 
 
 # populate config, skip errors when setting the config attributes and issue warnings instead

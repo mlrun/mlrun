@@ -42,7 +42,7 @@ def _mlrun_project(name: str, owner: str | None = None) -> mlrun.projects.MlrunP
 
 @pytest.fixture
 def orca_client() -> mlrun.db.orca.OrcaProjectsClient:
-    mlrun.mlconf.iguazio_api_url = ORCA_API_URL
+    mlrun.mlconf.orca_api_url = ORCA_API_URL
     db = mlrun.db.httpdb.HTTPRunDB("https://fake-mlrun-url")
     client = mlrun.db.orca.OrcaProjectsClient(db)
     # keep polling fast in tests
@@ -574,7 +574,7 @@ class TestOrcaProjectsClient:
         assert "still in" in str(exc_info.value)
 
     def test_send_request_uses_configured_timeout(self, requests_mock, orca_client):
-        mlrun.mlconf.httpdb.projects.iguazio_request_timeout = "5 seconds"
+        mlrun.mlconf.httpdb.projects.orca_request_timeout = "5 seconds"
         requests_mock.get(
             f"{ORCA_API_URL}/api/v1/projects/projects/p10",
             json=_project_wire_body("p10", str(uuid.uuid4()), "online"),
@@ -606,7 +606,7 @@ class TestHTTPRunDBOrcaGate:
 
     def test_ce_mode_falls_through_to_api_call(self, db):
         mlrun.mlconf.httpdb.authentication.mode = "none"
-        mlrun.mlconf.iguazio_api_url = ""
+        mlrun.mlconf.orca_api_url = ""
         mlrun.mlconf.httpdb.projects.leader = "mlrun"
         assert db._resolve_projects_client() is None
 
@@ -620,17 +620,17 @@ class TestHTTPRunDBOrcaGate:
 
     def test_resolve_projects_client_without_configured_url_falls_through(self, db):
         mlrun.mlconf.httpdb.authentication.mode = "iguazio-v4"
-        mlrun.mlconf.iguazio_api_url = ""
+        mlrun.mlconf.orca_api_url = ""
         mlrun.mlconf.httpdb.projects.leader = "orca"
         assert db._resolve_projects_client() is None
 
     def test_resolve_projects_client_requires_leader_orca(self, db):
-        # is_iguazio_v4_mode()/iguazio_api_url alone aren't enough - both are also true for a
+        # is_iguazio_v4_mode()/orca_api_url alone aren't enough - both are also true for a
         # v4-auth deployment that hasn't cut project-sync leadership over to Orca yet (they're
         # already used for e.g. oauth token endpoints regardless of leader). Only the server's
         # own httpdb.projects.leader, synced via connect()'s client-spec, can confirm that.
         mlrun.mlconf.httpdb.authentication.mode = "iguazio-v4"
-        mlrun.mlconf.iguazio_api_url = ORCA_API_URL
+        mlrun.mlconf.orca_api_url = ORCA_API_URL
         mlrun.mlconf.httpdb.projects.leader = "mlrun"
         assert db._resolve_projects_client() is None
 
@@ -646,7 +646,7 @@ class TestHTTPRunDBOrcaGate:
         self, db, method_name, args, orca_method_name, orca_args
     ):
         mlrun.mlconf.httpdb.authentication.mode = "iguazio-v4"
-        mlrun.mlconf.iguazio_api_url = ORCA_API_URL
+        mlrun.mlconf.orca_api_url = ORCA_API_URL
         mlrun.mlconf.httpdb.projects.leader = "orca"
         assert db._resolve_projects_client() is not None
 
@@ -676,7 +676,7 @@ class TestHTTPRunDBOrcaGate:
 
     def test_resolve_projects_client_patch_project_coerces_patch_mode(self, db):
         mlrun.mlconf.httpdb.authentication.mode = "iguazio-v4"
-        mlrun.mlconf.iguazio_api_url = ORCA_API_URL
+        mlrun.mlconf.orca_api_url = ORCA_API_URL
         mlrun.mlconf.httpdb.projects.leader = "orca"
 
         fake_client = unittest.mock.Mock()
@@ -694,7 +694,7 @@ class TestHTTPRunDBOrcaGate:
         # get_project is explicitly out of scope for this ticket (reads stay on the legacy
         # MLRun-API path) - it must not call _resolve_projects_client() at all.
         mlrun.mlconf.httpdb.authentication.mode = "iguazio-v4"
-        mlrun.mlconf.iguazio_api_url = ORCA_API_URL
+        mlrun.mlconf.orca_api_url = ORCA_API_URL
         mlrun.mlconf.httpdb.projects.leader = "orca"
 
         with unittest.mock.patch.object(db, "api_call") as mock_api_call:

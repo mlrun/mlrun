@@ -19,6 +19,7 @@ import yaml
 import mlrun
 import mlrun.common.constants
 import mlrun.common.schemas
+import mlrun.common.types
 import mlrun.errors
 from mlrun.common.schemas import ProjectOut, WorkflowSpec
 from mlrun.utils import logger
@@ -75,18 +76,32 @@ def resolve_client_default_kfp_image(
     return image
 
 
+def resolve_spec_authentication_mode(mode: str | None) -> str | None:
+    """
+    Resolve the authentication mode the server sends to MLRun clients and to the UI.
+
+    :param mode: the server's authentication mode
+    :return:     "iguazio-v4" for the "orca" mode, any other mode unchanged
+    """
+    # TODO: send "orca" once the oldest supported client is >= 1.14.0; older clients only enable the OAuth token
+    #  flow for "iguazio-v4"
+    if mode == mlrun.common.types.AuthenticationMode.ORCA:
+        return mlrun.common.types.AuthenticationMode.IGUAZIO_V4.value
+    return mode
+
+
 def resolve_auth_token_name(
     user_id: str,
     provided_token_name: str | None,
 ) -> str:
     """
-    Resolve the token name for a user using the Iguazio SDK.
+    Resolve the token name for a user and validate the token against Orca.
 
     :param username: The username for which the token is being resolved.
     :param provided_token_name: Specific token to validate, or None to resolve from existing user tokens.
     :return: The resolved token name.
     :raises MLRunBadRequestError: If the provided token is not found in K8s secrets, or no tokens exist for the user.
-    :raises MLRunNotFoundError: If the token exists in K8s but is revoked or otherwise invalid (iguazio SDK validation).
+    :raises MLRunNotFoundError: If the token exists in K8s but is revoked or otherwise invalid (validated against Orca).
     """
     k8s_helper = framework.utils.singletons.k8s.get_k8s_helper()
     secret_tokens = k8s_helper.get_user_secret_tokens_as_igz_yml_data(
@@ -105,8 +120,8 @@ def resolve_auth_token_secret_name(
     provided_token_name: str | None, user_id: str | None
 ) -> str | None:
     """
-    Resolve the name of the secret that holds the user's auth token. Performs enrichment and validation of the
-    token name using the iguazio SDK's token resolution logic.
+    Resolve the name of the secret that holds the user's auth token. Enriches the token name and
+    validates the token against Orca.
 
     :param provided_token_name: The name of the token provided by the user, if any.
     :param user_id: The user ID for which the token is being resolved.

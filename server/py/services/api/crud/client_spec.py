@@ -21,6 +21,7 @@ from mlrun.config import Config, config, default_config
 
 import framework.utils.runtimes.mpijob
 import framework.utils.runtimes.nuclio
+import services.api.utils.helpers
 
 
 class ClientSpec(
@@ -39,12 +40,12 @@ class ClientSpec(
         oauth_external_token_endpoint = None
         if config.is_iguazio_v4_mode():
             oauth_external_token_endpoint = os.path.join(
-                config.iguazio_api_url_ingress,
-                config.httpdb.authentication.iguazio.authentication_endpoint,
+                config.orca_api_url_ingress,
+                config.httpdb.authentication.orca.authentication_endpoint,
             )
             oauth_internal_token_endpoint = os.path.join(
-                config.iguazio_api_url,
-                config.httpdb.authentication.iguazio.authentication_endpoint,
+                config.orca_api_url,
+                config.httpdb.authentication.orca.authentication_endpoint,
             )
 
         return mlrun.common.schemas.ClientSpec(
@@ -137,8 +138,8 @@ class ClientSpec(
             model_endpoint_monitoring_store_prefixes=self._get_config_value_if_not_default(
                 "model_endpoint_monitoring.store_prefixes"
             ),
-            authentication_mode=self._get_config_value_if_not_default(
-                "httpdb.authentication.mode"
+            authentication_mode=services.api.utils.helpers.resolve_spec_authentication_mode(
+                self._get_config_value_if_not_default("httpdb.authentication.mode")
             ),
             projects_leader=self._get_config_value_if_not_default(
                 "httpdb.projects.leader"

@@ -3588,7 +3588,7 @@ class HTTPRunDB(RunDBInterface):
         """
         if not (
             mlrun.mlconf.is_iguazio_v4_mode()
-            and mlrun.mlconf.iguazio_api_url
+            and mlrun.mlconf.orca_api_url
             and mlrun.mlconf.httpdb.projects.leader == "orca"
         ):
             return None

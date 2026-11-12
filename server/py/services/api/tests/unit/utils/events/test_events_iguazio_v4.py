@@ -65,7 +65,7 @@ def service_account_token(monkeypatch):
 
 @pytest.fixture
 def orca(httpserver: pytest_httpserver.HTTPServer):
-    mlrun.mlconf.iguazio_api_url = httpserver.url_for("").rstrip("/")
+    mlrun.mlconf.orca_api_url = httpserver.url_for("").rstrip("/")
     yield httpserver
     httpserver.check_assertions()
 
@@ -75,7 +75,7 @@ def unreachable_orca():
     with socket.socket() as sock:
         sock.bind(("127.0.0.1", 0))
         port = sock.getsockname()[1]
-    mlrun.mlconf.iguazio_api_url = f"http://127.0.0.1:{port}"
+    mlrun.mlconf.orca_api_url = f"http://127.0.0.1:{port}"
 
 
 @pytest.fixture
@@ -777,7 +777,7 @@ def test_emit_accepts_non_error_2xx(orca, client, warning_log, status):
 
 @pytest.mark.parametrize("ssl_verify", [True, False])
 def test_emit_request_options(client, ssl_verify):
-    mlrun.mlconf.iguazio_api_ssl_verify = ssl_verify
+    mlrun.mlconf.orca_api_ssl_verify = ssl_verify
     with unittest.mock.patch.object(requests.Session, "post", autospec=True) as post:
         post.return_value.status_code = 201
         client.emit(

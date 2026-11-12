@@ -121,7 +121,7 @@ def service_account_token(monkeypatch):
 
 @pytest.fixture
 def orca(httpserver: pytest_httpserver.HTTPServer):
-    mlrun.mlconf.iguazio_api_url = httpserver.url_for("").rstrip("/")
+    mlrun.mlconf.orca_api_url = httpserver.url_for("").rstrip("/")
     yield httpserver
     httpserver.check_assertions()
 
@@ -131,7 +131,7 @@ def unreachable_orca():
     with socket.socket() as sock:
         sock.bind(("127.0.0.1", 0))
         port = sock.getsockname()[1]
-    mlrun.mlconf.iguazio_api_url = f"http://127.0.0.1:{port}"
+    mlrun.mlconf.orca_api_url = f"http://127.0.0.1:{port}"
 
 
 @pytest.fixture

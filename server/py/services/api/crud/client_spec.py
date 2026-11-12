@@ -40,12 +40,12 @@ class ClientSpec(
         oauth_external_token_endpoint = None
         if config.is_iguazio_v4_mode():
             oauth_external_token_endpoint = os.path.join(
-                config.iguazio_api_url_ingress,
-                config.httpdb.authentication.iguazio.authentication_endpoint,
+                config.orca_api_url_ingress,
+                config.httpdb.authentication.orca.authentication_endpoint,
             )
             oauth_internal_token_endpoint = os.path.join(
-                config.iguazio_api_url,
-                config.httpdb.authentication.iguazio.authentication_endpoint,
+                config.orca_api_url,
+                config.httpdb.authentication.orca.authentication_endpoint,
             )
 
         return mlrun.common.schemas.ClientSpec(

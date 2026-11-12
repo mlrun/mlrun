@@ -181,13 +181,13 @@ class Client(base_events.BaseEventClient):
                 entity_name=event["entityName"],
             )
             response = self._session.post(
-                f"{mlrun.mlconf.iguazio_api_url.rstrip('/')}{EVENTS_ACTIVATIONS_PATH}",
+                f"{mlrun.mlconf.orca_api_url.rstrip('/')}{EVENTS_ACTIVATIONS_PATH}",
                 json=event,
                 headers=clients_helpers.enrich_headers(
                     headers=self._service_account_token_client.auth_headers,
                 ),
                 timeout=EVENTS_REQUEST_TIMEOUT_SECONDS,
-                verify=mlrun.mlconf.iguazio_api_ssl_verify,
+                verify=mlrun.mlconf.orca_api_ssl_verify,
                 allow_redirects=False,
             )
             # Any non-error status counts as published

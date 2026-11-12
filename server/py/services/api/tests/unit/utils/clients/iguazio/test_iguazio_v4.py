@@ -1526,19 +1526,41 @@ def test_parse_auth_response_data(response_body, expected_result, expectation):
 
 
 @pytest.mark.parametrize("ssl_verify", [True, False])
-def test_orca_requests_transport(monkeypatch, ssl_verify):
-    transport_kwargs = []
-    http_transport = httpx.HTTPTransport
-
-    def record_transport(**kwargs):
-        transport_kwargs.append(kwargs)
-        return http_transport(**kwargs)
-
-    monkeypatch.setattr(httpx, "HTTPTransport", record_transport)
+def test_orca_requests_transport(ssl_verify):
+    api_url = "https://orca.example.com"
+    mlrun.mlconf.iguazio_api_url = api_url
     mlrun.mlconf.iguazio_api_ssl_verify = ssl_verify
-
     client = framework.utils.clients.iguazio.v4.Client()
 
     # Retries cover connection attempts only, so a request that reached Orca is never re-sent
-    assert {"verify": ssl_verify, "retries": 3} in transport_kwargs
-    assert client._orca_http_client.timeout == httpx.Timeout(60)
+    retry = client._orca_session.get_adapter(api_url).max_retries
+    assert (retry.connect, retry.read, retry.status, retry.other) == (3, 0, 0, 0)
+
+    with requests_mock_package.Mocker(session=client._orca_session) as mocker:
+        mocker.post(f"{api_url}/api/v1/authentication/refresh-access-token", json={})
+        client.resolve_token_from_igz_yml(
+            "secretTokens: [{name: default, token: T-1}]", user_id="jane-id"
+        )
+
+    assert mocker.last_request.timeout == 60
+    assert mocker.last_request.verify == ssl_verify
+
+
+def test_orca_requests_do_not_follow_redirects():
+    api_url = "https://orca.example.com"
+    mlrun.mlconf.iguazio_api_url = api_url
+    client = framework.utils.clients.iguazio.v4.Client()
+
+    with requests_mock_package.Mocker(session=client._orca_session) as mocker:
+        mocker.post(
+            f"{api_url}/api/v1/authentication/refresh-access-token",
+            status_code=http.HTTPStatus.FOUND,
+            headers={"Location": f"{api_url}/login"},
+        )
+        login = mocker.get(f"{api_url}/login", json={})
+        with pytest.raises(mlrun.errors.MLRunNotFoundError):
+            client.resolve_token_from_igz_yml(
+                "secretTokens: [{name: default, token: T-1}]", user_id="jane-id"
+            )
+
+    assert not login.called

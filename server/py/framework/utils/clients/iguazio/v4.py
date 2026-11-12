@@ -11,8 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import dataclasses
 import datetime
-import http.cookiejar
 import typing
 import uuid
 
@@ -52,10 +52,28 @@ FOLLOWERS_SYNC_ENDPOINT = "v1/projects/followers/sync"
 FOLLOWERS_SYNC_ACTION_TYPE = "follower-sync"
 FOLLOWERS_SYNC_SUBDOMAIN = "projects"
 
-# Token, user and version calls: one attempt per request, retried only when the connection could not be
-# established (so nothing reached Orca) - revoke-offline-token is not idempotent.
-_ORCA_REQUEST_TIMEOUT_SECONDS = 60
-_ORCA_CONNECT_RETRIES = 3
+
+@dataclasses.dataclass(frozen=True)
+class ServiceAccountIdentity:
+    """Send the request as MLRun's service account."""
+
+
+@dataclasses.dataclass(frozen=True)
+class ForwardedIdentity:
+    """
+    Send the request with the caller's own request headers, as-is. Nothing is added when they
+    carry no Authorization header, e.g. a request authenticated by a cookie only.
+    """
+
+    request_headers: dict[str, str] | None
+
+
+@dataclasses.dataclass(frozen=True)
+class NoIdentity:
+    """Send the request without any identity."""
+
+
+OrcaIdentity = ServiceAccountIdentity | ForwardedIdentity | NoIdentity
 
 
 class Client(BaseClient, project_leader.Member):
@@ -69,18 +87,8 @@ class Client(BaseClient, project_leader.Member):
             verify_ssl=mlrun.mlconf.iguazio_api_ssl_verify,
             logger=clients_helpers.iguazio_sdk_logger(self._logger),
         )
-        transport = httpx.HTTPTransport(
-            verify=mlrun.mlconf.iguazio_api_ssl_verify, retries=_ORCA_CONNECT_RETRIES
-        )
-        self._orca_http_client = httpx.Client(
-            timeout=_ORCA_REQUEST_TIMEOUT_SECONDS,
-            mounts={"http://": transport, "https://": transport},
-            # The client is shared by calls made for different identities, so it must never store a
-            # cookie from one response and send it on a later request
-            cookies=http.cookiejar.CookieJar(
-                policy=http.cookiejar.DefaultCookiePolicy(allowed_domains=[])
-            ),
-        )
+        # Token, user and version calls
+        self._orca_session = clients_helpers.new_orca_session()
         # Used by the Orca project-leader-proxy methods below (create/update/delete/get project), which go
         # through requests/BaseClient._send_request_to_api rather than the iguazio SDK client, since Orca's
         # project endpoints aren't modeled there.
@@ -129,7 +137,7 @@ class Client(BaseClient, project_leader.Member):
             path="authentication/refresh-access-tokens",
             failure_message=f"Failed to refresh tokens '{', '.join(token_names)}' from Iguazio",
             default_error_class=mlrun.errors.MLRunUnauthorizedError,
-            use_service_account=True,
+            identity=ServiceAccountIdentity(),
             json_body={"refreshTokens": token_values},
         )
 
@@ -157,7 +165,7 @@ class Client(BaseClient, project_leader.Member):
             path="authentication/revoke-offline-token",
             failure_message="Failed to revoke offline token from Iguazio",
             default_error_class=mlrun.errors.MLRunUnauthorizedError,
-            request_headers=request_headers,
+            identity=ForwardedIdentity(request_headers),
             json_body={"token": token},
         )
         self._logger.info("Successfully revoked offline token via Iguazio")
@@ -175,7 +183,7 @@ class Client(BaseClient, project_leader.Member):
             path="info/system",
             failure_message=failure_message,
             default_error_class=mlrun.errors.MLRunRuntimeError,
-            use_service_account=True,
+            identity=ServiceAccountIdentity(),
         )
         return self._read_response_field(
             response=response,
@@ -206,7 +214,7 @@ class Client(BaseClient, project_leader.Member):
             path=f"profile/users/{username}",
             failure_message=failure_message,
             default_error_class=mlrun.errors.MLRunUnauthorizedError,
-            request_headers=auth_info.request_headers,
+            identity=ForwardedIdentity(auth_info.request_headers),
         )
         return self._read_response_field(
             response=response,
@@ -246,6 +254,7 @@ class Client(BaseClient, project_leader.Member):
                 path="authentication/refresh-access-token",
                 failure_message="Failed to validate token",
                 default_error_class=mlrun.errors.MLRunNotFoundError,
+                identity=NoIdentity(),
                 json_body={"refreshToken": token_value},
             )
         except mlrun.errors.MLRunBaseError as exc:
@@ -571,12 +580,12 @@ class Client(BaseClient, project_leader.Member):
             )
 
     def _extract_response_error(
-        self, response: httpx.Response
+        self, response: httpx.Response | requests.Response
     ) -> tuple[str | None, str | None]:
         """
         Extracts 'errorMessage' and 'ctx' from an Iguazio HTTP response.
 
-        :param response: httpx.Response object from Iguazio.
+        :param response: Response from Iguazio.
         :return: Tuple of (error_message, ctx), both can be None if not present.
         """
         error_message = ctx = None
@@ -598,10 +607,9 @@ class Client(BaseClient, project_leader.Member):
         path: str,
         failure_message: str,
         default_error_class: type[Exception],
-        request_headers: dict[str, str] | None = None,
-        use_service_account: bool = False,
+        identity: OrcaIdentity,
         json_body: dict | None = None,
-    ) -> httpx.Response:
+    ) -> requests.Response:
         """
         Send a request to Orca's /api/v1 API with an explicit identity.
 
@@ -610,26 +618,30 @@ class Client(BaseClient, project_leader.Member):
         :param failure_message: Message of the raised error.
         :param default_error_class: Raised on a transport failure, or on an error status with no
             matching class in ``mlrun.errors.STATUS_ERRORS``.
-        :param request_headers: The caller's headers, relayed as-is as the identity of the request.
-            Nothing is added when they carry no Authorization header.
-        :param use_service_account: Authenticate as the service account instead of the caller.
+        :param identity: Who the request is sent as.
         :param json_body: JSON body of the request.
         :return: The response, for any 2xx status.
         """
         try:
-            if use_service_account:
-                headers = self._service_account_token_client.auth_headers
-            else:
-                headers = dict(request_headers or {})
-                headers.pop("content-length", None)
-            response = self._orca_http_client.request(
+            match identity:
+                case ServiceAccountIdentity():
+                    headers = self._service_account_token_client.auth_headers
+                case ForwardedIdentity(request_headers=request_headers):
+                    headers = dict(request_headers or {})
+                    headers.pop("content-length", None)
+                case NoIdentity():
+                    headers = {}
+            response = self._orca_session.request(
                 method,
                 f"{self._api_url}/api/v1/{path}",
                 headers=clients_helpers.enrich_headers(headers=headers),
                 json=json_body,
+                timeout=clients_helpers.ORCA_REQUEST_TIMEOUT_SECONDS,
+                verify=mlrun.mlconf.iguazio_api_ssl_verify,
+                allow_redirects=False,
             )
         except (
-            httpx.HTTPError,
+            requests.RequestException,
             # the service-account token can't be read, or the cached one is malformed
             OSError,
             mlrun.errors.MLRunInvalidArgumentError,
@@ -642,7 +654,8 @@ class Client(BaseClient, project_leader.Member):
             )
             raise default_error_class(failure_message) from exc
 
-        if not response.is_success:
+        # Redirects aren't followed, so a 3xx fails too
+        if not 200 <= response.status_code < 300:
             error_message, ctx = self._extract_response_error(response)
             self._logger.warning(
                 "Request to Orca failed",
@@ -660,7 +673,7 @@ class Client(BaseClient, project_leader.Member):
 
     def _read_response_field(
         self,
-        response: httpx.Response,
+        response: requests.Response,
         field: str,
         failure_message: str,
         default_error_class: type[Exception],
@@ -671,7 +684,9 @@ class Client(BaseClient, project_leader.Member):
             value = None
         if not value or not isinstance(value, str):
             self._logger.warning(
-                "Orca response is missing a field", field=field, path=response.url.path
+                "Orca response is missing a field",
+                field=field,
+                path=response.request.path_url,
             )
             raise default_error_class(failure_message)
         return value

@@ -1650,6 +1650,7 @@ class Config:
         syncs the mode.
         """
         # TODO: Remove in 1.16.0
+        # imported lazily: this runs while mlrun.config is being imported, before mlrun.utils can be
         import mlrun.utils
 
         for alias in _DEPRECATED_KEY_ALIASES:
@@ -1946,6 +1947,7 @@ def resolve_deprecated_authentication_mode(mode: str, *, warn: bool = True) -> s
     :return:     "orca" for "iguazio-v4", any other mode unchanged
     """
     # TODO: Remove in 1.16.0
+    # imported lazily: this runs while mlrun.config is being imported, before mlrun.utils can be
     import mlrun.utils
 
     if mode != mlrun.common.types.AuthenticationMode.IGUAZIO_V4:
@@ -1965,7 +1967,7 @@ def resolve_deprecated_authentication_mode(mode: str, *, warn: bool = True) -> s
             removal_version="1.16.0",
         )
         warnings.warn(
-            f"The '{old}' authentication mode is deprecated in 1.14.0 and will be removed in 1.16.0, "
+            f"'{old}' (httpdb.authentication.mode) is deprecated in 1.14.0 and will be removed in 1.16.0, "
             f"use '{new}' instead.",
             FutureWarning,
             stacklevel=2,
@@ -2049,6 +2051,10 @@ def _resolve_deprecated_key_aliases(*sources: dict) -> set[str]:
 
     Works on the raw provided values (config file, environment), not on the loaded config, so a deprecated key
     that merely holds its default is never mistaken for user input.
+
+    A replacement provided by any source wins over a deprecated key provided by any source, even a later one (an env
+    var). Only values provided while the config loads are aliased: assigning a deprecated key afterwards
+    (``mlrun.mlconf.iguazio_api_url = ...``) is not seen by the IG4 code.
 
     :param sources: raw nested config dicts, in the order they are applied (later ones take precedence).
                     Modified in place.

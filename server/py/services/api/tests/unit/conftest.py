@@ -210,16 +210,7 @@ def iguazio_client(
             "async": module.AsyncClient,
             "follower": module.FollowerClient,
         }[mode]
-
-        # PATCH iguazio.Client before instantiation
-        with unittest.mock.patch(
-            "framework.utils.clients.iguazio.v4.iguazio.Client"
-        ) as mock_iguazio_cls:
-            mock_instance = unittest.mock.MagicMock()
-            mock_iguazio_cls.return_value = mock_instance
-
-            # Now when Client.__init__ runs, self._client is assigned to mock_instance
-            client = client_cls()
+        client = client_cls()
     else:
         raise ValueError(f"Unsupported client version: {version}")
 

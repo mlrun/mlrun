@@ -23,6 +23,9 @@ import unittest.mock
 
 import pytest
 import pytest_httpserver
+import requests
+import urllib3.connection
+import urllib3.util
 
 import mlrun.common.schemas
 import mlrun.errors
@@ -756,6 +759,78 @@ def test_emit_failure_log_omits_token(orca, client, warning_log):
 def test_emit_none_sends_nothing(orca, client):
     client.emit(None)
     assert orca.log == []
+
+
+@pytest.mark.parametrize("status", [202, 204])
+def test_emit_accepts_non_error_2xx(orca, client, warning_log, status):
+    orca.expect_oneshot_request(EVENTS_PATH, method="POST").respond_with_data(
+        "", status=status
+    )
+    client.emit(
+        client.generate_db_migration_event(
+            mlrun.common.schemas.MigrationEventActions.started
+        )
+    )
+    assert len(orca.log) == 1
+    warning_log.assert_not_called()
+
+
+@pytest.mark.parametrize("status", [301, 302, 307, 308])
+def test_emit_redirect_logs_warning(orca, client, warning_log, status):
+    orca.expect_oneshot_request(EVENTS_PATH, method="POST").respond_with_data(
+        "", status=status, headers={"Location": orca.url_for("/elsewhere")}
+    )
+    client.emit(
+        client.generate_db_migration_event(
+            mlrun.common.schemas.MigrationEventActions.started
+        )
+    )
+    # The redirect is not followed, so the event is not published
+    assert len(orca.log) == 1
+    warning_log.assert_called_once()
+    assert warning_log.call_args.kwargs["config_name"] == "MLRun.DB.Migration.Started"
+
+
+@pytest.mark.parametrize("ssl_verify", [True, False])
+def test_emit_request_options(client, ssl_verify):
+    mlrun.mlconf.iguazio_api_ssl_verify = ssl_verify
+    with unittest.mock.patch.object(
+        requests.Session, "request", autospec=True
+    ) as request:
+        request.return_value.status_code = 201
+        client.emit(
+            client.generate_db_migration_event(
+                mlrun.common.schemas.MigrationEventActions.started
+            )
+        )
+    request.assert_called_once()
+    assert request.call_args.kwargs["verify"] is ssl_verify
+    assert request.call_args.kwargs["timeout"] == 60
+    # A redirect is not followed, so the event is never re-sent elsewhere
+    assert request.call_args.kwargs["allow_redirects"] is False
+
+
+def test_emit_retries_failed_connections(unreachable_orca, warning_log):
+    client = _make_client()
+    with (
+        unittest.mock.patch.object(
+            urllib3.util.Retry, "get_backoff_time", return_value=0
+        ),
+        unittest.mock.patch.object(
+            urllib3.connection.HTTPConnection,
+            "_new_conn",
+            autospec=True,
+            side_effect=urllib3.connection.HTTPConnection._new_conn,
+        ) as new_conn,
+    ):
+        client.emit(
+            client.generate_db_migration_event(
+                mlrun.common.schemas.MigrationEventActions.started
+            )
+        )
+    # The first attempt plus three retries
+    assert new_conn.call_count == 4
+    warning_log.assert_called_once()
 
 
 def _make_client(

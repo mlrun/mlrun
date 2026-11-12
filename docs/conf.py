@@ -242,11 +242,8 @@ linkcheck_ignore = [
     "https://ollama.com/library/llama3",
     # ignore links to kubernetes.io, since they often block the traffic
     r"https://kubernetes.io/.*",
-    # linkcheck failing for some reason on valid links
-    "https://www.iguazio.com/docs/latest-release/services/app-services/docker-registry/#create-off-cluster-registry",
-    "https://www.iguazio.com/docs/latest-release/cluster-mgmt/deployment/post-deployment-howtos/smtp/",
-    "https://www.iguazio.com/docs/latest-release/data-layer/objects/attributes/#attribute-names",
-    "https://mlopslive.slack.com",
+    # linkcheck failing for some reason on valid iguazio links
+    r"https://www.iguazio.com/docs/latest-release/.*",
 ]
 
 # -- Autosummary -------------------------------------------------------------

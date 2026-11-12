@@ -658,7 +658,11 @@ class TestRuntimeBase(services.api.tests.unit.conftest.MockedK8sHelper):
             expected_volume["flexVolume"]["options"]["accessKey"] = v3io_access_key
 
         assert (
-            deepdiff.DeepDiff(pod_spec.volumes[0], expected_volume, ignore_order=True)
+            deepdiff.DeepDiff(
+                client.ApiClient().sanitize_for_serialization(pod_spec.volumes[0]),
+                expected_volume,
+                ignore_order=True,
+            )
             == {}
         )
 
@@ -668,7 +672,11 @@ class TestRuntimeBase(services.api.tests.unit.conftest.MockedK8sHelper):
         ]
         assert (
             deepdiff.DeepDiff(
-                container_spec.volume_mounts, expected_volume_mounts, ignore_order=True
+                client.ApiClient().sanitize_for_serialization(
+                    container_spec.volume_mounts
+                ),
+                expected_volume_mounts,
+                ignore_order=True,
             )
             == {}
         )
@@ -681,8 +689,13 @@ class TestRuntimeBase(services.api.tests.unit.conftest.MockedK8sHelper):
             "name": volume_name,
             "persistentVolumeClaim": {"claimName": pvc_name},
         }
+        api_client = client.ApiClient()
         assert (
-            deepdiff.DeepDiff(pod_spec.volumes[0], expected_volume, ignore_order=True)
+            deepdiff.DeepDiff(
+                api_client.sanitize_for_serialization(pod_spec.volumes[0]),
+                expected_volume,
+                ignore_order=True,
+            )
             == {}
         )
 
@@ -693,7 +706,9 @@ class TestRuntimeBase(services.api.tests.unit.conftest.MockedK8sHelper):
         container_spec = pod_spec.containers[0]
         assert (
             deepdiff.DeepDiff(
-                container_spec.volume_mounts, expected_volume_mounts, ignore_order=True
+                api_client.sanitize_for_serialization(container_spec.volume_mounts),
+                expected_volume_mounts,
+                ignore_order=True,
             )
             == {}
         )
@@ -846,11 +861,18 @@ class TestRuntimeBase(services.api.tests.unit.conftest.MockedK8sHelper):
     def _assert_container_resources(
         self, container_spec, expected_limits, expected_requests
     ):
+        # container quantities are sent as strings, compare the serialized form
+        resources = client.ApiClient().sanitize_for_serialization(
+            container_spec.resources
+        )
+        expected = framework.utils.singletons.k8s.sanitize_resource_quantities(
+            {"limits": expected_limits, "requests": expected_requests}
+        )
         if expected_limits:
             assert (
                 deepdiff.DeepDiff(
-                    container_spec.resources["limits"],
-                    expected_limits,
+                    resources["limits"],
+                    expected["limits"],
                     ignore_order=True,
                 )
                 == {}
@@ -858,8 +880,8 @@ class TestRuntimeBase(services.api.tests.unit.conftest.MockedK8sHelper):
         if expected_requests:
             assert (
                 deepdiff.DeepDiff(
-                    container_spec.resources["requests"],
-                    expected_requests,
+                    resources["requests"],
+                    expected["requests"],
                     ignore_order=True,
                 )
                 == {}

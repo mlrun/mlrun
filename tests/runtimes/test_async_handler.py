@@ -53,7 +53,8 @@ def test_sync_handler_unaffected(packagers_enabled: bool) -> None:
 @parametrize_packagers
 def test_async_handler_exception(packagers_enabled: bool, capsys) -> None:
     """Exception inside an async handler is captured and logged to stderr."""
-    _launch("async_handler_with_error", packagers_enabled=packagers_enabled)
+    with pytest.raises(mlrun.runtimes.utils.RunError):
+        _launch("async_handler_with_error", packagers_enabled=packagers_enabled)
     captured = capsys.readouterr()
     assert "async error from handler" in captured.out
 
@@ -64,7 +65,8 @@ def test_async_handler_exception(packagers_enabled: bool, capsys) -> None:
 )
 def test_generator_raises(packagers_enabled: bool, handler_name: str, capsys) -> None:
     """Generator returns (sync and async) are rejected: error is logged to output."""
-    _launch(handler_name, packagers_enabled=packagers_enabled)
+    with pytest.raises(mlrun.runtimes.utils.RunError):
+        _launch(handler_name, packagers_enabled=packagers_enabled)
     captured = capsys.readouterr()
     assert "generator" in captured.out.lower()
 

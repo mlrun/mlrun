@@ -114,8 +114,8 @@ class TestEvaluate:
     @staticmethod
     def test_local_no_params() -> None:
         func_name = "test-app"
-        run = InProgressApp0.evaluate(func_path=__file__, func_name=func_name)
-        assert run.state() == "created"  # Should be "error", see ML-8507
+        with pytest.raises(mlrun.runtimes.utils.RunError):
+            InProgressApp0.evaluate(func_path=__file__, func_name=func_name)
         run = InProgressApp1.evaluate(func_path=__file__, func_name=func_name)
         assert run.state() == "completed"
         assert run.status.results == {
@@ -131,8 +131,8 @@ class TestEvaluate:
     @staticmethod
     def test_model_endpoint_blocked(capsys: pytest.CaptureFixture) -> None:
         """Test that the logs contain the error message about the blocked model endpoint access"""
-        run = ModelEndpointAccessApp.evaluate(func_path=__file__)
-        assert run.state() == "created"  # Should be "error", see ML-8507
+        with pytest.raises(mlrun.runtimes.utils.RunError):
+            ModelEndpointAccessApp.evaluate(func_path=__file__)
         captured = capsys.readouterr()
         assert (
             "mlrun.errors.MLRunValueError: You have NOT provided the model endpoint's name and ID: "
@@ -144,8 +144,8 @@ class TestEvaluate:
     @staticmethod
     def test_invalid_sample_df_access(capsys: pytest.CaptureFixture) -> None:
         """Test that the logs contain the error message about sample data access"""
-        run = SampleDFAccessApp.evaluate(func_path=__file__)
-        assert run.state() == "created"  # Should be "error", see ML-8507
+        with pytest.raises(mlrun.runtimes.utils.RunError):
+            SampleDFAccessApp.evaluate(func_path=__file__)
         captured = capsys.readouterr()
         assert (
             "You have tried to access `monitoring_context.sample_df`, but have not provided it directly"
@@ -248,19 +248,20 @@ class TestEvaluate:
 
     @staticmethod
     def test_invalid_infra(capsys: pytest.CaptureFixture) -> None:
-        ModelEndpointAccessApp.evaluate(
-            func_path=__file__,
-            endpoints=[("ep-name", "ep-uid")],
-            start=datetime(2025, 5, 3),
-            end=datetime(2025, 5, 4),
-            run_local=True,
-            write_output=True,
-            stream_profile=DatastoreProfileKafkaStream(
-                name="should-not-be-passed-on-remote",
-                brokers=["broker-address:9092"],
-                topics=[],
-            ),
-        )
+        with pytest.raises(mlrun.runtimes.utils.RunError):
+            ModelEndpointAccessApp.evaluate(
+                func_path=__file__,
+                endpoints=[("ep-name", "ep-uid")],
+                start=datetime(2025, 5, 3),
+                end=datetime(2025, 5, 4),
+                run_local=True,
+                write_output=True,
+                stream_profile=DatastoreProfileKafkaStream(
+                    name="should-not-be-passed-on-remote",
+                    brokers=["broker-address:9092"],
+                    topics=[],
+                ),
+            )
         captured = capsys.readouterr()
         assert (
             "Writing outputs to the databases is blocked as the model monitoring infrastructure is disabled.\n"
@@ -300,19 +301,20 @@ class TestEvaluate:
         else:
             reference_artifact_path = None
 
-        ModelEndpointAccessApp.evaluate(
-            func_path=__file__,
-            endpoints=[("ep-name", "ep-uid")],
-            sample_data=sample_artifact_path,
-            reference_data=reference_artifact_path,
-            start=datetime(2025, 5, 3),
-            end=datetime(2025, 5, 4),
-            run_local=True,
-            write_output=True,
-            stream_profile=DatastoreProfileKafkaStream(
-                name="kafka-stream", brokers=["broker-address:9092"], topics=[]
-            ),
-        )
+        with pytest.raises(mlrun.runtimes.utils.RunError):
+            ModelEndpointAccessApp.evaluate(
+                func_path=__file__,
+                endpoints=[("ep-name", "ep-uid")],
+                sample_data=sample_artifact_path,
+                reference_data=reference_artifact_path,
+                start=datetime(2025, 5, 3),
+                end=datetime(2025, 5, 4),
+                run_local=True,
+                write_output=True,
+                stream_profile=DatastoreProfileKafkaStream(
+                    name="kafka-stream", brokers=["broker-address:9092"], topics=[]
+                ),
+            )
         captured = capsys.readouterr()
         assert (
             "Writing the results of an application to the TSDB is possible only when "

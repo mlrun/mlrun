@@ -216,11 +216,17 @@ def get_current_version(
 
 
 def get_previous_version(target_version: str) -> str:
-    """Greatest tag below target_version as a raw tag (e.g. "1.10.3"), or "" if none."""
+    """
+    Greatest released tag below target_version as a raw tag (e.g. "1.10.3"), or "" if none.
+
+    Only tags that have a published GitHub release are considered, so stray tags
+    (e.g. leftovers from version-bump experiments) can't be picked as the base for release notes.
+    """
     target = packaging.version.Version(target_version)
+    released_tags = _list_released_tags()
     candidates = []
     for tag in _run_command("git", args=["tag", "--list"]).split():
-        if not tag.startswith("v"):
+        if not tag.startswith("v") or tag not in released_tags:
             continue
         raw = tag.removeprefix("v")
         try:
@@ -431,6 +437,23 @@ def get_feature_branch_feature_name() -> str | None:
         if current_branch.startswith("feature/")
         else ""
     )
+
+
+def _list_released_tags() -> set[str]:
+    """Tag names of all published (non-draft) GitHub releases of the repo."""
+    args = [
+        "release",
+        "list",
+        "--exclude-drafts",
+        "--limit",
+        "10000",
+        "--json",
+        "tagName",
+    ]
+    if repo := os.getenv("GITHUB_REPOSITORY"):
+        args += ["--repo", repo]
+    releases = json.loads(_run_command("gh", args=args))
+    return {release["tagName"] for release in releases}
 
 
 def _run_command(command, args=None):

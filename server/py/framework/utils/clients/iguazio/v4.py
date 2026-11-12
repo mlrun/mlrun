@@ -75,6 +75,25 @@ class NoIdentity:
 
 OrcaIdentity = ServiceAccountIdentity | ForwardedIdentity | NoIdentity
 
+# Body of POST /api/v1/events/activations. Functional syntax because "class" is a
+# Python keyword; "class" and "initiator" are only sent when set.
+EventActivation = typing.TypedDict(
+    "EventActivation",
+    {
+        "configName": str,
+        "source": str,
+        "kind": str,
+        "severity": str,
+        "projectName": str,
+        "entityName": str,
+        "traceId": str,
+        "details": dict[str, typing.Any],
+        "description": str,
+        "class": typing.NotRequired[str],
+        "initiator": typing.NotRequired[str],
+    },
+)
+
 
 class Client(BaseClient, project_leader.Member):
     def __init__(self, *args, **kwargs) -> None:
@@ -169,6 +188,23 @@ class Client(BaseClient, project_leader.Member):
             json_body={"token": token},
         )
         self._logger.info("Successfully revoked offline token via Iguazio")
+
+    def publish_event(self, event: EventActivation) -> None:
+        """
+        Publish an event activation to Orca's events API as MLRun's service account.
+
+        :param event: The event activation to publish.
+        :raises mlrun.errors.MLRunRuntimeError: If the request fails or Orca answers with a
+            non-2xx status that has no matching class in ``mlrun.errors.STATUS_ERRORS``.
+        """
+        self._send_orca_request(
+            method=mlrun.common.types.HTTPMethod.POST,
+            path="events/activations",
+            failure_message=f"Failed to publish event '{event['configName']}' to Iguazio",
+            default_error_class=mlrun.errors.MLRunRuntimeError,
+            identity=ServiceAccountIdentity(),
+            json_body=event,
+        )
 
     def get_oris_version(self) -> str:
         """

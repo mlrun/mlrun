@@ -794,18 +794,20 @@ def test_emit_redirect_logs_warning(orca, client, warning_log, status):
 @pytest.mark.parametrize("ssl_verify", [True, False])
 def test_emit_request_options(client, ssl_verify):
     mlrun.mlconf.iguazio_api_ssl_verify = ssl_verify
-    with unittest.mock.patch.object(requests.Session, "post", autospec=True) as post:
-        post.return_value.status_code = 201
+    with unittest.mock.patch.object(
+        requests.Session, "request", autospec=True
+    ) as request:
+        request.return_value.status_code = 201
         client.emit(
             client.generate_db_migration_event(
                 mlrun.common.schemas.MigrationEventActions.started
             )
         )
-    post.assert_called_once()
-    assert post.call_args.kwargs["verify"] is ssl_verify
-    assert post.call_args.kwargs["timeout"] == 60
+    request.assert_called_once()
+    assert request.call_args.kwargs["verify"] is ssl_verify
+    assert request.call_args.kwargs["timeout"] == 60
     # A redirect is not followed, so the event is never re-sent elsewhere
-    assert post.call_args.kwargs["allow_redirects"] is False
+    assert request.call_args.kwargs["allow_redirects"] is False
 
 
 def test_emit_retries_failed_connections(unreachable_orca, warning_log):

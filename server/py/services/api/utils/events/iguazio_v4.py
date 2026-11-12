@@ -18,30 +18,8 @@ import mlrun.common.schemas
 import mlrun.errors
 from mlrun.utils import logger
 
-import framework.utils.clients.helpers as clients_helpers
-import framework.utils.clients.service_account_token as service_account_token
+import framework.utils.clients.iguazio.v4 as iguazio_v4_client
 import services.api.utils.events.base as base_events
-
-EVENTS_ACTIVATIONS_PATH = "/api/v1/events/activations"
-
-# Body of POST /api/v1/events/activations. Functional syntax because "class" is a
-# Python keyword; "class" and "initiator" are only sent when set.
-EventActivation = typing.TypedDict(
-    "EventActivation",
-    {
-        "configName": str,
-        "source": str,
-        "kind": str,
-        "severity": str,
-        "projectName": str,
-        "entityName": str,
-        "traceId": str,
-        "details": dict[str, typing.Any],
-        "description": str,
-        "class": typing.NotRequired[str],
-        "initiator": typing.NotRequired[str],
-    },
-)
 
 DB_MIGRATION_REQUIRED = "MLRun.DB.Migration.Required"
 DB_MIGRATION_STARTED = "MLRun.DB.Migration.Started"
@@ -158,11 +136,9 @@ class Client(base_events.BaseEventClient):
     """
 
     def __init__(self, **_kwargs):
-        self._session = clients_helpers.new_orca_session()
-        self._service_account_token_client = service_account_token.Client()
         self._entity_name = self._resolve_entity_name()
 
-    def emit(self, event: EventActivation | None):
+    def emit(self, event: iguazio_v4_client.EventActivation | None):
         if event is None:
             return
         try:
@@ -171,23 +147,7 @@ class Client(base_events.BaseEventClient):
                 config_name=event["configName"],
                 entity_name=event["entityName"],
             )
-            response = self._session.post(
-                f"{mlrun.mlconf.iguazio_api_url.rstrip('/')}{EVENTS_ACTIVATIONS_PATH}",
-                json=event,
-                headers=clients_helpers.enrich_headers(
-                    headers=self._service_account_token_client.auth_headers,
-                ),
-                timeout=clients_helpers.ORCA_REQUEST_TIMEOUT_SECONDS,
-                verify=mlrun.mlconf.iguazio_api_ssl_verify,
-                allow_redirects=False,
-            )
-            mlrun.errors.raise_for_status(response)
-            # Redirects aren't followed, so only a 2xx means Orca published the event
-            if not 200 <= response.status_code < 300:
-                raise mlrun.errors.MLRunHTTPError(
-                    f"Unexpected response status {response.status_code}",
-                    response=response,
-                )
+            iguazio_v4_client.Client().publish_event(event)
         except Exception as exc:
             logger.warning(
                 "Failed to emit event",
@@ -202,7 +162,7 @@ class Client(base_events.BaseEventClient):
         duration_seconds: float | None = None,
         scope: list[str] | None = None,
         versions: dict | None = None,
-    ) -> EventActivation:
+    ) -> iguazio_v4_client.EventActivation:
         try:
             config_name, description = DB_MIGRATION_EVENTS[action]
         except KeyError as exc:
@@ -237,7 +197,7 @@ class Client(base_events.BaseEventClient):
         error_category: str | None = None,
         error_code: int | str | None = None,
         dialect: str | None = None,
-    ) -> EventActivation:
+    ) -> iguazio_v4_client.EventActivation:
         try:
             config_name, description = DB_CONNECTION_EVENTS[action]
         except KeyError as exc:
@@ -268,7 +228,7 @@ class Client(base_events.BaseEventClient):
         error: BaseException | str | None = None,
         run_uid: str | None = None,
         project: str | None = None,
-    ) -> EventActivation:
+    ) -> iguazio_v4_client.EventActivation:
         try:
             config_name, description = LOG_COLLECTOR_EVENTS[action]
         except KeyError as exc:
@@ -297,7 +257,7 @@ class Client(base_events.BaseEventClient):
         project_name: str,
         actor: str | None = None,
         error: BaseException | str | None = None,
-    ) -> EventActivation:
+    ) -> iguazio_v4_client.EventActivation:
         try:
             config_name, description = PROJECT_LIFECYCLE_EVENTS[action]
         except KeyError as exc:
@@ -338,7 +298,7 @@ class Client(base_events.BaseEventClient):
         secret_keys: list[str] | None = None,
         action: mlrun.common.schemas.SecretEventActions = mlrun.common.schemas.SecretEventActions.created,
         initiator: str | None = None,
-    ) -> EventActivation:
+    ) -> iguazio_v4_client.EventActivation:
         """
         Generate a project secret audit event.
         :param project: project name
@@ -370,7 +330,7 @@ class Client(base_events.BaseEventClient):
         resource: str,
         action: str,
         username: str | None = None,
-    ) -> EventActivation:
+    ) -> iguazio_v4_client.EventActivation:
         """
         Generate a permission-denied audit event.
         :param resource: the OPA resource path the action was attempted on
@@ -402,12 +362,12 @@ class Client(base_events.BaseEventClient):
         class_: str | None = None,
         project_name: str = "",
         initiator: str | None = None,
-    ) -> EventActivation:
+    ) -> iguazio_v4_client.EventActivation:
         """
         Build the Orca event activation body. For catalog events, kind and class are left
         unset and severity is "unspecified", so Orca fills them in from the catalog entry.
         """
-        event: EventActivation = {
+        event: iguazio_v4_client.EventActivation = {
             "configName": config_name,
             "source": "",
             "kind": kind,

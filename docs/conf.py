@@ -234,7 +234,7 @@ linkcheck_ignore = [
     "https://ollama.com/library/llama3",
     # ignore links to kubernetes.io, since they often block the traffic
     r"https://kubernetes.io/.*",
-        # linkcheck failing for some reason on valid iguazio links
+    # linkcheck failing for some reason on valid iguazio links
     r"https://www.iguazio.com/docs/latest-release/.*",
     "https://mlopslive.slack.com",
 ]

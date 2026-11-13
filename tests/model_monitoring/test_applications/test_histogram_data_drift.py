@@ -99,9 +99,9 @@ class TestDataDriftClassifier:
     def test_status(
         classifier: DataDriftClassifier, value: float, expected_status: ResultStatusApp
     ) -> None:
-        assert (
-            classifier.value_to_status(value) == expected_status
-        ), "The status is different than expected"
+        assert classifier.value_to_status(value) == expected_status, (
+            "The status is different than expected"
+        )
 
 
 class TestApplication:
@@ -205,15 +205,15 @@ class TestApplication:
                 res,
                 mlrun.model_monitoring.applications.ModelMonitoringApplicationResult,
             ):
-                assert (
-                    res.kind == ResultKindApp.data_drift
-                ), "The kind should be data drift"
-                assert (
-                    res.name == "general_drift"
-                ), "The result name should be general_drift"
-                assert (
-                    res.status == ResultStatusApp.potential_detection
-                ), "Expected potential detection in the general drift"
+                assert res.kind == ResultKindApp.data_drift, (
+                    "The kind should be data drift"
+                )
+                assert res.name == "general_drift", (
+                    "The result name should be general_drift"
+                )
+                assert res.status == ResultStatusApp.potential_detection, (
+                    "Expected potential detection in the general drift"
+                )
             elif isinstance(
                 res,
                 mlrun.model_monitoring.applications.ModelMonitoringApplicationMetric,
@@ -274,6 +274,6 @@ class TestMetricsPerFeature:
         assert set(metrics_per_feature.columns) == {
             metric.NAME for metric in application.metrics
         }, "Different metrics than expected"
-        assert set(metrics_per_feature.index) == set(
-            feature_stats.columns
-        ), "The features are different than expected"
+        assert set(metrics_per_feature.index) == set(feature_stats.columns), (
+            "The features are different than expected"
+        )

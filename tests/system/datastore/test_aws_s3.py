@@ -157,7 +157,7 @@ class TestAwsS3(TestMLRunSystem):
         )
 
         s3_path = (
-            f"{self._bucket_name}/{target_path[target_path.index(self.object_dir):]}"
+            f"{self._bucket_name}/{target_path[target_path.index(self.object_dir) :]}"
         )
         # Check for ML-6587 regression
         assert s3_fs.exists(s3_path)

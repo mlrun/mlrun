@@ -41,9 +41,9 @@ def _list_and_assert_objects(
     response_body = response.json()
     assert entity_name in response_body
     number_of_entities = len(response_body[entity_name])
-    assert (
-        number_of_entities == expected_number_of_entities
-    ), f"wrong number of {entity_name} in response - {number_of_entities} instead of {expected_number_of_entities}"
+    assert number_of_entities == expected_number_of_entities, (
+        f"wrong number of {entity_name} in response - {number_of_entities} instead of {expected_number_of_entities}"
+    )
     return response_body
 
 

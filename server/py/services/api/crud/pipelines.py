@@ -785,7 +785,7 @@ class Pipelines(
         """
         return {
             **notification,
-            "name": f"{notification.get('name','')} – Retry #{rerun_index}",
+            "name": f"{notification.get('name', '')} – Retry #{rerun_index}",
         }
 
     def _filter_runs_by_name(

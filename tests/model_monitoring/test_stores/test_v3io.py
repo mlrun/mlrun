@@ -579,12 +579,12 @@ def test_get_drift_data():
     )
     assert drift_over_time is not None
     assert len(drift_over_time.values) == 2, "Drift over time should have two values"
-    assert (
-        drift_over_time.values[0].count_suspected == 1
-    ), "Drift over time should have one detected drift"
-    assert (
-        drift_over_time.values[1].count_detected == 1
-    ), "Drift over time should not have potential drift"
+    assert drift_over_time.values[0].count_suspected == 1, (
+        "Drift over time should have one detected drift"
+    )
+    assert drift_over_time.values[1].count_detected == 1, (
+        "Drift over time should not have potential drift"
+    )
 
 
 @pytest.mark.usefixtures("_mock_frames_client_extended")

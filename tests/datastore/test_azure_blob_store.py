@@ -605,15 +605,15 @@ class TestAzureBlobStore:
 
         for case in test_cases:
             schema, endpoint, parsed_url = parse_url(case["url"])
-            assert (
-                schema == case["expected_schema"]
-            ), f"Schema mismatch for {case['url']}"
-            assert (
-                endpoint == case["expected_endpoint"]
-            ), f"Endpoint mismatch for {case['url']}"
-            assert (
-                parsed_url.netloc == case["expected_netloc"]
-            ), f"Netloc mismatch for {case['url']}"
+            assert schema == case["expected_schema"], (
+                f"Schema mismatch for {case['url']}"
+            )
+            assert endpoint == case["expected_endpoint"], (
+                f"Endpoint mismatch for {case['url']}"
+            )
+            assert parsed_url.netloc == case["expected_netloc"], (
+                f"Netloc mismatch for {case['url']}"
+            )
 
     def test_convert_key_to_remote_path_wasbs(self):
         """Test _convert_key_to_remote_path for WASBS URLs uses container, not hostname"""

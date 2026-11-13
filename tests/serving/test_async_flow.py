@@ -148,13 +148,13 @@ def test_on_error():
     resp = server.test(body=[])
     server.wait_for_completion()
     if isinstance(resp, dict):
-        assert (
-            resp["error"] and resp["origin_state"] == "Raiser"
-        ), f"error wasn't caught, resp={resp}"
+        assert resp["error"] and resp["origin_state"] == "Raiser", (
+            f"error wasn't caught, resp={resp}"
+        )
     else:
-        assert (
-            resp.error and resp.origin_state == "Raiser"
-        ), f"error wasn't caught, resp={resp}"
+        assert resp.error and resp.origin_state == "Raiser", (
+            f"error wasn't caught, resp={resp}"
+        )
 
 
 def test_push_error():
@@ -562,9 +562,9 @@ def _test_model_runner_raise_error_output(
             if models is None or len(models) == 1:
                 assert "error" in body, f"Expected error field in body got {body}"
             else:
-                assert all(
-                    "error" in body.get(model) for model in models
-                ), f"Expected error field for each model in body got {body}"
+                assert all("error" in body.get(model) for model in models), (
+                    f"Expected error field for each model in body got {body}"
+                )
     else:
         if models is None or len(models) == 1:
             assert server.test(body={"n": 1}) == {"n": 2}
@@ -707,12 +707,12 @@ def test_model_runner_with_remote_model(execution_mechanism, notebook_usage):
     )
 
     graph.to(model_runner_step).to(async_model_runner_step).respond()
-    assert (
-        "my_endpoint" in graph.model_endpoints_names
-    ), "model endpoint name not in graph"
-    assert (
-        "my_async_endpoint" in graph.model_endpoints_names
-    ), "async model endpoint name not in graph"
+    assert "my_endpoint" in graph.model_endpoints_names, (
+        "model endpoint name not in graph"
+    )
+    assert "my_async_endpoint" in graph.model_endpoints_names, (
+        "async model endpoint name not in graph"
+    )
     # Mock needed since no artifact is saved in this test, so retrieval by URI isn't possible.
     # Mocked function used to verify artifact URI is passed correctly.
 
@@ -805,9 +805,9 @@ def test_model_runner_with_remote_shared_model():
         shared_model_name="my_model",
     )
     graph.to(model_runner_step).respond()
-    assert (
-        "my_endpoint" in graph.model_endpoints_names
-    ), "model endpoint name not in graph"
+    assert "my_endpoint" in graph.model_endpoints_names, (
+        "model endpoint name not in graph"
+    )
     # Mock needed since no artifact is saved in this test, so retrieval by URI isn't possible.
     # Mocked function used to verify artifact URI is passed correctly.
 
@@ -853,13 +853,13 @@ def test_add_model_after_adding_the_mrs_to_the_graph():
         model_artifact=model_artifact,
         execution_mechanism="naive",
     )
-    assert (
-        "my_endpoint" in graph.model_endpoints_names
-    ), "model endpoint name not in graph"
+    assert "my_endpoint" in graph.model_endpoints_names, (
+        "model endpoint name not in graph"
+    )
 
-    assert (
-        "my_endpoint-2" not in graph.model_endpoints_names
-    ), "model endpoint name not in graph"
+    assert "my_endpoint-2" not in graph.model_endpoints_names, (
+        "model endpoint name not in graph"
+    )
 
     model_runner_step_2.add_model(
         endpoint_name="my_endpoint-2",
@@ -868,13 +868,13 @@ def test_add_model_after_adding_the_mrs_to_the_graph():
         execution_mechanism="naive",
     )
 
-    assert (
-        "my_endpoint" in graph.model_endpoints_names
-    ), "model endpoint name not in graph"
+    assert "my_endpoint" in graph.model_endpoints_names, (
+        "model endpoint name not in graph"
+    )
 
-    assert (
-        "my_endpoint-2" in graph.model_endpoints_names
-    ), "model endpoint name not in graph"
+    assert "my_endpoint-2" in graph.model_endpoints_names, (
+        "model endpoint name not in graph"
+    )
 
 
 def test_get_local_model_path():
@@ -1253,13 +1253,13 @@ def test_configure_model_runner_step_max_threads_processes(concurrency: str):
     server = function.to_mock_server()
 
     if concurrency == "max_processes":
-        assert (
-            server.graph["my_model_runner"]._async_object.max_processes == 32
-        ), "Max processes not configured properly"
+        assert server.graph["my_model_runner"]._async_object.max_processes == 32, (
+            "Max processes not configured properly"
+        )
     elif concurrency == "max_threads":
-        assert (
-            server.graph["my_model_runner"]._async_object.max_threads == 48
-        ), "Max threads not configured properly"
+        assert server.graph["my_model_runner"]._async_object.max_threads == 48, (
+            "Max threads not configured properly"
+        )
     server.test(body={"n": 1})
     server.wait_for_completion()
 

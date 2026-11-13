@@ -54,6 +54,6 @@ def test_set_configurations_noop_values_are_ignored(
     db_util.set_configurations([noop_key])
     after = list(db_util.get_current_configurations())
 
-    assert (
-        after == original
-    ), f"Configuration changed after setting noop value '{noop_key}'"
+    assert after == original, (
+        f"Configuration changed after setting noop value '{noop_key}'"
+    )

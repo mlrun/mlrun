@@ -60,9 +60,9 @@ async def test_retry_os_exception_fail(
     with pytest.raises(exception.__class__):
         async_client.retry_options.attempts = max_retries
         await async_client.get("http://localhost:30678")
-    assert (
-        aioresponses_mock.called_times() == max_retries
-    ), f"Expected {max_retries} retries"
+    assert aioresponses_mock.called_times() == max_retries, (
+        f"Expected {max_retries} retries"
+    )
 
 
 @pytest.mark.asyncio
@@ -86,9 +86,9 @@ async def test_retry_os_exception_success(
         )
     response = await async_client.get("http://localhost:30678")
     assert response.status == 200, "Expected to succeed after retries"
-    assert (
-        aioresponses_mock.called_times() == max_retries - 1
-    ), f"Expected {max_retries - 1} retries"
+    assert aioresponses_mock.called_times() == max_retries - 1, (
+        f"Expected {max_retries - 1} retries"
+    )
 
 
 @pytest.mark.asyncio
@@ -148,9 +148,9 @@ async def test_retry_method_status_codes(
     assert response.status == status_codes[-1], "response status is not as expected"
 
     # ensure we called the request the correct number of times
-    assert aioresponses_mock.called_times() == len(
-        status_codes
-    ), "Wrong number of retries"
+    assert aioresponses_mock.called_times() == len(status_codes), (
+        "Wrong number of retries"
+    )
 
 
 @pytest.mark.asyncio
@@ -268,9 +268,9 @@ async def test_async_client_does_not_persist_cookies():
             assert data["cookies_received"] == ""
 
             # Server still sets cookies in response, but we don't store them
-            assert (
-                "test_cookie" in resp.cookies
-            ), "Server still sends cookies in response"
+            assert "test_cookie" in resp.cookies, (
+                "Server still sends cookies in response"
+            )
 
         await client.close()
     finally:

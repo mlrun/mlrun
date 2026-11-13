@@ -258,7 +258,7 @@ def get_or_create_ctx(
         # access input metadata, values, files, and secrets (passwords)
         print(f"Run: {context.name} (uid={context.uid})")
         print(f"Params: p1={p1}, p2={p2}")
-        print(f'accesskey = {context.get_secret("ACCESS_KEY")}')
+        print(f"accesskey = {context.get_secret('ACCESS_KEY')}")
         input_str = context.get_input("infile.txt").get()
         print(f"file: {input_str}")
 
@@ -273,7 +273,9 @@ def get_or_create_ctx(
         context.log_artifact(
             "model.txt", body=b"abc is 123", labels={"framework": "xgboost"}
         )
-        context.log_artifact("results.html", body=b"<b> Some HTML <b>", viewer="web-app")
+        context.log_artifact(
+            "results.html", body=b"<b> Some HTML <b>", viewer="web-app"
+        )
 
     """
     if global_context.get() and not spec and not event:
@@ -777,8 +779,7 @@ def code_to_function(
         and (not filename or filename.endswith(".ipynb"))
     ):
         raise ValueError(
-            "A valid code file must be specified "
-            "when not using the embed_code option"
+            "A valid code file must be specified when not using the embed_code option"
         )
 
     if kind == RuntimeKinds.databricks and not embed_code:
@@ -1092,8 +1093,7 @@ def wait_for_pipeline_completion(
 
         if mldb.kind != "http":
             raise ValueError(
-                "get pipeline requires access to remote api-service"
-                ", set the dbpath url"
+                "get pipeline requires access to remote api-service, set the dbpath url"
             )
 
         resp = retry_until_successful(

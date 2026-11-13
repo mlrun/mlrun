@@ -305,7 +305,9 @@ class TestRemotePipeline(tests.projects.base_pipeline.TestPipeline):
                     if step.get("container") and step.get("name"):
                         assert (
                             step.get("SecurityContext") == expected_security_context
-                        ), f"security context was not enriched correctly in step: {step.get('name')}"
+                        ), (
+                            f"security context was not enriched correctly in step: {step.get('name')}"
+                        )
 
     def _get_preemptible_tolerations(self):
         return [{"effect": "NoSchedule", "key": "test1", "operator": "Exists"}]

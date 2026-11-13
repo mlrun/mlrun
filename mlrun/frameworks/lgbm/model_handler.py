@@ -91,7 +91,10 @@ class LGBMModelHandler(MLModelHandler):
 
                                              {
                                                  "module1": None,  # import module1
-                                                 "module2": ["func1", "func2"],  # from module2 import func1, func2
+                                                 "module2": [
+                                                     "func1",
+                                                     "func2",
+                                                 ],  # from module2 import func1, func2
                                                  "module3.sub_module": "func3",  # from module3.sub_module import func3
                                              }
 
@@ -107,7 +110,10 @@ class LGBMModelHandler(MLModelHandler):
 
                                              {
                                                  "/.../custom_model.py": "MyModel",
-                                                 "/.../custom_objects.py": ["object1", "object2"],
+                                                 "/.../custom_objects.py": [
+                                                     "object1",
+                                                     "object2",
+                                                 ],
                                              }
 
                                          All the paths will be accessed from the given 'custom_objects_directory',

@@ -459,8 +459,7 @@ class RegexValidator(Validator):
             new_obj.regex_compile = re.compile(new_obj.regex) if new_obj.regex else None
         else:
             raise MLRunRuntimeError(
-                f"Object with type {type(new_obj)} "
-                f"have to contain `regex` attribute"
+                f"Object with type {type(new_obj)} have to contain `regex` attribute"
             )
         return new_obj
 

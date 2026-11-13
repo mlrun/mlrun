@@ -914,6 +914,5 @@ def fill_artifact_object_hash(object_dict, iteration=None, producer_id=None):
 def verify_target_path(artifact: Artifact):
     if not artifact.get_target_path():
         raise mlrun.errors.MLRunInvalidArgumentError(
-            f"artifact {artifact.uri} "
-            f"does not have a valid/persistent offline target"
+            f"artifact {artifact.uri} does not have a valid/persistent offline target"
         )

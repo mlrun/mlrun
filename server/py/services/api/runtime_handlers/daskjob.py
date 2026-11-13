@@ -340,14 +340,16 @@ def enrich_dask_cluster(
 
     env.extend(
         filter(
-            lambda spec_env: not any(
-                [
-                    True
-                    for _env in env
-                    # spec_env might be V1EnvVar or a dict
-                    # _env is just a dict
-                    if get_env_name(spec_env) == get_env_name(_env)
-                ]
+            lambda spec_env: (
+                not any(
+                    [
+                        True
+                        for _env in env
+                        # spec_env might be V1EnvVar or a dict
+                        # _env is just a dict
+                        if get_env_name(spec_env) == get_env_name(_env)
+                    ]
+                )
             ),
             spec.env,
         )

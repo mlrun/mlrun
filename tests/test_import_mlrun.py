@@ -28,6 +28,6 @@ def test_import_mlrun():
         line for line in stderr_lines if line and line not in acceptable_stderr_errors
     ]
     assert unexpected_stdout_errors == [], "`import mlrun` wrote unexpected error logs"
-    assert (
-        unexpected_stderr_errors == []
-    ), "`import mlrun` wrote unexpected errors to stderr"
+    assert unexpected_stderr_errors == [], (
+        "`import mlrun` wrote unexpected errors to stderr"
+    )

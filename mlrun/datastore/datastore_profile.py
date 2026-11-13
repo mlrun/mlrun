@@ -451,7 +451,6 @@ class DatastoreProfileHdfs(DatastoreProfile):
 class DatastoreProfileTDEngine(DatastoreProfile):
     """
     A profile that holds the required parameters for a TDEngine database, with the websocket scheme.
-    https://docs.tdengine.com/developer-guide/connecting-to-tdengine/#websocket-connection
     """
 
     type: str = pydantic.v1.Field("taosws")

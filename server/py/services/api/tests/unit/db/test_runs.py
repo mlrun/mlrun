@@ -562,17 +562,17 @@ class TestRuns(TestDatabaseBase):
             self._db_session,
             project=project_name,
         )
-        assert (
-            len(runs) == number_of_runs
-        ), f"Expected {number_of_runs} results, got {len(runs)}"
+        assert len(runs) == number_of_runs, (
+            f"Expected {number_of_runs} results, got {len(runs)}"
+        )
 
         expected_names = [f"run-{i}" for i in range(number_of_runs - 1, -1, -1)]
 
         for run, expected_name in zip(runs, expected_names):
             run_name = run["metadata"]["name"]
-            assert (
-                run_name == expected_name
-            ), f"Expected {expected_name}, got {run_name}"
+            assert run_name == expected_name, (
+                f"Expected {expected_name}, got {run_name}"
+            )
 
     def test_list_runs_with_missing_milliseconds_in_timestamp(self):
         self._create_new_run(project="my-project")

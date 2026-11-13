@@ -227,9 +227,9 @@ class TestTSDB:
 
         actual_columns = list(record_from_tsdb.columns)
 
-        assert (
-            EventFieldType.CURRENT_STATS not in actual_columns
-        ), "Current stats should not be written to the TSDB"
+        assert EventFieldType.CURRENT_STATS not in actual_columns, (
+            "Current stats should not be written to the TSDB"
+        )
 
         expected_columns = WriterEvent.list() + ResultData.list()
         expected_columns.remove(WriterEvent.END_INFER_TIME)

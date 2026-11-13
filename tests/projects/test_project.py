@@ -877,12 +877,12 @@ def test_set_function_update_code():
             tag="v1",
         )
 
-        assert id(func) == id(
-            project.get_function("handler")
-        ), f"Function of index {i} was not set correctly"
-        assert id(func) == id(
-            project.get_function("handler:v1")
-        ), f"Function of index {i} was not set and tagged correctly"
+        assert id(func) == id(project.get_function("handler")), (
+            f"Function of index {i} was not set correctly"
+        )
+        assert id(func) == id(project.get_function("handler:v1")), (
+            f"Function of index {i} was not set and tagged correctly"
+        )
 
 
 def test_set_function_with_conflicting_tag():

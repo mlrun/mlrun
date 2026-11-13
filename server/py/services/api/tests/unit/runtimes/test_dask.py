@@ -148,14 +148,14 @@ class TestDaskRuntime(TestRuntimeBase):
     ):
         if worker:
             pod = self._get_pod_creation_args()
-            assert pod.spec.security_context == (
-                security_context or {}
-            ), "Failed asserting security context in worker pod"
+            assert pod.spec.security_context == (security_context or {}), (
+                "Failed asserting security context in worker pod"
+            )
         if scheduler:
             scheduler_pod = self._get_scheduler_pod_creation_args()
-            assert scheduler_pod.spec.security_context == (
-                security_context or {}
-            ), "Failed asserting security context in scheduler pod"
+            assert scheduler_pod.spec.security_context == (security_context or {}), (
+                "Failed asserting security context in scheduler pod"
+            )
 
     def test_dask_runtime(self, db: Session, client: TestClient):
         runtime: mlrun.runtimes.DaskCluster = self._generate_runtime()

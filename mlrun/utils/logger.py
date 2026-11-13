@@ -142,9 +142,9 @@ class CustomFormatter(HumanReadableFormatter):
                     and not CustomFormatter.fail_on_missing_default_keys_key
                 ):
                     print(
-                        f'> {formatted_time} [warning] Custom loggers must '
-                        f'include those keys within the logger format, {", ".join(default_keys)} '
-                        f'your format is missing: {", ".join(missing_default_flags)}',
+                        f"> {formatted_time} [warning] Custom loggers must "
+                        f"include those keys within the logger format, {', '.join(default_keys)} "
+                        f"your format is missing: {', '.join(missing_default_flags)}",
                         file=sys.stderr,
                     )
                     CustomFormatter.fail_on_missing_default_keys_key = True
@@ -158,7 +158,7 @@ class CustomFormatter(HumanReadableFormatter):
                     if not CustomFormatter.fail_on_format_configuration:
                         print(
                             f"> {formatted_time} [warning] Failed to create custom logger due "
-                            f'to missing format key in the log record: {", ".join(missing_format_configuraiton_keys)}',
+                            f"to missing format key in the log record: {', '.join(missing_format_configuraiton_keys)}",
                             file=sys.stderr,
                         )
                         CustomFormatter.fail_on_format_configuration = True

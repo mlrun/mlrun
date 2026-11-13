@@ -1058,7 +1058,9 @@ class KubeResource(BaseRuntime):
 
                 job.with_node_selection(
                     node_selector={"nodepool": "gpu"},
-                    tolerations=[k8s_client.V1Toleration(key="spot", operator="Exists")],
+                    tolerations=[
+                        k8s_client.V1Toleration(key="spot", operator="Exists")
+                    ],
                 )
         """
         if node_name:

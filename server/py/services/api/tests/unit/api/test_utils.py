@@ -106,9 +106,9 @@ def test_submit_run_sync(db: Session, client: TestClient):
             db, project, submit_job_body["task"]["metadata"]["name"]
         )
     )
-    assert (
-        updated_schedule.cron_trigger.to_crontab() == "0 1 * * *"
-    ), "schedule was not updated"
+    assert updated_schedule.cron_trigger.to_crontab() == "0 1 * * *", (
+        "schedule was not updated"
+    )
 
 
 def test_submit_run_sync_schedule_with_function_overrides(

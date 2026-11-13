@@ -41,7 +41,7 @@ concurrency:
 jobs:
   lint:
     name: Lint code (Python ${{ matrix.python-version }})
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         python-version: ["3.9"]
@@ -89,7 +89,7 @@ jobs:
 
   tests:
     name: Run Dockerized Tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         python-version: [ "3.9", "3.11"]
@@ -148,7 +148,7 @@ jobs:
 
   integration-tests:
     name: Run Dockerized Integration Tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     strategy:
       matrix:
@@ -232,7 +232,7 @@ jobs:
 
   package-tests:
     name: Run package tests (Python ${{ matrix.python-version }}, Pipelines ${{ matrix.pipeline-adapter }})
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         include:
@@ -318,7 +318,7 @@ jobs:
 
   verify-compatible-requirements-one-after-one:
     name: Verify compatible requirements (one after one)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         # 3.9 is the current >= 1.3.0 python version
@@ -339,7 +339,7 @@ jobs:
 
   coverage:
     name: Full coverage
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         python-version: [ "3.9"]  # Coverage runs on Python 3.9 due to skipped unit tests in 3.11.

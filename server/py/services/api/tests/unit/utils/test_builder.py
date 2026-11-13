@@ -503,9 +503,9 @@ def test_resolve_mlrun_install_command_version():
         result = services.api.utils.builder.resolve_mlrun_install_command_version(
             mlrun_version_specifier, client_version
         )
-        assert (
-            result == expected_result
-        ), f"Test supposed to pass {case.get('test_description')}"
+        assert result == expected_result, (
+            f"Test supposed to pass {case.get('test_description')}"
+        )
 
 
 def test_build_runtime_ecr_with_ec2_iam_policy(monkeypatch):

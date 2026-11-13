@@ -181,9 +181,9 @@ class TestEvaluate:
             not in captured.out
         ), "The captured error was not expected"
 
-        assert (
-            "Read the sample data" in captured.out
-        ), "The expected log message was not found in the captured output"
+        assert "Read the sample data" in captured.out, (
+            "The expected log message was not found in the captured output"
+        )
 
     @staticmethod
     @pytest.mark.parametrize(
@@ -465,9 +465,9 @@ def test_windows(
             sample_data=None,
         )
     ]
-    assert (
-        windows == expected_windows
-    ), "The generated windows are different than expected"
+    assert windows == expected_windows, (
+        "The generated windows are different than expected"
+    )
 
 
 @pytest.mark.parametrize(
@@ -511,9 +511,9 @@ def test_validate_and_get_window_length(
         window_length = ModelMonitoringApplicationBase._validate_and_get_window_length(
             base_period=base_period, start_dt=start_dt, end_dt=end_dt
         )
-        assert window_length == timedelta(
-            minutes=base_period
-        ), "The window length is different than expected"
+        assert window_length == timedelta(minutes=base_period), (
+            "The window length is different than expected"
+        )
 
 
 def test_job_handler() -> None:

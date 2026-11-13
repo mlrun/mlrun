@@ -1479,14 +1479,12 @@ class V3IOTSDBConnector(TSDBConnector):
             return metric_list
 
         # Convert the results DataFrame to a list of ApplicationResultRecord
-        def build_metric_objects() -> (
-            list[
-                Union[
-                    mm_schemas.ApplicationResultRecord,
-                    mm_schemas.ApplicationMetricRecord,
-                ]
+        def build_metric_objects() -> list[
+            Union[
+                mm_schemas.ApplicationResultRecord,
+                mm_schemas.ApplicationMetricRecord,
             ]
-        ):
+        ]:
             metric_objects = []
             if not df_results.empty:
                 df_results.rename(

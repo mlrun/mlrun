@@ -501,9 +501,9 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
         exec_cli(args)
         end_time = datetime.now()
 
-        assert (
-            end_time - start_time
-        ).seconds >= time_to_sleep, "run did not wait for completion"
+        assert (end_time - start_time).seconds >= time_to_sleep, (
+            "run did not wait for completion"
+        )
 
         runs = mlrun.get_run_db().list_runs(project=self.project_name, name=run_name)
         assert len(runs) == 1
@@ -801,16 +801,16 @@ def print_df(df):
         job = function.to_job()
 
         if deploy_original:
-            assert (
-                job.metadata.name != function.metadata.name
-            ), "Job should have different name than serving function to prevent DB collision"
-            assert (
-                job.metadata.name == "test-batch"
-            ), f"Job should be auto-renamed to 'test-batch', got '{job.metadata.name}'"
+            assert job.metadata.name != function.metadata.name, (
+                "Job should have different name than serving function to prevent DB collision"
+            )
+            assert job.metadata.name == "test-batch", (
+                f"Job should be auto-renamed to 'test-batch', got '{job.metadata.name}'"
+            )
             # Verify original serving function name is unchanged
-            assert (
-                function.metadata.name == "test"
-            ), f"Original serving function name should remain 'test', got '{function.metadata.name}'"
+            assert function.metadata.name == "test", (
+                f"Original serving function name should remain 'test', got '{function.metadata.name}'"
+            )
 
         with open(str(self.assets_path / "test_data.csv")) as f:
             csv_content = f.read()
@@ -825,9 +825,9 @@ def print_df(df):
             read_back_df = pd.read_parquet(
                 f"v3io:///projects/{self.project_name}/out.parquet"
             )
-            assert (
-                "Mickey Mouse" in read_back_df["Product"].values
-            ), f"Dataframe {read_back_df} was not transformed as expected"
+            assert "Mickey Mouse" in read_back_df["Product"].values, (
+                f"Dataframe {read_back_df} was not transformed as expected"
+            )
 
             if deploy_original and not local:
                 # Only test invoke for deployed (non-local) functions
@@ -836,9 +836,9 @@ def print_df(df):
                 # This should succeed - the serving function should still be invokable
                 # after the job has been run with a different name
                 response = function.invoke("/", body=test_input)
-                assert (
-                    response is not None
-                ), "Invoke should succeed after running job with different name"
+                assert response is not None, (
+                    "Invoke should succeed after running job with different name"
+                )
         finally:
             v3io_client.close()
 
@@ -873,9 +873,9 @@ def print_df(df):
             read_back_df = pd.read_parquet(
                 f"v3io:///projects/{self.project_name}/out.parquet"
             )
-            assert (
-                "Mickey Mouse" in read_back_df["Product"].values
-            ), f"Dataframe {read_back_df} was not transformed as expected"
+            assert "Mickey Mouse" in read_back_df["Product"].values, (
+                f"Dataframe {read_back_df} was not transformed as expected"
+            )
         finally:
             v3io_client.close()
 
@@ -912,9 +912,9 @@ def print_df(df):
             runs = self._run_db.list_runs(project=self.project_name)
             assert len(runs) == 1
             run = mlrun.RunObject.from_dict(runs[0])
-            assert (
-                run.status.retry_count == 3
-            ), f"Expected retry_count=3, got {run.status.retry_count}"
+            assert run.status.retry_count == 3, (
+                f"Expected retry_count=3, got {run.status.retry_count}"
+            )
             assert run.status.state == mlrun.common.runtimes.constants.RunStates.error
             assert f"Run failed after {max_attempts} attempts" in run.status.status_text
             self._assert_retry_attempts_metadata(run.status.retries)
@@ -931,9 +931,9 @@ def print_df(df):
             run.metadata.uid, project=self.project_name, attempt=2
         )
         assert state == mlrun.common.runtimes.constants.RunStates.error
-        assert "Retrying run - attempt: 2" in str(
-            content
-        ), "Expected logs to contain retry attempt message"
+        assert "Retrying run - attempt: 2" in str(content), (
+            "Expected logs to contain retry attempt message"
+        )
 
     @staticmethod
     def _assert_retry_attempts_metadata(retry_attempts):
@@ -954,7 +954,7 @@ def print_df(df):
             )
             if previous_start_time is not None:
                 assert previous_start_time < current_start_time, (
-                    f"Retry {i} start_time is not after retry {i-1}: "
+                    f"Retry {i} start_time is not after retry {i - 1}: "
                     f"{previous_start_time} >= {current_start_time}"
                 )
             previous_start_time = current_start_time

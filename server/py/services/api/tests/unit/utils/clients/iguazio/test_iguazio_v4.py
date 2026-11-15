@@ -352,55 +352,6 @@ def sample_user_info(username="dummy-user", user_id="dummy-user-id", group_ids=N
     }
 
 
-@pytest.mark.parametrize(
-    "secret_token, expected_exception",
-    [
-        (None, mlrun.errors.MLRunInvalidArgumentError),  # None token
-        (
-            mlrun.common.schemas.SecretToken(name="t1", token=""),
-            mlrun.errors.MLRunInvalidArgumentError,
-        ),  # empty token
-        (
-            mlrun.common.schemas.SecretToken(name="t1", token="valid-token"),
-            None,
-        ),  # valid token
-    ],
-)
-@pytest.mark.parametrize("iguazio_client", [("v4", "sync")], indirect=True)
-def test_refresh_access_token_cases(iguazio_client, secret_token, expected_exception):
-    if expected_exception:
-        with pytest.raises(expected_exception):
-            iguazio_client.refresh_access_token(secret_token)
-    else:
-        # simulate HTTP error
-        iguazio_client._client.refresh_access_token.side_effect = httpx.HTTPStatusError(
-            "Error",
-            request=None,
-            response=unittest.mock.MagicMock(
-                status_code=401,
-                json=lambda: {"status": {"errorMessage": "invalid", "ctx": "dummy"}},
-            ),
-        )
-        with pytest.raises(mlrun.errors.MLRunUnauthorizedError):
-            iguazio_client.refresh_access_token(secret_token)
-
-
-@pytest.mark.parametrize("iguazio_client", [("v4", "sync")], indirect=True)
-def test_refresh_access_token_success(
-    iguazio_client, mock_service_account_auth_headers
-):
-    secret_token = mlrun.common.schemas.SecretToken(
-        name="test-token", token="valid-token"
-    )
-
-    # Should not raise
-    iguazio_client.refresh_access_token(secret_token)
-
-    iguazio_client._client.refresh_access_token.assert_called_once()
-    called_options = iguazio_client._client.refresh_access_token.call_args[1]["options"]
-    assert called_options.refresh_token == "valid-token"
-
-
 @pytest.mark.parametrize("iguazio_client", [("v4", "follower")], indirect=True)
 def test_follower_create_project(
     mock_session, iguazio_client, igv4_auth_info, mock_service_account_auth_headers
@@ -1572,3 +1523,62 @@ def test_parse_auth_response_data(response_body, expected_result, expectation):
             response_body
         )
         assert result == expected_result
+
+
+@pytest.mark.parametrize("ssl_verify", [True, False])
+def test_orca_requests_transport(ssl_verify):
+    api_url = "https://orca.example.com"
+    mlrun.mlconf.iguazio_api_url = api_url
+    mlrun.mlconf.iguazio_api_ssl_verify = ssl_verify
+    client = framework.utils.clients.iguazio.v4.Client()
+
+    # Retries cover connection attempts only, so a request that reached Orca is never re-sent
+    retry = client._orca_session.get_adapter(api_url).max_retries
+    assert (retry.connect, retry.read, retry.status, retry.other) == (3, 0, 0, 0)
+
+    with requests_mock_package.Mocker(session=client._orca_session) as mocker:
+        mocker.post(f"{api_url}/api/v1/authentication/refresh-access-token", json={})
+        client.resolve_token_from_igz_yml(
+            "secretTokens: [{name: default, token: T-1}]", user_id="jane-id"
+        )
+
+    assert mocker.last_request.timeout == 60
+    assert mocker.last_request.verify == ssl_verify
+
+
+def test_orca_requests_do_not_follow_redirects():
+    api_url = "https://orca.example.com"
+    mlrun.mlconf.iguazio_api_url = api_url
+    client = framework.utils.clients.iguazio.v4.Client()
+
+    with requests_mock_package.Mocker(session=client._orca_session) as mocker:
+        mocker.post(
+            f"{api_url}/api/v1/authentication/refresh-access-token",
+            status_code=http.HTTPStatus.FOUND,
+            headers={"Location": f"{api_url}/login"},
+        )
+        login = mocker.get(f"{api_url}/login", json={})
+        with pytest.raises(mlrun.errors.MLRunNotFoundError):
+            client.resolve_token_from_igz_yml(
+                "secretTokens: [{name: default, token: T-1}]", user_id="jane-id"
+            )
+
+    assert not login.called
+
+
+def test_orca_request_rejects_unknown_identity():
+    api_url = "https://orca.example.com"
+    mlrun.mlconf.iguazio_api_url = api_url
+    client = framework.utils.clients.iguazio.v4.Client()
+
+    with requests_mock_package.Mocker(session=client._orca_session) as mocker:
+        with pytest.raises(TypeError, match="Unsupported Orca identity: dict"):
+            client._send_orca_request(
+                "GET",
+                "info/system",
+                failure_message="Failed",
+                default_error_class=mlrun.errors.MLRunRuntimeError,
+                identity={"authorization": "Bearer T-1"},
+            )
+
+    assert not mocker.called

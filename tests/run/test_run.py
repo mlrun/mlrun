@@ -81,7 +81,7 @@ def test_noparams(rundb_mock):
     result.artifact("mydf").as_df()
 
 
-def test_ensure_remote_run(tmp_path, monkeypatch):
+def test_ensure_remote_run(rundb_mock, tmp_path, monkeypatch):
     """This test ensures that function is not running locally when the API is running on k8s
     and context is not a workflow.
     """
@@ -92,12 +92,14 @@ def test_ensure_remote_run(tmp_path, monkeypatch):
 
     # monkeypatch is_api_running_on_k8s to return True
     monkeypatch.setattr(mlrun.config.Config, "is_api_running_on_k8s", lambda self: True)
+    monkeypatch.setattr(rundb_mock, "submit_job", Mock(wraps=rundb_mock.submit_job))
 
-    result = mlrun.run_function(fn, base_task=spec, workdir=str(tmp_path))
+    result = mlrun.run_function(fn, base_task=spec, workdir=str(tmp_path), watch=False)
     print(result.to_yaml())
 
-    # kind is job and not local
-    assert result.metadata.labels["kind"] == "job"
+    # submitted to the API as a job and not run locally
+    submitted_run = rundb_mock.submit_job.call_args.args[0]
+    assert submitted_run.metadata.labels["kind"] == "job"
 
     # running remotely, thus created and not completed (as it is not running locally but waiting
     # to be scheduled)
@@ -219,6 +221,30 @@ def test_local_runtime_failure_before_executing_the_function_code(rundb_mock):
     with pytest.raises(mlrun.runtimes.utils.RunError) as exc:
         function.run(local=True, handler="handler")
     assert "Failed on pre-loading" in str(exc.value)
+
+
+def test_local_runtime_handler_failure_with_nop_db():
+    function = new_function(command=f"{assets_path}/kwargs.py")
+    assert isinstance(function._get_db(), mlrun.db.nopdb.NopDB)
+    with pytest.raises(mlrun.runtimes.utils.RunError) as exc:
+        function.run(local=True, handler="func_with_default")
+    assert "kwargs is empty" in str(exc.value)
+
+
+def test_local_runtime_failure_before_executing_the_function_code_with_nop_db():
+    function = new_function(command=f"{assets_path}/fail.py")
+    assert isinstance(function._get_db(), mlrun.db.nopdb.NopDB)
+    with pytest.raises(mlrun.runtimes.utils.RunError) as exc:
+        function.run(local=True, handler="handler")
+    assert "Failed on pre-loading" in str(exc.value)
+
+
+def test_local_runtime_success_with_nop_db():
+    function = new_function(command=f"{assets_path}/kwargs.py")
+    assert isinstance(function._get_db(), mlrun.db.nopdb.NopDB)
+    result = function.run(local=True, params={"x": 2, "y": 3}, handler="func")
+    verify_state(result)
+    assert result.outputs.get("return", {}) == {"y": 3}
 
 
 @pytest.mark.parametrize(

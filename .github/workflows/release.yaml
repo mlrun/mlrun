@@ -40,7 +40,7 @@ on:
         required: false
         default: ''
       skip_publish_pypi:
-        description: 'Whether to skip publishing the python package to Pypi (Auto skip for feature branch)'
+        description: 'Whether to skip publishing the python package (PyPI, or McK Artifactory on a feature branch)'
         required: false
         default: 'false'
         type: choice
@@ -161,9 +161,9 @@ jobs:
     name: Publish package to PyPI
     runs-on: ubuntu-latest
 
-    # skip releasing to pypi for feature branches. installing mlrun can be done by:
-    # pip install 'mlrun[complete] @ git+https://github.com/mlrun/mlrun@feature/branch'
-    # pypi do not allow local version identifier (https://peps.python.org/pep-0440/#local-version-identifiers)
+    # Public PyPI rejects local version identifiers (PEP 440), which feature
+    # branches use (for example 1.9.0-rc1+timescaledb). Those wheels are
+    # published by publish-feature-to-artifactory instead.
     if: needs.prepare-inputs.outputs.is_feature_branch == 'false'
 
     # publishing to pypi is (kind of) irreversible, therefore do it only if both previous steps finished successfully
@@ -187,6 +187,50 @@ jobs:
           MLRUN_VERSION: ${{ needs.prepare-inputs.outputs.version }}
           UV_PUBLISH_USERNAME: ${{ secrets.PYPI_USERNAME }}
           UV_PUBLISH_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
+        run: uv run --no-project --with packaging~=25.0 make publish-package
+
+  publish-feature-to-artifactory:
+    name: Publish feature branch package to McK Artifactory
+    runs-on: mlrun-release
+
+    # Git install has no version.json and reports 0.0.0+unstable. The wheel
+    # built here carries the real feature version (local identifier and all).
+    # Same registry and secrets as Private Release. mlrun-release matches that
+    # workflow so the upload uses the runner that can reach Artifactory.
+    if: needs.prepare-inputs.outputs.is_feature_branch == 'true'
+    # UI image is not required for the client wheel. Match the old feature-branch
+    # tag, which waited only on the MLRun images.
+    needs: [ prepare-inputs, trigger-and-wait-for-mlrun-image-building ]
+    env:
+      PYPI_REPO_URL: https://${{ secrets.PRIVATE_ARTIFACTORY_URL }}/artifactory/api/pypi/mlrun-private-pypi-local
+    steps:
+      - name: Cleanup build artifacts from previous runs
+        if: true
+        run: |
+          # mlrun-release is a persistent runner. Root-owned proto build dirs
+          # from earlier jobs break checkout. Same cleanup as Private Release.
+          if [ -d "$GITHUB_WORKSPACE/server" ]; then
+            docker run --rm -v "$GITHUB_WORKSPACE:/workspace" alpine sh -c "rm -rf /workspace/server/common/proto/build /workspace/server/go/proto/build" || true
+          fi
+      - name: Generate GitHub App token
+        id: mlrun-app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ secrets.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+      - uses: actions/checkout@v7
+        with:
+          token: ${{ steps.mlrun-app-token.outputs.token }}
+          persist-credentials: false
+      - name: Set up uv
+        uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # 10.3.2
+      - name: Build & push to Artifactory PyPI
+        if: github.event.inputs.skip_publish_pypi != 'true'
+        env:
+          MLRUN_VERSION: ${{ needs.prepare-inputs.outputs.version }}
+          UV_PUBLISH_URL: ${{ env.PYPI_REPO_URL }}
+          UV_PUBLISH_USERNAME: ${{ secrets.PRIVATE_ARTIFACTORY_USERNAME }}
+          UV_PUBLISH_PASSWORD: ${{ secrets.PRIVATE_ARTIFACTORY_PASSWORD }}
         run: uv run --no-project --with packaging~=25.0 make publish-package
 
   create-releases:
@@ -232,9 +276,10 @@ jobs:
     runs-on: ubuntu-latest
 
     # run this specific job for feature branch only as we wont have a github release for it
-    # the tag would be useful to track feature branch released versions
+    # the tag tracks the feature-branch release. the wheel is published by
+    # publish-feature-to-artifactory unless skip_publish_pypi is true
     if: needs.prepare-inputs.outputs.is_feature_branch == 'true'
-    needs: [ prepare-inputs, trigger-and-wait-for-mlrun-image-building ]
+    needs: [ prepare-inputs, publish-feature-to-artifactory ]
     steps:
       - name: Generate GitHub App token for mlrun repo
         id: mlrun-app-token

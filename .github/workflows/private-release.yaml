@@ -219,11 +219,8 @@ jobs:
     env:
       PYPI_REPO_URL: "https://${{ secrets.PRIVATE_ARTIFACTORY_URL }}/artifactory/api/pypi/${{ inputs.artifactory_pypi_repo }}"
 
-    # skip releasing to pypi for feature branches
-    # pypi do not allow local version identifier (https://peps.python.org/pep-0440/#local-version-identifiers)
-    if: needs.prepare-inputs.outputs.is_feature_branch == 'false'
-
-    # publishing to artifactory after images are built successfully
+    # Feature branches publish here too. Public PyPI rejects local versions
+    # (1.9.0-rc1+feature); this Artifactory repo accepts them.
     needs: [ prepare-inputs ]
     steps:
       - name: Cleanup build artifacts from previous runs

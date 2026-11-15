@@ -236,7 +236,7 @@ jobs:
           fi      
       - uses: actions/checkout@v7
       - name: Set up uv
-        uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # 10.3.2
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # 10.3.3
       - name: Build & push to Artifactory PyPI
         env:
           MLRUN_VERSION: ${{ needs.prepare-inputs.outputs.version }}

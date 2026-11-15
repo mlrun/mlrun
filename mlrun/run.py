@@ -273,9 +273,7 @@ def get_or_create_ctx(
         context.log_artifact(
             "model.txt", body=b"abc is 123", labels={"framework": "xgboost"}
         )
-        context.log_artifact(
-            "results.html", body=b"<b> Some HTML <b>", viewer="web-app"
-        )
+        context.log_artifact("results.html", body=b"<b> Some HTML <b>", viewer="web-app")
 
     """
     if global_context.get() and not spec and not event:

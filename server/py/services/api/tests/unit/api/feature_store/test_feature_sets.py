@@ -597,9 +597,9 @@ def test_feature_set_create_without_labels(db: Session, client: TestClient) -> N
     feature_set_response = _patch_object(
         client, project_name, name, feature_set_update, "feature-sets"
     )
-    assert len(feature_set_response["metadata"]["labels"]) == 2, (
-        "Labels didn't get updated"
-    )
+    assert (
+        len(feature_set_response["metadata"]["labels"]) == 2
+    ), "Labels didn't get updated"
 
 
 def test_feature_set_project_name_mismatch_failure(

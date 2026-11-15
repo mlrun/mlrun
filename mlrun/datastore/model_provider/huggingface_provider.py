@@ -262,9 +262,7 @@ class HuggingFaceProvider(ModelProvider):
 
             # Using custom pipeline for image classification
             image = Image.open(image_path)
-            pipeline_object = pipeline(
-                "image-classification", model="microsoft/resnet-50"
-            )
+            pipeline_object = pipeline("image-classification", model="microsoft/resnet-50")
             result = hf_provider.custom_invoke(
                 pipeline_object,
                 inputs=image,

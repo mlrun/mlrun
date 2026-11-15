@@ -190,12 +190,12 @@ class TestAlibabaOssDataStore:
         assert stat.size == len(test_string), "Stat size different than expected"
 
         dir_list = mlrun.run.get_dataitem(param["bucket_path_dir"]).listdir()
-        assert param["object_path"].split("/")[1] in dir_list, (
-            "File not in container dir-list"
-        )
-        assert param["df_path"].split("/")[1] in dir_list, (
-            "CSV file not in container dir-list"
-        )
+        assert (
+            param["object_path"].split("/")[1] in dir_list
+        ), "File not in container dir-list"
+        assert (
+            param["df_path"].split("/")[1] in dir_list
+        ), "CSV file not in container dir-list"
 
         upload_data_item = mlrun.run.get_dataitem(param["blob_url"])
         upload_data_item.upload(test_filename)

@@ -162,9 +162,7 @@ class MapValues(StepToDict, MLRunStep):
         example::
 
             # replace the value "U" with '0' in the age column
-            graph.to(
-                MapValues(mapping={"age": {"U": "0"}}, with_original_features=True)
-            )
+            graph.to(MapValues(mapping={"age": {"U": "0"}}, with_original_features=True))
 
             # replace integers, example
             graph.to(MapValues(mapping={"not": {0: 1, 1: 0}}))
@@ -173,9 +171,7 @@ class MapValues(StepToDict, MLRunStep):
             graph.to(
                 MapValues(
                     mapping={
-                        "numbers": {
-                            "ranges": {"negative": [-inf, 0], "positive": [0, inf]}
-                        }
+                        "numbers": {"ranges": {"negative": [-inf, 0], "positive": [0, inf]}}
                     }
                 )
             )

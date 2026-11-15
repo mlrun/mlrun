@@ -112,9 +112,9 @@ class TestModelEndpoint(TestDatabaseBase):
                 == f"project-1/function-1@{unversioned_tagged_object_uid_prefix}latest"
             )
             assert model_endpoint_from_db.spec.model_name == f"model-{i}"
-            assert is_hex(model_endpoint_from_db.metadata.uid), (
-                "expected uid as hex value"
-            )
+            assert is_hex(
+                model_endpoint_from_db.metadata.uid
+            ), "expected uid as hex value"
             uids.append(uid)
 
         model_endpoint_from_db = self._db.get_model_endpoint(

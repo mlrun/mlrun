@@ -319,11 +319,11 @@ The MLRun CE (Community Edition) includes the following services:
       ```
    3. If you do not have a certificate, install the MLRun CE helm chart by running this, using the values file:
       ``` 
-      helm install --wait --dependency-update --namespace mlrun -f aws_values.yaml mlrun-ce mlrun-ce/mlrun-ce --version 0.7.0
+      helm install --wait --dependency-update --namespace mlrun -f aws_values.yaml mlrun-ce mlrun-ce/mlrun-ce
       ```
    4. Alternatively, if you have a certificate, add the CERTIFICATE_ARN to the install command:
       ```
-      helm install --wait --dependency-update --namespace mlrun -f aws_values.yaml --set global.domainNameCertificate="<CERTIFICATE ARN>" mlrun-ce mlrun-ce/mlrun-ce --version 0.7.0
+      helm install --wait --dependency-update --namespace mlrun -f aws_values.yaml --set global.domainNameCertificate="<CERTIFICATE ARN>" mlrun-ce mlrun-ce/mlrun-ce
       ```
 2. Get the AWS Load Balancer CNAME and set it as a value for your DNS record. Configure the CNAME in your domain, pointing **\*.<system_name>.\<domain>** to the Load Balancer URL:
    ```

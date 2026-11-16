@@ -17,6 +17,7 @@ These instructions install the community edition {{ ceversion }}, which currentl
 - [Upgrading the chart](#upgrading-the-chart)
 
 See also
+- [MLRun CE installer guide](./installer-guide.md) for installing, upgrading, and uninstalling MLRun CE with a single command, instead of running the steps below by hand.
 - [Configure OTel](./mlrun-ce-installation-notes.md#configure-otel) for details on using the OpenTelemetry Operator to bring metrics and distributed tracing to your ML workloads.
 
 ## Prerequisites
@@ -125,9 +126,11 @@ Your applications are now available in your local browser:
 - MLRun UI - `http://<host-machine-address>:30060`
 - MLRun API (external) - `http://<host-machine-address>:30070`
 - Seaweed API - `http://<host-machine-address>:30094`
-- Seaweed UI - `http://<host-machine-address>:23646`
+- Seaweed Admin UI - `http://<host-machine-address>:30093`
 - Pipeline UI - `http://<host-machine-address>:30100`
-- Grafana UI - `http://<host-machine-address>:30110`
+- Grafana UI - `http://<host-machine-address>:30010`
+- Prometheus UI - `http://<host-machine-address>:30020`
+- TimescaleDB - `<host-machine-address>:30110` (PostgreSQL, not a web UI)
 
 
 ```{admonition} Check state
@@ -244,10 +247,10 @@ Then try to upgrade the chart:
 
 ```bash
 # Example of installing the latest version
-helm upgrade --install --reuse-values mlrun-ce —namespace mlrun mlrun-ce/mlrun-ce
+helm upgrade --install --reuse-values mlrun-ce --namespace mlrun mlrun-ce/mlrun-ce
 
 # Example of installing a specific version
-helm upgrade --install --reuse-values mlrun-ce —namespace mlrun mlrun-ce/mlrun-ce --version <chart-version>
+helm upgrade --install --reuse-values mlrun-ce --namespace mlrun mlrun-ce/mlrun-ce --version <chart-version>
 ```
 ```{admonition} Note
 you can check all the available versions of the chart in the repo via `helm search repo mlrun-ce/mlrun-ce --versions`.

@@ -43,7 +43,9 @@ graphviz~=0.20.0
 # we experience a different in google-auth package in databricks-sdk>0.13
 databricks-sdk~=0.20.0
 # sqlalchemy version should be aligned with mlrun-api due to common use with the model monitoring database
-sqlalchemy~=2.0
+# cap below 2.1: sqlalchemy-utils (even latest 0.42.1) breaks on 2.1's renamed ORM internals
+# Revisit once that's fixed upstream.
+sqlalchemy~=2.0.0
 dask==2024.8
 distributed==2024.8
 # TimescaleDB dependencies - optional for model monitoring

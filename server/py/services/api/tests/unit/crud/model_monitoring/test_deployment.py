@@ -1169,3 +1169,74 @@ class TestDisableModelMonitoringPersistsDisabledSpec:
             )
 
         persist_mock.assert_called_once_with(enabled=False, otlp_enabled=False)
+
+
+def _http_auth_mode(function) -> str | None:
+    trigger = function.spec.config.get("spec.triggers.http")
+    if not trigger:
+        return None
+    return (trigger.get("attributes") or {}).get("authenticationMode")
+
+
+@pytest.mark.parametrize("function_authentication_enabled", [False, True])
+def test_stream_and_controller_http_triggers_are_unauthenticated_when_function_auth_enabled(
+    monkeypatch, function_authentication_enabled: bool
+) -> None:
+    """HTTP ingest and manual controller runs send no credentials.
+
+    With function authentication enabled, Nuclio defaults an HTTP trigger to
+    ``api`` and the auth-proxy returns 401. Both triggers must set ``none``.
+    With the flag off, ``authentication_mode`` must not be passed to ``with_http``.
+    """
+    monkeypatch.setattr(
+        mlrun.mlconf.httpdb.nuclio,
+        "function_authentication_enabled",
+        function_authentication_enabled,
+    )
+    # with_http records async mode and accepts authentication_mode only on Nuclio >= 1.17.5.
+    monkeypatch.setattr(mlrun.mlconf, "nuclio_version", "1.17.10")
+    deployment = mm_dep.MonitoringDeployment(project="proj")
+
+    with (
+        patch(
+            "framework.api.utils.get_run_db_instance",
+            return_value=Mock(),
+        ),
+        patch(
+            "mlrun.model_monitoring.get_stream_path",
+            return_value="kafka://monitoring",
+        ),
+        patch(
+            "mlrun.model_monitoring.get_tsdb_connector",
+            return_value=Mock(),
+        ),
+        patch(
+            "mlrun.model_monitoring.stream_processing.EventStreamProcessor.apply_monitoring_serving_graph"
+        ),
+        patch.object(
+            deployment,
+            "apply_and_create_stream_trigger",
+            side_effect=lambda function, **_kwargs: function,
+        ),
+        patch("framework.api.utils.apply_enrichment_and_validation_on_function"),
+    ):
+        stream = deployment._initial_model_monitoring_stream_processing_function(
+            stream_image="mlrun/mlrun",
+            parquet_target="v3io:///projects/proj/monitoring.parquet",
+        )
+        controller = deployment._get_model_monitoring_controller_function(
+            image="mlrun/mlrun"
+        )
+
+    expected_mode = "none" if function_authentication_enabled else None
+    assert _http_auth_mode(stream) == expected_mode
+    stream_trigger = stream.spec.config["spec.triggers.http"]
+    assert stream_trigger["mode"] == "async"
+    assert stream_trigger["maxWorkers"] == 1
+
+    if function_authentication_enabled:
+        assert _http_auth_mode(controller) == "none"
+        controller_trigger = controller.spec.config["spec.triggers.http"]
+        assert controller_trigger["maxWorkers"] == 1
+    else:
+        assert "spec.triggers.http" not in controller.spec.config

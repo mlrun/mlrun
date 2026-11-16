@@ -44,3 +44,14 @@ def test_add_default_env_sets_mlrun_runtime_kind_field_ref():
 
     env_var = _env_var(cop, "MLRUN_RUNTIME_KIND")
     assert env_var.value_from.field_ref.field_path == "metadata.labels['mlrun/class']"
+
+
+def test_add_default_env_sets_explicit_mlrun_runtime_kind():
+    """Regression test for ML-13116: build/deploy step pods have no mlrun/class label."""
+    cop = _FakeContainerOp()
+
+    ops.add_default_env(k8s_client, cop, runtime_kind="job")
+
+    env_var = _env_var(cop, "MLRUN_RUNTIME_KIND")
+    assert env_var.value == "job"
+    assert env_var.value_from is None

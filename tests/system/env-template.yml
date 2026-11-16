@@ -62,6 +62,8 @@ DATABRICKS_CLUSTER_ID:
 AWS_BUCKET_NAME:
 AWS_ACCESS_KEY_ID:
 AWS_SECRET_ACCESS_KEY:
+# optional for temporary credentials:
+AWS_SESSION_TOKEN:
 
 # GCS
 # Path to Google credentials file (in JSON format)

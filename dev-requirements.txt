@@ -12,6 +12,7 @@ pytest-alembic~=0.11.0
 pytest-httpserver~=1.0
 pytest-timeout~=2.0
 pytest-mock-resources[mysql]~=2.12
+greenlet~=3.5  # pytest-mock-resources imports sqlalchemy.ext.asyncio unconditionally; SQLAlchemy 2.1+ no longer pulls this in automatically
 # pin to 4.10.0 to avoid issues with k3s compatibility
 testcontainers[k3s]~=4.10.0
 aioresponses~=0.7
@@ -28,7 +29,9 @@ matplotlib~=3.5
 graphviz~=0.20.0
 nuclio-sdk>=0.5
 avro~=1.11
-sqlalchemy~=2.0
+# cap below 2.1: sqlalchemy-utils (even latest 0.42.1) breaks on 2.1's renamed ORM internals
+# Revisit once that's fixed upstream.
+sqlalchemy~=2.0.0
 sqlalchemy-utils~=0.41.2
 
 # frameworks tests

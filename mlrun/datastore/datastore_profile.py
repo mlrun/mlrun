@@ -262,13 +262,14 @@ class DatastoreProfileV3io(DatastoreProfile):
 
 class DatastoreProfileS3(DatastoreProfile):
     type: str = pydantic.v1.Field("s3")
-    _private_attributes = ("access_key_id", "secret_key")
+    _private_attributes = ("access_key_id", "secret_key", "session_token")
     endpoint_url: str | None = None
     force_non_anonymous: str | None = None
     profile_name: str | None = None
     assume_role_arn: str | None = None
     access_key_id: str | None = None
     secret_key: str | None = None
+    session_token: str | None = None
     bucket: str
 
     def secrets(self) -> dict:
@@ -277,6 +278,8 @@ class DatastoreProfileS3(DatastoreProfile):
             res["AWS_ACCESS_KEY_ID"] = self.access_key_id
         if self.secret_key:
             res["AWS_SECRET_ACCESS_KEY"] = self.secret_key
+        if self.session_token:
+            res["AWS_SESSION_TOKEN"] = self.session_token
         if self.endpoint_url:
             res["AWS_ENDPOINT_URL_S3"] = self.endpoint_url
         if self.force_non_anonymous:

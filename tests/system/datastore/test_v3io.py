@@ -260,7 +260,7 @@ class TestV3ioDataStore(TestMLRunSystem):
         assert result == b"test"
         with pytest.raises(
             TypeError,
-            match="Unable to put a value of type V3ioStore",
+            match="Unable to put a value of type int to V3ioStore",
         ):
             data_item.put(123)
 

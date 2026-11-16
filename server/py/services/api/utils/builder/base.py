@@ -612,16 +612,18 @@ def append_source_fetch_init_container(
     :param project_secrets:  Project secrets exposed as build-time env vars (next precedence).
     """
     # Env precedence: builder_env_list > project_secrets > storage.auto_mount_params.
-    # First-write wins so caller-supplied values are not overwritten by auto-mount defaults.
+    # First-write wins so caller-supplied values are not overwritten by auto-mount defaults;
+    # auto-mount envFrom sources rank lowest since k8s lets env override envFrom.
     image = config.httpdb.builder.kaniko_source_fetch_init_container_image
     if not image:
         image = mlrun.utils.enrich_image_url(_DEFAULT_SOURCE_FETCH_IMAGE)
 
     args = ["-m", "mlrun", "load-source", source, "--target", target_dir]
 
+    auto_mount_env, auto_mount_env_from = resolve_storage_auto_mount_env()
     env_list = list(builder_env_list or []) + list(project_secrets or [])
     already_set = {env_var.name for env_var in env_list}
-    for env_var in resolve_storage_auto_mount_env():
+    for env_var in auto_mount_env:
         if env_var.name in already_set:
             continue
         env_list.append(env_var)
@@ -640,11 +642,16 @@ def append_source_fetch_init_container(
         command=["python"],
         args=args,
         env=env_list,
+        env_from=auto_mount_env_from,
         name="fetch-source",
     )
 
 
-def resolve_storage_auto_mount_env() -> list:
+def resolve_storage_auto_mount_env() -> tuple[
+    list[client.V1EnvVar], list[client.V1EnvFromSource]
+]:
+    # Returns (env, env_from); env_from carries e.g. secret_env without keys, which mounts
+    # the whole secret via envFrom.secretRef.
     # Gate on env_style_modifiers so mount-style outputs (volumes/volume_mounts) are
     # not silently dropped. KubeResource.apply sanitizes spec.env to plain dicts, so
     # rebuild V1EnvVar for callers that rely on attribute access.
@@ -656,10 +663,10 @@ def resolve_storage_auto_mount_env() -> list:
         modifier is None
         or modifier not in mlrun.runtimes.pod.AutoMountType.env_style_modifiers()
     ):
-        return []
+        return [], []
     scratch = mlrun.runtimes.KubejobRuntime()
     scratch.try_auto_mount_based_on_config()
-    return [
+    env = [
         client.V1EnvVar(
             name=env_var["name"],
             value=env_var.get("value"),
@@ -669,6 +676,7 @@ def resolve_storage_auto_mount_env() -> list:
         else env_var
         for env_var in scratch.spec.env or []
     ]
+    return env, list(scratch.spec.env_from)
 
 
 def _generate_builder_env(

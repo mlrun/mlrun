@@ -107,7 +107,7 @@ class ParallelRunner:
             resp, sout, serr = future.result()
             runobj = RunObject.from_dict(resp)
             try:
-                log_std(self._db_conn, runobj, sout, serr, skip=self.is_child)
+                log_std(self._get_db(), runobj, sout, serr, skip=self.is_child)
                 resp = self._update_run_state(resp)
             except RunError as err:
                 resp = self._update_run_state(resp, err=err_to_str(err))
@@ -199,7 +199,7 @@ class HandlerRuntime(BaseRuntime, ParallelRunner):
         trackers_manager.pre_run(context)
         sout, serr = exec_from_params(handler, runobj, context, self.spec.workdir)
         context = trackers_manager.post_run(context)
-        log_std(self._db_conn, runobj, sout, serr, show=False)
+        log_std(self._get_db(), runobj, sout, serr, show=False)
         return context.to_dict()
 
 
@@ -347,7 +347,7 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
                 # If trackers where used, this is where we log all data collected to MLRun
                 context = trackers_manager.post_run(context)
                 log_std(
-                    self._db_conn, runobj, sout, serr, skip=self.is_child, show=False
+                    self._get_db(), runobj, sout, serr, skip=self.is_child, show=False
                 )
                 return context.to_dict()
 
@@ -406,7 +406,7 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
 
             # If trackers where used, this is where we log all data collected to MLRun
             run_obj_dict = trackers_manager.post_run(run_obj_dict)
-            log_std(self._db_conn, runobj, sout, serr, skip=self.is_child, show=False)
+            log_std(self._get_db(), runobj, sout, serr, skip=self.is_child, show=False)
             return run_obj_dict
 
 

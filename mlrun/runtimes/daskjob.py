@@ -563,6 +563,8 @@ class DaskCluster(KubejobRuntime):
         # TODO: investigate if the following instructions could overwrite the environment on any MLRun API Pod
         # Such action could result on race conditions against other runtimes and MLRun itself
         extra_env, _ = self._generate_runtime_env(runobj)
+        # the non-root HOME default is for dask worker pods, not the caller's process
+        extra_env.pop("HOME", None)
         # Since it runs locally, we don't need the external sources env vars
         environ.update(extra_env)
 
@@ -588,5 +590,5 @@ class DaskCluster(KubejobRuntime):
         client = self.client
         setattr(context, "dask_client", client)
         sout, serr = exec_from_params(handler, runobj, context)
-        log_std(self._db_conn, runobj, sout, serr, skip=self.is_child, show=False)
+        log_std(self._get_db(), runobj, sout, serr, skip=self.is_child, show=False)
         return context.to_dict()

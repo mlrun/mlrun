@@ -494,14 +494,14 @@ def test_store_user_token_secret_created(k8s_helper):
 
     user_id = "test-user-id"
     username = "test-username"
-    auth_info = mlrun.common.schemas.AuthInfo(user_id=user_id, username=username)
     token_name = "my-token"
     token_value = "abc123"
     issued_at = 1
     expiration = 9999
 
     result = k8s_helper.store_user_token_secret(
-        auth_info=auth_info,
+        user_id=user_id,
+        username=username,
         token_name=token_name,
         token=token_value,
         issued_at=issued_at,
@@ -567,13 +567,13 @@ def test_store_user_token_secret_stores_user_id_in_label(k8s_helper, user_id):
     )
 
     username = "test-username"
-    auth_info = mlrun.common.schemas.AuthInfo(user_id=user_id, username=username)
     token_name = "my-token"
     token_value = "abc123"
     expiration = 9999
 
     result = k8s_helper.store_user_token_secret(
-        auth_info=auth_info,
+        user_id=user_id,
+        username=username,
         token_name=token_name,
         token=token_value,
         issued_at=1,
@@ -613,14 +613,14 @@ def test_store_user_token_secret_username_annotation(k8s_helper, username):
     )
 
     user_id = str(uuid.uuid4())
-    auth_info = mlrun.common.schemas.AuthInfo(user_id=user_id, username=username)
     token_name = "my-token"
     token_value = "abc123"
     issued_at = 1
     expiration = 9999
 
     result = k8s_helper.store_user_token_secret(
-        auth_info=auth_info,
+        user_id=user_id,
+        username=username,
         token_name=token_name,
         token=token_value,
         issued_at=issued_at,
@@ -645,10 +645,10 @@ def test_store_user_token_secret_username_annotation(k8s_helper, username):
 
 def test_store_user_token_secret_rejects_missing_username(k8s_helper):
     """Token secret handling requires a username (enterprise-only)."""
-    auth_info = mlrun.common.schemas.AuthInfo(user_id="test-user-id", username=None)
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
         k8s_helper.store_user_token_secret(
-            auth_info=auth_info,
+            user_id="test-user-id",
+            username=None,
             token_name="my-token",
             token="abc123",
             issued_at=1,
@@ -664,14 +664,14 @@ def test_store_user_token_secret_secret_naming(k8s_helper):
     )
 
     user_id = "test-user-id"
-    auth_info = mlrun.common.schemas.AuthInfo(user_id=user_id, username="test-username")
     token_name = "my-token"
     token_value = "abc123"
     issued_at = 1
     expiration = 9999
 
     result = k8s_helper.store_user_token_secret(
-        auth_info=auth_info,
+        user_id=user_id,
+        username="test-username",
         token_name=token_name,
         token=token_value,
         issued_at=issued_at,
@@ -692,7 +692,6 @@ def test_store_user_token_secret_secret_naming(k8s_helper):
 def test_store_user_token_secret_updated(k8s_helper):
     user_id = "test-user-id"
     username = "test-username"
-    auth_info = mlrun.common.schemas.AuthInfo(user_id=user_id, username=username)
     token_name = "my-token"
     token_value = "abc123"
     issued_at = 1
@@ -712,7 +711,8 @@ def test_store_user_token_secret_updated(k8s_helper):
     k8s_helper.v1api.read_namespaced_secret.return_value = existing_secret
 
     result = k8s_helper.store_user_token_secret(
-        auth_info=auth_info,
+        user_id=user_id,
+        username=username,
         token_name=token_name,
         token=token_value,
         issued_at=issued_at,
@@ -765,7 +765,6 @@ def test_store_user_token_secret_skipped_and_force_update(
 ):
     user_id = "test-user-id"
     username = "test-username"
-    auth_info = mlrun.common.schemas.AuthInfo(user_id=user_id, username=username)
     token_name = "my-token"
     token_value = "abc123"
     issued_at = 1
@@ -783,7 +782,8 @@ def test_store_user_token_secret_skipped_and_force_update(
     k8s_helper.v1api.read_namespaced_secret.return_value = existing_secret
 
     result = k8s_helper.store_user_token_secret(
-        auth_info=auth_info,
+        user_id=user_id,
+        username=username,
         token_name=token_name,
         token=token_value,
         issued_at=issued_at,
@@ -811,7 +811,6 @@ def test_store_user_token_secret_replaces_token_with_different_name(k8s_helper):
     metadata drift on the existing secret is itself a reason to update."""
     user_id = "test-user-id"
     username = "test-username"
-    auth_info = mlrun.common.schemas.AuthInfo(user_id=user_id, username=username)
 
     old_token_name = "old-token"
     new_token_name = "new-token"
@@ -832,7 +831,8 @@ def test_store_user_token_secret_replaces_token_with_different_name(k8s_helper):
     k8s_helper.v1api.read_namespaced_secret.return_value = existing_secret
 
     result = k8s_helper.store_user_token_secret(
-        auth_info=auth_info,
+        user_id=user_id,
+        username=username,
         token_name=new_token_name,
         token="new-value",
         issued_at=1,
@@ -865,7 +865,6 @@ def test_store_user_token_secret_skips_when_metadata_matches_and_expiration_olde
     user_id = "test-user-id"
     username = "test-username"
     token_name = "my-token"
-    auth_info = mlrun.common.schemas.AuthInfo(user_id=user_id, username=username)
     secret_name = k8s_helper._resolve_auth_secret_name(user_id, token_name)
 
     existing_secret = _make_user_token_secret(
@@ -884,7 +883,8 @@ def test_store_user_token_secret_skips_when_metadata_matches_and_expiration_olde
     k8s_helper.v1api.read_namespaced_secret.return_value = existing_secret
 
     result = k8s_helper.store_user_token_secret(
-        auth_info=auth_info,
+        user_id=user_id,
+        username=username,
         token_name=token_name,
         token="abc123",
         issued_at=1,
@@ -1065,12 +1065,10 @@ def test_store_user_token_secret_canonicalizes_username_to_lowercase(k8s_helper)
     )
 
     mixed_case_username = "Mixed.Case-User"
-    auth_info = mlrun.common.schemas.AuthInfo(
-        user_id="user-id-1", username=mixed_case_username
-    )
 
     k8s_helper.store_user_token_secret(
-        auth_info=auth_info,
+        user_id="user-id-1",
+        username=mixed_case_username,
         token_name="my-token",
         token="abc123",
         issued_at=1,

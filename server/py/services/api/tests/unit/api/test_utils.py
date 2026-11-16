@@ -1188,6 +1188,31 @@ def test_ensure_function_security_context_run_as_non_root_from_default(
     assert function.spec.security_context.run_as_non_root is False
 
 
+def test_ensure_function_security_context_non_root_home_is_generated_not_stored(
+    db: Session, client: TestClient
+):
+    services.api.tests.unit.api.utils.create_project(client, PROJECT)
+    mlrun.mlconf.igz_version = "3.6"
+    mlrun.mlconf.function.spec.security_context.enrichment_mode = (
+        mlrun.common.schemas.SecurityContextEnrichmentModes.override.value
+    )
+    framework.utils.clients.iguazio.v3.Client.get_user_unix_id = unittest.mock.Mock()
+    auth_info = mlrun.common.schemas.AuthInfo(user_unix_id=1000)
+    _, _, _, original_function_dict = _generate_original_function(
+        kind=mlrun.runtimes.RuntimeKinds.job
+    )
+
+    function = mlrun.new_function(runtime=original_function_dict)
+    framework.api.utils.ensure_function_security_context(function, auth_info)
+
+    runtime_env, _ = function._generate_runtime_env()
+    assert runtime_env["HOME"] == "/tmp"
+
+    # the default is generated and must not be stored in the function spec
+    stored_env = function.to_dict()["spec"].get("env") or []
+    assert "HOME" not in [env_var["name"] for env_var in stored_env]
+
+
 def test_ensure_function_security_context_enrichment_group_id(
     db: Session, client: TestClient
 ):
@@ -2499,3 +2524,87 @@ def test_test_resolve_project_service_account_details_validity(
             forbidden_service_accounts=forbidden,
             default_service_account=default,
         )
+
+
+@pytest.fixture
+def mocked_deletion_project_member(monkeypatch) -> MagicMock:
+    member = MagicMock()
+    member.post_delete_project = AsyncMock()
+    monkeypatch.setattr(
+        "framework.utils.singletons.project_member.get_project_member",
+        lambda: member,
+    )
+    return member
+
+
+async def _run_deletion_wrapper(
+    project_state: mlrun.common.schemas.ProjectState = mlrun.common.schemas.ProjectState.online,
+):
+    await framework.api.utils._delete_project(
+        db_session=MagicMock(),
+        project=mlrun.common.schemas.Project(
+            metadata=mlrun.common.schemas.ProjectMetadata(name="proj"),
+            status=mlrun.common.schemas.ProjectStatus(state=project_state),
+        ),
+        deletion_strategy=mlrun.common.schemas.DeletionStrategy.cascading,
+        auth_info=mlrun.common.schemas.AuthInfo(),
+        wait_for_project_deletion=False,
+        background_task_name="task",
+    )
+
+
+@pytest.mark.parametrize("leader", ["mlrun", "iguazio"])
+async def test_delete_project_wrapper_cleans_logs_when_not_orca_leader(
+    monkeypatch, mocked_deletion_project_member, leader
+):
+    monkeypatch.setattr(mlrun.mlconf.httpdb.projects, "leader", leader)
+
+    await _run_deletion_wrapper()
+
+    mocked_deletion_project_member.post_delete_project.assert_awaited_once_with("proj")
+
+
+async def test_delete_project_wrapper_skips_log_cleanup_under_orca_leader(
+    monkeypatch, mocked_deletion_project_member
+):
+    """Under Orca the follower purge cleans up logs once the project is deleted."""
+    monkeypatch.setattr(mlrun.mlconf.httpdb.projects, "leader", "orca")
+
+    await _run_deletion_wrapper()
+
+    mocked_deletion_project_member.delete_project.assert_called_once()
+    mocked_deletion_project_member.post_delete_project.assert_not_awaited()
+
+
+async def test_delete_project_wrapper_failed_orca_action_skips_log_cleanup(
+    monkeypatch, mocked_deletion_project_member
+):
+    monkeypatch.setattr(mlrun.mlconf.httpdb.projects, "leader", "orca")
+    mocked_deletion_project_member.delete_project.side_effect = (
+        mlrun.errors.MLRunRuntimeError("action failed")
+    )
+
+    with pytest.raises(mlrun.errors.MLRunRuntimeError):
+        await _run_deletion_wrapper()
+
+    mocked_deletion_project_member.post_delete_project.assert_not_awaited()
+
+
+async def test_delete_project_wrapper_force_delete_under_orca_cleans_logs(
+    monkeypatch, mocked_deletion_project_member
+):
+    """When the project is gone from Orca, the wrapper deletes it locally, so no
+    follower purge will run - the wrapper must clean up logs itself."""
+    monkeypatch.setattr(mlrun.mlconf.httpdb.projects, "leader", "orca")
+    mocked_deletion_project_member.delete_project.side_effect = (
+        mlrun.errors.MLRunNotFoundError("not found")
+    )
+    local_delete_mock = MagicMock()
+    monkeypatch.setattr(services.api.crud.Projects, "delete_project", local_delete_mock)
+
+    await _run_deletion_wrapper(
+        project_state=mlrun.common.schemas.ProjectState.archived
+    )
+
+    local_delete_mock.assert_called_once()
+    mocked_deletion_project_member.post_delete_project.assert_awaited_once_with("proj")

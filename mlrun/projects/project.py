@@ -1311,8 +1311,23 @@ class ProjectSpec(ModelObj):
 
 
 class ProjectStatus(ModelObj):
-    def __init__(self, state=None):
+    """Project state as last synced from the leader. ``op_id`` is the CAS witness Orca's
+    project-sync expects back on the next update/patch (see ``mlrun.utils.orca_client``).
+    """
+
+    def __init__(self, state=None, op_id=None):
         self.state = state
+        self.op_id = op_id
+
+    @property
+    def op_id(self) -> str | None:
+        return self._op_id
+
+    @op_id.setter
+    def op_id(self, op_id):
+        # str, not uuid.UUID - yaml.safe_dump can't serialize UUID, and ModelObj.from_dict()
+        # bypasses __init__ via setattr(), so normalizing here (not just in __init__) is required.
+        self._op_id = str(op_id) if op_id else None
 
 
 class MlrunProject(ModelObj):

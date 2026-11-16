@@ -262,10 +262,15 @@ class OTelMonitoringAttribute(MonitoringStrEnum):
     Dot-separated naming follows the OpenTelemetry semantic-conventions
     convention. ``project``, ``app.name``, ``serving.function.name``,
     ``endpoint.uid``, ``endpoint.name`` are shared by every entry in a
-    batch. ``result.name``, ``result.kind`` and ``result.status`` apply only
-    to entries coming from a :class:`ModelMonitoringApplicationResult`;
-    ``metric.name`` applies only to entries coming from a
-    :class:`ModelMonitoringApplicationMetric`.
+    batch. ``result.name`` and ``result.kind`` apply only to entries coming
+    from a :class:`ModelMonitoringApplicationResult`; ``metric.name`` applies
+    only to entries coming from a :class:`ModelMonitoringApplicationMetric`.
+
+    The result status is deliberately not an attribute: the OTel SDK keeps
+    re-exporting the last value of every attribute set a gauge has seen, so a
+    status attribute would keep the previous status series alive after the
+    status changes (ML-13139). It is exported as the value of the
+    ``mlrun.model_monitoring.result.status`` gauge instead.
 
     ``serving.function.name`` is the model endpoint's serving function.
     It is not ``function.name`` so it does not collide with the collector's
@@ -280,7 +285,6 @@ class OTelMonitoringAttribute(MonitoringStrEnum):
     ENDPOINT_NAME = "endpoint.name"
     RESULT_NAME = "result.name"
     RESULT_KIND = "result.kind"
-    RESULT_STATUS = "result.status"
     METRIC_NAME = "metric.name"
 
 
@@ -295,11 +299,16 @@ class OTelMonitoringMetricName(MonitoringStrEnum):
     (exported as ``mlrun_model_monitoring_result``) so dashboards and queries
     can filter and aggregate by the ``result_name`` label instead of matching
     a distinct per-result metric name, and bounds the number of OTel
-    instruments to two regardless of how many result/metric names a project
+    instruments to three regardless of how many result/metric names a project
     produces.
+
+    ``RESULT_STATUS`` carries the :class:`ResultStatusApp` value of each
+    result (exported as ``mlrun_model_monitoring_result_status``), with the
+    same attributes as ``RESULT``.
     """
 
     RESULT = "mlrun.model_monitoring.result"
+    RESULT_STATUS = "mlrun.model_monitoring.result.status"
     METRIC = "mlrun.model_monitoring.metric"
 
 

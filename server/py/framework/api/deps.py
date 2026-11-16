@@ -30,7 +30,7 @@ def get_db_session(
 ) -> typing.Generator[Session | None, None, None]:
     # FastAPI dependencies automatically create DB sessions when entering an endpoint.
     # These sessions are redundant when the request is going to be forwarded to services.
-    if not request.app.extra.get("mlrun_service").is_forwarded_request(request):
+    if not request.app.state.mlrun_service.is_forwarded_request(request):
         db_session = None
         try:
             db_session = framework.db.session.create_session()
@@ -48,6 +48,24 @@ async def authenticate_request(request: Request) -> mlrun.common.schemas.AuthInf
     )
 
 
+async def authenticate_leader_request(
+    request: Request,
+) -> mlrun.common.schemas.AuthInfo:
+    """
+    Auth for the `/follower/projects` surface: the caller must be the configured project
+    leader's service account (subject == `ProjectLeaderIdentity`), never a user. Builds
+    on the existing igz auth (the same session-verification flow `authenticate_request`
+    uses) rather than a separate machine-identity mechanism.
+    """
+    auth_info = await authenticate_request(request)
+    leader_identity = mlrun.mlconf.httpdb.projects.follower_leader_identity
+    if not auth_info.is_service_account() or auth_info.username != leader_identity:
+        raise mlrun.errors.MLRunAccessDeniedError(
+            "This endpoint accepts only the configured project leader's service account"
+        )
+    return auth_info
+
+
 def verify_api_state(request: Request):
     path_with_query_string = uvicorn.protocols.utils.get_path_with_query_string(
         request.scope
@@ -59,6 +77,7 @@ def verify_api_state(request: Request):
             "healthz",
             # we want the workers to be able to pull chief state even if the state is offline
             "clusterization-spec",
+            "followers-sync-status",
         ]
         if not any(enabled_endpoint in path for enabled_endpoint in enabled_endpoints):
             raise mlrun.errors.MLRunPreconditionFailedError("API is in offline state")
@@ -77,8 +96,7 @@ def verify_api_state(request: Request):
             # clusterization purposes
             "client-spec",
             "clusterization-spec",
-            # debug purposes
-            "memory-reports",
+            "followers-sync-status",
             # allow authentication
             "user-secrets/tokens",
         ]
@@ -87,18 +105,6 @@ def verify_api_state(request: Request):
                 mlrun.mlconf.httpdb.state
             )
             raise mlrun.errors.MLRunPreconditionFailedError(message)
-
-
-def expose_internal_endpoints(request: Request):
-    if not mlrun.mlconf.debug.expose_internal_api_endpoints:
-        path_with_query_string = uvicorn.protocols.utils.get_path_with_query_string(
-            request.scope
-        )
-        path = path_with_query_string.split("?")[0]
-        if "/_internal" in path:
-            raise mlrun.errors.MLRunPreconditionFailedError(
-                "Internal endpoints are not exposed"
-            )
 
 
 def iguazio_v4_only(request: Request):

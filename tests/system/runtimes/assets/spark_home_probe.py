@@ -1,4 +1,4 @@
-# Copyright 2023 Iguazio
+# Copyright 2026 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,27 +11,23 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import os
+import site
 
-import http
+from pyspark.sql import SparkSession
 
-import fastapi
-
-import mlrun.config
-
-router = fastapi.APIRouter()
+import mlrun
 
 
-@router.put(
-    "/expose-endpoints",
-    responses={http.HTTPStatus.ACCEPTED.value: {}},
-)
-def expose_internal_api_endpoints():
-    mlrun.mlconf.debug.expose_internal_api_endpoints = True
-
-
-@router.put(
-    "/mask-endpoints",
-    responses={http.HTTPStatus.ACCEPTED.value: {}},
-)
-def mask_internal_api_endpoints():
-    mlrun.mlconf.debug.expose_internal_api_endpoints = False
+def probe(context):
+    spark = SparkSession.builder.appName("non-root-home-probe").getOrCreate()
+    spark.stop()
+    # Replacing HOME hides packages installed in the image user's site
+    context.log_results(
+        {
+            "uid": os.getuid(),
+            "home": os.environ.get("HOME"),
+            "user_site": site.getusersitepackages(),
+            "mlrun_path": mlrun.__file__,
+        }
+    )

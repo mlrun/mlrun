@@ -205,7 +205,11 @@ def iguazio_client(
         client = client_cls()
     elif version == "v4":
         module = framework.utils.clients.iguazio.v4
-        client_cls = module.Client if mode == "sync" else module.AsyncClient
+        client_cls = {
+            "sync": module.Client,
+            "async": module.AsyncClient,
+            "follower": module.FollowerClient,
+        }[mode]
 
         # PATCH iguazio.Client before instantiation
         with unittest.mock.patch(

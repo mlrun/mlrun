@@ -148,16 +148,14 @@ def _resolve_spark_version_source(
     base_image: str | None,
 ) -> SparkVersionResolution:
     configured_image_reference = _configured_spark_image_reference()
-    if base_image:
-        # The final image tag identifies the build, not its Spark version.
-        source_image = base_image
-        image_version = extract_spark_version_from_image(base_image)
-    elif image:
-        source_image = image
-        image_version = extract_spark_version_from_image(image)
+    # The final image tag identifies the build, not its Spark version, so the base image wins.
+    user_image = base_image or image
+    if user_image and not _is_default_spark_image(user_image):
+        source_image = user_image
+        image_version = extract_spark_version_from_image(user_image)
     else:
-        # No user image: use the platform default, which names an image only when
-        # both spark_app_image and spark_app_image_tag are set.
+        # With no user image, or with MLRun's default image (built on the platform
+        # image), derive the Spark version from the configured platform image.
         source_image = configured_image_reference
         image_version = (
             _leading_semver_prefix(config.spark_app_image_tag)
@@ -169,6 +167,16 @@ def _resolve_spark_version_source(
         effective_version=explicit_version or image_version,
         source_image=source_image,
         image_version=image_version,
+    )
+
+
+def _is_default_spark_image(image: str) -> bool:
+    # The server adds the registry only after version resolution, so the name is still unresolved here.
+    name, _ = _split_image_reference(image)
+    default_image = mlrun.runtimes.Spark3Runtime.default_mlrun_image
+    return name in (
+        default_image,
+        default_image + mlrun.runtimes.Spark3Runtime.gpu_suffix,
     )
 
 

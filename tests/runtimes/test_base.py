@@ -13,12 +13,14 @@
 # limitations under the License.
 
 import base64
+import contextlib
 import copy
 import json
 import os
 import pickle
 import shutil
 import tempfile
+import unittest.mock
 
 import pytest
 
@@ -514,8 +516,193 @@ def test_runtime_copy_drops_live_db_connection(clone):
     runtime.metadata.name = "copy-fn"
     runtime._db_conn = "live-connection"  # stand-in for an HTTPRunDB
 
+    runtime._explicit_db_conn = "explicit-connection"
+
     restored = clone(runtime)
 
     assert restored._db_conn is None
-    # The original keeps its connection - only the copy is detached.
+    assert restored._explicit_db_conn is None
+    # The original keeps its connections - only the copy is detached.
     assert runtime._db_conn == "live-connection"
+    assert runtime._explicit_db_conn == "explicit-connection"
+
+
+@pytest.fixture
+def session_clients(monkeypatch):
+    monkeypatch.setattr(mlconf, "dbpath", "https://mock-server")
+    client_a = mlrun.Client(credentials=mlrun.Credentials(token="token-a"))
+    client_b = mlrun.Client(credentials=mlrun.Credentials(token="token-b"))
+    return client_a, client_b
+
+
+@pytest.fixture
+def legacy_db():
+    legacy_db = unittest.mock.Mock(name="legacy-db")
+    with unittest.mock.patch.object(
+        mlrun.db, "get_run_db", return_value=legacy_db
+    ) as get_run_db:
+        yield legacy_db, get_run_db
+
+
+def test_runtime_get_db_follows_client_session(session_clients, legacy_db):
+    """A runtime uses the active client's DB per session and never caches it."""
+    client_a, client_b = session_clients
+    legacy, get_run_db = legacy_db
+    runtime = KubejobRuntime()
+
+    with client_a.session():
+        assert runtime._get_db() is client_a._http_db
+    with client_b.session():
+        assert runtime._get_db() is client_b._http_db
+    with client_a.session():
+        assert runtime._get_db() is client_a._http_db
+    assert runtime._db_conn is None
+    get_run_db.assert_not_called()
+
+    # Outside a session, the legacy lazy cache is populated once and reused
+    assert runtime._get_db() is legacy
+    assert runtime._get_db() is legacy
+    get_run_db.assert_called_once()
+
+    # A session still takes precedence over the legacy lazy cache
+    with client_b.session():
+        assert runtime._get_db() is client_b._http_db
+
+
+def test_runtime_explicit_db_wins_over_client_session(session_clients, legacy_db):
+    client_a, _ = session_clients
+    _, get_run_db = legacy_db
+    explicit_db = unittest.mock.Mock(name="explicit-db")
+    runtime = KubejobRuntime()
+    runtime.set_db_connection(explicit_db)
+
+    with client_a.session():
+        assert runtime._get_db() is explicit_db
+    assert runtime._get_db() is explicit_db
+    get_run_db.assert_not_called()
+
+
+def test_runtime_set_db_connection_first_set_wins(legacy_db):
+    legacy, _ = legacy_db
+    first_db = unittest.mock.Mock(name="first-db")
+
+    runtime = KubejobRuntime()
+    runtime.set_db_connection(first_db)
+    runtime.set_db_connection(unittest.mock.Mock(name="second-db"))
+    assert runtime._get_db() is first_db
+
+    # An existing legacy lazy cache is not replaced by a later setter call either
+    runtime = KubejobRuntime()
+    assert runtime._get_db() is legacy
+    runtime.set_db_connection(first_db)
+    assert runtime._get_db() is legacy
+
+
+def _run_handler_runtime(runobj, explicit_db=None):
+    runtime = mlrun.runtimes.HandlerRuntime()
+    if explicit_db:
+        runtime.set_db_connection(explicit_db)
+    with (
+        # _run mutates the process env and the global context
+        unittest.mock.patch.dict(os.environ),
+        unittest.mock.patch.object(mlrun.runtimes.local, "global_context"),
+        unittest.mock.patch.object(
+            mlrun.runtimes.local, "exec_from_params", return_value=("out", "")
+        ),
+        unittest.mock.patch.object(runtime, "_get_trackers_manager"),
+        unittest.mock.patch.object(mlrun.execution.MLClientCtx, "from_dict"),
+    ):
+        runtime._run(runobj, execution=unittest.mock.Mock())
+    return runtime
+
+
+def _run_dask_runtime(runobj, explicit_db=None):
+    runtime = mlrun.runtimes.DaskCluster()
+    if explicit_db:
+        runtime.set_db_connection(explicit_db)
+    runtime.spec.command = "handler.py"
+    with (
+        # _run updates the process env with the runtime env
+        unittest.mock.patch.dict(os.environ),
+        unittest.mock.patch.object(
+            mlrun.runtimes.daskjob, "exec_from_params", return_value=("out", "")
+        ),
+        unittest.mock.patch.object(mlrun.runtimes.daskjob, "load_module"),
+        unittest.mock.patch.object(
+            mlrun.runtimes.DaskCluster,
+            "client",
+            new_callable=unittest.mock.PropertyMock,
+        ),
+        unittest.mock.patch.object(mlrun.execution.MLClientCtx, "from_dict"),
+    ):
+        runtime._run(runobj, execution=unittest.mock.Mock())
+    return runtime
+
+
+def _run_nuclio_runtime(runobj, explicit_db=None):
+    runtime = mlrun.runtimes.RemoteRuntime()
+    if explicit_db:
+        runtime.set_db_connection(explicit_db)
+    runtime.spec.command = "http://function"
+    response = unittest.mock.Mock(ok=True, headers={"X-Nuclio-Logs": "[]"})
+    with (
+        unittest.mock.patch.object(runtime, "_pre_run_validations"),
+        unittest.mock.patch.object(runtime, "store_run"),
+        unittest.mock.patch.object(runtime, "_update_state"),
+        unittest.mock.patch.object(
+            mlrun.runtimes.nuclio.function, "parse_logs", return_value="out"
+        ),
+        unittest.mock.patch.object(
+            mlrun.runtimes.nuclio.function.requests, "put", return_value=response
+        ),
+    ):
+        runtime._run(runobj, execution=unittest.mock.Mock(log_level="info"))
+    return runtime
+
+
+@pytest.mark.parametrize(
+    "run_runtime",
+    [_run_handler_runtime, _run_dask_runtime, _run_nuclio_runtime],
+    ids=["local", "dask", "nuclio"],
+)
+def test_runtime_logs_stored_on_client_session_db(
+    session_clients, legacy_db, run_runtime
+):
+    client_a, _ = session_clients
+    legacy, _ = legacy_db
+    client_a._http_db.store_log = unittest.mock.Mock()
+    runobj = mlrun.RunObject.from_dict(
+        {"metadata": {"uid": "uid", "project": "project"}, "spec": {"handler": "fn"}}
+    )
+
+    with client_a.session():
+        runtime = run_runtime(runobj)
+
+    client_a._http_db.store_log.assert_called_once()
+    legacy.store_log.assert_not_called()
+    assert runtime._db_conn is None
+
+
+@pytest.mark.parametrize(
+    "run_runtime",
+    [_run_handler_runtime, _run_dask_runtime, _run_nuclio_runtime],
+    ids=["local", "dask", "nuclio"],
+)
+@pytest.mark.parametrize("in_session", [True, False])
+def test_runtime_logs_stored_on_explicit_db(
+    session_clients, legacy_db, run_runtime, in_session
+):
+    client_a, _ = session_clients
+    legacy, _ = legacy_db
+    client_a._http_db.store_log = unittest.mock.Mock()
+    explicit_db = unittest.mock.Mock(name="explicit-db")
+    runobj = mlrun.RunObject.from_dict(
+        {"metadata": {"uid": "uid", "project": "project"}, "spec": {"handler": "fn"}}
+    )
+
+    with client_a.session() if in_session else contextlib.nullcontext():
+        run_runtime(runobj, explicit_db=explicit_db)
+
+    explicit_db.store_log.assert_called_once()
+    client_a._http_db.store_log.assert_not_called()
+    legacy.store_log.assert_not_called()

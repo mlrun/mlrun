@@ -157,9 +157,9 @@ class Service(ABC):
             redoc_url=f"{self.service_prefix}/redoc",
             default_response_class=fastapi.responses.ORJSONResponse,
             lifespan=self.lifespan,
-            mlrun_service_name=self.service_name,
-            mlrun_service=self,
         )
+        self.app.state.mlrun_service_name = self.service_name
+        self.app.state.mlrun_service = self
         self._add_swagger_authorization()
 
     def _add_swagger_authorization(self):

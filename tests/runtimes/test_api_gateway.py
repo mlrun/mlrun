@@ -451,6 +451,121 @@ def test_to_scheme_preserves_authentication_mode_when_function_auth_disabled(
     )
 
 
+@pytest.fixture
+def function_authentication_enabled(monkeypatch):
+    monkeypatch.setattr(
+        mlrun.mlconf.httpdb.nuclio, "function_authentication_enabled", True
+    )
+
+
+@pytest.fixture
+def run_db_token_provider():
+    token_provider = MagicMock()
+    token_provider.get_token.return_value = "env-token"
+    token_provider.is_iguazio_session.return_value = False
+    with patch.object(
+        mlrun, "get_run_db", return_value=MagicMock(token_provider=token_provider)
+    ):
+        yield token_provider
+
+
+def test_invoke_unauthenticated_when_function_auth_disabled(
+    monkeypatch, run_db_token_provider
+):
+    monkeypatch.setattr(
+        mlrun.mlconf.httpdb.nuclio, "function_authentication_enabled", False
+    )
+    api_gateway = _create_api_gateway("none")
+
+    request_kwargs = _invoke_and_get_request_kwargs(api_gateway)
+
+    assert request_kwargs["auth"] is None
+    run_db_token_provider.get_token.assert_not_called()
+
+
+def test_invoke_falls_back_to_run_db_token_when_function_auth_enabled(
+    function_authentication_enabled, run_db_token_provider
+):
+    # ML-13140: the gateway holds no auth, and the function's HTTP trigger rejects credential-less requests
+    api_gateway = _create_api_gateway("none")
+
+    request_kwargs = _invoke_and_get_request_kwargs(api_gateway)
+
+    assert _bearer_header_of(request_kwargs["auth"]) == "Bearer env-token"
+
+
+@pytest.mark.parametrize(
+    "invoke_kwargs",
+    [
+        {"headers": {"authorization": "Bearer explicit-token"}},
+        {"auth": ("user", "password")},
+    ],
+)
+def test_invoke_keeps_caller_credentials(
+    function_authentication_enabled, run_db_token_provider, invoke_kwargs
+):
+    api_gateway = _create_api_gateway("none")
+
+    request_kwargs = _invoke_and_get_request_kwargs(api_gateway, **invoke_kwargs)
+
+    assert request_kwargs["auth"] == invoke_kwargs.get("auth")
+    assert request_kwargs["headers"] == invoke_kwargs.get("headers", {})
+    run_db_token_provider.get_token.assert_not_called()
+
+
+def test_invoke_explicit_auth_overrides_basic_auth_mode():
+    api_gateway = _create_api_gateway("basic")
+
+    request_kwargs = _invoke_and_get_request_kwargs(
+        api_gateway, auth=("user", "password")
+    )
+
+    assert request_kwargs["auth"] == ("user", "password")
+
+
+def test_invoke_gateway_auth_mode_wins_when_function_auth_enabled(
+    function_authentication_enabled, run_db_token_provider
+):
+    # a gateway created before function-level auth was enabled keeps authenticating with its own mode
+    api_gateway = _create_api_gateway("iguazio")
+
+    with patch.object(
+        mlrun.auth.nuclio.NuclioAuthInfo,
+        "from_envvar",
+        return_value=mlrun.auth.nuclio.NuclioAuthInfo(token="gateway-token"),
+    ):
+        request_kwargs = _invoke_and_get_request_kwargs(api_gateway)
+
+    assert _bearer_header_of(request_kwargs["auth"]) == "Bearer gateway-token"
+    run_db_token_provider.get_token.assert_not_called()
+
+
+def test_invoke_unauthenticated_when_token_resolution_fails(
+    function_authentication_enabled, run_db_token_provider, logs_stream
+):
+    run_db_token_provider.get_token.side_effect = RuntimeError("token endpoint down")
+    api_gateway = _create_api_gateway("none")
+
+    request_kwargs = _invoke_and_get_request_kwargs(api_gateway)
+
+    assert request_kwargs["auth"] is None
+    assert "Failed to resolve credentials for function invocation" in (
+        logs_stream.getvalue()
+    )
+
+
+def _invoke_and_get_request_kwargs(api_gateway, **invoke_kwargs) -> dict:
+    with patch("requests.request", return_value=MagicMock()) as mock_request:
+        api_gateway.invoke(method="GET", path="/test", **invoke_kwargs)
+    return mock_request.call_args.kwargs
+
+
+def _bearer_header_of(auth) -> str:
+    request = MagicMock(headers={})
+    auth(request)
+    return request.headers["Authorization"]
+
+
 def _create_api_gateway(authentication_mode="none"):
     """Helper to create an API gateway with specified auth mode"""
     auth_map = {

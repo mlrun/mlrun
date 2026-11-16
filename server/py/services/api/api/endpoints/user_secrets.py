@@ -37,16 +37,24 @@ router = fastapi.APIRouter(prefix="/user-secrets")
 async def store_secret_tokens(
     secret_tokens: list[mlrun.common.schemas.SecretToken],
     force: bool = False,
+    username: str | None = fastapi.Query(
+        default=None,
+        description="Username of the token owner. Required for service-account callers "
+        "storing a token on a user's behalf; ignored for regular users, who can only "
+        "ever store their own token.",
+    ),
     auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
         framework.api.deps.authenticate_request
     ),
     db_session: Session = fastapi.Depends(framework.api.deps.get_db_session),
 ):
+    await _authorize_service_account_store_secret_tokens(auth_info)
     return await run_in_threadpool(
         services.api.crud.Secrets().store_secret_tokens,
-        secret_tokens,
-        auth_info,
-        force,
+        secret_tokens=secret_tokens,
+        auth_info=auth_info,
+        force=force,
+        username=username,
     )
 
 
@@ -159,6 +167,27 @@ async def delete_secret_token(
         name,
         target_username,
         auth_info,
+    )
+
+
+async def _authorize_service_account_store_secret_tokens(
+    auth_info: mlrun.common.schemas.AuthInfo,
+) -> None:
+    """
+    A service-account caller may store a token on behalf of a different user than itself;
+    scope that trust to service accounts explicitly authorized to store tokens, rather than
+    any caller Iguazio classifies as some service account. Raises on denial.
+    """
+    if not auth_info.is_service_account():
+        return
+
+    await (
+        framework.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
+            resource_type=mlrun.common.schemas.AuthorizationResourceTypes.tokens,
+            action=mlrun.common.schemas.AuthorizationAction.store,
+            auth_info=auth_info,
+            resource_namespace=mlrun.common.schemas.AuthorizationResourceNamespace.mgmt,
+        )
     )
 
 

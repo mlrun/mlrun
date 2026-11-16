@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from abc import ABC, abstractmethod
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 import jwt
 import requests
@@ -259,7 +259,7 @@ class OAuthClientIDTokenProvider(DynamicTokenProvider):
         if not self._token or not self.token_expiry_time:
             return False
 
-        now = datetime.now()
+        now = datetime.now(UTC)
 
         if now <= self.token_refresh_time:
             return True
@@ -298,7 +298,7 @@ class OAuthClientIDTokenProvider(DynamicTokenProvider):
             )
             return
 
-        now = datetime.now()
+        now = datetime.now(UTC)
         self.token_expiry_time = now + timedelta(seconds=expires_in)
         self.token_refresh_time = now + timedelta(seconds=expires_in / 2)
         logger.info(
@@ -383,7 +383,7 @@ class IGTokenProvider(DynamicTokenProvider):
         ):
             return False
 
-        now = datetime.now()
+        now = datetime.now(UTC)
         remaining_lifetime = (self._token_expiry_time - now).total_seconds()
         if remaining_lifetime <= 0 and cleanup_if_expired:
             self._cleanup()
@@ -473,7 +473,7 @@ class IGTokenProvider(DynamicTokenProvider):
             iat_timestamp = decoded_token.get("iat")
             if exp_timestamp and iat_timestamp:
                 return exp_timestamp - iat_timestamp, datetime.fromtimestamp(
-                    exp_timestamp
+                    exp_timestamp, tz=UTC
                 )
         except jwt.PyJWTError as exc:
             logger.warning(

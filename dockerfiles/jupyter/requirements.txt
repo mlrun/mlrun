@@ -11,6 +11,6 @@ python-dotenv~=1.0
 # below: vulnerabilities remediation
 setuptools>=75.2
 requests~=2.32
-certifi~=2024.0
+certifi~=2026.10
 # consumed when training a model using PyTorch
 tqdm~=4.66

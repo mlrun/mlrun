@@ -1276,6 +1276,69 @@ def test_delete_project_with_stop_logs(
         assert log_collector._call.call_args[0][0] == "DeleteLogs"
 
 
+@pytest.fixture
+def mocked_orca_deletion_member(
+    db: Session, monkeypatch: pytest.MonkeyPatch
+) -> unittest.mock.MagicMock:
+    monkeypatch.setattr(mlrun.mlconf.httpdb.projects, "leader", "orca")
+    member = unittest.mock.MagicMock()
+    member.get_project.return_value = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name="project-name"),
+        status=mlrun.common.schemas.ProjectStatus(
+            state=mlrun.common.schemas.ProjectState.archived
+        ),
+    )
+    member.delete_project.return_value = False
+    member.post_delete_project = AsyncMock()
+    monkeypatch.setattr(projects_endpoints, "get_project_member", lambda: member)
+    return member
+
+
+@pytest.mark.parametrize(
+    "wait_for_completion, expected_status_code",
+    [(True, HTTPStatus.NO_CONTENT.value), (False, HTTPStatus.ACCEPTED.value)],
+)
+def test_delete_project_under_orca_leader_skips_log_cleanup(
+    client: TestClient,
+    mocked_orca_deletion_member: unittest.mock.MagicMock,
+    wait_for_completion: bool,
+    expected_status_code: int,
+):
+    """Under Orca the follower purge cleans up logs once the project is deleted."""
+    mocked_orca_deletion_member.delete_project.return_value = not wait_for_completion
+
+    response = client.delete(
+        "projects/project-name",
+        params={"wait-for-completion": wait_for_completion},
+    )
+
+    assert response.status_code == expected_status_code
+    mocked_orca_deletion_member.delete_project.assert_called_once()
+    mocked_orca_deletion_member.post_delete_project.assert_not_awaited()
+
+
+def test_delete_project_under_orca_leader_force_delete_cleans_logs(
+    client: TestClient,
+    mocked_orca_deletion_member: unittest.mock.MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """When the project is gone from Orca, the request deletes it locally, so no
+    follower purge will run - the request must clean up logs itself."""
+    mocked_orca_deletion_member.delete_project.side_effect = (
+        mlrun.errors.MLRunNotFoundError("not found")
+    )
+    local_delete_mock = unittest.mock.MagicMock()
+    monkeypatch.setattr(services.api.crud.Projects, "delete_project", local_delete_mock)
+
+    response = client.delete("projects/project-name")
+
+    assert response.status_code == HTTPStatus.ACCEPTED.value
+    local_delete_mock.assert_called_once()
+    mocked_orca_deletion_member.post_delete_project.assert_awaited_once_with(
+        "project-name"
+    )
+
+
 def test_project_with_invalid_node_selector(
     db: Session,
     client: TestClient,

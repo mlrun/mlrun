@@ -508,6 +508,31 @@ def no_spark_platform_image_config():
             None,
             ("4.2.0", _SPARK4_IMAGE, "4.2.0"),
         ),
+        (
+            None,
+            mlrun.runtimes.Spark3Runtime.default_mlrun_image,
+            None,
+            ("4.2.0", _SPARK4_IMAGE, "4.2.0"),
+        ),
+        (
+            None,
+            mlrun.runtimes.Spark3Runtime.default_mlrun_image
+            + mlrun.runtimes.Spark3Runtime.gpu_suffix,
+            None,
+            ("4.2.0", _SPARK4_IMAGE, "4.2.0"),
+        ),
+        (
+            None,
+            "acme/spark-job-default-image:3.5.5",
+            None,
+            ("3.5.5", "acme/spark-job-default-image:3.5.5", "3.5.5"),
+        ),
+        (
+            None,
+            "registry.example.com/spark-job-default-image:latest",
+            None,
+            (None, "registry.example.com/spark-job-default-image:latest", None),
+        ),
     ],
 )
 def test_resolve_spark_version_source(

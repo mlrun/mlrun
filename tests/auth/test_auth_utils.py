@@ -552,6 +552,34 @@ def test_extract_and_validate_tokens_info(
         assert tokens_info["token2"]["token_exp"] == expected_token_2["exp"]
 
 
+def test_extract_and_validate_tokens_info_bypass_ownership_check():
+    token = mlrun.common.schemas.SecretToken(
+        name="token1",
+        token=_create_jwt_token({"sub": "target-user"}),
+    )
+
+    tokens_info = mlrun.auth.utils.extract_and_validate_tokens_info(
+        [token], authenticated_id="sa-id", bypass_ownership_check=True
+    )
+
+    assert tokens_info["token1"]["token_sub"] == "target-user"
+
+
+def test_extract_and_validate_tokens_info_bypass_ownership_check_still_raises_on_default():
+    token = mlrun.common.schemas.SecretToken(
+        name="token1",
+        token=_create_jwt_token({"sub": "target-user"}),
+    )
+
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match="does not match the authenticated user ID",
+    ):
+        mlrun.auth.utils.extract_and_validate_tokens_info(
+            [token], authenticated_id="sa-id"
+        )
+
+
 @pytest.mark.parametrize(
     "tokens, auth_user_id, expected_names",
     [

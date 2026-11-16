@@ -73,7 +73,12 @@ from ..utils import (
     is_explicit_ack_supported,
     lock_hub_uri_version,
 )
-from .utils import StepToDict, _extract_input_data, _MappedBody, _update_result_body
+from .utils import (
+    StepToDict,
+    _extract_input_data,
+    _RequestContext,
+    _update_result_body,
+)
 
 callable_prefix = "_"
 path_splitter = "/"
@@ -4030,37 +4035,36 @@ def params_to_step(
 
 
 class _MappedBodyAwareHandler:
-    """Unpack _MappedBody as **kwargs before calling a step handler.
+    """Dispatch handler calls for API-handler-produced _RequestContext bodies.
 
-    _MappedBody (and its subclass _RequestContext) is a dict produced by
-    _APIHandlerStep.do() when body_map is configured.  It signals that the dict
-    should be spread as keyword arguments so handler signatures like
-    ``def fn(message: str)`` work correctly.
+    When _APIHandlerStep.do() produces a _RequestContext, the handler receives
+    the original event body as the first positional arg and all extracted params
+    (body_map, path, query, url) as keyword args::
+
+        def handler(body, model_name, version, **kwargs): ...
 
     Implemented as a named class rather than a closure so instances remain
     picklable for storey's multiprocessing (max_processes) mode.
 
     Use ``__call__`` for the sync path (TaskStep.run()) and ``async_call`` for
-    the async path (_init_async_objects).  Passing the bound ``async_call``
-    method to storey.Map lets asyncio.iscoroutinefunction detect it correctly
-    without resorting to private-API sentinels.
+    the async path (_init_async_objects).
     """
 
     def __init__(self, handler):
         self._fn = handler
 
     def __call__(self, body, *args, **kwargs):
-        if isinstance(body, _MappedBody):
-            # *args intentionally omitted: _MappedBody handlers use keyword-only
-            # signatures (e.g. def fn(message: str)), and the only callers
-            # (GraphServer.run → RootFlowStep.run, and storey.Map) never pass
-            # extra positional arguments.
-            return self._fn(**body, **kwargs)
+        if isinstance(body, _RequestContext):
+            return self._fn(
+                body.original_body, **{k: v for k, v in body.items()}, **kwargs
+            )
         return self._fn(body, *args, **kwargs)
 
     async def async_call(self, body, *args, **kwargs):
-        if isinstance(body, _MappedBody):
-            return await self._fn(**body, **kwargs)
+        if isinstance(body, _RequestContext):
+            return await self._fn(
+                body.original_body, **{k: v for k, v in body.items()}, **kwargs
+            )
         return await self._fn(body, *args, **kwargs)
 
 

@@ -12,7 +12,7 @@
 # limitations under the License.
 
 
-def handle_wildcard(mlrun_request_path: str | None = None, **kwargs) -> dict:
+def handle_wildcard(body, mlrun_request_path: str | None = None, **kwargs) -> dict:
     """Handler that receives mlrun_request_path injected by the API handler.
 
     Used by system tests to verify that:

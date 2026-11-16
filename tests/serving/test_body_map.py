@@ -249,8 +249,8 @@ class TestAPIHandlerStepBodyMap:
         assert result.body == {"model_name": "my-model", "input_data": [1, 2, 3]}
 
     @staticmethod
-    def test_body_map_missing_params_raises_error() -> None:
-        """Test that missing body_map params raise MLRunUnprocessableEntityError"""
+    def test_body_map_missing_params_skipped() -> None:
+        """Test that missing body_map params are silently skipped."""
         body_map = {
             "name": "$.name",
             "missing": "$.nonexistent.path",
@@ -262,11 +262,10 @@ class TestAPIHandlerStepBodyMap:
         event.path = "/predict"
         event.body = {"name": "test-model"}
 
-        # Should raise MLRunUnprocessableEntityError since $.nonexistent.path has no matches
-        with pytest.raises(
-            mlrun.errors.MLRunUnprocessableEntityError, match="matched nothing"
-        ):
-            step.do(event)
+        result = step.do(event)
+        # Only the matched field is present; missing JSONPath is silently skipped.
+        assert result.body["name"] == "test-model"
+        assert "missing" not in result.body
 
     def test_no_body_map_passes_event_through(self) -> None:
         """Test that without body_map the event passes through unchanged"""
@@ -285,8 +284,8 @@ class TestAPIHandlerStepBodyMap:
         assert result.body is original_body
 
     @staticmethod
-    def test_body_map_non_dict_body_raises_error() -> None:
-        """Test that non-dict body raises MLRunUnprocessableEntityError when body_map is configured"""
+    def test_body_map_non_dict_body_skipped() -> None:
+        """Test that non-dict body is silently skipped when body_map is configured."""
         body_map = {"param": "$.field"}
         step = TestAPIHandlerStepBodyMap._make_step_with_body_map(body_map)
 
@@ -295,12 +294,9 @@ class TestAPIHandlerStepBodyMap:
         event.path = "/predict"
         event.body = "plain string body"
 
-        # Should raise MLRunUnprocessableEntityError since body_map requires dict body
-        with pytest.raises(
-            mlrun.errors.MLRunUnprocessableEntityError,
-            match="body_map configured but request body is not a dict",
-        ):
-            step.do(event)
+        result = step.do(event)
+        # body_map cannot apply to a non-dict body; original body is passed through unchanged.
+        assert result.body == "plain string body"
 
     def test_body_map_applies_to_all_endpoints(self) -> None:
         """Test that the same body_map is applied regardless of which endpoint matched"""
@@ -340,7 +336,7 @@ class TestBodyMapMockServer:
     def test_body_map_e2e() -> None:
         """Test body_map end-to-end through mock server"""
 
-        def echo_handler(**kwargs):
+        def echo_handler(body, **kwargs):
             return kwargs
 
         fn = cast(
@@ -384,9 +380,9 @@ class TestBodyMapMockServer:
 
     @staticmethod
     def test_body_map_with_missing_fields_e2e() -> None:
-        """Test body_map with missing fields raises KeyError"""
+        """Test that body_map silently skips fields absent from the request body."""
 
-        def echo_handler(**kwargs):
+        def echo_handler(body, **kwargs):
             return kwargs
 
         fn = cast(
@@ -414,19 +410,19 @@ class TestBodyMapMockServer:
 
         server = fn.to_mock_server()
         try:
-            # Should raise since $.user.phone is missing
-            with pytest.raises(RuntimeError, match="matched nothing"):
-                server.test(
-                    "/register",
-                    method="POST",
-                    body={
-                        "user": {
-                            "name": "Alice",
-                            "email": "alice@example.com",
-                            # "phone" is intentionally missing
-                        }
-                    },
-                )
+            # Missing $.user.phone is silently skipped; matched fields are still extracted.
+            resp = server.test(
+                "/register",
+                method="POST",
+                body={
+                    "user": {
+                        "name": "Alice",
+                        "email": "alice@example.com",
+                        # "phone" is intentionally missing
+                    }
+                },
+            )
+            assert resp == {"name": "Alice", "email": "alice@example.com"}
         finally:
             server.wait_for_completion()
 
@@ -457,7 +453,7 @@ class TestBodyMapMockServer:
     def test_body_map_same_for_multiple_endpoints_e2e() -> None:
         """Test that the same body_map is applied to all endpoints"""
 
-        def echo_handler(**kwargs):
+        def echo_handler(body, **kwargs):
             return kwargs
 
         fn = cast(
@@ -499,7 +495,7 @@ class TestBodyMapMockServer:
     def test_body_map_kwargs_handler_e2e() -> None:
         """Test body_map unpacks as kwargs to a handler with named parameters"""
 
-        def fun(book):
+        def fun(body, book):
             return f"{book} - this is the book"
 
         fn = cast(
@@ -534,7 +530,7 @@ class TestBodyMapMockServer:
     def test_body_map_multi_kwargs_handler_e2e() -> None:
         """Test body_map with multiple kwargs passed to handler"""
 
-        def handler(name, age):
+        def handler(body, name, age):
             return f"{name} is {age} years old"
 
         fn = cast(
@@ -568,8 +564,8 @@ class TestBodyMapMockServer:
     def test_body_map_nested_extraction_e2e() -> None:
         """Test body_map with nested field extraction via JSONPath"""
 
-        def my_step(param1, param2):
-            return f"Received: {param1} and {param2}"
+        def my_step(first_arg, param1, param2):
+            return f"Received: {first_arg}, {param1=} and {param2=}"
 
         fn = cast(
             ServingRuntime,
@@ -603,7 +599,10 @@ class TestBodyMapMockServer:
                     "extra": "ignored",  # This won't be passed to the handler
                 },
             )
-            assert resp == "Received: value1 and value2"
+            assert resp == (
+                "Received: {'field1': 'value1', 'nested': {'field2': 'value2'}, "
+                "'extra': 'ignored'}, param1='value1' and param2='value2'"
+            )
         finally:
             server.wait_for_completion()
 
@@ -611,7 +610,7 @@ class TestBodyMapMockServer:
 def test_api_handler_with_body_map_and_processing_step(rundb_mock):
     """Test API handler with body_map followed by a processing step in the graph."""
 
-    def pass_through(arg1, arg2):
+    def pass_through(body, arg1, arg2):
         """Handler that passes through the mapped values"""
         return {"arg1": arg1, "arg2": arg2}
 

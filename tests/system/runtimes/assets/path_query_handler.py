@@ -13,7 +13,11 @@
 
 
 def process_path_and_query_params(
-    category: str, item_id: str, tags: list | None = None, limit: str | None = None
+    body,
+    category: str,
+    item_id: str,
+    tags: list | None = None,
+    limit: str | None = None,
 ) -> dict:
     """Handler that receives path parameters and query parameters.
 

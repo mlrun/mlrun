@@ -32,66 +32,7 @@ import mlrun.serving.states
 import mlrun.serving.utils as serving_utils
 import mlrun.utils
 from mlrun.common.schemas.serving import _APIEndpointKeys
-from mlrun.serving.utils import _MappedBody
-
-
-class _RequestContext(_MappedBody):
-    """Unified container for request parameters from multiple sources.
-
-    Consolidates parameters from body_map (JSONPath extraction), path templates,
-    and query strings into a single dict-like object that unpacks as kwargs.
-
-    Priority order: path > query > body_map (path parameters have highest priority)
-    Conflicts are not allowed - request will fail if same parameter appears in multiple sources.
-
-    Additionally, system-injected ``url_params`` (e.g. ``mlrun_request_path``) are merged
-    in after the conflict check without raising conflicts - they use the reserved ``mlrun_``
-    prefix to avoid collisions with user-defined parameters.
-    """
-
-    def __init__(
-        self,
-        path_params: dict[str, str] | None = None,
-        query_params: dict[str, str | list[str]] | None = None,
-        body_params: dict[str, Any] | None = None,
-        url_params: dict[str, Any] | None = None,
-    ):
-        merged = {}
-        sources = [
-            ("body_map", body_params or {}),
-            ("query", query_params or {}),
-            ("path", path_params or {}),
-        ]
-
-        # Track conflicts for better error messages
-        param_sources: dict[str, list[str]] = {}
-
-        for source_name, params in sources:
-            for key, value in params.items():
-                if key in merged:
-                    param_sources.setdefault(key, []).append(source_name)
-                else:
-                    param_sources[key] = [source_name]
-                merged[key] = value
-
-        # Check for conflicts (same param from multiple sources)
-        conflicts = {k: v for k, v in param_sources.items() if len(v) > 1}
-        if conflicts:
-            conflict_details = ", ".join(
-                f"{k} (from {' + '.join(sources)})" for k, sources in conflicts.items()
-            )
-            raise mlrun.errors.MLRunBadRequestError(
-                f"Parameter name conflict detected. Same parameter appears in multiple "
-                f"request sources: {conflict_details}. Parameters must be unique across "
-                f"path, query, and body_map."
-            )
-
-        # Merge system-injected URL params last, without conflict checking.
-        # These use the reserved 'mlrun_' prefix (e.g. 'mlrun_request_path').
-        if url_params:
-            merged.update(url_params)
-
-        super().__init__(merged)
+from mlrun.serving.utils import _RequestContext
 
 
 class _APIHandlerStep(mlrun.serving.states.TaskStep):
@@ -242,27 +183,23 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
 
         return template_patterns, star_patterns
 
-    def _apply_parsed_body_map(self, body: dict) -> "_MappedBody":
+    def _apply_parsed_body_map(self, body: dict) -> dict:
         """Apply pre-parsed JSONPath expressions to extract parameters from event body.
 
         :param body: The event body dict to extract parameters from.
-        :return: A :class:`_MappedBody` with extracted parameters.
-        :raises KeyError: If any JSONPath expression has no match in body.
+        :return: Dict of extracted parameters (missing JSONPath matches are silently skipped).
         """
         result = {}
         for param_name, parsed_expr in self._parsed_body_map.items():
             matches = parsed_expr.find(body)
             if not matches:
-                raise mlrun.errors.MLRunUnprocessableEntityError(
-                    f"JSONPath expression for parameter '{param_name}' "
-                    f"matched nothing in the event body"
-                )
+                continue
             # Single match: return value; multiple matches: return list
             if len(matches) == 1:
                 result[param_name] = matches[0].value
             else:
                 result[param_name] = [match.value for match in matches]
-        return _MappedBody(result)
+        return result
 
     @staticmethod
     def _parse_query_params(path_query: str) -> tuple[str, dict[str, str | list[str]]]:
@@ -322,7 +259,7 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
 
     def do(
         self, event: Union[nuclio_sdk.Event, "mlrun.serving.server.MockEvent"]
-    ) -> Union[nuclio_sdk.Event, "mlrun.serving.server.MockEvent", _RequestContext]:
+    ) -> Union[nuclio_sdk.Event, "mlrun.serving.server.MockEvent"]:
         """Handle incoming request and validate against configured endpoints
 
         :param event: Event object (Nuclio event or MockEvent)
@@ -420,24 +357,20 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
                 body_params = {}
                 if self._parsed_body_map:
                     body = event.body if hasattr(event, "body") else event
-                    if not isinstance(body, dict):
-                        raise mlrun.errors.MLRunUnprocessableEntityError(
-                            f"body_map configured but request body is not a dict (got {type(body).__name__}). "
-                            f"A valid JSON body is required when body_map transformation is configured."
-                        )
-                    try:
-                        body_params = dict(self._apply_parsed_body_map(body))
-                        mlrun.utils.logger.debug(
-                            "Applied body_map transformation",
-                            body_map=self.config.body_map,
-                            extracted_params=list(body_params.keys()),
-                        )
-                    except mlrun.errors.MLRunUnprocessableEntityError:
-                        raise
-                    except Exception as exc:
-                        raise mlrun.errors.MLRunBadRequestError(
-                            f"Failed to process body_map transformation: {exc}"
-                        ) from exc
+                    if isinstance(body, dict):
+                        try:
+                            body_params = self._apply_parsed_body_map(body)
+                            mlrun.utils.logger.debug(
+                                "Applied body_map transformation",
+                                body_map=self.config.body_map,
+                                extracted_params=list(body_params.keys()),
+                            )
+                        except Exception as exc:
+                            raise mlrun.errors.MLRunBadRequestError(
+                                f"Failed to process body_map transformation: {exc}"
+                            ) from exc
+                    # Non-dict body (e.g. None, string, bytes): body_map does not apply
+                    # to this endpoint's format — silently skip, same as a JSONPath miss.
 
                 # Build system-injected URL params when include_url_info is enabled.
                 # mlrun_request_path holds the normalized path of the matched request.
@@ -445,8 +378,11 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
                 if self.config.include_url_info:
                     url_params["mlrun_request_path"] = normalized_path
 
-                # Only create RequestContext if we have extracted parameters or url_params.
-                # Otherwise, preserve the original event body.
+                # Build the event body for the next step.
+                # When any params are present, always use _RequestContext so the
+                # handler receives the original body as the first positional arg and all
+                # extracted params (body_map, path, query, url) as keyword args.
+                # When nothing was extracted, pass the original event body unchanged.
                 if body_params or path_params or query_params or url_params:
                     mlrun.utils.logger.debug(
                         "Creating RequestContext",
@@ -455,18 +391,14 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
                         query_params=query_params,
                         url_params=url_params,
                     )
-                    request_context = _RequestContext(
+                    original_body = event.body if hasattr(event, "body") else None
+                    event.body = _RequestContext(
+                        original_body=original_body,
                         body_params=body_params,
                         path_params=path_params,
                         query_params=query_params,
                         url_params=url_params,
                     )
-
-                    # Replace event body with unified context
-                    if hasattr(event, "body"):
-                        event.body = request_context
-                    else:
-                        event = request_context
 
                 # Pass the event to the next step in the graph
                 return event

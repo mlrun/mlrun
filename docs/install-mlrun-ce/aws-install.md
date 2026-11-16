@@ -325,6 +325,12 @@ The MLRun CE (Community Edition) includes the following services:
       ```
       helm install --wait --dependency-update --namespace mlrun -f aws_values.yaml --set global.domainNameCertificate="<CERTIFICATE ARN>" mlrun-ce mlrun-ce/mlrun-ce
       ```
+   
+      ```{admonition} Note
+      The values file sets `storage.mode: s3`, so MLRun stores artifacts in your S3 bucket (`BUCKET_NAME`). 
+      The chart default, `local`, ignores that bucket and uses the bundled SeaweedFS `mlrun` bucket instead. 
+      If you created `aws_values.yaml` from an older copy of the template, add `storage.mode: s3` to it before installing.
+      ```
 2. Get the AWS Load Balancer CNAME and set it as a value for your DNS record. Configure the CNAME in your domain, pointing **\*.<system_name>.\<domain>** to the Load Balancer URL:
    ```
    kubectl -n mlrun get ingress mlrun-ce-ingress -o custom-columns=":status.loadBalancer.ingress[0].hostname" --no-headers

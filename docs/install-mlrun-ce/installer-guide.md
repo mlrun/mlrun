@@ -18,10 +18,7 @@ This page walks through the common workflows.
 - [Get the installer](#get-the-installer)
 - [Install](#install)
 - [Configure the installation](#configure-the-installation)
-- [Local install on Docker Desktop](#local-install-on-docker-desktop)
-- [Upgrade](#upgrade)
 - [Uninstall](#uninstall)
-- [Troubleshooting](#troubleshooting)
 - [Flag reference](#flag-reference)
 
 ## Prerequisites
@@ -39,19 +36,27 @@ See also the [Kubernetes prerequisites](./kubernetes-install.md#prerequisites).
 **Without a clone** (recommended). Pin a release tag from the [releases page](https://github.com/mlrun/ce/releases):
 
 ```bash
-CE_TAG=mlrun-ce-0.12.1   # replace with a tag from the releases page
+CE_VERSION=0.12.1                # the chart version to install, from the releases page
+CE_TAG="mlrun-ce-${CE_VERSION}"  # the matching release tag
 uvx --from "git+https://github.com/mlrun/ce@${CE_TAG}#subdirectory=scripts" \
-  mlrun-ce-installer install
+  mlrun-ce-installer install --ce-version "${CE_VERSION}"
 ```
 
-The installer has no version of its own: the one from tag `mlrun-ce-X` installs chart `X` unless you say otherwise. 
+```{admonition} The tag pins the installer, not the chart
+`CE_TAG` selects which version of the installer code runs. It does **not** select the chart. 
+Without `--ce-version` (or the `CE_VERSION` environment variable), the installer installs the newest *stable* published chart, 
+which can be newer than the tag. Rerunning the same command later can therefore upgrade your release. 
+To pin both, use a tag for the installer **and** pass `--ce-version` for the chart, as in the example above.
+```
+
 Tags older than the installer have no `scripts/` directory and fail.
 
 **As a command**:
 
 ```bash
 uv tool install "git+https://github.com/mlrun/ce@${CE_TAG}#subdirectory=scripts"
-mlrun-ce-installer version
+mlrun-ce-installer version   # the installer's own version, which is not the chart that will be installed
+mlrun-ce-installer install --ce-version "${CE_VERSION}"
 ```
 
 **From a clone** of [mlrun/ce](https://github.com/mlrun/ce):
@@ -72,7 +77,7 @@ The commands are `install` (the default), `uninstall`, `version` and `help`.
 ./scripts/install.py
 ```
 
-The installer asks for the registry credentials, the [external host address](#external-host-address), and the registry URL. 
+The installer asks for the registry credentials, the external host address (the address you use to reach the cluster's NodePorts), and the registry URL. 
 Nothing on the cluster changes while you answer. It then shows the target and asks before its first write:
 
 ```
@@ -187,7 +192,16 @@ Combine it with `--config` to have the installer handle the secret and registry 
 ./scripts/install.py --disable-system-monitoring --disable-spark --disable-mpi --disable-model-monitoring
 ```
 
-These turn off, respectively: Prometheus and Grafana; the Spark operator; the MPI operator; and model monitoring's Kafka and TimescaleDB.
+Each flag leaves one optional component out of the installation. Use only the flags for the components you do not need:
+
+| Flag | What it leaves out | What you lose |
+|---|---|---|
+| `--disable-system-monitoring` | Prometheus and Grafana | Cluster and service metrics dashboards. The Grafana and Prometheus UIs are not installed |
+| `--disable-spark` | The Spark operator | Running Spark jobs (`spark` runtime functions) |
+| `--disable-mpi` | The MPI operator | Running distributed training jobs with the `mpijob` runtime |
+| `--disable-model-monitoring` | Kafka and TimescaleDB | [Model monitoring](../model-monitoring/index.md), which stores its stream data and results in them |
+
+Disabled components are also left out of the access URLs table printed at the end of the installation.
 
 ### Ingress
 
@@ -227,7 +241,7 @@ See [Local registry](https://github.com/mlrun/ce/blob/development/scripts/README
 The four pieces can also be enabled one by one: `--enable-otel-operator`, `--enable-otel-collector`, `--enable-otel-instrumentation` and `--enable-otel-namespace-label`. 
 `--enable-otel off` turns them all off. See also [Configure OTel](./mlrun-ce-installation-notes.md#configure-otel).
 
-
+## Uninstall
 
 ```bash
 ./scripts/install.py uninstall                 # keeps data
@@ -242,7 +256,6 @@ A secret you created yourself stays. It keeps the namespace, the chart's CRDs an
 the MLRun run and build pods, and the chart's Kafka resources. **This is irreversible.** 
 It lists what it will delete and asks first; `--non-interactive` skips the question. 
 The namespace is kept unless you pass `--delete-namespace`.
-
 
 ## Flag reference
 
@@ -287,7 +300,7 @@ Variables without a flag:
 | `REGISTRY_EMAIL` | | Registry email (optional) |
 | `REGISTRY_URL` | | Where images are pushed, for example `index.docker.io/myuser` |
 | `REGISTRY_SECRET_NAME` | `registry-credentials` | Pull secret name |
-| `EXTERNAL_HOST_ADDRESS` | suggested | See [External host address](#external-host-address) |
+| `EXTERNAL_HOST_ADDRESS` | suggested | The address you use to reach the cluster's NodePorts, and the base of the ingress hosts |
 | `INGRESS_CONTROLLER_SERVICE` | | `namespace/name` of the ingress controller Service, for the local registry's CoreDNS entry |
 | `MLRUN_VERSION`, `NUCLIO_VERSION` | the chart's | Image tag overrides |
 | `HELM_REPO_URL` | `https://mlrun.github.io/ce` | Chart repository |

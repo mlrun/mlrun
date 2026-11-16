@@ -13,6 +13,11 @@ global:
       s3NonAnonymous: true
       domainNameCertificate:
 
+# Store artifacts in the AWS S3 bucket above (global.infrastructure.aws.bucketName).
+# The chart default, "local", uses the bundled SeaweedFS and its "mlrun" bucket instead.
+storage:
+  mode: s3
+
 nuclio:
   platform:
     kube:

@@ -231,32 +231,170 @@ jobs:
         . venv/bin/activate
         make install-automation-requirements
 
+    - name: Generate GitHub App token for build lookup
+      id: build-lookup-token
+      uses: actions/create-github-app-token@v3
+      with:
+        app-id: ${{ secrets.GH_APP_ID }}
+        private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+        owner: mlrun
+        repositories: mlrun,ui
+
     - name: Extract git hashes from upstream and latest version
       id: git_upstream_info
+      env:
+        GH_TOKEN: ${{ steps.build-lookup-token.outputs.token }}
+        MLRUN_BRANCH: ${{ steps.current-branch.outputs.name }}
       run: |
+        set -euo pipefail
 
-        # Get the latest commit of mlrun/mlrun (that is older than 1 hour)
-        echo "mlrun_hash=$( \
-          cd /tmp && \
-          git clone --single-branch --branch ${{ steps.current-branch.outputs.name }} https://github.com/mlrun/mlrun.git mlrun-upstream 2> /dev/null && \
-          cd mlrun-upstream && \
-          git rev-list --until="3 hour ago" --max-count 1 --abbrev-commit --abbrev=8 HEAD && \
-          cd .. && \
-          rm -rf mlrun-upstream)" >> $GITHUB_OUTPUT
+        if [[ -z "${GH_TOKEN}" ]]; then
+          echo "GitHub App token is empty; cannot look up successful image builds." >&2
+          exit 1
+        fi
 
-        # Get the latest commit of mlrun/ui (that is older than 1 hour)
-        echo "ui_hash=$( \
-          cd /tmp && \
-          git clone --single-branch --branch ${{ steps.current-branch.outputs.name }} https://github.com/mlrun/ui.git mlrun-ui 2> /dev/null && \
-          cd mlrun-ui && \
-          git rev-list --until="3 hour ago" --max-count 1 --abbrev-commit --abbrev=8 HEAD && \
-          cd .. && \
-          rm -rf mlrun-ui)" >> $GITHUB_OUTPUT
+        workdir="$(mktemp -d)"
+        trap 'rm -rf "$workdir"' EXIT
 
-        # Get the tested mlrun version
-        echo "unstable_version_prefix=$( \
-          curl https://raw.githubusercontent.com/mlrun/mlrun/${{ steps.current-branch.outputs.name }}/automation/version/unstable_version_prefix \
-        )" >> $GITHUB_OUTPUT
+        # Newest commit on the branch whose Build workflow succeeded and whose
+        # commit-tagged image is on ghcr.io. A newer commit whose image build failed
+        # is skipped. The previous selector used the newest commit older than 3 hours
+        # and ignored the build result.
+        # Build runs git rev-parse --short=8 on a default actions/checkout
+        # (fetch-depth 1), so the published tag is <unstable prefix>-<first 8 hex chars>.
+        # A successful workflow_dispatch can still be a release rebuild that pushes
+        # only an explicit version. UI names every such run "Build", so the run title
+        # cannot tell those apart. Require the commit tag to exist before selecting it.
+        unstable_version_prefix="$(curl --retry 3 --retry-delay 2 --silent --show-error --fail \
+          "https://raw.githubusercontent.com/mlrun/mlrun/${MLRUN_BRANCH}/automation/version/unstable_version_prefix")"
+        unstable_version_prefix="$(printf '%s' "$unstable_version_prefix" | tr -d '[:space:]')"
+        if [[ -z "$unstable_version_prefix" ]]; then
+          echo "unstable_version_prefix is empty for ${MLRUN_BRANCH}" >&2
+          exit 1
+        fi
+
+        # Prints nothing and returns 1 when the tag is absent.
+        # Returns 2 when the registry cannot be queried.
+        ghcr_commit_tag_status() {
+          local image="$1"
+          local tag="$2"
+          local token http_code
+          if ! token="$(curl --retry 3 --retry-delay 2 --silent --show-error --fail \
+            "https://ghcr.io/token?service=ghcr.io&scope=repository:${image}:pull" \
+            | jq -r '.token // empty')"; then
+            echo "Failed to get a GHCR pull token for ${image}" >&2
+            return 2
+          fi
+          if [[ -z "$token" ]]; then
+            echo "GHCR pull token for ${image} was empty" >&2
+            return 2
+          fi
+          if ! http_code="$(curl --retry 3 --retry-delay 2 --silent --output /dev/null --write-out '%{http_code}' \
+            -H "Authorization: Bearer ${token}" \
+            -H "Accept: application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json, application/vnd.docker.distribution.manifest.v2+json" \
+            "https://ghcr.io/v2/${image}/manifests/${tag}")"; then
+            echo "GHCR request failed for ${image}:${tag}" >&2
+            return 2
+          fi
+          case "$http_code" in
+            200) return 0 ;;
+            404) return 1 ;;
+            *)
+              echo "GHCR lookup for ${image}:${tag} returned HTTP ${http_code}" >&2
+              return 2
+              ;;
+          esac
+        }
+
+        resolve_built_short_hash() {
+          local repo="$1"
+          local image
+          local clone_dir="${workdir}/${repo}"
+          local runs_json qualifying_shas candidate_shas sha short_hash tag status
+
+          case "$repo" in
+            mlrun) image="mlrun/mlrun" ;;
+            ui) image="mlrun/mlrun-ui" ;;
+            *)
+              echo "Unknown repo ${repo}" >&2
+              return 1
+              ;;
+          esac
+
+          GIT_TERMINAL_PROMPT=0 git clone --quiet --single-branch \
+            --branch "$MLRUN_BRANCH" \
+            "https://github.com/mlrun/${repo}.git" "$clone_dir"
+
+          runs_json="$(curl --retry 3 --retry-delay 2 --silent --show-error --fail \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            --get \
+            --data-urlencode "branch=${MLRUN_BRANCH}" \
+            --data-urlencode "status=success" \
+            --data-urlencode "per_page=100" \
+            "https://api.github.com/repos/mlrun/${repo}/actions/workflows/build.yaml/runs")"
+
+          qualifying_shas="$(jq -r '
+            .workflow_runs[]?
+            | select(.event == "push" or .event == "workflow_dispatch")
+            | .head_sha
+          ' <<<"$runs_json")"
+
+          # Newest-first commits that have a successful Build run.
+          candidate_shas="$(
+            git -C "$clone_dir" rev-list HEAD | awk '
+              NR == FNR {
+                if ($0 != "") built[$0] = 1
+                next
+              }
+              built[$0] { print }
+            ' <(printf '%s\n' "$qualifying_shas") -
+          )"
+
+          while read -r sha; do
+            [[ -z "$sha" ]] && continue
+            short_hash="$(printf '%s' "$sha" | cut -c1-8)"
+            tag="${unstable_version_prefix}-${short_hash}"
+            set +e
+            ghcr_commit_tag_status "$image" "$tag"
+            status=$?
+            set -e
+            if [[ "$status" -eq 0 ]]; then
+              built_short_hash="$short_hash"
+              echo "Selected mlrun/${repo}@${MLRUN_BRANCH} ${built_short_hash} (${sha}) image ${image}:${tag}" >&2
+              return 0
+            fi
+            if [[ "$status" -ne 1 ]]; then
+              return "$status"
+            fi
+            echo "Skipping ${sha}: ${image}:${tag} is not on ghcr.io" >&2
+          done <<< "$candidate_shas"
+
+          echo "No commit on mlrun/${repo}@${MLRUN_BRANCH} has both a successful Build run and ${image}:${unstable_version_prefix}-<sha> on ghcr.io" >&2
+          return 1
+        }
+
+        built_short_hash=""
+        resolve_built_short_hash mlrun
+        mlrun_hash="$built_short_hash"
+        resolve_built_short_hash ui
+        ui_hash="$built_short_hash"
+
+        if [[ ! "$mlrun_hash" =~ ^[0-9a-f]{8}$ ]]; then
+          echo "Refusing mlrun hash '${mlrun_hash}'" >&2
+          exit 1
+        fi
+        if [[ ! "$ui_hash" =~ ^[0-9a-f]{8}$ ]]; then
+          echo "Refusing ui hash '${ui_hash}'" >&2
+          exit 1
+        fi
+
+        {
+          echo "mlrun_hash=${mlrun_hash}"
+          echo "ui_hash=${ui_hash}"
+          echo "unstable_version_prefix=${unstable_version_prefix}"
+        } >> "$GITHUB_OUTPUT"
 
     - name: Set computed versions params
       id: computed_params

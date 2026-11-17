@@ -29,7 +29,10 @@ This page walks through the common workflows.
 | [Helm](https://helm.sh/docs/intro/install/) | Version 4.1 or newer. The installer refuses an older Helm |
 | [kubectl](https://kubernetes.io/docs/tasks/tools/) | Pointing at the target cluster |
 
-See also the [Kubernetes prerequisites](./kubernetes-install.md#prerequisites).
+Docker is needed only for a local cluster (Docker Desktop, kind, minikube) and for pushing your own images to a `--local-registry`. 
+The installer itself uses the `docker` CLI only for a best-effort registry login check, which is skipped when Docker is absent.
+
+See also the [Kubernetes prerequisites](./kubernetes-install.md#prerequisites). For Docker Desktop specifics (memory, port-forwarding, Apple Silicon), see [Local install on Docker Desktop](https://github.com/mlrun/ce/blob/development/scripts/README.md#local-install-on-docker-desktop) in the installer README.
 
 ## Get the installer
 
@@ -50,13 +53,15 @@ which can be newer than the tag. Rerunning the same command later can therefore 
 To pin both, use a tag for the installer **and** pass `--ce-version` for the chart, as in the example above.
 ```
 
-Tags older than the installer have no `scripts/` directory and fail.
+Tags older than the installer have no `scripts/` directory and fail. This path needs access to GitHub and PyPI, 
+and resolves the installer's dependencies (typer, click, rich, pyyaml) within the ranges in `scripts/pyproject.toml`. 
+A clone uses the exact versions pinned in `scripts/install.py.lock`.
 
 **As a command**:
 
 ```bash
 uv tool install "git+https://github.com/mlrun/ce@${CE_TAG}#subdirectory=scripts"
-mlrun-ce-installer version   # the installer's own version, which is not the chart that will be installed
+mlrun-ce-installer version   # prints the chart version this installer ships with (the tag's version), not necessarily the chart that will be installed
 mlrun-ce-installer install --ce-version "${CE_VERSION}"
 ```
 
@@ -68,7 +73,8 @@ mlrun-ce-installer install --ce-version "${CE_VERSION}"
 
 The examples below use `./scripts/install.py`. The `mlrun-ce-installer` command takes the same arguments.
 
-The commands are `install` (the default), `uninstall`, `version` and `help`.
+The commands are `install` (the default), `uninstall`, `version` and `help`. 
+Flags can also be passed with no command - `-h`/`--help` and `-v`/`--version` are also accepted.
 
 ## Install
 
@@ -86,7 +92,7 @@ Nothing on the cluster changes while you answer. It then shows the target and as
 [INFO]   Cluster:   docker-desktop (https://127.0.0.1:6443)
 [INFO]   Namespace: mlrun
 [INFO]   Release:   mlrun-ce
-[INFO]   Chart:     mlrun-ce/mlrun-ce 0.12.0 (newest stable)
+[INFO]   Chart:     mlrun-ce/mlrun-ce {{ cechartversion }} (newest stable)
 [INFO]   Registry:  index.docker.io/myuser (pull secret 'registry-credentials')
 [INFO]   Address:   host.docker.internal
 Proceed? [Y/n]:
@@ -117,7 +123,8 @@ export EXTERNAL_HOST_ADDRESS=localhost
 ./scripts/install.py
 ```
 
-The password is never passed to the helm, kubectl or docker processes as a command-line argument.
+The password is never passed to the helm, kubectl or docker processes as a command-line argument, and it never reaches their environment. 
+The installer passes it to `kubectl apply` and `docker login` on stdin.
 
 ### Dry run
 
@@ -126,15 +133,18 @@ The password is never passed to the helm, kubectl or docker processes as a comma
 ```
 
 Runs every check, prints the plan, and renders the chart with `helm upgrade --install --dry-run=server`. Nothing is created. 
-The run ends by listing the files to review: the debug log, `mlrun-ce-values.yaml`, and, on an upgrade, the release's current and changed values.
+The run ends by listing the files to review: the debug log (the rendered manifests with Secret values redacted, and every command), `mlrun-ce-values.yaml`, 
+and, on an upgrade, the release's current values and the values the upgrade changes.
 
 ### Pre-install checks
 
 These run before anything is created, dry runs included.
 
-- **Blocking**: Helm older than 4.1, and no default StorageClass.
-- **Warnings**: Kubernetes older than 1.34; a failed registry login; no IngressClass matching `--enable-ingress`; less than 8Gi allocatable memory or ephemeral storage; arm64 nodes.
-- **NodePorts**: if a chart NodePort is held by another Service, the installer moves it to the next free port and warns you. The new port is used in all printed URLs.
+- **Blocking**: Helm older than 4.1, and no default StorageClass. Both are reported before the installer exits, so you can fix them in one pass.
+- **Warnings**: Kubernetes older than 1.34 (or older than `MIN_K8S_VERSION`, if set); a failed registry login; no IngressClass matching `--enable-ingress`; less than 8Gi allocatable memory or ephemeral storage in total; arm64 nodes (MLRun publishes some images for amd64 only).
+- **NodePorts**: if a default chart NodePort is held by another Service, the installer moves it to the next free port and warns you. The new port is used in all printed URLs. A busy NodePort that you set yourself in a `-f` file is an error, not moved.
+
+It is skipped with `--local-registry`, `--skip-secret`, `--dry-run`, when only `-f` is used, and when the `docker` CLI is not available.
 
 Use `--skip-validators` to skip all of them.
 
@@ -155,7 +165,9 @@ The run ends with a table of the services and where to reach them:
 └────────────────────┴────────────────────────────┴──────────────────────┘
 ```
 
-Open the addresses with `http://`. Disabled components are left out. With `--enable-ingress`, each UI shows its ingress host.
+Open the addresses with `http://`. Disabled components are left out. With `--enable-ingress`, each UI shows its ingress host. 
+On Docker Desktop the NodePorts may not be published to your machine. If the addresses don't open, forward the ports with `kubectl port-forward`, 
+as described in the [installer README](https://github.com/mlrun/ce/blob/development/scripts/README.md#local-install-on-docker-desktop).
 
 ## Configure the installation
 
@@ -163,20 +175,23 @@ Open the addresses with `http://`. Disabled components are left out. With `--ena
 
 Highest first: **flag > environment variable > `ce-config.yaml` > `-f` values file > chart defaults**.
 
-Everything the installer resolves is written to `mlrun-ce-values.yaml` and passed to Helm as the last `--values` file. 
-If that file already exists and the run would change it, the installer lists the differences and asks you to **merge**, **override** (the default), or **cancel**. 
-The old file is kept as `mlrun-ce-values.yaml.bak`.
+Everything the installer resolves is written to `mlrun-ce-values.yaml` (`GENERATED_VALUES_FILE`) and passed to Helm as the last `--values` file, 
+after your `-f` file, so it wins for the keys it sets. Ingress hosts and classes are the exception: one set in your `-f` file is kept. 
+Chart values the installer does not manage (resources, replicas, and so on) come only from your `-f` file.
 
-```{admonition} Values from a previous installation carry over
-Values saved in a values file from a previous installation (your `-f` file, or an existing `mlrun-ce-values.yaml` if you choose **merge**) 
-also apply to the next installation unless you set them again. For example, if an earlier run set the ingress class to `traefik` 
-and the next run uses `--enable-ingress` without a class, `traefik` is still used instead of `nginx`. 
-To start clean, remove the old values or choose **override** when the installer asks.
+If `mlrun-ce-values.yaml` already exists and the run would change it, the installer lists the differences and asks you to 
+**merge** (keep the keys only the old file sets, take this run's value for the rest), **override** (the default), or **cancel** (stop with nothing changed). 
+The old file is kept as `mlrun-ce-values.yaml.bak`. With `--non-interactive` or `CI=true` there is no question: the installer overrides.
+
+```{admonition} Values from a previous installation can carry over
+**Merge** keeps the keys that only the old file sets, so settings from the earlier installation, including values you added by hand, stay in effect even if this run no longer needs them. 
+Merged keys can be stale, so check the list before merging.
 ```
 
 ### Config file
 
-A config file makes every run repeatable. Start from an example in the [mlrun/ce repository](https://github.com/mlrun/ce/tree/development/scripts):
+A config file makes every run repeatable. Start from an example in the [mlrun/ce repository](https://github.com/mlrun/ce/tree/development/scripts), 
+which lists every key with the flag or variable it stands for:
 
 ```bash
 cp scripts/ce-config.local.yaml.example ce-config.yaml    # Docker Desktop, kind, minikube
@@ -192,7 +207,7 @@ cp scripts/ce-config.remote.yaml.example ce-config.yaml   # any other cluster
 
 Used alone, `-f` is passed to Helm as is. No pull secret is created and no registry questions are asked, 
 so the file must set `global.registry.*` and the secret it names must already exist. 
-Combine it with `--config` to have the installer handle the secret and registry as usual.
+Combine it with `--config` to have the installer handle the secret and registry as usual. In that case the values the installer resolves win over the same keys in your file.
 
 ### Optional components
 
@@ -218,9 +233,12 @@ Disabled components are also left out of the access URLs table printed at the en
 ./scripts/install.py --enable-ingress traefik   # another class
 ```
 
-This turns on the chart's Ingresses, with hosts `mlrun.<host>`, `mlrun-api.<host>`, `jupyter.<host>` and `nuclio.<host>`. 
+This turns on the chart's Ingresses, with hosts `mlrun.<host>`, `mlrun-api.<host>`, `jupyter.<host>` and `nuclio.<host>`, 
+where `<host>` is the external host address. A host or class you set in a `-f` file is kept. 
 The installer does **not** install an ingress controller. One providing the class must already run in the cluster 
-(check with `kubectl get ingressclass`). The host names must resolve to the controller, through wildcard DNS or a name such as `203.0.113.10.nip.io`.
+(check with `kubectl get ingressclass`); otherwise the checks warn and the Ingresses do nothing until one exists. 
+The host names must resolve to the controller, through wildcard DNS or a name such as `203.0.113.10.nip.io`. 
+With a bare IP the installer prints the `/etc/hosts` line to add.
 
 ### Local registry
 
@@ -228,15 +246,18 @@ The installer does **not** install an ingress controller. One providing the clas
 ./scripts/install.py --local-registry --enable-ingress
 ```
 
-Runs a `registry:2.8.3` registry in the namespace, backed by a 10Gi PVC, and configures MLRun and Nuclio to use it over plain HTTP. 
-No registry account is needed. Without `--enable-ingress` the registry name is not resolvable from the nodes, so function pods fail to pull. 
+Runs a `registry:2.8.3` registry in the namespace, backed by a 10Gi PVC on the default StorageClass, and configures MLRun and Nuclio to use it over plain HTTP. 
+No registry account is needed. Without `--enable-ingress` the registry is `local-registry.<namespace>.svc.cluster.local:5000`, which the nodes cannot resolve, so function pods fail to pull. 
 With ingress, you must also:
 
-1. Add the registry host to the CoreDNS `hosts` block, so pods can push. The installer prints the exact entry.
+1. Add the registry host to the CoreDNS `hosts` block, so pods can push. The installer prints the exact entry. 
+   If it cannot find your ingress controller Service, set `INGRESS_CONTROLLER_SERVICE` to its `namespace/name`.
 2. Add the registry host to `/etc/hosts` on Docker Desktop, so the node can pull.
 3. Add the registry host to `insecure-registries` under **Settings → Docker Engine**, then **Apply & Restart**.
 
 The installer prints these steps but changes none of them itself. 
+`--local-registry` with `--enable-ingress` is refused when the external host address is `localhost` or `127.0.0.1`, 
+because the registry host would resolve to each pod itself. Use another address, such as `host.docker.internal`.
 See [Local registry](https://github.com/mlrun/ce/blob/development/scripts/README.md#local-registry) in the installer README for details.
 
 ### OpenTelemetry
@@ -247,7 +268,7 @@ See [Local registry](https://github.com/mlrun/ce/blob/development/scripts/README
 ```
 
 The four pieces can also be enabled one by one: `--enable-otel-operator`, `--enable-otel-collector`, `--enable-otel-instrumentation` and `--enable-otel-namespace-label`. 
-`--enable-otel off` turns them all off. See also [Configure OTel](./mlrun-ce-installation-notes.md#configure-otel).
+`--enable-otel off` turns them all off. A mode sets the complete state, so the flags combine left to right. See also [Configure OTel](./mlrun-ce-installation-notes.md#configure-otel).
 
 ## Uninstall
 
@@ -267,35 +288,41 @@ The namespace is kept unless you pass `--delete-namespace`.
 
 ## Flag reference
 
-Setting a flag's environment variable to `true` or `1` has the same effect as the flag.
+Setting a flag's environment variable to `true` or `1` has the same effect as the flag. Any other value, `false` and `0` included, leaves it off. 
+An empty variable counts as unset.
 
 | Flag | Variable | Effect |
 |---|---|---|
+| `-h`, `--help` | | Show help |
+| `-v`, `--version` | | Print the installer version (the chart version it ships with) |
 | `--uninstall` | `UNINSTALL` | Same as the `uninstall` command |
-| `--hard-clean` | `HARD_CLEAN` | With `uninstall`: also delete PVCs and PVs, Nuclio functions, MLRun run pods and the chart's Kafka |
+| `--hard-clean` | `HARD_CLEAN` | With `uninstall`: also delete the namespace's PVCs and PVs, Nuclio functions, MLRun run pods, the chart's Kafka, Nuclio build Jobs and the Spark webhook certificate |
 | `--delete-namespace` | `DELETE_NAMESPACE` | With `--hard-clean`: also delete the namespace, without asking |
 | `--dry-run` | `DRY_RUN` | Change nothing: render the chart, or list what `uninstall` would remove |
 | `--non-interactive` | `NON_INTERACTIVE`, `CI` | Never prompt; exit 1 on a missing required value |
-| `--config FILE` | `CONFIG_FILE` | Read defaults from a `ce-config.yaml` |
+| `--config FILE` | `CONFIG_FILE` | Read defaults from the `installer:` block of a `ce-config.yaml` |
 | `-f`, `--values FILE` | | Base Helm values file |
 | `--chart-path DIR` | `CHART_PATH` | Install a local chart directory; not with `--ce-version` |
 | `--update-dependencies` | `UPDATE_DEPENDENCIES` | With `--chart-path`: fetch missing chart dependencies |
-| `--ce-version VERSION` | `CE_VERSION` | Install this published chart version (default: the newest stable one) |
+| `--ce-version VERSION` | `CE_VERSION` | Install this published chart version (default: the newest stable one); not with `--chart-path` |
 | `--devel` | `DEVEL` | Without `--ce-version`: the newest chart, prereleases included |
 | `--skip-secret` | `SKIP_REGISTRY_SECRET` | Use an existing pull secret instead of creating one |
 | `--skip-validators` | `SKIP_VALIDATORS` | Skip the pre-install checks |
 | `--local-registry` | `LOCAL_REGISTRY` | Run a registry in the cluster |
-| `--kube-context` | `KUBE_CONTEXT` | kubeconfig context for kubectl and helm |
+| `--kube-context` | `KUBE_CONTEXT` | kubeconfig context for kubectl and helm (default: the current one) |
 | `--enable-ingress [CLASS]` | `ENABLE_INGRESS`, `INGRESS_CLASS` | Turn on the chart's Ingresses (class `nginx` by default) |
-| `--enable-otel [MODE]` | | `off`, `collector` or `full` (the default) |
-| `--enable-otel-operator`, `--enable-otel-collector`, `--enable-otel-instrumentation`, `--enable-otel-namespace-label` | `ENABLE_OTEL_*` | Enable one OpenTelemetry piece |
+| `--enable-otel [MODE]` | | `off`, `collector` or `full` (the default for a bare flag) |
+| `--enable-otel-operator` | `ENABLE_OTEL_OPERATOR` | Install the OpenTelemetry operator |
+| `--enable-otel-collector` | `ENABLE_OTEL_COLLECTOR` | Deploy the OpenTelemetry Collector |
+| `--enable-otel-instrumentation` | `ENABLE_OTEL_INSTRUMENTATION` | Create the Instrumentation resource |
+| `--enable-otel-namespace-label` | `ENABLE_OTEL_NAMESPACE_LABEL` | Auto-instrument every Python pod in the namespace |
 | `--disable-system-monitoring` | `DISABLE_SYSTEM_MONITORING` | Leave out Prometheus and Grafana |
 | `--disable-spark` | `DISABLE_SPARK` | Leave out the Spark operator |
 | `--disable-mpi` | `DISABLE_MPI` | Leave out the MPI operator |
 | `--disable-model-monitoring` | `DISABLE_MODEL_MONITORING` | Leave out Kafka and TimescaleDB |
-| `--show-progress` | `SHOW_PROGRESS` | Show a live table of rollouts while Helm runs |
-| `--log-level LEVEL` | `LOG_LEVEL` | `info` (the default) or `warning` |
-| `--trigger-migrations` | `TRIGGER_MIGRATIONS` | On an upgrade, run the MLRun DB migrations |
+| `--show-progress` | `SHOW_PROGRESS` | Show a live table of rollouts while Helm runs (terminals only) |
+| `--log-level LEVEL` | `LOG_LEVEL` | `info` (the default) or `warning`: only warnings, errors, prompts and the result reach the terminal; the debug log still has everything |
+| `--trigger-migrations` | `TRIGGER_MIGRATIONS` | On an upgrade, run the MLRun DB migrations for this run only |
 
 Variables without a flag:
 
@@ -303,16 +330,20 @@ Variables without a flag:
 |---|---|---|
 | `NAMESPACE` | `mlrun` | Target namespace |
 | `RELEASE_NAME` | `mlrun-ce` | Helm release name |
-| `REGISTRY_USERNAME`, `REGISTRY_PASSWORD`, `REGISTRY_PASSWORD_FILE` | | Registry credentials. `REGISTRY_PASSWORD` wins over the file |
+| `REGISTRY_USERNAME` | | Registry username |
+| `REGISTRY_PASSWORD` | | Registry password |
+| `REGISTRY_PASSWORD_FILE` | | File holding only the password; `REGISTRY_PASSWORD` wins if both are set |
 | `REGISTRY_SERVER` | `https://index.docker.io/v1/` | Registry server for the pull secret |
 | `REGISTRY_EMAIL` | | Registry email (optional) |
 | `REGISTRY_URL` | | Where images are pushed, for example `index.docker.io/myuser` |
 | `REGISTRY_SECRET_NAME` | `registry-credentials` | Pull secret name |
 | `EXTERNAL_HOST_ADDRESS` | suggested | The address you use to reach the cluster's NodePorts, and the base of the ingress hosts |
 | `INGRESS_CONTROLLER_SERVICE` | | `namespace/name` of the ingress controller Service, for the local registry's CoreDNS entry |
-| `MLRUN_VERSION`, `NUCLIO_VERSION` | the chart's | Image tag overrides |
+| `MLRUN_VERSION` | the chart's | MLRun API and UI image tag |
+| `NUCLIO_VERSION` | the chart's | Nuclio controller and dashboard image tag |
 | `HELM_REPO_URL` | `https://mlrun.github.io/ce` | Chart repository |
 | `HELM_TIMEOUT` | `960s` | Helm's wait timeout for install, upgrade and uninstall |
-| `MIN_K8S_VERSION` | | Also warn below this Kubernetes version |
-| `GENERATED_VALUES_FILE` | `mlrun-ce-values.yaml` | Where the installer writes its values |
-| `INSTALL_LOG_FILE` | `mlrun-ce-install.log` | The debug log |
+| `MIN_K8S_VERSION` | | Also warn below this Kubernetes version (the 1.34 warning always applies) |
+| `PROGRESS_INTERVAL_SEC` | `10` | Refresh interval of `--show-progress` |
+| `GENERATED_VALUES_FILE` | `mlrun-ce-values.yaml` | Where the installer writes its values; rewritten every run. An upgrade's `.previous.yaml` and `.changes.yaml` files go beside it |
+| `INSTALL_LOG_FILE` | `mlrun-ce-install.log` | The debug log; rewritten every run |

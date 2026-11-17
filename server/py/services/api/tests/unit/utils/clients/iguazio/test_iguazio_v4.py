@@ -19,8 +19,6 @@ import uuid
 from contextlib import nullcontext as does_not_raise
 
 import deepdiff
-import httpx
-import iguazio.schemas
 import pytest
 import requests_mock as requests_mock_package
 from aioresponses import CallbackResult
@@ -353,446 +351,6 @@ def sample_user_info(username="dummy-user", user_id="dummy-user-id", group_ids=N
 
 
 @pytest.mark.parametrize(
-    "secret_token, expected_exception",
-    [
-        (None, mlrun.errors.MLRunInvalidArgumentError),  # None token
-        (
-            mlrun.common.schemas.SecretToken(name="t1", token=""),
-            mlrun.errors.MLRunInvalidArgumentError,
-        ),  # empty token
-        (
-            mlrun.common.schemas.SecretToken(name="t1", token="valid-token"),
-            None,
-        ),  # valid token
-    ],
-)
-@pytest.mark.parametrize("iguazio_client", [("v4", "sync")], indirect=True)
-def test_refresh_access_token_cases(iguazio_client, secret_token, expected_exception):
-    if expected_exception:
-        with pytest.raises(expected_exception):
-            iguazio_client.refresh_access_token(secret_token)
-    else:
-        # simulate HTTP error
-        iguazio_client._client.refresh_access_token.side_effect = httpx.HTTPStatusError(
-            "Error",
-            request=None,
-            response=unittest.mock.MagicMock(
-                status_code=401,
-                json=lambda: {"status": {"errorMessage": "invalid", "ctx": "dummy"}},
-            ),
-        )
-        with pytest.raises(mlrun.errors.MLRunUnauthorizedError):
-            iguazio_client.refresh_access_token(secret_token)
-
-
-@pytest.mark.parametrize("iguazio_client", [("v4", "sync")], indirect=True)
-def test_refresh_access_token_success(
-    iguazio_client, mock_service_account_auth_headers
-):
-    secret_token = mlrun.common.schemas.SecretToken(
-        name="test-token", token="valid-token"
-    )
-
-    # Should not raise
-    iguazio_client.refresh_access_token(secret_token)
-
-    iguazio_client._client.refresh_access_token.assert_called_once()
-    called_options = iguazio_client._client.refresh_access_token.call_args[1]["options"]
-    assert called_options.refresh_token == "valid-token"
-
-
-@pytest.mark.parametrize(
-    "secret_tokens, expected_exception",
-    [
-        ([], mlrun.errors.MLRunInvalidArgumentError),  # empty list
-        (
-            [mlrun.common.schemas.SecretToken(name="t1", token="")],
-            mlrun.errors.MLRunInvalidArgumentError,
-        ),  # empty token in list
-        (
-            [
-                mlrun.common.schemas.SecretToken(name="t1", token="token1"),
-                mlrun.common.schemas.SecretToken(name="t2", token="token2"),
-            ],
-            None,
-        ),  # valid tokens
-    ],
-)
-@pytest.mark.parametrize("iguazio_client", [("v4", "sync")], indirect=True)
-def test_refresh_access_tokens_cases(iguazio_client, secret_tokens, expected_exception):
-    if expected_exception:
-        with pytest.raises(expected_exception):
-            iguazio_client.refresh_access_tokens(secret_tokens)
-    else:
-        # simulate HTTP error
-        iguazio_client._client.refresh_access_tokens.side_effect = (
-            httpx.HTTPStatusError(
-                "Error",
-                request=None,
-                response=unittest.mock.MagicMock(
-                    status_code=401,
-                    json=lambda: {
-                        "status": {"errorMessage": "invalid", "ctx": "dummy"}
-                    },
-                ),
-            )
-        )
-        with pytest.raises(mlrun.errors.MLRunUnauthorizedError):
-            iguazio_client.refresh_access_tokens(secret_tokens)
-
-
-@pytest.mark.parametrize("iguazio_client", [("v4", "sync")], indirect=True)
-def test_revoke_offline_token_success(
-    iguazio_client, mock_service_account_auth_headers
-):
-    token = "valid-token"
-    request_headers = {
-        mlrun.common.schemas.HeaderNames.authorization: f"{mlrun.common.schemas.AuthorizationHeaderPrefixes.bearer}123",
-    }
-
-    iguazio_client.revoke_offline_token(token, request_headers)
-
-    iguazio_client._client.revoke_offline_token.assert_called_once()
-
-
-@pytest.mark.parametrize("iguazio_client", [("v4", "sync")], indirect=True)
-def test_resolve_token_from_igz_yml_success(iguazio_client, monkeypatch):
-    """Test successful token resolution from igz.yml content."""
-    igz_yml_content = "secretTokens:\n- name: my-token\n  token: jwt-value\n"
-
-    # Mock iguazio.Client for the token file client
-    mock_token_client = unittest.mock.Mock()
-    mock_token_client.get_refresh_token.return_value = ("my-token", "jwt-value")
-
-    with unittest.mock.patch("iguazio.Client", return_value=mock_token_client):
-        result = iguazio_client.resolve_token_from_igz_yml(
-            igz_yml_content, "test-user", "my-token"
-        )
-
-    assert result == "my-token"
-    mock_token_client.get_refresh_token.assert_called_once()
-
-
-@pytest.mark.parametrize("iguazio_client", [("v4", "sync")], indirect=True)
-def test_resolve_token_from_igz_yml_auto_discovery(iguazio_client, monkeypatch):
-    """Test auto-discovery mode returns first valid token."""
-    igz_yml_content = "secretTokens:\n- name: default\n  token: jwt-default\n- name: other\n  token: jwt-other\n"
-
-    mock_token_client = unittest.mock.Mock()
-    mock_token_client.get_refresh_token.return_value = ("default", "jwt-default")
-
-    with unittest.mock.patch(
-        "iguazio.Client", return_value=mock_token_client
-    ) as mock_class:
-        result = iguazio_client.resolve_token_from_igz_yml(
-            igz_yml_content, "test-user", None
-        )
-
-    assert result == "default"
-    # Verify token_name=None for auto-discovery
-    call_kwargs = mock_class.call_args.kwargs
-    assert call_kwargs["token_name"] is None
-
-
-@pytest.mark.parametrize("iguazio_client", [("v4", "sync")], indirect=True)
-def test_resolve_token_from_igz_yml_token_not_found(iguazio_client):
-    """Test MLRunNotFoundError when specific token is not found."""
-    igz_yml_content = "secretTokens:\n- name: other-token\n  token: jwt-value\n"
-
-    with unittest.mock.patch(
-        "iguazio.Client", side_effect=ValueError("Token 'my-token' not found")
-    ):
-        with pytest.raises(
-            mlrun.errors.MLRunNotFoundError, match="not found or invalid"
-        ):
-            iguazio_client.resolve_token_from_igz_yml(
-                igz_yml_content, "test-user", "my-token"
-            )
-
-
-@pytest.mark.parametrize("iguazio_client", [("v4", "sync")], indirect=True)
-def test_resolve_token_from_igz_yml_no_valid_tokens(iguazio_client):
-    """Test MLRunNotFoundError when no valid tokens are found in auto-discovery."""
-    igz_yml_content = "secretTokens:\n- name: expired\n  token: expired-jwt\n"
-
-    with unittest.mock.patch(
-        "iguazio.Client", side_effect=RuntimeError("No valid tokens found")
-    ):
-        with pytest.raises(
-            mlrun.errors.MLRunNotFoundError, match="No valid tokens found"
-        ):
-            iguazio_client.resolve_token_from_igz_yml(
-                igz_yml_content, "test-user", None
-            )
-
-
-@pytest.mark.parametrize("iguazio_client", [("v4", "sync")], indirect=True)
-def test_resolve_token_from_igz_yml_sdk_returns_none(iguazio_client):
-    """Test MLRunNotFoundError when SDK returns None."""
-    igz_yml_content = "secretTokens:\n- name: some-token\n  token: jwt-value\n"
-
-    mock_token_client = unittest.mock.Mock()
-    mock_token_client.get_refresh_token.return_value = (None, None)
-
-    with unittest.mock.patch("iguazio.Client", return_value=mock_token_client):
-        with pytest.raises(
-            mlrun.errors.MLRunNotFoundError, match="No valid tokens found"
-        ):
-            iguazio_client.resolve_token_from_igz_yml(
-                igz_yml_content, "test-user", None
-            )
-
-
-@pytest.mark.parametrize("iguazio_client", [("v4", "follower")], indirect=True)
-def test_follower_create_project(
-    mock_session, iguazio_client, igv4_auth_info, mock_service_account_auth_headers
-):
-    project = _generate_igv4_project()
-
-    iguazio_client.create_project(mock_session, project, auth_info=igv4_auth_info)
-    iguazio_client._client.create_default_project_policies.assert_called_once_with(
-        project=TEST_PROJECT_NAME
-    )
-
-
-@pytest.mark.parametrize("iguazio_client", [("v4", "follower")], indirect=True)
-@pytest.mark.parametrize("patch_mode", mlrun.common.schemas.PatchMode)
-@pytest.mark.parametrize("owner", [TEST_PROJECT_OWNER, None])
-def test_follower_patch_project(
-    owner,
-    patch_mode,
-    mock_session,
-    iguazio_client,
-    igv4_auth_info,
-    mock_service_account_auth_headers,
-):
-    project = _generate_igv4_project(owner=owner)
-
-    iguazio_client.patch_project(
-        mock_session,
-        TEST_PROJECT_NAME,
-        project.dict(),
-        patch_mode,
-        auth_info=igv4_auth_info,
-    )
-
-    if not owner:
-        iguazio_client._client.update_project_owner.assert_not_called()
-    else:
-        iguazio_client._client.update_project_owner.assert_called_once_with(
-            project=TEST_PROJECT_NAME,
-            options=iguazio.schemas.UpdateProjectOwnerOptionsV1(owner=owner),
-        )
-
-
-@pytest.mark.parametrize("iguazio_client", [("v4", "follower")], indirect=True)
-def test_follower_patch_project_forbidden_raises_access_denied(
-    mock_session,
-    iguazio_client,
-    igv4_auth_info,
-    mock_service_account_auth_headers,
-):
-    iguazio_client._client.update_project_owner.side_effect = (
-        _generate_igv4_httpx_exception(
-            "Not allowed to update resource",
-            httpx.codes.FORBIDDEN,
-        )
-    )
-    project = _generate_igv4_project()
-
-    with pytest.raises(mlrun.errors.MLRunAccessDeniedError):
-        iguazio_client.patch_project(
-            mock_session,
-            TEST_PROJECT_NAME,
-            project.dict(),
-            auth_info=igv4_auth_info,
-        )
-
-
-@pytest.mark.parametrize("iguazio_client", [("v4", "follower")], indirect=True)
-@pytest.mark.parametrize("owner", [TEST_PROJECT_OWNER, None])
-@pytest.mark.parametrize("project_exists", [True, False])
-def test_follower_store_project(
-    project_exists,
-    owner,
-    mock_session,
-    iguazio_client,
-    igv4_auth_info,
-    mock_service_account_auth_headers,
-):
-    project = _generate_igv4_project(owner=owner)
-
-    if project_exists:
-        iguazio_client._client.create_default_project_policies.side_effect = (
-            _generate_igv4_httpx_exception(
-                "Project policies already exist",
-                httpx.codes.CONFLICT,
-            )
-        )
-
-    iguazio_client.store_project(
-        mock_session, TEST_PROJECT_NAME, project, auth_info=igv4_auth_info
-    )
-
-    iguazio_client._client.create_default_project_policies.assert_called_once_with(
-        project=TEST_PROJECT_NAME
-    )
-    # owner updates only happen via explicit patch_project calls
-    iguazio_client._client.update_project_owner.assert_not_called()
-
-
-@pytest.mark.parametrize("iguazio_client", [("v4", "follower")], indirect=True)
-def test_follower_store_project_unexpected_error_raises(
-    mock_session,
-    iguazio_client,
-    igv4_auth_info,
-    mock_service_account_auth_headers,
-):
-    iguazio_client._client.create_default_project_policies.side_effect = (
-        _generate_igv4_httpx_exception(
-            "Internal error",
-            httpx.codes.INTERNAL_SERVER_ERROR,
-        )
-    )
-
-    with pytest.raises(mlrun.errors.MLRunInternalServerError):
-        iguazio_client.store_project(
-            mock_session,
-            TEST_PROJECT_NAME,
-            _generate_igv4_project(),
-            auth_info=igv4_auth_info,
-        )
-
-
-@pytest.mark.parametrize("iguazio_client", [("v4", "follower")], indirect=True)
-def test_follower_delete_project_check_skips_igz_delete(
-    iguazio_client, mock_service_account_auth_headers
-) -> None:
-    iguazio_client.delete_project(
-        None,
-        TEST_PROJECT_NAME,
-        deletion_strategy=mlrun.common.schemas.DeletionStrategy.check,
-    )
-    iguazio_client._client.delete_project_policies.assert_not_called()
-
-
-@pytest.mark.parametrize("iguazio_client", [("v4", "follower")], indirect=True)
-@pytest.mark.parametrize(
-    "deletion_strategy",
-    (
-        mlrun.common.schemas.DeletionStrategy.restricted,
-        mlrun.common.schemas.DeletionStrategy.cascading,
-    ),
-)
-def test_follower_delete_project_calls_igz_delete(
-    iguazio_client,
-    deletion_strategy: mlrun.common.schemas.DeletionStrategy,
-    mock_service_account_auth_headers,
-) -> None:
-    iguazio_client.delete_project(
-        None, TEST_PROJECT_NAME, deletion_strategy=deletion_strategy
-    )
-    iguazio_client._client.delete_project_policies.assert_called_once_with(
-        project=TEST_PROJECT_NAME
-    )
-
-
-@pytest.mark.parametrize("iguazio_client", [("v4", "follower")], indirect=True)
-def test_follower_context_id_passed_to_with_headers(
-    mock_session, iguazio_client, igv4_auth_info, mock_service_account_auth_headers
-):
-    context_id = "v4-callback-context-id"
-    project = _generate_igv4_project()
-
-    token = context_id_var.set(context_id)
-    try:
-        iguazio_client.create_project(mock_session, project, auth_info=igv4_auth_info)
-    finally:
-        context_id_var.reset(token)
-
-    headers_arg = iguazio_client._client.with_headers.call_args[0][0]
-    assert headers_arg[mlrun.common.schemas.HeaderNames.igz_ctx] == context_id
-
-
-@pytest.mark.parametrize("iguazio_client", [("v4", "sync")], indirect=True)
-def test_try_callback_with_httpx_exceptions_generic_exception(
-    iguazio_client, mock_service_account_auth_headers
-):
-    """Generic (non-HTTP) exceptions use the fallback exception_type."""
-    fallback_exception_type = mlrun.errors.MLRunInternalServerError
-    failure_message = "Final failure message"
-
-    def callback():
-        raise Exception()
-
-    with pytest.raises(fallback_exception_type, match=failure_message):
-        iguazio_client._try_callback_with_httpx_exceptions(
-            callback, fallback_exception_type, failure_message
-        )
-
-
-@pytest.mark.parametrize("iguazio_client", [("v4", "sync")], indirect=True)
-@pytest.mark.parametrize(
-    "http_status_code, expected_exception_type",
-    [
-        (httpx.codes.BAD_REQUEST, mlrun.errors.MLRunBadRequestError),
-        (httpx.codes.UNAUTHORIZED, mlrun.errors.MLRunUnauthorizedError),
-        (httpx.codes.FORBIDDEN, mlrun.errors.MLRunAccessDeniedError),
-        (httpx.codes.NOT_FOUND, mlrun.errors.MLRunNotFoundError),
-        (httpx.codes.CONFLICT, mlrun.errors.MLRunConflictError),
-        (
-            httpx.codes.INTERNAL_SERVER_ERROR,
-            mlrun.errors.MLRunInternalServerError,
-        ),
-    ],
-)
-def test_try_callback_with_httpx_exceptions_maps_status_code(
-    iguazio_client,
-    http_status_code,
-    expected_exception_type,
-    mock_service_account_auth_headers,
-):
-    """HTTP errors are mapped to the correct MLRun error type based on status code,
-    regardless of the fallback exception_type."""
-    failure_message = "Operation failed"
-    error_message = "Upstream error"
-    ctx = "test-ctx"
-
-    def callback():
-        raise _generate_igv4_httpx_exception(error_message, http_status_code, ctx)
-
-    with pytest.raises(expected_exception_type) as exc_info:
-        iguazio_client._try_callback_with_httpx_exceptions(
-            callback,
-            mlrun.errors.MLRunInternalServerError,
-            failure_message,
-        )
-    assert failure_message in str(exc_info.value)
-    assert error_message in str(exc_info.value)
-
-
-@pytest.mark.parametrize("iguazio_client", [("v4", "sync")], indirect=True)
-def test_try_callback_with_httpx_exceptions_unmapped_status_falls_back_to_exception_type(
-    iguazio_client, mock_service_account_auth_headers
-):
-    """HTTP status codes not in STATUS_ERRORS fall back to the caller-supplied exception_type."""
-    failure_message = "Operation failed"
-    error_message = "Too many requests"
-    ctx = "test-ctx"
-    fallback_type = mlrun.errors.MLRunUnauthorizedError
-
-    def callback():
-        raise _generate_igv4_httpx_exception(error_message, 429, ctx)
-
-    with pytest.raises(fallback_type) as exc_info:
-        iguazio_client._try_callback_with_httpx_exceptions(
-            callback, fallback_type, failure_message
-        )
-    assert failure_message in str(exc_info.value)
-    assert error_message in str(exc_info.value)
-
-
-@pytest.mark.parametrize(
     "existing_headers, expected_headers",
     [
         (
@@ -853,11 +411,6 @@ def igv4_auth_info() -> mlrun.common.schemas.AuthInfo:
         mlrun.common.schemas.HeaderNames.authorization: f"{mlrun.common.schemas.AuthorizationHeaderPrefixes.bearer}123",
     }
     yield mlrun.common.schemas.AuthInfo(request_headers=request_headers)
-
-
-@pytest.fixture
-def mock_session() -> unittest.mock.MagicMock:
-    yield unittest.mock.MagicMock()
 
 
 def _generate_igv4_project(
@@ -1610,28 +1163,6 @@ def test_trigger_followers_sync_action_failed_raises_without_retrying(
     assert len(get_requests) == 1
 
 
-def _generate_igv4_httpx_exception(
-    error_message: str,
-    status_code: int,
-    ctx: str = "test-ctx",
-) -> httpx.HTTPStatusError:
-    mock_response = unittest.mock.MagicMock()
-    mock_response.status_code = status_code
-    mock_response.json.return_value = {
-        "status": {
-            "ctx": ctx,
-            "statusCode": status_code,
-            "errorMessage": error_message,
-        }
-    }
-
-    return httpx.HTTPStatusError(
-        message=error_message,
-        request=unittest.mock.MagicMock(),
-        response=mock_response,
-    )
-
-
 @pytest.mark.parametrize(
     "response_body, expected_result, expectation",
     [
@@ -1714,3 +1245,62 @@ def test_parse_auth_response_data(response_body, expected_result, expectation):
             response_body
         )
         assert result == expected_result
+
+
+@pytest.mark.parametrize("ssl_verify", [True, False])
+def test_orca_requests_transport(ssl_verify):
+    api_url = "https://orca.example.com"
+    mlrun.mlconf.iguazio_api_url = api_url
+    mlrun.mlconf.iguazio_api_ssl_verify = ssl_verify
+    client = framework.utils.clients.iguazio.v4.Client()
+
+    # Retries cover connection attempts only, so a request that reached Orca is never re-sent
+    retry = client._orca_session.get_adapter(api_url).max_retries
+    assert (retry.connect, retry.read, retry.status, retry.other) == (3, 0, 0, 0)
+
+    with requests_mock_package.Mocker(session=client._orca_session) as mocker:
+        mocker.post(f"{api_url}/api/v1/authentication/refresh-access-token", json={})
+        client.resolve_token_from_igz_yml(
+            "secretTokens: [{name: default, token: T-1}]", user_id="jane-id"
+        )
+
+    assert mocker.last_request.timeout == 60
+    assert mocker.last_request.verify == ssl_verify
+
+
+def test_orca_requests_do_not_follow_redirects():
+    api_url = "https://orca.example.com"
+    mlrun.mlconf.iguazio_api_url = api_url
+    client = framework.utils.clients.iguazio.v4.Client()
+
+    with requests_mock_package.Mocker(session=client._orca_session) as mocker:
+        mocker.post(
+            f"{api_url}/api/v1/authentication/refresh-access-token",
+            status_code=http.HTTPStatus.FOUND,
+            headers={"Location": f"{api_url}/login"},
+        )
+        login = mocker.get(f"{api_url}/login", json={})
+        with pytest.raises(mlrun.errors.MLRunNotFoundError):
+            client.resolve_token_from_igz_yml(
+                "secretTokens: [{name: default, token: T-1}]", user_id="jane-id"
+            )
+
+    assert not login.called
+
+
+def test_orca_request_rejects_unknown_identity():
+    api_url = "https://orca.example.com"
+    mlrun.mlconf.iguazio_api_url = api_url
+    client = framework.utils.clients.iguazio.v4.Client()
+
+    with requests_mock_package.Mocker(session=client._orca_session) as mocker:
+        with pytest.raises(TypeError, match="Unsupported Orca identity: dict"):
+            client._send_orca_request(
+                "GET",
+                "info/system",
+                failure_message="Failed",
+                default_error_class=mlrun.errors.MLRunRuntimeError,
+                identity={"authorization": "Bearer T-1"},
+            )
+
+    assert not mocker.called

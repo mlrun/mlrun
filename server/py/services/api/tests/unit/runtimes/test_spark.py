@@ -1479,6 +1479,24 @@ class TestSpark3Runtime(services.api.tests.unit.runtimes.base.TestRuntimeBase):
         body = self._get_custom_object_creation_body()
         assert body["spec"]["sparkVersion"] == "4.2.0"
 
+    def test_spark_version_resolved_from_deployed_default_image(
+        self, db: sqlalchemy.orm.Session, k8s_secrets_mock, spark_platform_image_config
+    ):
+        mlrun.mlconf.spark_app_image = (
+            "mckinsey-ig4-next-gen-docker-local.jfrog.io/spark-app"
+        )
+        mlrun.mlconf.spark_app_image_tag = "3.5.6-scala2.12-java17-ubuntu-1"
+        mlrun.mlconf.httpdb.builder.docker_registry = "test_registry"
+        runtime = mlrun.runtimes.Spark3Runtime()
+        runtime.spec.image = mlrun.runtimes.Spark3Runtime.default_mlrun_image
+        runtime.with_executor_requests(cpu=1, mem="512m")
+        runtime.with_driver_requests(cpu=1, mem="512m")
+        self.execute_function(runtime)
+
+        body = self._get_custom_object_creation_body()
+        assert body["spec"]["sparkVersion"] == "3.5.6"
+        assert body["spec"]["image"].endswith("spark-job-default-image")
+
     def test_spark_version_resolved_from_built_function_base_image(
         self, db: sqlalchemy.orm.Session, k8s_secrets_mock
     ):

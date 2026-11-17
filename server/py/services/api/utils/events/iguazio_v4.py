@@ -12,16 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-import iguazio
-import iguazio.schemas
+import typing
 
 import mlrun.common.schemas
 import mlrun.errors
 from mlrun.utils import logger
 
-import framework.utils.clients.helpers as clients_helpers
-import framework.utils.clients.service_account_token as service_account_token
+import framework.utils.clients.iguazio.v4 as iguazio_v4_client
 import services.api.utils.events.base as base_events
 
 DB_MIGRATION_REQUIRED = "MLRun.DB.Migration.Required"
@@ -134,42 +131,27 @@ PERMISSION_DENIED = "UserAction.General.PermissionDenied"
 
 class Client(base_events.BaseEventClient):
     """
-    Events client for Iguazio v4. Publishes events through  the
-    SDK using catalog event configs.
+    Events client for Iguazio v4. Publishes events to the Orca events API
+    using catalog event configs.
     """
 
     def __init__(self, **_kwargs):
-        self._client = iguazio.Client(
-            api_url=mlrun.mlconf.iguazio_api_url,
-            auto_login=False,
-            use_token_file=False,
-            verify_ssl=mlrun.mlconf.iguazio_api_ssl_verify,
-            logger=clients_helpers.iguazio_sdk_logger(
-                logger.get_child("system-events")
-            ),
-        )
-        self._service_account_token_client = service_account_token.Client()
         self._entity_name = self._resolve_entity_name()
 
-    def emit(self, event):
+    def emit(self, event: iguazio_v4_client.EventActivation | None):
         if event is None:
             return
         try:
             logger.debug(
                 "Emitting event",
-                config_name=event.config_name,
-                entity_name=event.entity_name,
+                config_name=event["configName"],
+                entity_name=event["entityName"],
             )
-            with self._client.with_headers(
-                clients_helpers.enrich_headers(
-                    headers=self._service_account_token_client.auth_headers,
-                )
-            ):
-                self._client.publish_event(event)
+            iguazio_v4_client.Client().publish_event(event)
         except Exception as exc:
             logger.warning(
                 "Failed to emit event",
-                config_name=getattr(event, "config_name", None),
+                config_name=event["configName"],
                 exc=mlrun.errors.err_to_str(exc),
             )
 
@@ -180,7 +162,7 @@ class Client(base_events.BaseEventClient):
         duration_seconds: float | None = None,
         scope: list[str] | None = None,
         versions: dict | None = None,
-    ) -> iguazio.schemas.EventActivationSpec:
+    ) -> iguazio_v4_client.EventActivation:
         try:
             config_name, description = DB_MIGRATION_EVENTS[action]
         except KeyError as exc:
@@ -188,7 +170,7 @@ class Client(base_events.BaseEventClient):
                 f"Unsupported DB migration action {action}"
             ) from exc
 
-        details: dict = {}
+        details: dict[str, typing.Any] = {}
         if scope:
             details["scope"] = sorted(scope)
         if versions:
@@ -201,7 +183,7 @@ class Client(base_events.BaseEventClient):
         if action == mlrun.common.schemas.MigrationEventActions.failed:
             self._record_error(details, error)
 
-        return iguazio.schemas.EventActivationSpec(
+        return self._build_event(
             config_name=config_name,
             entity_name=self._entity_name,
             description=description,
@@ -215,7 +197,7 @@ class Client(base_events.BaseEventClient):
         error_category: str | None = None,
         error_code: int | str | None = None,
         dialect: str | None = None,
-    ) -> iguazio.schemas.EventActivationSpec:
+    ) -> iguazio_v4_client.EventActivation:
         try:
             config_name, description = DB_CONNECTION_EVENTS[action]
         except KeyError as exc:
@@ -223,7 +205,7 @@ class Client(base_events.BaseEventClient):
                 f"Unsupported DB connection action {action}"
             ) from exc
 
-        details: dict = {}
+        details: dict[str, typing.Any] = {}
         if error_category:
             details["error_category"] = error_category
         if error_code is not None:
@@ -233,7 +215,7 @@ class Client(base_events.BaseEventClient):
 
         self._record_error(details, error)
 
-        return iguazio.schemas.EventActivationSpec(
+        return self._build_event(
             config_name=config_name,
             entity_name=self._entity_name,
             description=description,
@@ -246,7 +228,7 @@ class Client(base_events.BaseEventClient):
         error: BaseException | str | None = None,
         run_uid: str | None = None,
         project: str | None = None,
-    ) -> iguazio.schemas.EventActivationSpec:
+    ) -> iguazio_v4_client.EventActivation:
         try:
             config_name, description = LOG_COLLECTOR_EVENTS[action]
         except KeyError as exc:
@@ -254,7 +236,7 @@ class Client(base_events.BaseEventClient):
                 f"Unsupported log collector action {action}"
             ) from exc
 
-        details: dict = {}
+        details: dict[str, typing.Any] = {}
         if run_uid:
             details["run_uid"] = run_uid
         if project:
@@ -262,7 +244,7 @@ class Client(base_events.BaseEventClient):
 
         self._record_error(details, error)
 
-        return iguazio.schemas.EventActivationSpec(
+        return self._build_event(
             config_name=config_name,
             entity_name=self._entity_name,
             description=description,
@@ -275,7 +257,7 @@ class Client(base_events.BaseEventClient):
         project_name: str,
         actor: str | None = None,
         error: BaseException | str | None = None,
-    ) -> iguazio.schemas.EventActivationSpec:
+    ) -> iguazio_v4_client.EventActivation:
         try:
             config_name, description = PROJECT_LIFECYCLE_EVENTS[action]
         except KeyError as exc:
@@ -283,7 +265,7 @@ class Client(base_events.BaseEventClient):
                 f"Unsupported project lifecycle action {action}"
             ) from exc
 
-        details: dict = {"project_name": project_name}
+        details: dict[str, typing.Any] = {"project_name": project_name}
         if actor:
             details["actor"] = actor
 
@@ -293,7 +275,7 @@ class Client(base_events.BaseEventClient):
         ):
             self._record_error(details, error)
 
-        return iguazio.schemas.EventActivationSpec(
+        return self._build_event(
             config_name=config_name,
             entity_name=self._entity_name,
             description=description,
@@ -316,7 +298,7 @@ class Client(base_events.BaseEventClient):
         secret_keys: list[str] | None = None,
         action: mlrun.common.schemas.SecretEventActions = mlrun.common.schemas.SecretEventActions.created,
         initiator: str | None = None,
-    ) -> iguazio.schemas.EventActivationSpec:
+    ) -> iguazio_v4_client.EventActivation:
         """
         Generate a project secret audit event.
         :param project: project name
@@ -324,7 +306,7 @@ class Client(base_events.BaseEventClient):
         :param secret_keys: secret keys (unused in v4; kept for interface compatibility)
         :param action: created, updated, or deleted
         :param initiator: username of the user who performed the action
-        :return: EventActivationSpec to emit
+        :return: event payload to emit
         """
         try:
             config_name, description_template = PROJECT_SECRET_EVENTS[action]
@@ -333,7 +315,7 @@ class Client(base_events.BaseEventClient):
                 f"Unsupported project secret action {action}"
             ) from exc
 
-        return iguazio.schemas.EventActivationSpec(
+        return self._build_event(
             config_name=config_name,
             kind="audit",
             class_="user action",
@@ -348,15 +330,15 @@ class Client(base_events.BaseEventClient):
         resource: str,
         action: str,
         username: str | None = None,
-    ) -> iguazio.schemas.EventActivationSpec:
+    ) -> iguazio_v4_client.EventActivation:
         """
         Generate a permission-denied audit event.
         :param resource: the OPA resource path the action was attempted on
         :param action: the attempted action (e.g. read, create, update, delete)
         :param username: username of the user who was denied, if known
-        :return: EventActivationSpec to emit
+        :return: event payload to emit
         """
-        return iguazio.schemas.EventActivationSpec(
+        return self._build_event(
             config_name=PERMISSION_DENIED,
             kind="audit",
             class_="user action",
@@ -368,6 +350,39 @@ class Client(base_events.BaseEventClient):
             ),
             details={"username": username, "action": action, "resource": resource},
         )
+
+    @staticmethod
+    def _build_event(
+        *,
+        config_name: str,
+        entity_name: str,
+        description: str,
+        details: dict[str, typing.Any] | None = None,
+        kind: str = "",
+        class_: str | None = None,
+        project_name: str = "",
+        initiator: str | None = None,
+    ) -> iguazio_v4_client.EventActivation:
+        """
+        Build the Orca event activation body. For catalog events, kind and class are left
+        unset and severity is "unspecified", so Orca fills them in from the catalog entry.
+        """
+        event: iguazio_v4_client.EventActivation = {
+            "configName": config_name,
+            "source": "",
+            "kind": kind,
+            "severity": "unspecified",
+            "projectName": project_name,
+            "entityName": entity_name,
+            "traceId": "",
+            "details": details or {},
+            "description": description,
+        }
+        if class_ is not None:
+            event["class"] = class_
+        if initiator is not None:
+            event["initiator"] = initiator
+        return event
 
     @staticmethod
     def _resolve_entity_name() -> str:
@@ -389,7 +404,7 @@ class Client(base_events.BaseEventClient):
     @classmethod
     def _record_error(
         cls,
-        details: dict,
+        details: dict[str, typing.Any],
         error: BaseException | str | None,
     ) -> None:
         """

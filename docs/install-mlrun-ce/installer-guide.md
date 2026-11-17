@@ -33,10 +33,11 @@ See also the [Kubernetes prerequisites](./kubernetes-install.md#prerequisites).
 
 ## Get the installer
 
-**Without a clone** (recommended). Pin a release tag from the [releases page](https://github.com/mlrun/ce/releases):
+**Without a clone** (recommended). Pin a release tag from the [releases page](https://github.com/mlrun/ce/releases). 
+Replace `<chart-version>` with the latest GA chart version (not an `-rc`), currently **{{ cechartversion }}**:
 
 ```bash
-CE_VERSION=0.12.1                # the chart version to install, from the releases page
+CE_VERSION=<chart-version>       # the chart version to install
 CE_TAG="mlrun-ce-${CE_VERSION}"  # the matching release tag
 uvx --from "git+https://github.com/mlrun/ce@${CE_TAG}#subdirectory=scripts" \
   mlrun-ce-installer install --ce-version "${CE_VERSION}"

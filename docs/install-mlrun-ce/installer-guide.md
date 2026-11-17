@@ -166,6 +166,13 @@ Everything the installer resolves is written to `mlrun-ce-values.yaml` and passe
 If that file already exists and the run would change it, the installer lists the differences and asks you to **merge**, **override** (the default), or **cancel**. 
 The old file is kept as `mlrun-ce-values.yaml.bak`.
 
+```{admonition} Values from a previous installation carry over
+Values saved in a values file from a previous installation (your `-f` file, or an existing `mlrun-ce-values.yaml` if you choose **merge**) 
+also apply to the next installation unless you set them again. For example, if an earlier run set the ingress class to `traefik` 
+and the next run uses `--enable-ingress` without a class, `traefik` is still used instead of `nginx`. 
+To start clean, remove the old values or choose **override** when the installer asks.
+```
+
 ### Config file
 
 A config file makes every run repeatable. Start from an example in the [mlrun/ce repository](https://github.com/mlrun/ce/tree/development/scripts):

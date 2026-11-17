@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import logging
 
 import requests
 import requests.adapters
@@ -53,17 +52,6 @@ def new_orca_session() -> requests.Session:
     session.mount("http://", adapter)
     session.mount("https://", adapter)
     return session
-
-
-def iguazio_sdk_logger(parent_logger: mlrun.utils.Logger) -> logging.Logger:
-    """
-    Return the stdlib logger to hand the Iguazio SDK so MLRun owns its logging.
-
-    Without a logger the SDK installs its own stdout handler and also propagates into
-    MLRun's logger, duplicating every line. A dedicated "sdk" child is used so the SDK's
-    internal set_level("INFO") doesn't raise MLRun's own logger.
-    """
-    return parent_logger.get_child("sdk")._logger
 
 
 def enrich_headers(headers: dict | None = None, path: str | None = None) -> dict:

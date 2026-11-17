@@ -758,7 +758,6 @@ click==8.5.0 \
     #   dask
     #   distributed
     #   flask
-    #   iguazio
     #   import-linter
     #   litestar
     #   mlflow-skinny
@@ -2060,7 +2059,6 @@ httpx==0.28.1 \
     --hash=sha256:d909fcccc110f8c7faf814ca82a9a4d816bc5a6dbfea25d6591d6985b8ba59ad
     # via
     #   -r dev-requirements.txt
-    #   iguazio
     #   igz-mgmt
     #   litestar
     #   openai
@@ -2174,12 +2172,6 @@ idna==3.20 \
     #   requests
     #   snowflake-connector-python
     #   yarl
-iguazio==0.2.9 \
-    --hash=sha256:aa82e8e17074c7598a534c840715da57d948dd6665fa4c6fb17cd672857de0f5 \
-    --hash=sha256:e69e11e40df3faf64ace85cf5bd0a763bd4b943814b154974f57cb3db8a27093
-    # via
-    #   -r dockerfiles/mlrun-api/requirements.txt
-    #   -r dockerfiles/test/server-requirements.txt
 igz-mgmt==0.4.2 \
     --hash=sha256:582ccc38135a2e79f12db0e53f4028c105371601949a2ed7c57c32fdd015d1fa \
     --hash=sha256:abbf665a82b48606c953b44e22b6c825ddbef973cd448be846f592126ba14f7c
@@ -2200,7 +2192,6 @@ inflection==0.5.1 \
     --hash=sha256:f38b2b640938a4f35ade69ac3d053042959b62a0f1076a5bbaa1b9526605a8a2
     # via
     #   -r requirements.txt
-    #   iguazio
     #   igz-mgmt
     #   mlrun-pipelines-kfp-v1-8
 iniconfig==2.3.1 \
@@ -4659,7 +4650,6 @@ pyyaml==6.0.3 \
     #   distributed
     #   evidently
     #   huggingface-hub
-    #   iguazio
     #   kubernetes
     #   kubernetes-asyncio
     #   litestar

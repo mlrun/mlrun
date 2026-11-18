@@ -1661,16 +1661,16 @@ class Config:
             if alias.shared and not config.is_iguazio_v4_mode():
                 continue
             _warned_deprecated_keys.add(alias.old)
-            old_name, new_name = alias.old_env_name, alias.new_env_name
             mlrun.utils.logger.warning(
                 "Deprecated config key is set",
-                deprecated_key=old_name,
-                replacement=new_name,
+                deprecated_key=alias.old_env_name,
+                replacement=alias.new_env_name,
                 deprecated_in="1.14.0",
                 removal_version="1.16.0",
             )
             warnings.warn(
-                f"'{old_name}' is deprecated in 1.14.0 and will be removed in 1.16.0, use '{new_name}' instead.",
+                f"'{alias.old_env_name}' is deprecated in 1.14.0 and will be removed in 1.16.0, "
+                f"use '{alias.new_env_name}' instead.",
                 FutureWarning,
                 stacklevel=2,
             )
@@ -1955,20 +1955,17 @@ def resolve_deprecated_authentication_mode(mode: str, *, warn: bool = True) -> s
 
     if warn and _AUTHENTICATION_MODE_KEY not in _warned_deprecated_keys:
         _warned_deprecated_keys.add(_AUTHENTICATION_MODE_KEY)
-        old, new = (
-            mlrun.common.types.AuthenticationMode.IGUAZIO_V4,
-            mlrun.common.types.AuthenticationMode.ORCA,
-        )
         mlrun.utils.logger.warning(
             "Deprecated authentication mode is set",
-            deprecated_mode=old,
-            replacement=new,
+            deprecated_mode=mlrun.common.types.AuthenticationMode.IGUAZIO_V4,
+            replacement=mlrun.common.types.AuthenticationMode.ORCA,
             deprecated_in="1.14.0",
             removal_version="1.16.0",
         )
         warnings.warn(
-            f"'{old}' (httpdb.authentication.mode) is deprecated in 1.14.0 and will be removed in 1.16.0, "
-            f"use '{new}' instead.",
+            f"'{mlrun.common.types.AuthenticationMode.IGUAZIO_V4}' (httpdb.authentication.mode) is deprecated "
+            f"in 1.14.0 and will be removed in 1.16.0, "
+            f"use '{mlrun.common.types.AuthenticationMode.ORCA}' instead.",
             FutureWarning,
             stacklevel=2,
         )
@@ -2062,7 +2059,8 @@ def _resolve_deprecated_key_aliases(*sources: dict) -> set[str]:
     """
     provided = set()
     for alias in _DEPRECATED_KEY_ALIASES:
-        old_path, new_path = alias.old.split("."), alias.new.split(".")
+        old_path = alias.old.split(".")
+        new_path = alias.new.split(".")
         old_sources = [s for s in sources if _has_nested_key(s, old_path)]
         if not old_sources:
             continue

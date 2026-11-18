@@ -2,7 +2,7 @@
 # Change log
 
 The change log lists updates per version, open issues, limitations, and deprecations.
-- [v1.14.0](#v1-14-0)
+- [v1.14.0](v1-14-0)
 - [v1.13.0](#v1-13-0)
 - [v1.12.1](v1-12-1) | [v1.12.0](#v1-12-0)
 - [v1.11.0](#v1110)
@@ -29,7 +29,7 @@ Upgrading these MLRun dependencies spans several releases.  The upgrades are com
 See a full description of KFP, Python, and the workflow engines in {ref}`local-remote`. Specific changes are listed under the relevant versions.
 
 (v1-14-0)=
-## v1.14.0
+## v1.14.0 (November 2026)
 
 ### Runtimes
 | ID    |Description                                                                 |
@@ -39,10 +39,13 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 ### Closed issues
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-13180|The log collector now has a stoplogs option for runs with `requested_logs=False`.|
+|ML-13180 |The Log collector now has a stop logs option for runs with `requested_logs=False`.|
+
+
 
 (v1-13-0)=
 ## v1.13.0 (October 2026)
+
 
 ### Metrics
 | ID    |Description                                                                 |
@@ -1728,7 +1731,12 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | v1.5.0 |ML-3605|Model Monitoring:  Most of the charts and KPIs in Grafana are now based on the data store target instead of the MLRun API. It is recommended to update the model monitoring dashboards since the old dashboards are not supported. |
 | v1.0.0 |NA      |MLRun / Nuclio do not support python 3.6.      |
 
-
+## Deprecated APIs
+|Will be removed in|Deprecated|API                                       |Use instead                       |
+|---------|---------|------------------------------------------|------------------------------------|
+|v1.15.0|v1.13.1|`HTTPRunDB.list_secret_tokens`|Ecosmgmt SDK `list_offline_tokens()` (offline tokens are now managed by Orca)|
+|v1.15.0|v1.13.1|`HTTPRunDB.delete_secret_token`|Ecosmgmt SDK `revoke_offline_session()`, which revokes the token and deletes its MLRun copy.|
+|v1.15.0|v1.13.1|`HTTPRunDB.delete_secret_tokens`|Ecosmgmt SDK `revoke_offline_session()`, which revokes the token and deletes its MLRun copy.|
 
 ## Removed APIs
 

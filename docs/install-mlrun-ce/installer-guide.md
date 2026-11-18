@@ -2,6 +2,7 @@
 # MLRun CE installer guide
 
 The MLRun CE installer (`mlrun-ce-installer`) is a command-line tool that installs the MLRun CE Helm chart for you. 
+
 In one command it creates the namespace and the registry pull secret, runs `helm upgrade --install`, 
 and prints the URLs of the installed services. It can also upgrade and uninstall the release.
 
@@ -30,6 +31,7 @@ This page walks through the common workflows.
 | [kubectl](https://kubernetes.io/docs/tasks/tools/) | Pointing at the target cluster |
 
 Docker is needed only for a local cluster (Docker Desktop, kind, minikube) and for pushing your own images to a `--local-registry`. 
+
 The installer itself uses the `docker` CLI only for a best-effort registry login check, which is skipped when Docker is absent.
 
 See also the [Kubernetes prerequisites](./kubernetes-install.md#prerequisites). For Docker Desktop specifics (memory, port-forwarding, Apple Silicon), see [Local install on Docker Desktop](https://github.com/mlrun/ce/blob/development/scripts/README.md#local-install-on-docker-desktop) in the installer README.
@@ -37,6 +39,7 @@ See also the [Kubernetes prerequisites](./kubernetes-install.md#prerequisites). 
 ## Get the installer
 
 **Without a clone** (recommended). Pin a release tag from the [releases page](https://github.com/mlrun/ce/releases). 
+
 Replace `<chart-version>` with the latest GA chart version (not an `-rc`), currently **{{ cechartversion }}**:
 
 ```bash
@@ -92,7 +95,7 @@ Nothing on the cluster changes while you answer. It then shows the target and as
 [INFO]   Cluster:   docker-desktop (https://127.0.0.1:6443)
 [INFO]   Namespace: mlrun
 [INFO]   Release:   mlrun-ce
-[INFO]   Chart:     mlrun-ce/mlrun-ce {{ cechartversion }} (newest stable)
+[INFO]   Chart:     mlrun-ce/mlrun-ce (newest stable)
 [INFO]   Registry:  index.docker.io/myuser (pull secret 'registry-credentials')
 [INFO]   Address:   host.docker.internal
 Proceed? [Y/n]:
@@ -133,6 +136,7 @@ The installer passes it to `kubectl apply` and `docker login` on stdin.
 ```
 
 Runs every check, prints the plan, and renders the chart with `helm upgrade --install --dry-run=server`. Nothing is created. 
+
 The run ends by listing the files to review: the debug log (the rendered manifests with Secret values redacted, and every command), `mlrun-ce-values.yaml`, 
 and, on an upgrade, the release's current values and the values the upgrade changes.
 

@@ -1640,8 +1640,7 @@ class Config:
             mlrun.common.types.AuthenticationMode.IGUAZIO_V4,
         )
 
-    @staticmethod
-    def warn_on_deprecated_keys():
+    def warn_on_deprecated_keys(self):
         """
         Warn (once per key per config load) about the deprecated IG4 config keys that were provided.
 
@@ -1654,13 +1653,11 @@ class Config:
         import mlrun.utils
 
         for alias in _DEPRECATED_KEY_ALIASES:
-            if alias.old not in _provided_deprecated_keys:
+            if alias.old not in self._pending_deprecated_keys:
                 continue
-            if alias.old in _warned_deprecated_keys:
+            if alias.shared and not self.is_iguazio_v4_mode():
                 continue
-            if alias.shared and not config.is_iguazio_v4_mode():
-                continue
-            _warned_deprecated_keys.add(alias.old)
+            self._pending_deprecated_keys.remove(alias.old)
             mlrun.utils.logger.warning(
                 "Deprecated config key is set",
                 deprecated_key=alias.old_env_name,
@@ -1674,6 +1671,16 @@ class Config:
                 FutureWarning,
                 stacklevel=2,
             )
+
+    @property
+    def _pending_deprecated_keys(self) -> set[str]:
+        """
+        The deprecated keys provided in the current config load that were not warned about yet.
+
+        Created on first use and kept out of ``_cfg``, so it is not a config key. Nested sections are short-lived
+        Config objects built on every attribute access, and only the root uses this.
+        """
+        return self.__dict__.setdefault("_pending_deprecated_keys_set", set())
 
     def is_using_v3io(self) -> bool:
         return not self.is_iguazio_v4_mode() and not self.is_ce_mode()
@@ -1744,11 +1751,9 @@ def _do_populate(env=None, skip_errors=False, skip_env_file=False):
     env_data = read_env(env)
 
     # TODO: Remove in 1.16.0
-    _warned_deprecated_keys.clear()
-    _provided_deprecated_keys.clear()
-    _provided_deprecated_keys.update(
-        _resolve_deprecated_key_aliases(file_data, env_data)
-    )
+    pending_deprecated_keys = config._pending_deprecated_keys
+    pending_deprecated_keys.clear()
+    pending_deprecated_keys.update(_resolve_deprecated_key_aliases(file_data, env_data))
 
     if file_data:
         config.update(file_data, skip_errors=skip_errors)
@@ -1942,8 +1947,8 @@ def resolve_deprecated_authentication_mode(mode: str, *, warn: bool = True) -> s
     Resolve the deprecated "iguazio-v4" authentication mode to its replacement, "orca".
 
     :param mode: the authentication mode
-    :param warn: whether to warn (once per config load) when the deprecated value is resolved. Pass False when the
-                 value comes from the server and not from the user's own configuration.
+    :param warn: whether to warn when the deprecated value is resolved. Pass False when the value comes from the
+                 server and not from the user's own configuration.
     :return:     "orca" for "iguazio-v4", any other mode unchanged
     """
     # TODO: Remove in 1.16.0
@@ -1953,8 +1958,7 @@ def resolve_deprecated_authentication_mode(mode: str, *, warn: bool = True) -> s
     if mode != mlrun.common.types.AuthenticationMode.IGUAZIO_V4:
         return mode
 
-    if warn and _AUTHENTICATION_MODE_KEY not in _warned_deprecated_keys:
-        _warned_deprecated_keys.add(_AUTHENTICATION_MODE_KEY)
+    if warn:
         mlrun.utils.logger.warning(
             "Deprecated authentication mode is set",
             deprecated_mode=mlrun.common.types.AuthenticationMode.IGUAZIO_V4,
@@ -2033,12 +2037,6 @@ _DEPRECATED_KEY_ALIASES = (
         "httpdb.projects.orca_request_timeout",
     ),
 )
-
-# the deprecated keys that were provided (by the config file or the environment) in the current config load, and the
-# ones already warned about
-_provided_deprecated_keys: set[str] = set()
-_warned_deprecated_keys: set[str] = set()
-_AUTHENTICATION_MODE_KEY = "httpdb.authentication.mode"
 
 
 def _resolve_deprecated_key_aliases(*sources: dict) -> set[str]:

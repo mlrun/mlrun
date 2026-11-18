@@ -702,7 +702,8 @@ class HTTPRunDB(RunDBInterface):
             # server's remap and not a user setting, so it is read as "orca" without a warning. A locally
             # configured "iguazio-v4" does warn.
             # TODO: Remove "iguazio-v4" in 1.16.0
-            if server_mode := server_cfg.get("authentication_mode"):
+            server_mode = server_cfg.get("authentication_mode")
+            if server_mode:
                 mode = mlrun.config.resolve_deprecated_authentication_mode(
                     server_mode, warn=False
                 )

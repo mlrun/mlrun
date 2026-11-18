@@ -578,6 +578,10 @@ default_config = {
             "iguazio_client_job_cache_ttl": "20 minutes",
             "nuclio_project_deletion_verification_timeout": "300 seconds",
             "nuclio_project_deletion_verification_interval": "5 seconds",
+            # TODO: Remove in 1.16.0 - deprecated in 1.14.0, use the orca_* counterparts below
+            "iguazio_project_states_poll_interval": "2 seconds",
+            "iguazio_project_states_poll_timeout": "300 seconds",
+            "iguazio_request_timeout": "20 seconds",
             # when the leader is orca, how often to poll GET /api/v1/trackable-actions/executions while waiting
             # for an operation (create/update/delete) to reach a terminal state, and how long to wait before
             # giving up
@@ -585,10 +589,6 @@ default_config = {
             "orca_project_states_poll_timeout": "300 seconds",
             # when the leader is orca, the SDK's own per-request timeout for talking to Orca directly
             "orca_request_timeout": "20 seconds",
-            # TODO: Remove in 1.16.0 - deprecated in 1.14.0, use the orca_* counterparts above
-            "iguazio_project_states_poll_interval": "2 seconds",
-            "iguazio_project_states_poll_timeout": "300 seconds",
-            "iguazio_request_timeout": "20 seconds",
             "summaries": {
                 # Number of days back to include when calculating the project pipeline summary.
                 "list_pipelines_time_period_in_days": 2,
@@ -1744,8 +1744,8 @@ def _do_populate(env=None, skip_errors=False, skip_env_file=False):
     env_data = read_env(env)
 
     # TODO: Remove in 1.16.0
-    _provided_deprecated_keys.clear()
     _warned_deprecated_keys.clear()
+    _provided_deprecated_keys.clear()
     _provided_deprecated_keys.update(
         _resolve_deprecated_key_aliases(file_data, env_data)
     )

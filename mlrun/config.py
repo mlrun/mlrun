@@ -1751,9 +1751,10 @@ def _do_populate(env=None, skip_errors=False, skip_env_file=False):
     env_data = read_env(env)
 
     # TODO: Remove in 1.16.0
-    pending_deprecated_keys = config._pending_deprecated_keys
-    pending_deprecated_keys.clear()
-    pending_deprecated_keys.update(_resolve_deprecated_key_aliases(file_data, env_data))
+    config._pending_deprecated_keys.clear()
+    config._pending_deprecated_keys.update(
+        _resolve_deprecated_key_aliases(file_data, env_data)
+    )
 
     if file_data:
         config.update(file_data, skip_errors=skip_errors)

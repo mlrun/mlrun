@@ -977,9 +977,13 @@ def test_deprecated_key_in_config_file_is_aliased(monkeypatch, tmp_path):
     assert mlrun.mlconf.httpdb.projects.orca_request_timeout == "3 seconds"
 
 
-def test_new_keys_default_to_the_deprecated_keys_defaults():
-    for _, _, old_path, new_path, _ in _DEPRECATED_KEY_ALIAS_CASES:
-        assert _get_config_value(new_path) == _get_config_value(old_path), new_path
+@pytest.mark.parametrize(
+    "old_env, new_env, old_path, new_path, value", _DEPRECATED_KEY_ALIAS_CASES
+)
+def test_new_key_defaults_to_the_deprecated_key_default(
+    old_env, new_env, old_path, new_path, value
+):
+    assert _get_config_value(new_path) == _get_config_value(old_path)
 
 
 def test_deprecation_warning_repeats_after_reload(monkeypatch):

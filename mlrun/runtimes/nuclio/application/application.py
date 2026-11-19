@@ -855,8 +855,6 @@ class ApplicationRuntime(nuclio_function.RemoteRuntime):
         Build the reverse proxy image and save it.
         The reverse proxy image is used to route requests to the application sidecar.
         This is useful when you want to decrease build time by building the application image only once.
-
-        :param use_cache:   Use the cache when building the image
         """
         # create a function that includes only the reverse proxy, without the application
 

@@ -297,7 +297,10 @@ def test_build_runtime_use_default_node_selector_and_sets_gpu_limits_to_zero(
     pod_tolerations = kaniko_pod_spec_mock.tolerations
 
     # GPU limit should be reset to 0
-    assert kaniko_pod_spec_mock.containers[0].resources["limits"]["nvidia.com/gpu"] == 0
+    resources = client.ApiClient().sanitize_for_serialization(
+        kaniko_pod_spec_mock.containers[0].resources
+    )
+    assert resources["limits"]["nvidia.com/gpu"] == "0"
 
     # Node selector should include both defaults and function-level
     expected_node_selector = {**default_node_selector, **func_node_selector}
@@ -376,7 +379,9 @@ def test_function_build_with_default_requests(monkeypatch):
     # assert that both limits requirements and gpu requests are not defined
     assert (
         deepdiff.DeepDiff(
-            _create_pod_mock_pod_spec().containers[0].resources,
+            client.ApiClient().sanitize_for_serialization(
+                _create_pod_mock_pod_spec().containers[0].resources
+            ),
             expected_resources,
             ignore_order=True,
         )
@@ -395,7 +400,9 @@ def test_function_build_with_default_requests(monkeypatch):
     )
     assert (
         deepdiff.DeepDiff(
-            _create_pod_mock_pod_spec().containers[0].resources,
+            client.ApiClient().sanitize_for_serialization(
+                _create_pod_mock_pod_spec().containers[0].resources
+            ),
             expected_resources,
             ignore_order=True,
         )
@@ -422,7 +429,9 @@ def test_function_build_with_default_requests(monkeypatch):
     )
     assert (
         deepdiff.DeepDiff(
-            _create_pod_mock_pod_spec().containers[0].resources,
+            client.ApiClient().sanitize_for_serialization(
+                _create_pod_mock_pod_spec().containers[0].resources
+            ),
             expected_resources,
             ignore_order=True,
         )
@@ -1739,6 +1748,7 @@ def _create_pod_mock_pod_spec():
 
 def _patch_k8s_helper(monkeypatch):
     get_k8s_helper_mock = unittest.mock.Mock()
+    get_k8s_helper_mock.resolve_namespace.return_value = "some-namespace"
     get_k8s_helper_mock.create_pod = unittest.mock.Mock(
         side_effect=lambda pod: (pod, "some-namespace")
     )

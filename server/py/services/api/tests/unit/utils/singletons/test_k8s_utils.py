@@ -471,7 +471,7 @@ def test_list_pod_events(k8s_helper):
         type="event-type",
         reason="event-reason",
         message="event-message",
-        involved_object="my-pod",
+        involved_object=k8s_client.V1ObjectReference(name="my-pod"),
         first_timestamp=datetime.datetime.now(),
     )
     with unittest.mock.patch.object(
@@ -1873,3 +1873,60 @@ def test_create_pod_does_not_retry_non_webhook_500(k8s_helper, _no_k8s_sleep):
         k8s_helper.create_pod(_pod_mock())
 
     assert k8s_helper.v1api.create_namespaced_pod.call_count == 1
+
+
+@pytest.mark.parametrize(
+    "security_context",
+    [
+        k8s_client.V1SecurityContext(
+            run_as_user=1000,
+            run_as_group=3000,
+            run_as_non_root=True,
+            privileged=True,
+            allow_privilege_escalation=False,
+            capabilities=k8s_client.V1Capabilities(add=["NET_ADMIN"]),
+            read_only_root_filesystem=True,
+        ),
+        {
+            "runAsUser": 1000,
+            "runAsGroup": 3000,
+            "runAsNonRoot": True,
+            "privileged": True,
+            "allowPrivilegeEscalation": False,
+            "capabilities": {"add": ["NET_ADMIN"]},
+            "readOnlyRootFilesystem": True,
+        },
+    ],
+)
+def test_kube_resource_spec_to_pod_spec_security_context(security_context):
+    # the function spec security context is container-level but applied on the pod - the container-only fields are
+    # ignored by kubernetes on the pod level, and are dropped explicitly
+    spec = mlrun.runtimes.pod.KubeResourceSpec(security_context=security_context)
+    pod_spec = framework.utils.singletons.k8s.kube_resource_spec_to_pod_spec(
+        spec, k8s_client.V1Container(name="base")
+    )
+    assert k8s_client.ApiClient().sanitize_for_serialization(
+        pod_spec.security_context
+    ) == {"runAsUser": 1000, "runAsGroup": 3000, "runAsNonRoot": True}
+
+
+@pytest.mark.parametrize(
+    "resources, expected",
+    [
+        (None, None),
+        ({}, {}),
+        (
+            {"limits": {"nvidia.com/gpu": 1, "cpu": 0.5, "memory": "1Gi"}},
+            {"limits": {"nvidia.com/gpu": "1", "cpu": "0.5", "memory": "1Gi"}},
+        ),
+        (
+            {"requests": {"cpu": "25m"}, "limits": {}},
+            {"requests": {"cpu": "25m"}, "limits": {}},
+        ),
+    ],
+)
+def test_sanitize_resource_quantities(resources, expected):
+    assert (
+        framework.utils.singletons.k8s.sanitize_resource_quantities(resources)
+        == expected
+    )

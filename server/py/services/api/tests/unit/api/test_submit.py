@@ -18,6 +18,7 @@ import unittest.mock
 from http import HTTPStatus
 
 import fastapi.testclient
+import kubernetes.client
 import pandas as pd
 import pytest
 import sqlalchemy.orm
@@ -602,16 +603,17 @@ def _get_pod_env_vars_as_dict(pod_create_mock, assert_called=True):
         pod_create_mock.assert_called_once()
 
     args, _ = pod_create_mock.call_args
-    pod_env = args[0].spec.containers[0].env
+    # env items may be models or dicts (and nested dicts get converted to models), compare the serialized form
+    pod_env = kubernetes.client.ApiClient().sanitize_for_serialization(
+        args[0].spec.containers[0].env
+    )
 
     pod_env_dict = {}
 
     for env_item in pod_env:
-        name = mlrun.runtimes.utils.get_item_name(env_item, "name")
-        value = mlrun.runtimes.utils.get_item_name(env_item, "value")
-        value_from = mlrun.runtimes.utils.get_item_name(
-            env_item, "value_from"
-        ) or mlrun.runtimes.utils.get_item_name(env_item, "valueFrom")
+        name = env_item["name"]
+        value = env_item.get("value")
+        value_from = env_item.get("valueFrom")
 
         if value is not None:
             pod_env_dict[name] = value
@@ -620,21 +622,12 @@ def _get_pod_env_vars_as_dict(pod_create_mock, assert_called=True):
         if not value_from:
             raise AssertionError(f"Env var {name} has neither value nor valueFrom")
 
-        # secretKeyRef
-        secret_ref = mlrun.runtimes.utils.get_item_name(value_from, "secret_key_ref")
-        if secret_ref:
-            pod_env_dict[name] = (
-                mlrun.runtimes.utils.get_item_name(secret_ref, "name"),
-                mlrun.runtimes.utils.get_item_name(secret_ref, "key"),
-            )
+        if secret_ref := value_from.get("secretKeyRef"):
+            pod_env_dict[name] = (secret_ref.get("name"), secret_ref.get("key"))
             continue
 
-        # fieldRef
-        field_ref = mlrun.runtimes.utils.get_item_name(value_from, "fieldRef")
-        if field_ref:
-            pod_env_dict[name] = mlrun.runtimes.utils.get_item_name(
-                field_ref, "fieldPath"
-            )
+        if field_ref := value_from.get("fieldRef"):
+            pod_env_dict[name] = field_ref.get("fieldPath")
             continue
 
         raise AssertionError(f"Unsupported valueFrom type for env var {name}")

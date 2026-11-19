@@ -145,6 +145,8 @@ jobs:
         env:
           VERSION: ${{ github.event.inputs.version }}
           PREVIOUS_VERSION: ${{ github.event.inputs.previous_version }}
+          # used to list GitHub releases when deriving the previous version
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           python automation/version/version_file.py promotion-inputs \
             --version "$VERSION" \
@@ -547,17 +549,11 @@ jobs:
           MLRUN_VERSION: "v${{ needs.prepare-inputs.outputs.version }}"
           MLRUN_OLD_VERSION: "v${{ needs.prepare-inputs.outputs.previous_version }}"
 
-      - name: resolve release notes
-        id: resolve-release-notes
-        run: |
-          echo "body<<EOF" >> $GITHUB_OUTPUT
-          cat release_notes.md >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
       - uses: ncipollo/release-action@339a81892b84b4eeb0f6e744e4574d79d0d9b8dd # 1.21.0
         with:
           tag: v${{ needs.prepare-inputs.outputs.version }}
-          body: ${{ steps.resolve-release-notes.outputs.body }}
+          # read from file, an inline body can exceed the runner's env var size limit
+          bodyFile: release_notes.md
           makeLatest: ${{ needs.prepare-inputs.outputs.make_latest }}
           prerelease: ${{ needs.prepare-inputs.outputs.prerelease }}
           token: ${{ secrets.GITHUB_TOKEN }}

@@ -166,6 +166,8 @@ myst_xref_missing = "ignore"
 myst_substitutions = {
     "version": "1.12.0",
     "ceversion": "v0.12",
+    # The full MLRun CE chart version (latest GA, not rc), used in the installer guide examples
+    "cechartversion": "0.12.1",
     "releasedocumentation": "docs.mlrun.org/en/stable/index.html",
 }
 

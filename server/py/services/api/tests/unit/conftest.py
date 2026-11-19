@@ -178,7 +178,9 @@ def kfp_client_mock(monkeypatch):
 @pytest.fixture()
 def api_url() -> str:
     api_url = "http://iguazio-api-url:8080"
+    # shared by the IG3 and the IG4 clients tests, which read different keys
     mlrun.mlconf.iguazio_api_url = api_url
+    mlrun.mlconf.orca_api_url = api_url
     return api_url
 
 

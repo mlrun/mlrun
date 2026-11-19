@@ -95,6 +95,19 @@ EventActivation = typing.TypedDict(
 
 
 class Client(BaseClient, project_leader.Member):
+    # IG4 reads the orca_* config keys. The base class reads the deprecated iguazio_* ones, which IG3 still uses.
+    @property
+    def _api_url(self) -> str:
+        return mlrun.mlconf.orca_api_url
+
+    @property
+    def _api_ssl_verify(self) -> bool:
+        return mlrun.mlconf.orca_api_ssl_verify
+
+    @property
+    def _session_verification_endpoint(self) -> str:
+        return mlrun.mlconf.httpdb.authentication.orca.session_verification_endpoint
+
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self._service_account_token_client = service_account_token.Client()
@@ -110,10 +123,10 @@ class Client(BaseClient, project_leader.Member):
             verbose=True,
         )
         self._poll_interval_seconds = humanfriendly.parse_timespan(
-            mlrun.mlconf.httpdb.projects.iguazio_project_states_poll_interval
+            mlrun.mlconf.httpdb.projects.orca_project_states_poll_interval
         )
         self._poll_timeout_seconds = humanfriendly.parse_timespan(
-            mlrun.mlconf.httpdb.projects.iguazio_project_states_poll_timeout
+            mlrun.mlconf.httpdb.projects.orca_project_states_poll_timeout
         )
 
     def refresh_access_tokens(
@@ -671,7 +684,7 @@ class Client(BaseClient, project_leader.Member):
                 headers=clients_helpers.enrich_headers(headers=headers),
                 json=json_body,
                 timeout=clients_helpers.ORCA_REQUEST_TIMEOUT_SECONDS,
-                verify=mlrun.mlconf.iguazio_api_ssl_verify,
+                verify=self._api_ssl_verify,
                 allow_redirects=False,
             )
         except (
@@ -1019,7 +1032,7 @@ class AsyncClient(BaseAsyncClient, Client):
 # since this is a heavy operation (sending requests to API), and it's unlikely that the version
 # will change - only fetch it once
 def resolve_oris_version() -> str:
-    if not config.oris_version and config.iguazio_api_url:
+    if not config.oris_version and config.orca_api_url:
         try:
             config.oris_version = Client().get_oris_version()
         except Exception as exc:

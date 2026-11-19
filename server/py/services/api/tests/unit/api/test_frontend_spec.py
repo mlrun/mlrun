@@ -19,6 +19,7 @@ import unittest.mock
 
 import deepdiff
 import fastapi.testclient
+import pytest
 import sqlalchemy.orm
 
 import mlrun.common.schemas
@@ -30,6 +31,7 @@ from mlrun.config import config as mlconf
 import framework.api.utils
 import framework.utils.clients.iguazio.v3
 import framework.utils.runtimes.nuclio
+import services.api.api.endpoints.frontend_spec
 import services.api.utils.builder
 
 
@@ -376,3 +378,22 @@ def test_get_frontend_spec_feature_store_data_prefixes(
         frontend_spec.feature_store_data_prefixes["dsnosql"]
         == feature_store_data_prefix_dsnosql
     )
+
+
+@pytest.mark.parametrize(
+    "mode, expected",
+    [
+        (mlrun.common.types.AuthenticationMode.ORCA, "iguazio-v4"),
+        (mlrun.common.types.AuthenticationMode.IGUAZIO_V4, "iguazio-v4"),
+        (mlrun.common.types.AuthenticationMode.IGUAZIO, "iguazio"),
+        (mlrun.common.types.AuthenticationMode.NONE, "none"),
+    ],
+)
+def test_frontend_spec_authentication_flag_maps_orca_to_iguazio_v4(
+    mode: mlrun.common.types.AuthenticationMode, expected: str
+) -> None:
+    # the UI (like clients before 1.14.0) only knows the "iguazio-v4" value
+    mlrun.mlconf.httpdb.authentication.mode = mode
+
+    feature_flags = services.api.api.endpoints.frontend_spec._resolve_feature_flags()
+    assert feature_flags.authentication == expected

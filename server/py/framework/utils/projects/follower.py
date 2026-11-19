@@ -75,8 +75,8 @@ class Member(
         elif self._leader_name == "nop":
             self._leader_client = framework.utils.projects.remotes.nop_leader.Member()
         elif self._leader_name == "orca":
-            # Orca is the IG4 API service - reuses the existing iguazio_api_url config
-            if not mlrun.mlconf.iguazio_api_url:
+            # Orca is the IG4 API service - reads orca_api_url
+            if not mlrun.mlconf.orca_api_url:
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     "Iguazio API URL must be configured when the leader is Orca"
                 )

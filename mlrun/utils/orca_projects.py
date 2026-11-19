@@ -24,7 +24,7 @@ import mlrun.common.schemas
 import mlrun.common.types
 import mlrun.errors
 
-# Orca's project endpoints - reached via the same iguazio_api_url used for auth/token operations. The
+# Orca's project endpoints - reached via the same orca_api_url used for auth/token operations. The
 # path is doubled ("projects/projects") because Orca's route registry combines the "projects"
 # subdomain with that subdomain's own "/projects" resource path.
 PROJECTS_ENDPOINT = "v1/projects/projects"

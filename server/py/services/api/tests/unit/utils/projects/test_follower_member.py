@@ -701,7 +701,7 @@ async def test_initialize_with_orca_leader(monkeypatch):
     monkeypatch.setattr(
         mlrun.mlconf.httpdb.projects, "periodic_sync_interval", "0 seconds"
     )
-    monkeypatch.setattr(mlrun.mlconf, "iguazio_api_url", "http://orca-api-url:8080")
+    monkeypatch.setattr(mlrun.mlconf, "orca_api_url", "http://orca-api-url:8080")
     projects_follower = framework.utils.projects.follower.Member()
     projects_follower.initialize()
     assert isinstance(
@@ -731,7 +731,7 @@ async def test_initialize_with_orca_leader_worker_delegates_to_chief(monkeypatch
     monkeypatch.setattr(
         mlrun.mlconf.httpdb.projects, "periodic_sync_interval", "0 seconds"
     )
-    monkeypatch.setattr(mlrun.mlconf, "iguazio_api_url", "http://orca-api-url:8080")
+    monkeypatch.setattr(mlrun.mlconf, "orca_api_url", "http://orca-api-url:8080")
     trigger_calls = {"n": 0}
     monkeypatch.setattr(
         framework.utils.clients.iguazio.v4.Client,
@@ -759,7 +759,7 @@ async def test_initialize_with_orca_leader_worker_delegates_to_chief(monkeypatch
 
 def test_initialize_with_orca_leader_requires_api_url(monkeypatch):
     monkeypatch.setattr(mlrun.mlconf.httpdb.projects, "leader", "orca")
-    monkeypatch.setattr(mlrun.mlconf, "iguazio_api_url", "")
+    monkeypatch.setattr(mlrun.mlconf, "orca_api_url", "")
     projects_follower = framework.utils.projects.follower.Member()
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
         projects_follower.initialize()

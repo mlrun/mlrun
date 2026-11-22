@@ -30,7 +30,7 @@ def get_db_session(
 ) -> typing.Generator[Session | None, None, None]:
     # FastAPI dependencies automatically create DB sessions when entering an endpoint.
     # These sessions are redundant when the request is going to be forwarded to services.
-    if not request.app.extra.get("mlrun_service").is_forwarded_request(request):
+    if not request.app.state.mlrun_service.is_forwarded_request(request):
         db_session = None
         try:
             db_session = framework.db.session.create_session()

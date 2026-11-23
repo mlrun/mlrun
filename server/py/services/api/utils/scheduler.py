@@ -982,7 +982,7 @@ class Scheduler:
         as a fallback when auth_info.user_id is not available.
         """
         if (
-            mlrun.mlconf.is_iguazio_v4_mode()
+            mlrun.mlconf.is_orca_mode()
             and auth_info.user_id
             and isinstance(scheduled_object, dict)
         ):

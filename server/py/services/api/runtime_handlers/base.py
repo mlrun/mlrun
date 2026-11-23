@@ -496,7 +496,7 @@ class BaseRuntimeHandler(ABC):
         token_name: str,
         auth_info: mlrun.common.schemas.AuthInfo | None = None,
     ):
-        if not mlrun.mlconf.is_iguazio_v4_mode():
+        if not mlrun.mlconf.is_orca_mode():
             return
 
         user_id = auth_info.user_id if auth_info else None

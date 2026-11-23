@@ -703,7 +703,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
     def enrich_and_validate_auth_token_name(
         self, object: Union[mlrun.run.RunObject, mlrun.runtimes.RemoteRuntime]
     ):
-        if not (mlrun.mlconf.is_iguazio_v4_mode()):
+        if not (mlrun.mlconf.is_orca_mode()):
             return
 
         # Get the provided token name, if any

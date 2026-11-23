@@ -108,7 +108,7 @@ def verify_api_state(request: Request):
 
 
 def iguazio_v4_only(request: Request):
-    if not mlrun.mlconf.is_iguazio_v4_mode():
+    if not mlrun.mlconf.is_orca_mode():
         raise mlrun.errors.MLRunBadRequestError(
             "This endpoint is only supported in an Iguazio V4 system."
         )

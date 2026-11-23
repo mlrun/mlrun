@@ -30,7 +30,7 @@ ORCA_CONNECT_RETRIES = 3
 def new_orca_session() -> requests.Session:
     """
     Create a session for direct calls to Orca's API. Every request on it must pass
-    ``timeout=ORCA_REQUEST_TIMEOUT_SECONDS``, ``verify=mlrun.mlconf.iguazio_api_ssl_verify`` and
+    ``timeout=ORCA_REQUEST_TIMEOUT_SECONDS``, ``verify=mlrun.mlconf.orca_api_ssl_verify`` and
     ``allow_redirects=False``. ``verify`` goes on the request rather than the session because
     requests lets ``REQUESTS_CA_BUNDLE`` override a session-level ``verify=False``.
 

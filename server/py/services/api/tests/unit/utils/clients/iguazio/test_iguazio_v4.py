@@ -34,6 +34,7 @@ from server.py.services.api.tests.unit.utils.clients.iguazio.conftest import (
 from tests.common_fixtures import aioresponses_mock
 
 import framework.utils.clients.helpers as clients_helpers
+import framework.utils.clients.iguazio.v3
 import framework.utils.clients.iguazio.v4
 from framework.utils.asyncio import maybe_coroutine
 
@@ -114,7 +115,7 @@ async def test_verify_request_session_success(
         response = sample_user_info()
         return CallbackResult(payload=response)
 
-    url = f"{api_url}/api/{mlrun.mlconf.httpdb.authentication.iguazio.session_verification_endpoint}"
+    url = f"{api_url}/api/{mlrun.mlconf.httpdb.authentication.orca.session_verification_endpoint}"
 
     patch_restful_request(
         aioresponses_mock,
@@ -202,7 +203,7 @@ async def test_verify_request_session_malformed_response(
     def _mock_response(*args, **kwargs):
         return CallbackResult(payload=broken_response)
 
-    url = f"{api_url}/api/{mlrun.mlconf.httpdb.authentication.iguazio.session_verification_endpoint}"
+    url = f"{api_url}/api/{mlrun.mlconf.httpdb.authentication.orca.session_verification_endpoint}"
 
     patch_restful_request(
         aioresponses_mock,
@@ -268,7 +269,7 @@ async def test_verify_request_session_valid_no_groups(
     def _mock_response(*args, **kwargs):
         return CallbackResult(payload=valid_response)
 
-    url = f"{api_url}/api/{mlrun.mlconf.httpdb.authentication.iguazio.session_verification_endpoint}"
+    url = f"{api_url}/api/{mlrun.mlconf.httpdb.authentication.orca.session_verification_endpoint}"
 
     patch_restful_request(
         aioresponses_mock,
@@ -318,7 +319,7 @@ async def test_verify_request_session_single_group_untyped(
     def _mock_response(*args, **kwargs):
         return CallbackResult(payload=response)
 
-    url = f"{api_url}/api/{mlrun.mlconf.httpdb.authentication.iguazio.session_verification_endpoint}"
+    url = f"{api_url}/api/{mlrun.mlconf.httpdb.authentication.orca.session_verification_endpoint}"
     patch_restful_request(
         aioresponses_mock,
         method=mlrun.common.types.HTTPMethod.GET,
@@ -1250,8 +1251,8 @@ def test_parse_auth_response_data(response_body, expected_result, expectation):
 @pytest.mark.parametrize("ssl_verify", [True, False])
 def test_orca_requests_transport(ssl_verify):
     api_url = "https://orca.example.com"
-    mlrun.mlconf.iguazio_api_url = api_url
-    mlrun.mlconf.iguazio_api_ssl_verify = ssl_verify
+    mlrun.mlconf.orca_api_url = api_url
+    mlrun.mlconf.orca_api_ssl_verify = ssl_verify
     client = framework.utils.clients.iguazio.v4.Client()
 
     # Retries cover connection attempts only, so a request that reached Orca is never re-sent
@@ -1270,7 +1271,7 @@ def test_orca_requests_transport(ssl_verify):
 
 def test_orca_requests_do_not_follow_redirects():
     api_url = "https://orca.example.com"
-    mlrun.mlconf.iguazio_api_url = api_url
+    mlrun.mlconf.orca_api_url = api_url
     client = framework.utils.clients.iguazio.v4.Client()
 
     with requests_mock_package.Mocker(session=client._orca_session) as mocker:
@@ -1290,7 +1291,7 @@ def test_orca_requests_do_not_follow_redirects():
 
 def test_orca_request_rejects_unknown_identity():
     api_url = "https://orca.example.com"
-    mlrun.mlconf.iguazio_api_url = api_url
+    mlrun.mlconf.orca_api_url = api_url
     client = framework.utils.clients.iguazio.v4.Client()
 
     with requests_mock_package.Mocker(session=client._orca_session) as mocker:
@@ -1304,3 +1305,28 @@ def test_orca_request_rejects_unknown_identity():
             )
 
     assert not mocker.called
+
+
+def test_ig4_clients_read_the_orca_keys_and_ig3_clients_the_iguazio_ones():
+    mlrun.mlconf.iguazio_api_url = "http://iguazio-api-url:8080"
+    mlrun.mlconf.orca_api_url = "http://orca-api-url:8080"
+    mlrun.mlconf.iguazio_api_ssl_verify = True
+    mlrun.mlconf.orca_api_ssl_verify = False
+    mlrun.mlconf.httpdb.authentication.iguazio.session_verification_endpoint = "igz"
+    mlrun.mlconf.httpdb.authentication.orca.session_verification_endpoint = "orca"
+
+    for ig4_client in (
+        framework.utils.clients.iguazio.v4.Client(),
+        framework.utils.clients.iguazio.v4.AsyncClient(),
+    ):
+        assert ig4_client._api_url == "http://orca-api-url:8080"
+        assert ig4_client._api_ssl_verify is False
+        assert ig4_client._session_verification_endpoint == "orca"
+
+    for ig3_client in (
+        framework.utils.clients.iguazio.v3.Client(),
+        framework.utils.clients.iguazio.v3.AsyncClient(),
+    ):
+        assert ig3_client._api_url == "http://iguazio-api-url:8080"
+        assert ig3_client._api_ssl_verify is True
+        assert ig3_client._session_verification_endpoint == "igz"

@@ -466,7 +466,7 @@ class Client(metaclass=mlrun.utils.singleton.AbstractSingleton):
             request_kwargs["headers"].setdefault(
                 "x-request-id", request.state.request_id
             )
-            if service_name := request.app.extra.get("mlrun_service_name"):
+            if service_name := getattr(request.app.state, "mlrun_service_name", None):
                 request_kwargs["headers"].setdefault(
                     "x-mlrun-origin-service-name", service_name
                 )

@@ -37,7 +37,7 @@ import framework.utils.clients.helpers as clients_helpers
 import framework.utils.clients.service_account_token as service_account_token
 import framework.utils.projects.remotes.follower as project_follower
 import framework.utils.projects.remotes.leader as project_leader
-from framework.utils.clients.iguazio.base import BaseAsyncClient, BaseClient
+from framework.utils.clients.platform_base import BaseAsyncClient, BaseClient
 
 _GROUP_TYPE_KEY = "@type"
 _GROUP_TYPE_VALUE = "type.googleapis.com/usergroup.Group"

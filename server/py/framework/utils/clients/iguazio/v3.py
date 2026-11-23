@@ -34,7 +34,7 @@ from mlrun.utils import get_in, logger
 
 import framework.utils.helpers
 import framework.utils.projects.remotes.leader as project_leader
-from framework.utils.clients.iguazio.base import BaseAsyncClient, BaseClient
+from framework.utils.clients.platform_base import BaseAsyncClient, BaseClient
 
 
 class JobStates:

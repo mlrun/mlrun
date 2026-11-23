@@ -1308,7 +1308,7 @@ class TestSpark3Runtime(services.api.tests.unit.runtimes.base.TestRuntimeBase):
         # Get the existing k8s helper and add our mocks to it
         k8s_helper = framework.utils.singletons.k8s.get_k8s_helper()
         k8s_helper._get_user_token_secret = unittest.mock.Mock(return_value=mock_secret)
-        k8s_helper.get_user_secret_tokens_as_igz_yml_data = unittest.mock.Mock(
+        k8s_helper.get_user_secret_tokens_as_token_file_data = unittest.mock.Mock(
             return_value=""
         )
         k8s_helper.get_project_secret_keys = unittest.mock.Mock(return_value=[])

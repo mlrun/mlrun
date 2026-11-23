@@ -104,15 +104,15 @@ def resolve_auth_token_name(
     :raises MLRunNotFoundError: If the token exists in K8s but is revoked or otherwise invalid (validated against Orca).
     """
     k8s_helper = framework.utils.singletons.k8s.get_k8s_helper()
-    secret_tokens = k8s_helper.get_user_secret_tokens_as_igz_yml_data(
+    secret_tokens = k8s_helper.get_user_secret_tokens_as_token_file_data(
         user_id, provided_token_name
     )
-    igz_yml_content = yaml.safe_dump({"secretTokens": secret_tokens})
+    token_file_content = yaml.safe_dump({"secretTokens": secret_tokens})
 
     # TODO: move init iguazio_client (ML-11077)
     iguazio_client = framework.utils.clients.orca.v1.Client()
-    return iguazio_client.resolve_token_from_igz_yml(
-        igz_yml_content, user_id, provided_token_name
+    return iguazio_client.resolve_token_from_token_file(
+        token_file_content, user_id, provided_token_name
     )
 
 

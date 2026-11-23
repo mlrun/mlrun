@@ -263,28 +263,28 @@ class Client(BaseClient, project_leader.Member):
             default_error_class=mlrun.errors.MLRunUnauthorizedError,
         )
 
-    def resolve_token_from_igz_yml(
+    def resolve_token_from_token_file(
         self,
-        igz_yml_content: str,
+        token_file_content: str,
         user_id: str,
         token_name: str | None = None,
     ) -> str:
         """
-        Resolve a token from igz.yml content and validate it against Orca.
+        Resolve a token from token file content and validate it against Orca.
 
         With a token name, that token is selected. Without one, the token named "default" is selected,
         else the first token. Only the selected token is validated, by refreshing it.
 
-        :param igz_yml_content: YAML content with tokens in igz.yml format.
+        :param token_file_content: YAML content with tokens in token file format.
         :param user_id: The user_id for error messages.
         :param token_name: Specific token to validate (strict mode), or None (auto-discovery).
         :return: The resolved token name.
         :raises MLRunNotFoundError: If no valid token found or validation fails.
         """
-        secret_tokens = (yaml.safe_load(igz_yml_content) or {}).get(
+        secret_tokens = (yaml.safe_load(token_file_content) or {}).get(
             "secretTokens"
         ) or []
-        resolved_name, token_value = self._select_igz_yml_token(
+        resolved_name, token_value = self._select_token_file_token(
             secret_tokens=secret_tokens, token_name=token_name, user_id=user_id
         )
         try:
@@ -743,7 +743,7 @@ class Client(BaseClient, project_leader.Member):
             raise default_error_class(failure_message)
         return value
 
-    def _select_igz_yml_token(
+    def _select_token_file_token(
         self,
         secret_tokens: list[dict],
         token_name: str | None,

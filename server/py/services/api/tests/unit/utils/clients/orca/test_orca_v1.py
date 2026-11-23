@@ -1261,7 +1261,7 @@ def test_orca_requests_transport(ssl_verify):
 
     with requests_mock_package.Mocker(session=client._orca_session) as mocker:
         mocker.post(f"{api_url}/api/v1/authentication/refresh-access-token", json={})
-        client.resolve_token_from_igz_yml(
+        client.resolve_token_from_token_file(
             "secretTokens: [{name: default, token: T-1}]", user_id="jane-id"
         )
 
@@ -1282,7 +1282,7 @@ def test_orca_requests_do_not_follow_redirects():
         )
         login = mocker.get(f"{api_url}/login", json={})
         with pytest.raises(mlrun.errors.MLRunNotFoundError):
-            client.resolve_token_from_igz_yml(
+            client.resolve_token_from_token_file(
                 "secretTokens: [{name: default, token: T-1}]", user_id="jane-id"
             )
 

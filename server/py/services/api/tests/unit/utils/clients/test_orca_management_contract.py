@@ -158,7 +158,7 @@ def context_id():
 def user_tokens(monkeypatch) -> list[tuple[str, str]]:
     """
     The user's stored tokens as (name, value) pairs, in listing order. Replaces the K8s reads
-    only, so the igz.yml document is still built by the real helper.
+    only, so the token file document is still built by the real helper.
     """
     tokens: list[tuple[str, str]] = []
 
@@ -1037,7 +1037,7 @@ def test_resolve_token_from_token_file_without_usable_token(
     orca, token_file_content, token_name, expected_message
 ):
     with pytest.raises(mlrun.errors.MLRunNotFoundError, match=expected_message):
-        framework.utils.clients.orca.v1.Client().resolve_token_from_igz_yml(
+        framework.utils.clients.orca.v1.Client().resolve_token_from_token_file(
             token_file_content, "jane-id", token_name
         )
 

@@ -371,6 +371,7 @@ jobs:
               built_short_hash="$short_hash"
               if [[ -z "$pinned_prefix" ]]; then
                 resolved_version_prefix="$prefix"
+                resolved_full_sha="$sha"
               fi
               echo "Selected mlrun/${repo}@${MLRUN_BRANCH} ${built_short_hash} (${sha}) image ${image}:${tag}" >&2
               return 0
@@ -387,10 +388,44 @@ jobs:
 
         built_short_hash=""
         resolved_version_prefix=""
+        resolved_full_sha=""
         resolve_built_short_hash mlrun
         mlrun_hash="$built_short_hash"
         resolve_built_short_hash ui "$resolved_version_prefix"
         ui_hash="$built_short_hash"
+
+        if [[ ! "$resolved_full_sha" =~ ^[0-9a-f]{40}$ ]]; then
+          echo "Refusing mlrun commit '${resolved_full_sha}'" >&2
+          exit 1
+        fi
+        # The newest published commit is the one under test. Do not walk further back.
+        # A commit older than 24h, including the branch tip, must fail instead of
+        # looking like a current green run.
+        tip_sha="$(git -C "${workdir}/mlrun" rev-parse HEAD)"
+        commit_epoch="$(git -C "${workdir}/mlrun" log -1 --format=%ct "$resolved_full_sha")"
+        age_seconds="$(( $(date +%s) - commit_epoch ))"
+        max_age_seconds=86400
+        if [[ "$age_seconds" -gt "$max_age_seconds" ]]; then
+          echo "::error::Selected commit ${resolved_full_sha} on ${MLRUN_BRANCH} is $((age_seconds / 3600))h old (tip ${tip_sha}). Refusing a system test whose published image is older than 24h." >&2
+          exit 1
+        fi
+        if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
+          {
+            echo "### Enterprise system test commit"
+            echo ""
+            echo "- Branch: \`${MLRUN_BRANCH}\`"
+            echo "- Tested commit: \`${resolved_full_sha}\` (\`${mlrun_hash}\`)"
+            echo "- Branch tip: \`${tip_sha}\`"
+            if [[ "$resolved_full_sha" == "$tip_sha" ]]; then
+              echo "- Testing the branch tip."
+            else
+              echo "- The branch tip was not tested. Its image build did not publish a commit-tagged image."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+        fi
+        if [[ "$resolved_full_sha" != "$tip_sha" ]]; then
+          echo "::warning title=System tests are not on the branch tip::Testing ${mlrun_hash} instead of ${tip_sha:0:8} on ${MLRUN_BRANCH}." >&2
+        fi
 
         if [[ ! "$mlrun_hash" =~ ^[0-9a-f]{8}$ ]]; then
           echo "Refusing mlrun hash '${mlrun_hash}'" >&2
@@ -407,6 +442,7 @@ jobs:
 
         {
           echo "mlrun_hash=${mlrun_hash}"
+          echo "mlrun_full_sha=${resolved_full_sha}"
           echo "ui_hash=${ui_hash}"
           echo "unstable_version_prefix=${resolved_version_prefix}"
         } >> "$GITHUB_OUTPUT"
@@ -511,12 +547,14 @@ jobs:
     outputs:
       mlrunVersion: ${{ steps.computed_params.outputs.mlrun_version }}
       mlrunBranch: ${{ steps.current-branch.outputs.name }}
+      mlrunCommit: ${{ steps.git_upstream_info.outputs.mlrun_full_sha }}
+      mlrunHash: ${{ steps.git_upstream_info.outputs.mlrun_hash }}
       mlrunSystemTestsCleanResources: ${{ steps.computed_params.outputs.mlrun_system_tests_clean_resources }}
 
   run-system-tests-enterprise-ci:
     # When increasing the timeout make sure it's not larger than the schedule cron interval
     timeout-minutes: 360
-    name: Test ${{ matrix.test_component }} [${{ needs.prepare-system-tests-enterprise-ci.outputs.mlrunBranch }}]
+    name: Test ${{ matrix.test_component }} [${{ needs.prepare-system-tests-enterprise-ci.outputs.mlrunBranch }}@${{ needs.prepare-system-tests-enterprise-ci.outputs.mlrunHash }}]
     # requires prepare to finish before starting
     needs: [prepare-system-tests-enterprise-ci]
     runs-on: [ self-hosted, Linux, mlrun-igz-ci ]
@@ -561,11 +599,10 @@ jobs:
             openssl
 
     - uses: actions/checkout@v7
-      # checking out to the resolved branch to run system tests on, as now we run the actual tests, we don't want to run
-      # the system tests of the branch that triggered the system tests as it might be in a different version
-      # than the mlrun version we deployed on the previous job (can have features that the resolved branch doesn't have)
+      # Check out the commit whose images were installed. A branch-tip checkout would
+      # run tests from a different SDK than the one deployed in the previous job.
       with:
-        ref: ${{ needs.prepare-system-tests-enterprise-ci.outputs.mlrunBranch }}
+        ref: ${{ needs.prepare-system-tests-enterprise-ci.outputs.mlrunCommit }}
 
     - name: Install uv
       uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # 10.3.2
@@ -633,4 +670,5 @@ jobs:
         MLRUN_VERSION="${{ needs.prepare-system-tests-enterprise-ci.outputs.mlrunVersion }}" \
         MLRUN_SYSTEM_TESTS_COMPONENT="${{ matrix.test_component }}" \
         MLRUN_SYSTEM_TESTS_BRANCH="${{ needs.prepare-system-tests-enterprise-ci.outputs.mlrunBranch }}" \
+        MLRUN_SYSTEM_TESTS_COMMIT="${{ needs.prepare-system-tests-enterprise-ci.outputs.mlrunCommit }}" \
           make test-system

@@ -2258,7 +2258,7 @@ def test_resolve_auth_token_name_success(
 
     mock_resolve = unittest.mock.Mock(return_value=expected_token)
     monkeypatch.setattr(
-        "framework.utils.clients.iguazio.v4.Client.resolve_token_from_igz_yml",
+        "framework.utils.clients.orca.v1.Client.resolve_token_from_igz_yml",
         mock_resolve,
     )
 
@@ -2335,7 +2335,7 @@ def test_resolve_auth_token_name_sdk_error(
     mock_k8s_helper.get_user_secret_tokens_as_igz_yml_data.return_value = token_data
 
     monkeypatch.setattr(
-        "framework.utils.clients.iguazio.v4.Client.resolve_token_from_igz_yml",
+        "framework.utils.clients.orca.v1.Client.resolve_token_from_igz_yml",
         unittest.mock.Mock(side_effect=mlrun.errors.MLRunNotFoundError(error_message)),
     )
 

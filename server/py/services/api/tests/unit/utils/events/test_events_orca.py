@@ -33,7 +33,7 @@ import mlrun.utils
 from mlrun.utils.logger import context_id_var
 
 import framework.utils.clients.service_account_token
-import services.api.utils.events.iguazio_v4 as iguazio_v4_events
+import services.api.utils.events.orca as orca_events
 
 SA_TOKEN = "sa-token"
 CTX_ID = "test-context-id"
@@ -833,12 +833,10 @@ def test_emit_retries_failed_connections(unreachable_orca, warning_log):
     warning_log.assert_called_once()
 
 
-def _make_client(
-    service_name: str = "api", role: str = "chief"
-) -> iguazio_v4_events.Client:
+def _make_client(service_name: str = "api", role: str = "chief") -> orca_events.Client:
     mlrun.mlconf.services.service_name = service_name
     mlrun.mlconf.httpdb.clusterization.role = role
-    return iguazio_v4_events.Client()
+    return orca_events.Client()
 
 
 def _published_body(orca: pytest_httpserver.HTTPServer, client, event) -> dict:

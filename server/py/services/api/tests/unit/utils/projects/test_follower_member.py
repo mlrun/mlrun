@@ -32,7 +32,7 @@ import mlrun.utils
 import framework.db.sqldb.models
 import framework.utils.background_tasks
 import framework.utils.clients.chief
-import framework.utils.clients.iguazio.v4
+import framework.utils.clients.orca.v1
 import framework.utils.periodic
 import framework.utils.projects.follower
 import framework.utils.projects.remotes.leader
@@ -693,7 +693,7 @@ async def test_initialize_with_orca_leader(monkeypatch):
     # _start_periodic_followers_sync_trigger). This test runs as chief (the default role), so
     # it exercises the direct-trigger path.
     monkeypatch.setattr(
-        framework.utils.clients.iguazio.v4.Client,
+        framework.utils.clients.orca.v1.Client,
         "trigger_followers_sync",
         lambda self: None,
     )
@@ -705,7 +705,7 @@ async def test_initialize_with_orca_leader(monkeypatch):
     projects_follower = framework.utils.projects.follower.Member()
     projects_follower.initialize()
     assert isinstance(
-        projects_follower._leader_client, framework.utils.clients.iguazio.v4.Client
+        projects_follower._leader_client, framework.utils.clients.orca.v1.Client
     )
     assert not projects_follower._followers_sync_ready.is_set()
     projects_follower.start()
@@ -734,7 +734,7 @@ async def test_initialize_with_orca_leader_worker_delegates_to_chief(monkeypatch
     monkeypatch.setattr(mlrun.mlconf, "orca_api_url", "http://orca-api-url:8080")
     trigger_calls = {"n": 0}
     monkeypatch.setattr(
-        framework.utils.clients.iguazio.v4.Client,
+        framework.utils.clients.orca.v1.Client,
         "trigger_followers_sync",
         lambda self: trigger_calls.__setitem__("n", trigger_calls["n"] + 1),
     )
@@ -962,7 +962,7 @@ def _mock_orca_leader(
 ) -> unittest.mock.MagicMock:
     projects_follower._leader_name = "orca"
     projects_follower._leader_client = unittest.mock.MagicMock(
-        spec=framework.utils.clients.iguazio.v4.Client
+        spec=framework.utils.clients.orca.v1.Client
     )
     return projects_follower._leader_client
 

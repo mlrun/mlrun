@@ -36,7 +36,7 @@ import mlrun_pipelines.client
 import mlrun_pipelines.utils
 
 import framework.utils.clients.iguazio.v3
-import framework.utils.clients.iguazio.v4
+import framework.utils.clients.orca.v1
 import framework.utils.projects.remotes.leader
 import framework.utils.singletons.k8s
 import services.api.crud
@@ -206,7 +206,7 @@ def iguazio_client(
         client_cls = module.Client if mode == "sync" else module.AsyncClient
         client = client_cls()
     elif version == "v4":
-        module = framework.utils.clients.iguazio.v4
+        module = framework.utils.clients.orca.v1
         client_cls = {
             "sync": module.Client,
             "async": module.AsyncClient,

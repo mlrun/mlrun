@@ -34,7 +34,7 @@ from mlrun.utils import logger
 import framework.utils.auth.providers.nop
 import framework.utils.auth.providers.opa
 import framework.utils.clients.iguazio.v3
-import framework.utils.clients.iguazio.v4
+import framework.utils.clients.orca.v1
 
 
 class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
@@ -492,7 +492,7 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
         )
 
         if token is None:
-            iguazio_client = framework.utils.clients.iguazio.v4.AsyncClient()
+            iguazio_client = framework.utils.clients.orca.v1.AsyncClient()
             return await iguazio_client.verify_request_session(request)
 
         token_expires_at = resolve_jwt_expiration(token)
@@ -500,7 +500,7 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
 
         if token_expires_at is None or token_expires_at <= curr_time:
             # No expiry or an expired token means no caching
-            iguazio_client = framework.utils.clients.iguazio.v4.AsyncClient()
+            iguazio_client = framework.utils.clients.orca.v1.AsyncClient()
             return await iguazio_client.verify_request_session(request)
 
         key = self._token_cache_key(token)
@@ -510,7 +510,7 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
             # No task or an expired task means we have to create a new task
             is_existing_key = task_with_expiry is not None
 
-            iguazio_client = framework.utils.clients.iguazio.v4.AsyncClient()
+            iguazio_client = framework.utils.clients.orca.v1.AsyncClient()
             task = asyncio.create_task(iguazio_client.verify_request_session(request))
             task.add_done_callback(partial(self._on_verify_complete, key))
 

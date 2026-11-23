@@ -24,7 +24,7 @@ import mlrun.errors
 from mlrun.common.schemas import ProjectOut, WorkflowSpec
 from mlrun.utils import logger
 
-import framework.utils.clients.iguazio.v4
+import framework.utils.clients.orca.v1
 import framework.utils.singletons.k8s
 
 
@@ -110,7 +110,7 @@ def resolve_auth_token_name(
     igz_yml_content = yaml.safe_dump({"secretTokens": secret_tokens})
 
     # TODO: move init iguazio_client (ML-11077)
-    iguazio_client = framework.utils.clients.iguazio.v4.Client()
+    iguazio_client = framework.utils.clients.orca.v1.Client()
     return iguazio_client.resolve_token_from_igz_yml(
         igz_yml_content, user_id, provided_token_name
     )

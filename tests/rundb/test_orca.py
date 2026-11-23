@@ -625,7 +625,7 @@ class TestHTTPRunDBOrcaGate:
         assert db._resolve_projects_client() is None
 
     def test_resolve_projects_client_requires_leader_orca(self, db):
-        # is_iguazio_v4_mode()/orca_api_url alone aren't enough - both are also true for a
+        # is_orca_mode()/orca_api_url alone aren't enough - both are also true for a
         # v4-auth deployment that hasn't cut project-sync leadership over to Orca yet (they're
         # already used for e.g. oauth token endpoints regardless of leader). Only the server's
         # own httpdb.projects.leader, synced via connect()'s client-spec, can confirm that.

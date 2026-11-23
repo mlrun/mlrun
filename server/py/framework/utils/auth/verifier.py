@@ -414,7 +414,7 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
 
     @staticmethod
     def _iguaziov4_auth_configured():
-        return mlrun.mlconf.is_iguazio_v4_mode()
+        return mlrun.mlconf.is_orca_mode()
 
     @staticmethod
     def _parse_auth_header(

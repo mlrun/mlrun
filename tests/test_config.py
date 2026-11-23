@@ -1002,7 +1002,7 @@ def test_server_mode_iguazio_v4_resolves_to_orca_and_warns(monkeypatch):
         mlrun.mlconf.reload()
     assert len(record) == 1
     assert mlrun.mlconf.httpdb.authentication.mode == "orca"
-    assert mlrun.mlconf.is_iguazio_v4_mode()
+    assert mlrun.mlconf.is_orca_mode()
 
 
 def test_authentication_mode_iguazio_v4_in_config_file_resolves_to_orca(
@@ -1025,7 +1025,7 @@ def test_authentication_mode_orca_does_not_warn(monkeypatch):
     with warnings.catch_warnings():
         warnings.simplefilter("error")
         mlrun.mlconf.reload()
-    assert mlrun.mlconf.is_iguazio_v4_mode()
+    assert mlrun.mlconf.is_orca_mode()
 
 
 @pytest.mark.parametrize(
@@ -1037,9 +1037,15 @@ def test_authentication_mode_orca_does_not_warn(monkeypatch):
         ("none", False),
     ],
 )
-def test_is_iguazio_v4_mode(mode, expected):
+def test_is_orca_mode(mode, expected):
     mlrun.mlconf.httpdb.authentication.mode = mode
-    assert mlrun.mlconf.is_iguazio_v4_mode() is expected
+    assert mlrun.mlconf.is_orca_mode() is expected
+
+
+def test_is_iguazio_v4_mode_is_deprecated_alias_of_is_orca_mode():
+    mlrun.mlconf.httpdb.authentication.mode = "orca"
+    with pytest.warns(FutureWarning, match="use 'is_orca_mode' instead"):
+        assert mlrun.mlconf.is_iguazio_v4_mode() is True
 
 
 def test_resolve_deprecated_authentication_mode():

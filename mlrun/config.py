@@ -38,6 +38,7 @@ import dotenv
 import semver
 import urllib3.exceptions
 import yaml
+from deprecated import deprecated
 
 import mlrun.common.constants
 import mlrun.common.schemas
@@ -1631,7 +1632,7 @@ class Config:
             == mlrun.common.types.AuthenticationMode.IGUAZIO
         )
 
-    def is_iguazio_v4_mode(self):
+    def is_orca_mode(self):
         # "iguazio-v4" is the deprecated name of "orca". Load time and connect() normalize it, but the mode can also
         # be assigned programmatically afterwards, so both values are accepted here
         # TODO: Remove "iguazio-v4" in 1.16.0
@@ -1639,6 +1640,15 @@ class Config:
             mlrun.common.types.AuthenticationMode.ORCA,
             mlrun.common.types.AuthenticationMode.IGUAZIO_V4,
         )
+
+    # TODO: Remove in 1.16.0
+    @deprecated(
+        version="1.14.0",
+        reason="'is_iguazio_v4_mode' will be removed in 1.16.0, use 'is_orca_mode' instead",
+        category=FutureWarning,
+    )
+    def is_iguazio_v4_mode(self):
+        return self.is_orca_mode()
 
     def warn_on_deprecated_keys(self):
         """
@@ -1655,7 +1665,7 @@ class Config:
         for alias in _DEPRECATED_KEY_ALIASES:
             if alias.old not in self._pending_deprecated_keys:
                 continue
-            if alias.shared and not self.is_iguazio_v4_mode():
+            if alias.shared and not self.is_orca_mode():
                 continue
             self._pending_deprecated_keys.remove(alias.old)
             mlrun.utils.logger.warning(
@@ -1683,7 +1693,7 @@ class Config:
         return self.__dict__.setdefault("_pending_deprecated_keys_set", set())
 
     def is_using_v3io(self) -> bool:
-        return not self.is_iguazio_v4_mode() and not self.is_ce_mode()
+        return not self.is_orca_mode() and not self.is_ce_mode()
 
     def is_explicit_ack_enabled(self) -> bool:
         return self.httpdb.nuclio.explicit_ack == "enabled" and (

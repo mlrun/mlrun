@@ -128,7 +128,7 @@ def resolve_auth_token_secret_name(
 
     :return: The name of the secret that holds the user's auth token.
     """
-    if mlrun.mlconf.is_iguazio_v4_mode():
+    if mlrun.mlconf.is_orca_mode():
         resolved_token_name = resolve_auth_token_name(
             provided_token_name=provided_token_name,
             user_id=user_id,

@@ -724,7 +724,7 @@ class HTTPRunDB(RunDBInterface):
             )
 
             # Iguazio V4 OAuth token config auto-initialization
-            if config.is_iguazio_v4_mode():
+            if config.is_orca_mode():
                 if not config.auth_with_oauth_token.token_file:
                     # runtimes
                     if mlrun.utils.helpers.is_running_in_runtime():
@@ -795,7 +795,7 @@ class HTTPRunDB(RunDBInterface):
 
         self._init_token_provider_from_env()
 
-        if config.is_iguazio_v4_mode() and config.auth_with_oauth_token.enabled:
+        if config.is_orca_mode() and config.auth_with_oauth_token.enabled:
             mlrun.secrets.sync_secret_tokens()
         return self
 
@@ -3588,7 +3588,7 @@ class HTTPRunDB(RunDBInterface):
         this client can't determine on its own.
         """
         if not (
-            mlrun.mlconf.is_iguazio_v4_mode()
+            mlrun.mlconf.is_orca_mode()
             and mlrun.mlconf.orca_api_url
             and mlrun.mlconf.httpdb.projects.leader == "orca"
         ):

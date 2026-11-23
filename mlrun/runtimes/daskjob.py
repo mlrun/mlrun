@@ -228,7 +228,7 @@ class DaskCluster(KubejobRuntime):
         # The Dask runtime is not supported on Iguazio v4 (IG4) systems, where the dask cluster can
         # no longer be brought up. Bringing one up would otherwise fail with an opaque
         # "Failed bringing up dask cluster" error.
-        if config.is_iguazio_v4_mode():
+        if config.is_orca_mode():
             raise mlrun.errors.MLRunBadRequestError(
                 "The Dask runtime is not supported on this system."
             )

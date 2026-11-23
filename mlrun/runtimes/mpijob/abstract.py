@@ -123,7 +123,7 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
         super().validate()
         # The MPIJob runtime is not supported on Iguazio v4 (IG4) systems, where the mpi-operator is
         # no longer deployed. Submitting one would otherwise fail with an opaque Kubernetes 404.
-        if config.is_iguazio_v4_mode():
+        if config.is_orca_mode():
             raise mlrun.errors.MLRunBadRequestError(
                 "The MPIJob runtime is not supported on this system."
             )

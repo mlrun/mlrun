@@ -38,7 +38,7 @@ class ClientSpec(
 
         oauth_internal_token_endpoint = None
         oauth_external_token_endpoint = None
-        if config.is_iguazio_v4_mode():
+        if config.is_orca_mode():
             oauth_external_token_endpoint = os.path.join(
                 config.orca_api_url_ingress,
                 config.httpdb.authentication.orca.authentication_endpoint,

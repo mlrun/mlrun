@@ -417,7 +417,7 @@ def test_wait_for_nuclio_project_deletion_polls_with_service_account_in_iguazio_
 ):
     """In IG4 the deletion poll uses the service account token, not the user's
     expiring one."""
-    monkeypatch.setattr(type(mlrun.mlconf), "is_iguazio_v4_mode", lambda self: True)
+    monkeypatch.setattr(type(mlrun.mlconf), "is_orca_mode", lambda self: True)
     nuclio_client_mock = patched_nuclio_deletion_dependencies
     user_auth_info = mlrun.common.schemas.AuthInfo(
         request_headers={"Authorization": "Bearer user-token-that-will-expire"},
@@ -444,7 +444,7 @@ def test_wait_for_nuclio_project_deletion_keeps_user_auth_when_not_iguazio_v4(
 ):
     """Outside IG4 there is no service account escalation; the poll keeps using
     the supplied auth_info unchanged."""
-    monkeypatch.setattr(type(mlrun.mlconf), "is_iguazio_v4_mode", lambda self: False)
+    monkeypatch.setattr(type(mlrun.mlconf), "is_orca_mode", lambda self: False)
     nuclio_client_mock = patched_nuclio_deletion_dependencies
     user_auth_info = mlrun.common.schemas.AuthInfo(session="user-session")
 

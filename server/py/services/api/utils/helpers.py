@@ -19,6 +19,7 @@ import yaml
 import mlrun
 import mlrun.common.constants
 import mlrun.common.schemas
+import mlrun.common.types
 import mlrun.errors
 from mlrun.common.schemas import ProjectOut, WorkflowSpec
 from mlrun.utils import logger
@@ -75,6 +76,20 @@ def resolve_client_default_kfp_image(
     return image
 
 
+def resolve_spec_authentication_mode(mode: str | None) -> str | None:
+    """
+    Resolve the authentication mode the server sends to MLRun clients and to the UI.
+
+    :param mode: the server's authentication mode
+    :return:     "iguazio-v4" for the "orca" mode, any other mode unchanged
+    """
+    # TODO: send "orca" once the oldest supported client is >= 1.14.0; older clients only enable the OAuth token
+    #  flow for "iguazio-v4"
+    if mode == mlrun.common.types.AuthenticationMode.ORCA:
+        return mlrun.common.types.AuthenticationMode.IGUAZIO_V4.value
+    return mode
+
+
 def resolve_auth_token_name(
     user_id: str,
     provided_token_name: str | None,
@@ -113,7 +128,7 @@ def resolve_auth_token_secret_name(
 
     :return: The name of the secret that holds the user's auth token.
     """
-    if mlrun.mlconf.is_iguazio_v4_mode():
+    if mlrun.mlconf.is_orca_mode():
         resolved_token_name = resolve_auth_token_name(
             provided_token_name=provided_token_name,
             user_id=user_id,

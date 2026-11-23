@@ -50,7 +50,7 @@ class Client:
         self._auth_headers = None
         self._auth = None
 
-        if mlrun.mlconf.is_iguazio_v4_mode():
+        if mlrun.mlconf.is_orca_mode():
             self._auth_headers = auth_info.request_headers
         else:
             login = auth_info.username

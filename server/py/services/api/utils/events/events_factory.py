@@ -30,13 +30,13 @@ class EventsFactory:
             return services.api.utils.events.nop.NopClient()
 
         if not kind:
-            if mlrun.mlconf.is_iguazio_v4_mode():
+            if mlrun.mlconf.is_orca_mode():
                 kind = mlrun.common.schemas.EventClientKinds.iguazio_v4
             elif mlrun.mlconf.get_parsed_igz_version():
                 kind = mlrun.common.schemas.EventClientKinds.iguazio
 
         if kind == mlrun.common.schemas.EventClientKinds.iguazio_v4:
-            if not mlrun.mlconf.is_iguazio_v4_mode():
+            if not mlrun.mlconf.is_orca_mode():
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     "Iguazio v4 events client can only be used in Iguazio v4 environment"
                 )

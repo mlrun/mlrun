@@ -36,4 +36,6 @@ class AuthenticationMode(StrEnum):
     BASIC = "basic"
     BEARER = "bearer"
     IGUAZIO = "iguazio"
+    # TODO: Remove in 1.16.0 - deprecated in 1.14.0, use ORCA instead
     IGUAZIO_V4 = "iguazio-v4"
+    ORCA = "orca"

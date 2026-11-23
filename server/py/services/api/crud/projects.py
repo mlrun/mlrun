@@ -283,7 +283,7 @@ class Projects(
             messaging_client = framework.utils.clients.messaging.Client()
             request_headers = auth_info.request_headers
 
-            if mlrun.mlconf.is_iguazio_v4_mode():
+            if mlrun.mlconf.is_orca_mode():
                 # In IG4 as the project has already been deleted, it will no longer exist in the permission manifest at
                 # all, so we must escalate the request to have permissions to delete all project resources
                 request_headers = (
@@ -1043,7 +1043,7 @@ class Projects(
         # The background task may outlive the user's token, so poll with the
         # service account token instead (the deletion is already authorized).
         nuclio_auth_info = auth_info
-        if mlrun.mlconf.is_iguazio_v4_mode():
+        if mlrun.mlconf.is_orca_mode():
             nuclio_auth_info = auth_info.copy(
                 update={
                     "request_headers": self._service_account_token_client.escalate_request_headers(

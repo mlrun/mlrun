@@ -398,15 +398,16 @@ jobs:
           echo "Refusing mlrun commit '${resolved_full_sha}'" >&2
           exit 1
         fi
-        # The newest published commit is the one under test. Do not walk further back.
-        # A commit older than 24h, including the branch tip, must fail instead of
-        # looking like a current green run.
+        # The branch tip is tested at any age when its image exists. A quiet
+        # release branch must still run. The 24h cap applies only to a fallback:
+        # the tip had no published image, and the newest older image is stale.
+        # Do not walk further back than that commit.
         tip_sha="$(git -C "${workdir}/mlrun" rev-parse HEAD)"
         commit_epoch="$(git -C "${workdir}/mlrun" log -1 --format=%ct "$resolved_full_sha")"
         age_seconds="$(( $(date +%s) - commit_epoch ))"
         max_age_seconds=86400
-        if [[ "$age_seconds" -gt "$max_age_seconds" ]]; then
-          echo "::error::Selected commit ${resolved_full_sha} on ${MLRUN_BRANCH} is $((age_seconds / 3600))h old (tip ${tip_sha}). Refusing a system test whose published image is older than 24h." >&2
+        if [[ "$resolved_full_sha" != "$tip_sha" && "$age_seconds" -gt "$max_age_seconds" ]]; then
+          echo "::error::Selected commit ${resolved_full_sha} on ${MLRUN_BRANCH} is $((age_seconds / 3600))h old. Refusing a fallback older than 24h while tip ${tip_sha} has no published image." >&2
           exit 1
         fi
         if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then

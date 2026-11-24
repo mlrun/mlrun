@@ -143,6 +143,29 @@ async def delete_project(
             # if the strategy is checked, we don't want to delete the project, only to check if it is empty
             return fastapi.Response(status_code=http.HTTPStatus.NO_CONTENT.value)
 
+    # Orca refuses to delete a project that is still being created, and its state can
+    # differ from MLRun's own (e.g. another follower failed the create). Check Orca's state
+    # here so the caller gets the 412 instead of a 202 followed by a failed background task.
+    if mlrun.mlconf.is_orca_mode():
+        try:
+            leader_project = await run_in_threadpool(
+                get_project_member().get_project,
+                db_session,
+                name,
+                auth_info,
+                from_leader=True,
+            )
+        except mlrun.errors.MLRunNotFoundError:
+            leader_project = None
+        if (
+            leader_project
+            and leader_project.status.state
+            == mlrun.common.schemas.ProjectState.creating
+        ):
+            raise mlrun.errors.MLRunPreconditionFailedError(
+                f"Cannot delete project while it is creating (name={name})"
+            )
+
     task, task_name = await run_in_threadpool(
         framework.api.utils.get_or_create_project_deletion_background_task,
         project,

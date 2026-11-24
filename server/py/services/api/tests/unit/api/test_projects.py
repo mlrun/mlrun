@@ -54,6 +54,7 @@ import framework.utils.singletons.k8s
 import framework.utils.singletons.project_member
 import services.alerts.crud
 import services.api.api.endpoints.projects as projects_endpoints
+import services.api.api.endpoints.projects_v2 as projects_v2_endpoints
 import services.api.crud
 import services.api.tests.unit.conftest
 import services.api.tests.unit.utils.clients.test_log_collector
@@ -1857,6 +1858,71 @@ def test_delete_project_owner_short_circuits_opa_check(
         add_allowed_project_for_owner.assert_called_once_with(
             project.metadata.name, unittest.mock.ANY
         )
+
+
+@pytest.mark.parametrize(
+    "orca_mode, leader_state, expect_rejected",
+    [
+        (True, mlrun.common.schemas.ProjectState.creating, True),
+        (True, mlrun.common.schemas.ProjectState.online, False),
+        (True, mlrun.common.schemas.ProjectState.deleting, False),
+        (True, None, False),
+        (False, mlrun.common.schemas.ProjectState.creating, False),
+    ],
+)
+def test_delete_project_v2_rejects_project_creating_in_orca(
+    unversioned_client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    orca_mode: bool,
+    leader_state: mlrun.common.schemas.ProjectState | None,
+    expect_rejected: bool,
+) -> None:
+    """Orca rejects deleting a project that is still creating, even when MLRun's own copy
+    is already online (e.g. another follower failed the create). The v2 endpoint must
+    surface that as a 412 instead of accepting the delete into a background task.
+    A leader state of None means the project is already gone from Orca."""
+    monkeypatch.setattr(
+        type(mlrun.mlconf), "is_orca_mode", lambda self: orca_mode, raising=True
+    )
+
+    def get_project(db_session, name, auth_info, from_leader=False, **kwargs):
+        if from_leader and leader_state is None:
+            raise mlrun.errors.MLRunNotFoundError(f"Project {name} not found")
+        return mlrun.common.schemas.Project(
+            metadata=mlrun.common.schemas.ProjectMetadata(name=name),
+            status=mlrun.common.schemas.ProjectStatus(
+                state=leader_state
+                if from_leader
+                else mlrun.common.schemas.ProjectState.online
+            ),
+        )
+
+    member = Mock()
+    member.get_project.side_effect = get_project
+    monkeypatch.setattr(projects_v2_endpoints, "get_project_member", lambda: member)
+    verifier = framework.utils.auth.verifier.AuthVerifier()
+    monkeypatch.setattr(
+        verifier,
+        "authenticate_request",
+        AsyncMock(return_value=mlrun.common.schemas.AuthInfo(username="owner")),
+    )
+    monkeypatch.setattr(verifier, "is_project_owner", Mock(return_value=True))
+    monkeypatch.setattr(verifier, "add_allowed_project_for_owner", Mock())
+    deletion_background_task = Mock(return_value=(None, "deletion-task"))
+    monkeypatch.setattr(
+        framework.api.utils,
+        "get_or_create_project_deletion_background_task",
+        deletion_background_task,
+    )
+
+    response = unversioned_client.delete("v2/projects/creating-project")
+
+    if expect_rejected:
+        assert response.status_code == HTTPStatus.PRECONDITION_FAILED.value
+        assert "while it is creating" in response.text
+        deletion_background_task.assert_not_called()
+    else:
+        deletion_background_task.assert_called_once()
 
 
 def test_project_image_builder_validation(

@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import datetime
 import time
 import unittest.mock
 
@@ -23,6 +24,7 @@ import tests.conftest
 from mlrun import mlconf
 from mlrun.utils import logger
 
+import framework.db.sqldb.models
 import framework.utils.pagination_cache
 import framework.utils.singletons.db
 import services.api.crud
@@ -558,3 +560,38 @@ def test_store_paginated_query_cache_record_retries_on_fresh_insert_conflict(
         )
         == 1
     )
+
+
+@pytest.mark.parametrize(
+    "cleanup_function", ["cleanup_pagination_cache", "monitor_pagination_cache"]
+)
+def test_pagination_cache_cleanup_is_committed(
+    db: sqlalchemy.orm.Session, cleanup_function: str
+):
+    """
+    The cleanup deletes must be committed - a rollback after the call (as done when a session that was not committed
+    is closed) must not bring the deleted records back.
+    """
+    mlconf.httpdb.pagination.pagination_cache.ttl = 0
+    pagination_cache = framework.utils.pagination_cache.PaginationCache()
+    method = services.api.crud.Projects().list_projects
+    for i in range(3):
+        pagination_cache.store_pagination_cache_record(
+            db, f"user{i}", method, 1, 10, {}
+        )
+
+    # make sure all records are past the TTL (monitor uses ttl + 1 seconds)
+    db.query(framework.db.sqldb.models.PaginationCache).update(
+        {
+            framework.db.sqldb.models.PaginationCache.last_accessed: datetime.datetime.now(
+                datetime.UTC
+            )
+            - datetime.timedelta(days=1)
+        }
+    )
+    db.commit()
+
+    getattr(pagination_cache, cleanup_function)(db)
+    db.rollback()
+
+    assert pagination_cache.list_pagination_cache_records(db) == []

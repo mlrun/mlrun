@@ -713,6 +713,12 @@ def _start_function(
         framework.api.utils.apply_enrichment_and_validation_on_function(
             function,
             auth_info,
+            existing_function=framework.api.utils.get_stored_function(
+                db_session,
+                name=function.metadata.name,
+                project=function.metadata.project,
+                tag=function.metadata.tag,
+            ),
         )
 
         services.api.crud.Functions().start_function(

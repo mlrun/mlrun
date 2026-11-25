@@ -483,6 +483,12 @@ def _deploy_function(
             perform_auto_mount=False,
             mask_sensitive_data=False,
             ensure_security_context=False,
+            existing_function=framework.api.utils.get_stored_function(
+                db_session,
+                name=fn.metadata.name,
+                project=fn.metadata.project,
+                tag=fn.metadata.tag,
+            ),
         )
 
         # before saving function to DB, we need to mask some nuclio-specific fields

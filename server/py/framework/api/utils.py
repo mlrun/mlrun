@@ -37,6 +37,7 @@ from sqlalchemy.orm import Session
 import mlrun.common.constants
 import mlrun.common.schemas
 import mlrun.errors
+import mlrun.k8s_utils
 import mlrun.runtimes.pod
 import mlrun.utils.helpers
 import mlrun.utils.notifications.notification_pusher
@@ -178,6 +179,7 @@ def _generate_function_and_task_from_submit_run_body(
     db_session: Session, auth_info: mlrun.common.schemas.AuthInfo, data
 ):
     function_dict, function_url, task = parse_submit_run_body(data)
+    function_record = None
 
     if function_dict and not function_url:
         function = new_function(runtime=function_dict)
@@ -204,7 +206,9 @@ def _generate_function_and_task_from_submit_run_body(
             # assign values from it to the main function object
             function = enrich_function_from_dict(function, function_dict)
 
-    apply_enrichment_and_validation_on_function(function=function, auth_info=auth_info)
+    apply_enrichment_and_validation_on_function(
+        function=function, auth_info=auth_info, existing_function=function_record
+    )
     apply_enrichment_and_validation_on_task(task, auth_info=auth_info)
 
     return function, task
@@ -340,6 +344,7 @@ def apply_enrichment_and_validation_on_function(
     mask_sensitive_data: bool = True,
     ensure_security_context: bool = True,
     allow_empty_access_key: bool = False,
+    existing_function: dict | None = None,
 ):
     """
     This function should be used only on server side.
@@ -350,6 +355,9 @@ def apply_enrichment_and_validation_on_function(
 
     When adding a new util function, go through the other flows that utilize the function
     and make sure to specify the appropriate flag for each runtime.
+
+    :param existing_function: the stored version of the function, if any. Its labels are used to accept forbidden
+                              label keys that the function already has with the same value.
     """
     # if auth given in request ensure the function pod will have these auth env vars set, otherwise the job won't
     # be able to communicate with the api
@@ -378,6 +386,78 @@ def apply_enrichment_and_validation_on_function(
     validate_function_volume_mounts(function)
     validate_function_env_vars(function)
     validate_function_secret_sources(function)
+    validate_function_labels(function, existing_function)
+
+
+_SPARK_LABEL_CONF_PREFIXES = (
+    "spark.kubernetes.driver.label.",
+    "spark.kubernetes.executor.label.",
+)
+
+
+def _get_function_label_sets(
+    function: typing.Union[dict, mlrun.runtimes.KubeResource, None],
+) -> list[dict]:
+    """
+    Collect the label dicts of a function, one per source:
+    the metadata labels, then the driver and executor labels from the spark configuration.
+    """
+    label_sets = [dict(get_in(function, "metadata.labels") or {})]
+    spark_conf = get_in(function, "spec.spark_conf") or {}
+    for prefix in _SPARK_LABEL_CONF_PREFIXES:
+        label_sets.append(
+            {
+                conf_key.removeprefix(prefix): value
+                for conf_key, value in spark_conf.items()
+                if conf_key.startswith(prefix)
+            }
+        )
+    return label_sets
+
+
+def validate_function_labels(
+    function: typing.Union[dict, mlrun.runtimes.KubeResource],
+    existing_function: dict | None = None,
+):
+    """
+    Validate the function labels against the labels listed in
+    mlconf.function.spec.forbidden_labels.
+    """
+    forbidden_labels = config.get_forbidden_function_labels()
+    if not forbidden_labels:
+        return
+
+    for labels, existing_labels in zip(
+        _get_function_label_sets(function),
+        _get_function_label_sets(existing_function),
+    ):
+        mlrun.k8s_utils.validate_labels_not_forbidden(
+            labels, forbidden_labels, existing_labels
+        )
+
+
+def get_stored_function(
+    db_session: Session,
+    name: str | None,
+    project: str | None,
+    tag: str | None = None,
+) -> dict | None:
+    """
+    Get the stored version of a function.
+
+    :return: the stored function, or None if it doesn't exist
+    """
+    if not name or not project:
+        return None
+    try:
+        return framework.utils.singletons.db.get_db().get_function(
+            db_session,
+            name=name,
+            project=project,
+            tag=tag or mlrun.common.constants.RESERVED_TAG_NAME_LATEST,
+        )
+    except mlrun.errors.MLRunNotFoundError:
+        return None
 
 
 def validate_function_volume_mounts(

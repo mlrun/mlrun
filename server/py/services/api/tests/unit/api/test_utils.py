@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import base64
+import copy
 import json
 import pathlib
 import unittest.mock
@@ -2045,6 +2046,174 @@ def test_resolve_client_default_kfp_image(
         project, workflow_spec, client_version
     )
     assert image == expected_image
+
+
+@pytest.mark.parametrize(
+    "function, existing_function, expected_exception",
+    [
+        ({"metadata": {"labels": {"team": "a"}}}, None, None),
+        # the same key with another value is allowed
+        ({"metadata": {"labels": {"blocked-key": "a"}}}, None, None),
+        (
+            {"metadata": {"labels": {"blocked-key": "blocked"}}},
+            None,
+            mlrun.errors.MLRunInvalidArgumentError,
+        ),
+        (
+            {"metadata": {"labels": {"blocked-key": "blocked"}}},
+            {"metadata": {"labels": {"blocked-key": "blocked"}}},
+            None,
+        ),
+        (
+            {"metadata": {"labels": {"blocked-key": "blocked"}}},
+            {"metadata": {"labels": {"blocked-key": "a"}}},
+            mlrun.errors.MLRunInvalidArgumentError,
+        ),
+        (
+            {
+                "spec": {
+                    "spark_conf": {
+                        "spark.kubernetes.driver.label.blocked-key": "blocked"
+                    }
+                }
+            },
+            None,
+            mlrun.errors.MLRunInvalidArgumentError,
+        ),
+        (
+            {
+                "spec": {
+                    "spark_conf": {
+                        "spark.kubernetes.executor.label.blocked.example.com/name": "blocked"
+                    }
+                }
+            },
+            None,
+            mlrun.errors.MLRunInvalidArgumentError,
+        ),
+        (
+            {"spec": {"spark_conf": {"spark.kubernetes.driver.label.team": "a"}}},
+            None,
+            None,
+        ),
+        (
+            {
+                "spec": {
+                    "spark_conf": {"spark.kubernetes.driver.label.blocked-key": "a"}
+                }
+            },
+            None,
+            None,
+        ),
+        # stored metadata labels are not the baseline for the spark label settings
+        (
+            {
+                "spec": {
+                    "spark_conf": {
+                        "spark.kubernetes.driver.label.blocked-key": "blocked"
+                    }
+                }
+            },
+            {"metadata": {"labels": {"blocked-key": "blocked"}}},
+            mlrun.errors.MLRunInvalidArgumentError,
+        ),
+    ],
+)
+def test_validate_function_labels(function, existing_function, expected_exception):
+    mlrun.mlconf.function.spec.forbidden_labels = (
+        "blocked-key=blocked,blocked.example.com/name=blocked"
+    )
+    if expected_exception:
+        with pytest.raises(expected_exception):
+            framework.api.utils.validate_function_labels(function, existing_function)
+    else:
+        framework.api.utils.validate_function_labels(function, existing_function)
+
+
+def test_validate_function_labels_without_configured_labels():
+    mlrun.mlconf.function.spec.forbidden_labels = ""
+    framework.api.utils.validate_function_labels(
+        {"metadata": {"labels": {"blocked-key": "blocked"}}}
+    )
+
+
+def test_generate_function_and_task_from_submit_run_body_forbidden_labels(
+    db: Session, client: TestClient
+):
+    auth_info = mlrun.common.schemas.AuthInfo()
+    services.api.tests.unit.api.utils.create_project(client, PROJECT)
+    _, _, _, original_function = _generate_original_function()
+    original_function["metadata"]["labels"] = {"blocked-key": "blocked"}
+    project = original_function["metadata"]["project"]
+    function_name = original_function["metadata"]["name"]
+    function_tag = original_function["metadata"]["tag"]
+
+    # stored with the label before the option was set
+    resp = client.post(
+        f"projects/{project}/functions/{function_name}",
+        json=original_function,
+        params={"tag": function_tag},
+    )
+    assert resp.status_code == HTTPStatus.OK.value
+
+    mlrun.mlconf.function.spec.forbidden_labels = (
+        "blocked-key=blocked,other-blocked-key=blocked"
+    )
+
+    def _submit_body(labels):
+        return {
+            "task": {
+                "spec": {"function": f"{project}/{function_name}:{function_tag}"},
+                "metadata": {"name": "task-name", "project": project},
+            },
+            "function": {"metadata": {"labels": labels}},
+        }
+
+    # the unchanged stored label is preserved
+    fn, _ = _generate_function_and_task_from_submit_run_body(
+        db, auth_info, _submit_body({"team": "a"})
+    )
+    assert fn.metadata.labels["blocked-key"] == "blocked"
+
+    # validation applies to a function passed inline
+    inline_function = copy.deepcopy(original_function)
+    inline_function["metadata"]["labels"] = {"other-blocked-key": "blocked"}
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+        _generate_function_and_task_from_submit_run_body(
+            db,
+            auth_info,
+            {
+                "task": {"metadata": {"name": "task-name", "project": project}},
+                "function": inline_function,
+            },
+        )
+
+
+def test_store_function_forbidden_labels(db: Session, client: TestClient):
+    services.api.tests.unit.api.utils.create_project(client, PROJECT)
+    _, _, _, function = _generate_original_function()
+    project = function["metadata"]["project"]
+    function_name = function["metadata"]["name"]
+    function["metadata"]["labels"] = {"blocked-key": "blocked"}
+
+    mlrun.mlconf.function.spec.forbidden_labels = "blocked-key=blocked"
+    resp = client.post(f"projects/{project}/functions/{function_name}", json=function)
+    assert resp.status_code == HTTPStatus.BAD_REQUEST.value
+
+    # the same key with another value is allowed
+    function["metadata"]["labels"] = {"blocked-key": "a"}
+    resp = client.post(f"projects/{project}/functions/{function_name}", json=function)
+    assert resp.status_code == HTTPStatus.OK.value
+
+    mlrun.mlconf.function.spec.forbidden_labels = ""
+    function["metadata"]["labels"] = {"blocked-key": "blocked"}
+    resp = client.post(f"projects/{project}/functions/{function_name}", json=function)
+    assert resp.status_code == HTTPStatus.OK.value
+
+    # storing again with the same label is accepted
+    mlrun.mlconf.function.spec.forbidden_labels = "blocked-key=blocked"
+    resp = client.post(f"projects/{project}/functions/{function_name}", json=function)
+    assert resp.status_code == HTTPStatus.OK.value
 
 
 @pytest.mark.parametrize(

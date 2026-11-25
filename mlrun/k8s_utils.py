@@ -221,6 +221,32 @@ def verify_label_key(key: str, allow_k8s_prefix: bool = False):
         )
 
 
+def validate_labels_not_forbidden(
+    labels: dict | None,
+    forbidden_labels: list[tuple[str, str]],
+    existing_labels: dict | None = None,
+):
+    """
+    Validate that labels don't add or change a label listed in the forbidden labels.
+    A forbidden label that already exists in existing_labels with the same value is allowed.
+
+    :param labels:           labels to validate
+    :param forbidden_labels: (key, value) pairs; a label is forbidden when both its key and its value match
+    :param existing_labels:  labels of the stored object, if any
+    """
+    if not labels or not forbidden_labels:
+        return
+    existing_labels = existing_labels or {}
+    for key, value in labels.items():
+        if (key, str(value)) not in forbidden_labels:
+            continue
+        if key in existing_labels and existing_labels[key] == value:
+            continue
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"Label '{key}={value}' is not allowed on a function"
+        )
+
+
 def verify_label_value(value, label_key):
     mlrun.utils.helpers.verify_field_regex(
         f"project.metadata.labels.'{label_key}'",

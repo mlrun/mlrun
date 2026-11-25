@@ -43,6 +43,12 @@ class Functions(
         versioned: bool = False,
         auth_info: mlrun.common.schemas.AuthInfo = None,
     ) -> str:
+        existing_function = framework.api.utils.get_stored_function(
+            db_session,
+            name=name,
+            project=project,
+            tag=tag or mlrun.utils.get_in(function, "metadata.tag"),
+        )
         if auth_info:
             function_obj = mlrun.new_function(
                 name=name, project=project, runtime=function, tag=tag
@@ -57,8 +63,11 @@ class Functions(
                 allow_empty_access_key=True,
                 perform_auto_mount=False,
                 ensure_security_context=False,
+                existing_function=existing_function,
             )
             function = function_obj.to_dict()
+        else:
+            framework.api.utils.validate_function_labels(function, existing_function)
 
         return framework.utils.singletons.db.get_db().store_function(
             session=db_session,

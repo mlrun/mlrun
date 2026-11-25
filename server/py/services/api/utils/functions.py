@@ -74,6 +74,12 @@ def build_function(
             perform_auto_mount=False,
             mask_sensitive_data=False,
             ensure_security_context=False,
+            existing_function=framework.api.utils.get_stored_function(
+                db_session,
+                name=fn.metadata.name,
+                project=fn.metadata.project,
+                tag=fn.metadata.tag,
+            ),
         )
 
         if is_nuclio_deploy:

@@ -93,6 +93,59 @@ def test_verify_label_key(label_key, exception):
         mlrun.k8s_utils.verify_label_key(label_key, allow_k8s_prefix=False)
 
 
+_FORBIDDEN_LABELS = [
+    ("blocked-key", "blocked"),
+    ("other-blocked-key", "blocked"),
+    ("blocked.example.com/name", "blocked"),
+]
+
+
+@pytest.mark.parametrize(
+    "labels, existing_labels, exception",
+    [
+        ({"team": "a", "blocked-keys": "blocked"}, None, does_not_raise()),
+        (None, None, does_not_raise()),
+        # the same key with another value is allowed
+        ({"blocked-key": "a"}, None, does_not_raise()),
+        (
+            {"blocked-key": "blocked"},
+            None,
+            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+        ),
+        (
+            {"blocked.example.com/name": "blocked"},
+            None,
+            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+        ),
+        # unchanged labels of the stored object are accepted
+        (
+            {"blocked-key": "blocked", "team": "b"},
+            {"blocked-key": "blocked"},
+            does_not_raise(),
+        ),
+        (
+            {"blocked-key": "blocked"},
+            {"blocked-key": "a"},
+            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+        ),
+        (
+            {"blocked-key": "blocked", "other-blocked-key": "blocked"},
+            {"blocked-key": "blocked"},
+            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+        ),
+    ],
+)
+def test_validate_labels_not_forbidden(labels, existing_labels, exception):
+    with exception:
+        mlrun.k8s_utils.validate_labels_not_forbidden(
+            labels, _FORBIDDEN_LABELS, existing_labels
+        )
+
+
+def test_validate_labels_not_forbidden_empty_list():
+    mlrun.k8s_utils.validate_labels_not_forbidden({"blocked-key": "blocked"}, [])
+
+
 @pytest.mark.parametrize(
     "node_selectors, expected",
     [

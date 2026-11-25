@@ -206,8 +206,11 @@ def _generate_function_and_task_from_submit_run_body(
             # assign values from it to the main function object
             function = enrich_function_from_dict(function, function_dict)
 
+    # labels are validated only for functions not loaded from the db
     apply_enrichment_and_validation_on_function(
-        function=function, auth_info=auth_info, existing_function=function_record
+        function=function,
+        auth_info=auth_info,
+        validate_labels=function_record is None,
     )
     apply_enrichment_and_validation_on_task(task, auth_info=auth_info)
 
@@ -344,6 +347,7 @@ def apply_enrichment_and_validation_on_function(
     mask_sensitive_data: bool = True,
     ensure_security_context: bool = True,
     allow_empty_access_key: bool = False,
+    validate_labels: bool = True,
     existing_function: dict | None = None,
 ):
     """
@@ -356,8 +360,9 @@ def apply_enrichment_and_validation_on_function(
     When adding a new util function, go through the other flows that utilize the function
     and make sure to specify the appropriate flag for each runtime.
 
+    :param validate_labels:   whether to validate the function labels against the forbidden labels
     :param existing_function: the stored version of the function, if any. Its labels are used to accept forbidden
-                              label keys that the function already has with the same value.
+                              labels that the function already has with the same value.
     """
     # if auth given in request ensure the function pod will have these auth env vars set, otherwise the job won't
     # be able to communicate with the api
@@ -386,7 +391,8 @@ def apply_enrichment_and_validation_on_function(
     validate_function_volume_mounts(function)
     validate_function_env_vars(function)
     validate_function_secret_sources(function)
-    validate_function_labels(function, existing_function)
+    if validate_labels:
+        validate_function_labels(function, existing_function)
 
 
 _SPARK_LABEL_CONF_PREFIXES = (

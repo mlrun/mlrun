@@ -29,7 +29,7 @@ class RequestSender(typing.Protocol):
     already applied the caller's own status-code-to-exception mapping. Each caller of
     :class:`ProjectsOrchestrator` supplies its own - see
     ``mlrun.db.orca.OrcaProjectsClient._send_request`` (SDK, own credentials) and
-    ``server/py/framework/utils/clients/iguazio/v4.py``'s ``Client._send_project_request``
+    ``server/py/framework/utils/clients/orca/v1.py``'s ``Client._send_project_request``
     (server, relays the acting user's identity).
     """
 

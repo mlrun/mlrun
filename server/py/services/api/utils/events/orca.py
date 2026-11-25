@@ -18,7 +18,7 @@ import mlrun.common.schemas
 import mlrun.errors
 from mlrun.utils import logger
 
-import framework.utils.clients.iguazio.v4 as iguazio_v4_client
+import framework.utils.clients.orca.v1 as orca_v1_client
 import services.api.utils.events.base as base_events
 
 DB_MIGRATION_REQUIRED = "MLRun.DB.Migration.Required"
@@ -138,7 +138,7 @@ class Client(base_events.BaseEventClient):
     def __init__(self, **_kwargs):
         self._entity_name = self._resolve_entity_name()
 
-    def emit(self, event: iguazio_v4_client.EventActivation | None):
+    def emit(self, event: orca_v1_client.EventActivation | None):
         if event is None:
             return
         try:
@@ -147,7 +147,7 @@ class Client(base_events.BaseEventClient):
                 config_name=event["configName"],
                 entity_name=event["entityName"],
             )
-            iguazio_v4_client.Client().publish_event(event)
+            orca_v1_client.Client().publish_event(event)
         except Exception as exc:
             logger.warning(
                 "Failed to emit event",
@@ -162,7 +162,7 @@ class Client(base_events.BaseEventClient):
         duration_seconds: float | None = None,
         scope: list[str] | None = None,
         versions: dict | None = None,
-    ) -> iguazio_v4_client.EventActivation:
+    ) -> orca_v1_client.EventActivation:
         try:
             config_name, description = DB_MIGRATION_EVENTS[action]
         except KeyError as exc:
@@ -197,7 +197,7 @@ class Client(base_events.BaseEventClient):
         error_category: str | None = None,
         error_code: int | str | None = None,
         dialect: str | None = None,
-    ) -> iguazio_v4_client.EventActivation:
+    ) -> orca_v1_client.EventActivation:
         try:
             config_name, description = DB_CONNECTION_EVENTS[action]
         except KeyError as exc:
@@ -228,7 +228,7 @@ class Client(base_events.BaseEventClient):
         error: BaseException | str | None = None,
         run_uid: str | None = None,
         project: str | None = None,
-    ) -> iguazio_v4_client.EventActivation:
+    ) -> orca_v1_client.EventActivation:
         try:
             config_name, description = LOG_COLLECTOR_EVENTS[action]
         except KeyError as exc:
@@ -257,7 +257,7 @@ class Client(base_events.BaseEventClient):
         project_name: str,
         actor: str | None = None,
         error: BaseException | str | None = None,
-    ) -> iguazio_v4_client.EventActivation:
+    ) -> orca_v1_client.EventActivation:
         try:
             config_name, description = PROJECT_LIFECYCLE_EVENTS[action]
         except KeyError as exc:
@@ -298,7 +298,7 @@ class Client(base_events.BaseEventClient):
         secret_keys: list[str] | None = None,
         action: mlrun.common.schemas.SecretEventActions = mlrun.common.schemas.SecretEventActions.created,
         initiator: str | None = None,
-    ) -> iguazio_v4_client.EventActivation:
+    ) -> orca_v1_client.EventActivation:
         """
         Generate a project secret audit event.
         :param project: project name
@@ -330,7 +330,7 @@ class Client(base_events.BaseEventClient):
         resource: str,
         action: str,
         username: str | None = None,
-    ) -> iguazio_v4_client.EventActivation:
+    ) -> orca_v1_client.EventActivation:
         """
         Generate a permission-denied audit event.
         :param resource: the OPA resource path the action was attempted on
@@ -362,12 +362,12 @@ class Client(base_events.BaseEventClient):
         class_: str | None = None,
         project_name: str = "",
         initiator: str | None = None,
-    ) -> iguazio_v4_client.EventActivation:
+    ) -> orca_v1_client.EventActivation:
         """
         Build the Orca event activation body. For catalog events, kind and class are left
         unset and severity is "unspecified", so Orca fills them in from the catalog entry.
         """
-        event: iguazio_v4_client.EventActivation = {
+        event: orca_v1_client.EventActivation = {
             "configName": config_name,
             "source": "",
             "kind": kind,

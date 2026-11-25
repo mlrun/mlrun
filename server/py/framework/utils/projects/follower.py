@@ -37,7 +37,7 @@ import framework.utils.auth.verifier
 import framework.utils.background_tasks
 import framework.utils.clients.chief
 import framework.utils.clients.iguazio.v3
-import framework.utils.clients.iguazio.v4
+import framework.utils.clients.orca.v1
 import framework.utils.helpers
 import framework.utils.periodic
 import framework.utils.project_formats
@@ -80,7 +80,7 @@ class Member(
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     "Iguazio API URL must be configured when the leader is Orca"
                 )
-            self._leader_client = framework.utils.clients.iguazio.v4.Client()
+            self._leader_client = framework.utils.clients.orca.v1.Client()
         else:
             raise NotImplementedError("Unsupported project leader")
         self._periodic_sync_interval_seconds = humanfriendly.parse_timespan(

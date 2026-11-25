@@ -36,7 +36,7 @@ import mlrun.utils.vault
 from mlrun.config import config as mlconf
 from mlrun.utils import logger
 
-import framework.utils.clients.iguazio.v4
+import framework.utils.clients.orca.v1
 import framework.utils.singletons.k8s
 import services.api
 import services.api.utils.events.events_factory as events_factory
@@ -495,7 +495,7 @@ class Secrets(
             )
         else:
             # TODO: move init iguazio_client (ML-11077)
-            iguazio_client = framework.utils.clients.iguazio.v4.Client()
+            iguazio_client = framework.utils.clients.orca.v1.Client()
 
             # We validate the offline tokens by sending it to Iguazio for verification.
             iguazio_client.refresh_access_tokens(secret_tokens)
@@ -583,7 +583,7 @@ class Secrets(
         target_user_id: str,
         target_username: str,
         token_name: str,
-        iguazio_client: "framework.utils.clients.iguazio.v4.Client",
+        iguazio_client: "framework.utils.clients.orca.v1.Client",
         request_headers: dict[str, str] | None,
         skip_revocation: bool = False,
     ) -> None:
@@ -637,11 +637,11 @@ class Secrets(
         """
         Returns whether the Oris deployment paired with this cluster already revokes the
         Keycloak session itself before calling this endpoint. Oris's version is resolved once
-        via its own info API (see framework.utils.clients.iguazio.v4.resolve_oris_version).
+        via its own info API (see framework.utils.clients.orca.v1.resolve_oris_version).
         A missing or unparseable version is treated as a recent Oris, since an older Oris
         predates this version check entirely and would otherwise never resolve to one.
         """
-        oris_version = framework.utils.clients.iguazio.v4.resolve_oris_version()
+        oris_version = framework.utils.clients.orca.v1.resolve_oris_version()
         if not oris_version:
             return True
         try:
@@ -692,7 +692,7 @@ class Secrets(
         )
 
         # TODO: move init iguazio_client (ML-11077)
-        iguazio_client = framework.utils.clients.iguazio.v4.Client()
+        iguazio_client = framework.utils.clients.orca.v1.Client()
 
         try:
             self._delete_single_token(
@@ -769,7 +769,7 @@ class Secrets(
             )
 
         # TODO: move init iguazio_client (ML-11077)
-        iguazio_client = framework.utils.clients.iguazio.v4.Client()
+        iguazio_client = framework.utils.clients.orca.v1.Client()
 
         # TODO: Replace per-token deletion with delete_collection_namespaced_secret
         # This would reduce N K8s API calls to a single collection delete. (IG4-1510)
@@ -886,7 +886,7 @@ class Secrets(
             return "*"
 
         # Different user - fetch user_id from Iguazio API
-        iguazio_client = framework.utils.clients.iguazio.v4.Client()
+        iguazio_client = framework.utils.clients.orca.v1.Client()
         return iguazio_client.get_user_id_by_username(username, auth_info)
 
     def _get_target_username(

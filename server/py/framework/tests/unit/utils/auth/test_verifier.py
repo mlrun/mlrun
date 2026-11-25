@@ -26,7 +26,7 @@ import mlrun
 import mlrun.common.schemas as schemas
 
 import framework.utils.auth.verifier
-import framework.utils.clients.iguazio.v4
+import framework.utils.clients.orca.v1
 
 
 @pytest.fixture
@@ -43,7 +43,7 @@ def mock_client() -> Generator[
     mock_instance = unittest.mock.AsyncMock()
     mock_instance.verify_request_session.return_value = auth_info
     with unittest.mock.patch(
-        "framework.utils.clients.iguazio.v4.AsyncClient",
+        "framework.utils.clients.orca.v1.AsyncClient",
         return_value=mock_instance,
     ):
         yield mock_instance, auth_info
@@ -98,7 +98,7 @@ async def test_returned_auth_info_is_isolated_from_cache(
     )
 
     with unittest.mock.patch(
-        "framework.utils.clients.iguazio.v4.AsyncClient",
+        "framework.utils.clients.orca.v1.AsyncClient",
         return_value=mock_instance,
     ):
         result = await verifier._authenticate_iguazio_v4(_make_request(token))
@@ -317,7 +317,7 @@ async def test_concurrent_requests_share_single_backend_call(
     mock_instance.verify_request_session.side_effect = slow_verify
 
     with unittest.mock.patch(
-        "framework.utils.clients.iguazio.v4.AsyncClient",
+        "framework.utils.clients.orca.v1.AsyncClient",
         return_value=mock_instance,
     ):
         # Start first request and wait until the backend call is in-flight

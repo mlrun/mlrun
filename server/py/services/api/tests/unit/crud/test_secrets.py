@@ -27,7 +27,7 @@ import mlrun.common.schemas
 import mlrun.errors
 import mlrun.runtimes.base
 
-import framework.utils.clients.iguazio.v4
+import framework.utils.clients.orca.v1
 import services.api.crud
 import services.api.tests.unit.conftest
 
@@ -701,7 +701,7 @@ def test_store_auth_secret(
 @pytest.fixture
 def mock_iguazio_client():
     with unittest.mock.patch(
-        "framework.utils.clients.iguazio.v4.Client"
+        "framework.utils.clients.orca.v1.Client"
     ) as mock_client_cls:
         mock_client_instance = unittest.mock.MagicMock()
         mock_client_instance.refresh_access_tokens.return_value = None
@@ -1045,7 +1045,7 @@ def test_list_secret_tokens_returns_tokens():
 
 def test_delete_secret_token_success(mock_iguazio_client, monkeypatch):
     monkeypatch.setattr(
-        framework.utils.clients.iguazio.v4, "resolve_oris_version", lambda: "1.0.0"
+        framework.utils.clients.orca.v1, "resolve_oris_version", lambda: "1.0.0"
     )
     request_headers = {
         mlrun.common.schemas.HeaderNames.authorization: f"{mlrun.common.schemas.AuthorizationHeaderPrefixes.bearer}123",
@@ -1106,7 +1106,7 @@ def test_delete_secret_token_recent_oris_skips_revocation(
     resolved once via its own info API, never trusted from the (spoofable) caller.
     """
     monkeypatch.setattr(
-        framework.utils.clients.iguazio.v4,
+        framework.utils.clients.orca.v1,
         "resolve_oris_version",
         lambda: resolved_version,
     )
@@ -1151,7 +1151,7 @@ def test_delete_secret_token_oris_below_threshold_still_revokes(
     must still go through the normal revoke-then-delete flow.
     """
     monkeypatch.setattr(
-        framework.utils.clients.iguazio.v4,
+        framework.utils.clients.orca.v1,
         "resolve_oris_version",
         lambda: resolved_version,
     )
@@ -1183,7 +1183,7 @@ def test_delete_secret_token_oris_below_threshold_still_revokes(
 
 def test_delete_secret_token_not_found(mock_iguazio_client, monkeypatch):
     monkeypatch.setattr(
-        framework.utils.clients.iguazio.v4, "resolve_oris_version", lambda: "1.0.0"
+        framework.utils.clients.orca.v1, "resolve_oris_version", lambda: "1.0.0"
     )
     auth_info = mlrun.common.schemas.AuthInfo(
         username="dummy-user", user_id="user-id-123"
@@ -1207,7 +1207,7 @@ def test_delete_secret_token_not_found(mock_iguazio_client, monkeypatch):
 
 def test_delete_secret_token_iguazio_failure(mock_iguazio_client, monkeypatch):
     monkeypatch.setattr(
-        framework.utils.clients.iguazio.v4, "resolve_oris_version", lambda: "1.0.0"
+        framework.utils.clients.orca.v1, "resolve_oris_version", lambda: "1.0.0"
     )
     auth_info = mlrun.common.schemas.AuthInfo(
         username="dummy-user", user_id="user-id-123"
@@ -1229,7 +1229,7 @@ def test_delete_secret_token_iguazio_failure(mock_iguazio_client, monkeypatch):
 
 def test_delete_secret_token_k8s_delete_failure(mock_iguazio_client, monkeypatch):
     monkeypatch.setattr(
-        framework.utils.clients.iguazio.v4, "resolve_oris_version", lambda: "1.0.0"
+        framework.utils.clients.orca.v1, "resolve_oris_version", lambda: "1.0.0"
     )
     auth_info = mlrun.common.schemas.AuthInfo(
         username="dummy-user", user_id="user-id-123"

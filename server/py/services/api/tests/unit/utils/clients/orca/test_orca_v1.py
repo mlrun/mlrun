@@ -35,7 +35,7 @@ from tests.common_fixtures import aioresponses_mock
 
 import framework.utils.clients.helpers as clients_helpers
 import framework.utils.clients.iguazio.v3
-import framework.utils.clients.iguazio.v4
+import framework.utils.clients.orca.v1
 from framework.utils.asyncio import maybe_coroutine
 
 TEST_PROJECT_NAME = "test-project"
@@ -1242,7 +1242,7 @@ def test_trigger_followers_sync_action_failed_raises_without_retrying(
 )
 def test_parse_auth_response_data(response_body, expected_result, expectation):
     with expectation:
-        result = framework.utils.clients.iguazio.v4.Client._parse_auth_response_data(
+        result = framework.utils.clients.orca.v1.Client._parse_auth_response_data(
             response_body
         )
         assert result == expected_result
@@ -1253,7 +1253,7 @@ def test_orca_requests_transport(ssl_verify):
     api_url = "https://orca.example.com"
     mlrun.mlconf.orca_api_url = api_url
     mlrun.mlconf.orca_api_ssl_verify = ssl_verify
-    client = framework.utils.clients.iguazio.v4.Client()
+    client = framework.utils.clients.orca.v1.Client()
 
     # Retries cover connection attempts only, so a request that reached Orca is never re-sent
     retry = client._orca_session.get_adapter(api_url).max_retries
@@ -1261,7 +1261,7 @@ def test_orca_requests_transport(ssl_verify):
 
     with requests_mock_package.Mocker(session=client._orca_session) as mocker:
         mocker.post(f"{api_url}/api/v1/authentication/refresh-access-token", json={})
-        client.resolve_token_from_igz_yml(
+        client.resolve_token_from_token_file(
             "secretTokens: [{name: default, token: T-1}]", user_id="jane-id"
         )
 
@@ -1272,7 +1272,7 @@ def test_orca_requests_transport(ssl_verify):
 def test_orca_requests_do_not_follow_redirects():
     api_url = "https://orca.example.com"
     mlrun.mlconf.orca_api_url = api_url
-    client = framework.utils.clients.iguazio.v4.Client()
+    client = framework.utils.clients.orca.v1.Client()
 
     with requests_mock_package.Mocker(session=client._orca_session) as mocker:
         mocker.post(
@@ -1282,7 +1282,7 @@ def test_orca_requests_do_not_follow_redirects():
         )
         login = mocker.get(f"{api_url}/login", json={})
         with pytest.raises(mlrun.errors.MLRunNotFoundError):
-            client.resolve_token_from_igz_yml(
+            client.resolve_token_from_token_file(
                 "secretTokens: [{name: default, token: T-1}]", user_id="jane-id"
             )
 
@@ -1292,7 +1292,7 @@ def test_orca_requests_do_not_follow_redirects():
 def test_orca_request_rejects_unknown_identity():
     api_url = "https://orca.example.com"
     mlrun.mlconf.orca_api_url = api_url
-    client = framework.utils.clients.iguazio.v4.Client()
+    client = framework.utils.clients.orca.v1.Client()
 
     with requests_mock_package.Mocker(session=client._orca_session) as mocker:
         with pytest.raises(TypeError, match="Unsupported Orca identity: dict"):
@@ -1316,8 +1316,8 @@ def test_ig4_clients_read_the_orca_keys_and_ig3_clients_the_iguazio_ones():
     mlrun.mlconf.httpdb.authentication.orca.session_verification_endpoint = "orca"
 
     for ig4_client in (
-        framework.utils.clients.iguazio.v4.Client(),
-        framework.utils.clients.iguazio.v4.AsyncClient(),
+        framework.utils.clients.orca.v1.Client(),
+        framework.utils.clients.orca.v1.AsyncClient(),
     ):
         assert ig4_client._api_url == "http://orca-api-url:8080"
         assert ig4_client._api_ssl_verify is False

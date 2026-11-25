@@ -1836,18 +1836,18 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
 
         return secret_tokens
 
-    def get_user_secret_tokens_as_igz_yml_data(
+    def get_user_secret_tokens_as_token_file_data(
         self,
         user_id: str,
         token_name: str | None = None,
     ) -> list[dict[str, str]]:
         """
-        Fetch user token(s) from k8s secrets in igz.yml format.
+        Fetch user token(s) from k8s secrets in token file format.
 
         :param user_id: The user ID.
         :param token_name: If provided, fetch only this token (strict mode).
                            If None, fetch all user tokens.
-        :return: List of token dicts with 'name' and 'token' keys, suitable for igz.yml.
+        :return: List of token dicts with 'name' and 'token' keys, suitable for a token file.
         :raises MLRunBadRequestError:
             - If a specific token was requested but not found.
             - If no tokens exist for the user.

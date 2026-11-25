@@ -26,7 +26,7 @@ from mlrun.utils import logger
 
 import framework.utils.auth.providers.opa
 import framework.utils.auth.verifier
-import framework.utils.clients.iguazio.v4
+import framework.utils.clients.orca.v1
 import framework.utils.projects.leader
 import framework.utils.projects.remotes.follower
 import framework.utils.singletons.project_member
@@ -592,7 +592,7 @@ def test_initialize_igz_follower(
 ):
     monkeypatch.setattr(mlrun.mlconf, "orca_api_url", "http://iguazio-api-url:8080")
     follower = projects_leader._initialize_follower("igz")
-    assert isinstance(follower, framework.utils.clients.iguazio.v4.FollowerClient)
+    assert isinstance(follower, framework.utils.clients.orca.v1.FollowerClient)
 
 
 def test_delete_project_runs_igz_follower_after_nuclio(

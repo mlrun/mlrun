@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Orca projects wire protocol, shared between MLRun's server-side Orca leader-proxy
-(server/py/framework/utils/clients/iguazio/v4.py) and MLRun's SDK-direct-to-Orca project client
+(server/py/framework/utils/clients/orca/v1.py) and MLRun's SDK-direct-to-Orca project client
 (mlrun/db/orca.py). Kept here rather than in either caller so neither implementation can drift
 from Orca's actual contract.
 """

@@ -2254,11 +2254,11 @@ def test_resolve_auth_token_name_success(
     monkeypatch, mock_k8s_helper, provided_token_name, token_data, expected_token
 ):
     """Test successful token resolution (both provided and auto-discovery)."""
-    mock_k8s_helper.get_user_secret_tokens_as_igz_yml_data.return_value = token_data
+    mock_k8s_helper.get_user_secret_tokens_as_token_file_data.return_value = token_data
 
     mock_resolve = unittest.mock.Mock(return_value=expected_token)
     monkeypatch.setattr(
-        "framework.utils.clients.iguazio.v4.Client.resolve_token_from_igz_yml",
+        "framework.utils.clients.orca.v1.Client.resolve_token_from_token_file",
         mock_resolve,
     )
 
@@ -2269,11 +2269,11 @@ def test_resolve_auth_token_name_success(
     assert result == expected_token
 
     # Verify k8s helper was called correctly
-    mock_k8s_helper.get_user_secret_tokens_as_igz_yml_data.assert_called_once_with(
+    mock_k8s_helper.get_user_secret_tokens_as_token_file_data.assert_called_once_with(
         "test-user", provided_token_name
     )
 
-    # Verify resolve_token_from_igz_yml was called with correct arguments
+    # Verify resolve_token_from_token_file was called with correct arguments
     mock_resolve.assert_called_once()
     call_args = mock_resolve.call_args
     assert call_args[0][1] == "test-user"  # user_id
@@ -2282,7 +2282,7 @@ def test_resolve_auth_token_name_success(
 
 def test_resolve_auth_token_name_k8s_error_token_not_found(mock_k8s_helper):
     """Test that k8s 400 error propagates when a specific token is not found."""
-    mock_k8s_helper.get_user_secret_tokens_as_igz_yml_data.side_effect = (
+    mock_k8s_helper.get_user_secret_tokens_as_token_file_data.side_effect = (
         mlrun.errors.MLRunBadRequestError("Token not found")
     )
 
@@ -2294,7 +2294,7 @@ def test_resolve_auth_token_name_k8s_error_token_not_found(mock_k8s_helper):
 
 def test_resolve_auth_token_name_k8s_error_no_tokens(mock_k8s_helper):
     """Test that k8s 400 error propagates when no token name is provided and no tokens exist."""
-    mock_k8s_helper.get_user_secret_tokens_as_igz_yml_data.side_effect = (
+    mock_k8s_helper.get_user_secret_tokens_as_token_file_data.side_effect = (
         mlrun.errors.MLRunBadRequestError("No tokens found for user 'test-user'")
     )
 
@@ -2332,10 +2332,10 @@ def test_resolve_auth_token_name_sdk_error(
     expected_match,
 ):
     """Test that SDK validation errors propagate correctly."""
-    mock_k8s_helper.get_user_secret_tokens_as_igz_yml_data.return_value = token_data
+    mock_k8s_helper.get_user_secret_tokens_as_token_file_data.return_value = token_data
 
     monkeypatch.setattr(
-        "framework.utils.clients.iguazio.v4.Client.resolve_token_from_igz_yml",
+        "framework.utils.clients.orca.v1.Client.resolve_token_from_token_file",
         unittest.mock.Mock(side_effect=mlrun.errors.MLRunNotFoundError(error_message)),
     )
 

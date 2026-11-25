@@ -32,8 +32,8 @@ from mlrun.errors import err_to_str
 from mlrun.utils import logger
 
 import framework.db.session
-import framework.utils.clients.iguazio.v4
 import framework.utils.clients.nuclio
+import framework.utils.clients.orca.v1
 import framework.utils.periodic
 import framework.utils.projects.member
 import framework.utils.projects.member as project_member
@@ -452,7 +452,7 @@ class Member(
             "mlrun": services.api.crud.Projects,
             "nuclio": framework.utils.clients.nuclio.Client,
             # leader follower logic doesn't support async, so we use the v4 sync client
-            "igz": framework.utils.clients.iguazio.v4.FollowerClient,
+            "igz": framework.utils.clients.orca.v1.FollowerClient,
             # for tests
             "nop-self-leader": framework.utils.projects.remotes.nop_follower.Member,
             "nop": framework.utils.projects.remotes.nop_follower.Member,

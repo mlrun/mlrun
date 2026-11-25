@@ -36,7 +36,7 @@ import mlrun.common.secrets
 import mlrun.errors
 from mlrun.utils.logger import context_id_var
 
-import framework.utils.clients.iguazio.v4
+import framework.utils.clients.orca.v1
 import framework.utils.clients.service_account_token
 import framework.utils.singletons.k8s
 import services.api.crud
@@ -158,7 +158,7 @@ def context_id():
 def user_tokens(monkeypatch) -> list[tuple[str, str]]:
     """
     The user's stored tokens as (name, value) pairs, in listing order. Replaces the K8s reads
-    only, so the igz.yml document is still built by the real helper.
+    only, so the token file document is still built by the real helper.
     """
     tokens: list[tuple[str, str]] = []
 
@@ -516,7 +516,7 @@ def test_revoke_without_request_headers_sends_no_identity(orca):
     )
 
     with pytest.raises(mlrun.errors.MLRunUnauthorizedError):
-        framework.utils.clients.iguazio.v4.Client().revoke_offline_token(
+        framework.utils.clients.orca.v1.Client().revoke_offline_token(
             OFFLINE_TOKEN, request_headers=None
         )
 
@@ -1037,7 +1037,7 @@ def test_resolve_token_from_token_file_without_usable_token(
     orca, token_file_content, token_name, expected_message
 ):
     with pytest.raises(mlrun.errors.MLRunNotFoundError, match=expected_message):
-        framework.utils.clients.iguazio.v4.Client().resolve_token_from_igz_yml(
+        framework.utils.clients.orca.v1.Client().resolve_token_from_token_file(
             token_file_content, "jane-id", token_name
         )
 
@@ -1057,7 +1057,7 @@ async def test_concurrent_calls_carry_only_their_own_identity(
     orca.expect_request("/api/v1/profile/users/jane", method="GET").respond_with_json(
         _user_response(user_id="jane-id", username="jane")
     )
-    client = framework.utils.clients.iguazio.v4.AsyncClient()
+    client = framework.utils.clients.orca.v1.AsyncClient()
     iterations = 5
 
     for _ in range(iterations):
@@ -1218,7 +1218,7 @@ def test_store_project_with_existing_policies_succeeds(orca):
 
 
 def test_patch_project_without_owner_sends_no_request(orca):
-    framework.utils.clients.iguazio.v4.FollowerClient().patch_project(
+    framework.utils.clients.orca.v1.FollowerClient().patch_project(
         None,
         PROJECT,
         {"metadata": {"name": PROJECT}, "spec": {}},
@@ -1240,7 +1240,7 @@ def test_delete_project_policies_uses_service_account(orca, deletion_strategy):
         PROJECT_POLICIES_DELETE_PATH, method="DELETE"
     ).respond_with_json({})
 
-    framework.utils.clients.iguazio.v4.FollowerClient().delete_project(
+    framework.utils.clients.orca.v1.FollowerClient().delete_project(
         None, PROJECT, deletion_strategy=deletion_strategy, auth_info=_user_auth_info()
     )
 
@@ -1250,7 +1250,7 @@ def test_delete_project_policies_uses_service_account(orca, deletion_strategy):
 
 
 def test_delete_project_check_strategy_sends_no_request(orca):
-    framework.utils.clients.iguazio.v4.FollowerClient().delete_project(
+    framework.utils.clients.orca.v1.FollowerClient().delete_project(
         None,
         PROJECT,
         deletion_strategy=mlrun.common.schemas.DeletionStrategy.check,
@@ -1312,7 +1312,7 @@ def test_project_policies_unreachable(unreachable_orca, operation):
 def _call_project_policies(
     operation: str, auth_info: mlrun.common.schemas.AuthInfo | None = None
 ) -> None:
-    follower = framework.utils.clients.iguazio.v4.FollowerClient()
+    follower = framework.utils.clients.orca.v1.FollowerClient()
     auth_info = auth_info or mlrun.common.schemas.AuthInfo()
     project = mlrun.common.schemas.Project(
         metadata=mlrun.common.schemas.ProjectMetadata(name=PROJECT),

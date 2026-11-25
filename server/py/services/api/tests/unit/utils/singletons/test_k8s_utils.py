@@ -1239,7 +1239,7 @@ def test_get_user_token_secret_value_resolves_by_user_id_ignoring_token_name(
     assert secret_name in k8s_helper.v1api.read_namespaced_secret.call_args.args
 
 
-def test_get_user_secret_tokens_as_igz_yml_data_resolves_current_token_after_rotation(
+def test_get_user_secret_tokens_as_token_file_data_resolves_current_token_after_rotation(
     k8s_helper,
 ):
     # The job/schedule mount path requests the pinned token name but receives the
@@ -1264,7 +1264,7 @@ def test_get_user_secret_tokens_as_igz_yml_data_resolves_current_token_after_rot
         return_value=existing_secret
     )
 
-    result = k8s_helper.get_user_secret_tokens_as_igz_yml_data(
+    result = k8s_helper.get_user_secret_tokens_as_token_file_data(
         user_id=user_id, token_name=pinned_token_name
     )
 
@@ -1448,7 +1448,7 @@ def test_delete_user_token_secret_unexpected_error(k8s_helper):
     )
 
 
-def test_get_user_secret_tokens_as_igz_yml_data_single_token(k8s_helper):
+def test_get_user_secret_tokens_as_token_file_data_single_token(k8s_helper):
     """Test fetching a single token by name (strict mode)."""
     user_id = "test-user-id"
     token_name = "my-token"
@@ -1467,14 +1467,14 @@ def test_get_user_secret_tokens_as_igz_yml_data_single_token(k8s_helper):
         return_value=existing_secret
     )
 
-    result = k8s_helper.get_user_secret_tokens_as_igz_yml_data(
+    result = k8s_helper.get_user_secret_tokens_as_token_file_data(
         user_id=user_id, token_name=token_name
     )
 
     assert result == [{"name": token_name, "token": token_value}]
 
 
-def test_get_user_secret_tokens_as_igz_yml_data_single_token_not_found(k8s_helper):
+def test_get_user_secret_tokens_as_token_file_data_single_token_not_found(k8s_helper):
     """Test that MLRunBadRequestError is raised when requested token doesn't exist."""
     user_id = "test-user-id"
     token_name = "missing-token"
@@ -1484,7 +1484,7 @@ def test_get_user_secret_tokens_as_igz_yml_data_single_token_not_found(k8s_helpe
     )
 
     with pytest.raises(mlrun.errors.MLRunBadRequestError):
-        k8s_helper.get_user_secret_tokens_as_igz_yml_data(
+        k8s_helper.get_user_secret_tokens_as_token_file_data(
             user_id=user_id, token_name=token_name
         )
 
@@ -1585,7 +1585,7 @@ def test_list_user_token_secret_values_rejects_empty_user_id(k8s_helper, user_id
         k8s_helper.list_user_token_secret_values(user_id=user_id)
 
 
-def test_get_user_secret_tokens_as_igz_yml_data_no_tokens(k8s_helper):
+def test_get_user_secret_tokens_as_token_file_data_no_tokens(k8s_helper):
     """Test that MLRunBadRequestError is raised when user has no tokens."""
     user_id = "test-user-id"
 
@@ -1595,12 +1595,12 @@ def test_get_user_secret_tokens_as_igz_yml_data_no_tokens(k8s_helper):
         mlrun.errors.MLRunBadRequestError,
         match="No valid tokens found for user",
     ):
-        k8s_helper.get_user_secret_tokens_as_igz_yml_data(
+        k8s_helper.get_user_secret_tokens_as_token_file_data(
             user_id=user_id, token_name=None
         )
 
 
-def test_get_user_secret_tokens_as_igz_yml_data_all_fail(k8s_helper):
+def test_get_user_secret_tokens_as_token_file_data_all_fail(k8s_helper):
     """Test MLRunBadRequestError when all token extractions fail."""
     user_id = "test-user-id"
     token_name = "bad-token"
@@ -1623,7 +1623,7 @@ def test_get_user_secret_tokens_as_igz_yml_data_all_fail(k8s_helper):
         mlrun.errors.MLRunBadRequestError,
         match="No valid tokens found for user",
     ):
-        k8s_helper.get_user_secret_tokens_as_igz_yml_data(
+        k8s_helper.get_user_secret_tokens_as_token_file_data(
             user_id=user_id, token_name=None
         )
 

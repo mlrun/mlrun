@@ -128,6 +128,7 @@ def post_report_session_finish_to_slack(
         test_duration = reporter._session_start.elapsed().seconds
     mlrun_version = os.getenv("MLRUN_VERSION", "")
     mlrun_current_branch = os.getenv("MLRUN_SYSTEM_TESTS_BRANCH", "")
+    mlrun_tested_commit = os.getenv("MLRUN_SYSTEM_TESTS_COMMIT", "")
     mlrun_system_tests_component = os.getenv("MLRUN_SYSTEM_TESTS_COMPONENT", "")
     run_url = os.getenv(
         "MLRUN_SYSTEM_TESTS_GITHUB_RUN_URL",
@@ -153,7 +154,9 @@ def post_report_session_finish_to_slack(
     # get mlrun version from envvar or fallback to git commit
     if mlrun_version:
         test_session_info += f"\nVersion: {mlrun_version}"
-    else:
+    if mlrun_tested_commit:
+        test_session_info += f"\nCommit: {mlrun_tested_commit}"
+    if not mlrun_version and not mlrun_tested_commit:
         try:
             git_commit = os.popen("git rev-parse --short HEAD").read().strip()
             test_session_info += f"\nVersion: {git_commit}"

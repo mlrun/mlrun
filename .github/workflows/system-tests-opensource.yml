@@ -639,7 +639,8 @@ jobs:
               --set kube-prometheus-stack.enabled=false \
               --set mlrun.db.podSecurityContext.appArmorProfile.type=Unconfined \
               --set timescaledb.securityContext.appArmorProfile.type=Unconfined \
-              --set nuclio.dashboard.securityContext.appArmorProfile.type=Unconfined
+              --set nuclio.dashboard.securityContext.appArmorProfile.type=Unconfined \
+              --set pipelines.db.securityContext.appArmorProfile.type=Unconfined
           
             # Wait for all pods to be ready, on K3S the helm wait does not work because services will never get an IP
             echo "Waiting for all pods in namespace ${NAMESPACE} to be ready..."

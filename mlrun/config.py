@@ -313,6 +313,8 @@ default_config = {
                 "default": None,
                 "forbidden_service_accounts": "",
             },
+            # comma-separated "key=value" labels rejected by function validation
+            "forbidden_labels": "",
             "state_thresholds": {
                 "default": {
                     "pending_scheduled": "1h",
@@ -1713,6 +1715,17 @@ class Config:
             ]
 
         return []
+
+    def get_forbidden_function_labels(self) -> list[tuple[str, str]]:
+        forbidden_labels_str = self.function.spec.forbidden_labels
+        if not forbidden_labels_str:
+            return []
+        forbidden_labels = []
+        for entry in forbidden_labels_str.split(","):
+            key, separator, value = entry.strip().partition("=")
+            if separator and key:
+                forbidden_labels.append((key, value))
+        return forbidden_labels
 
 
 # Global configuration

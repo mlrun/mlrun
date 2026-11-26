@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import functools
 import traceback
 from http import HTTPStatus
 
@@ -695,6 +696,14 @@ def _start_function(
         framework.api.utils.apply_enrichment_and_validation_on_function(
             function,
             auth_info,
+            get_existing_function=functools.partial(
+                services.api.crud.Functions().get_function,
+                db_session,
+                name=function.metadata.name,
+                project=function.metadata.project,
+                tag=function.metadata.tag
+                or mlrun.common.constants.RESERVED_TAG_NAME_LATEST,
+            ),
         )
 
         services.api.crud.Functions().start_function(

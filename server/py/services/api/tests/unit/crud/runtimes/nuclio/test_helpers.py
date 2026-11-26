@@ -20,6 +20,7 @@ import pytest
 
 import mlrun
 import mlrun.common.constants as mlrun_constants
+import mlrun.errors
 
 import services.api.crud.runtimes.nuclio.function
 import services.api.crud.runtimes.nuclio.helpers
@@ -108,6 +109,44 @@ def test_compiled_function_config_merges_default_pod_labels(monkeypatch):
     assert labels["env"] == "prod"
     # mlrun/class system label always applied
     assert labels[mlrun_constants.MLRunInternalLabels.mlrun_class] == "remote"
+
+
+@pytest.mark.parametrize(
+    "function_labels, config_labels, raises",
+    [
+        ({"team": "ml"}, {"metadata.labels.owner": "a"}, False),
+        ({"blocked-key": "blocked"}, {}, False),
+        # the same key with another value is allowed
+        ({}, {"metadata.labels.blocked-key": "a"}, False),
+        ({}, {"metadata.labels.blocked-key": "blocked"}, True),
+        (
+            {"blocked-key": "blocked"},
+            {"metadata.labels.blocked-key": "blocked"},
+            False,
+        ),
+        ({"blocked-key": "a"}, {"metadata.labels.blocked-key": "blocked"}, True),
+        ({}, {"metadata.labels": {"blocked.example.com/name": "blocked"}}, True),
+    ],
+)
+def test_compiled_function_config_forbidden_labels(
+    monkeypatch, function_labels, config_labels, raises
+):
+    monkeypatch.setattr(
+        mlrun.mlconf.function.spec,
+        "forbidden_labels",
+        "blocked-key=blocked,blocked.example.com/name=blocked",
+    )
+    name = f"{assets_path}/training.py"
+    fn = mlrun.code_to_function(
+        "nuclio", filename=name, kind="nuclio", handler="my_hand"
+    )
+    fn.metadata.labels = function_labels
+    fn.spec.config.update(config_labels)
+    if raises:
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+            services.api.crud.runtimes.nuclio.function._compile_function_config(fn)
+    else:
+        services.api.crud.runtimes.nuclio.function._compile_function_config(fn)
 
 
 def test_compiled_function_config_sidecar_image_enrichment():

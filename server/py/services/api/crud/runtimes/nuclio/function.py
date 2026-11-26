@@ -29,6 +29,7 @@ import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 import mlrun.datastore
 import mlrun.errors
+import mlrun.k8s_utils
 import mlrun.runtimes.nuclio.function
 import mlrun.runtimes.pod
 import mlrun.utils
@@ -355,8 +356,21 @@ def _compile_function_config(
     _resolve_and_set_build_requirements_and_commands(function, config)
 
     function_name = _set_function_name(function, config, project, tag)
+    _validate_compiled_function_labels(function, config)
 
     return function_name, project, config
+
+
+def _validate_compiled_function_labels(function, config):
+    """
+    Check the labels of the compiled config against the forbidden labels. A label is accepted if the function has
+    it with the same value.
+    """
+    mlrun.k8s_utils.validate_labels_not_forbidden(
+        mlrun.utils.get_in(config, "metadata.labels"),
+        mlrun.mlconf.get_forbidden_function_labels(),
+        function.metadata.labels,
+    )
 
 
 def _set_function_metadata(function, config):

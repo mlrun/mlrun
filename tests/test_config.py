@@ -794,6 +794,22 @@ def test_default_forbidden_service_account_config(
     )
 
 
+@pytest.mark.parametrize(
+    "labels_str, expected_labels",
+    [
+        ("", []),
+        ("blocked-key=blocked", [("blocked-key", "blocked")]),
+        (
+            "blocked-key=blocked, blocked.example.com/name=a=b ,no-value,=x,",
+            [("blocked-key", "blocked"), ("blocked.example.com/name", "a=b")],
+        ),
+    ],
+)
+def test_get_forbidden_function_labels(labels_str, expected_labels):
+    mlrun.mlconf.function.spec.forbidden_labels = labels_str
+    assert mlrun.mlconf.get_forbidden_function_labels() == expected_labels
+
+
 def test_config_keys_and_values():
     """Test that Config.keys() and Config.values() return the correct data.
 

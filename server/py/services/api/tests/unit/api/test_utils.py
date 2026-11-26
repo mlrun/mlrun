@@ -2125,9 +2125,51 @@ def test_validate_function_labels(function, existing_function, expected_exceptio
     )
     if expected_exception:
         with pytest.raises(expected_exception):
-            framework.api.utils.validate_function_labels(function, existing_function)
+            framework.api.utils.validate_function_labels(
+                function, lambda: existing_function
+            )
     else:
-        framework.api.utils.validate_function_labels(function, existing_function)
+        framework.api.utils.validate_function_labels(
+            function, lambda: existing_function
+        )
+
+
+@pytest.mark.parametrize(
+    "labels, expect_lookup",
+    [
+        ({"team": "a"}, False),
+        ({"blocked-key": "a"}, False),
+        ({"blocked-key": "blocked"}, True),
+    ],
+)
+def test_validate_function_labels_looks_up_stored_function_only_when_needed(
+    labels, expect_lookup
+):
+    mlrun.mlconf.function.spec.forbidden_labels = "blocked-key=blocked"
+    get_existing_function = MagicMock(return_value=None)
+    function = {"metadata": {"labels": labels}}
+    if expect_lookup:
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+            framework.api.utils.validate_function_labels(
+                function, get_existing_function
+            )
+        get_existing_function.assert_called_once()
+    else:
+        framework.api.utils.validate_function_labels(function, get_existing_function)
+        get_existing_function.assert_not_called()
+
+
+def test_validate_function_labels_stored_function_not_found():
+    mlrun.mlconf.function.spec.forbidden_labels = "blocked-key=blocked"
+    get_existing_function = MagicMock(
+        side_effect=mlrun.errors.MLRunNotFoundError("not found")
+    )
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+        framework.api.utils.validate_function_labels(
+            {"metadata": {"labels": {"blocked-key": "blocked"}}},
+            get_existing_function,
+        )
+    get_existing_function.assert_called_once()
 
 
 def test_validate_function_labels_without_configured_labels():

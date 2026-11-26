@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import asyncio
+import functools
 import http
 import traceback
 from http import HTTPStatus
@@ -23,6 +24,7 @@ import sqlalchemy.orm
 from fastapi import APIRouter, Depends, Header, Request, Response
 from fastapi.concurrency import run_in_threadpool
 
+import mlrun.common.constants
 import mlrun.common.schemas
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.runtimes.nuclio.function
@@ -483,11 +485,12 @@ def _deploy_function(
             perform_auto_mount=False,
             mask_sensitive_data=False,
             ensure_security_context=False,
-            existing_function=framework.api.utils.get_stored_function(
+            get_existing_function=functools.partial(
+                services.api.crud.Functions().get_function,
                 db_session,
                 name=fn.metadata.name,
                 project=fn.metadata.project,
-                tag=fn.metadata.tag,
+                tag=fn.metadata.tag or mlrun.common.constants.RESERVED_TAG_NAME_LATEST,
             ),
         )
 

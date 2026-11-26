@@ -65,6 +65,11 @@ import services.api.crud.runtimes.nuclio
 import services.api.utils.singletons.logs_dir
 import services.api.utils.singletons.scheduler
 
+_SPARK_LABEL_CONF_PREFIXES = (
+    "spark.kubernetes.driver.label.",
+    "spark.kubernetes.executor.label.",
+)
+
 
 def log_and_raise(status=HTTPStatus.BAD_REQUEST.value, **kw):
     logger.error(str(kw))
@@ -348,7 +353,7 @@ def apply_enrichment_and_validation_on_function(
     ensure_security_context: bool = True,
     allow_empty_access_key: bool = False,
     validate_labels: bool = True,
-    existing_function: dict | None = None,
+    get_existing_function: typing.Callable[[], dict | None] | None = None,
 ):
     """
     This function should be used only on server side.
@@ -361,8 +366,8 @@ def apply_enrichment_and_validation_on_function(
     and make sure to specify the appropriate flag for each runtime.
 
     :param validate_labels:   whether to validate the function labels against the forbidden labels
-    :param existing_function: the stored version of the function, if any. Its labels are used to accept forbidden
-                              labels that the function already has with the same value.
+    :param get_existing_function: returns the stored version of the function, if any. It is called only when a function
+                                  label matches the forbidden labels.
     """
     # if auth given in request ensure the function pod will have these auth env vars set, otherwise the job won't
     # be able to communicate with the api
@@ -392,13 +397,46 @@ def apply_enrichment_and_validation_on_function(
     validate_function_env_vars(function)
     validate_function_secret_sources(function)
     if validate_labels:
-        validate_function_labels(function, existing_function)
+        validate_function_labels(function, get_existing_function)
 
 
-_SPARK_LABEL_CONF_PREFIXES = (
-    "spark.kubernetes.driver.label.",
-    "spark.kubernetes.executor.label.",
-)
+def validate_function_labels(
+    function: typing.Union[dict, mlrun.runtimes.KubeResource],
+    get_existing_function: typing.Callable[[], dict] | None = None,
+):
+    """
+    Validate the function labels against the labels listed in
+    mlconf.function.spec.forbidden_labels.
+
+    :param function:              the function to validate
+    :param get_existing_function: returns the stored version of the function. It is called only when a function label
+                                  matches the list, and the labels that the stored function already has with the same
+                                  value are accepted.
+    """
+    forbidden_labels = config.get_forbidden_function_labels()
+    if not forbidden_labels:
+        return
+
+    label_sets = _get_function_label_sets(function)
+    if not any(
+        mlrun.k8s_utils.get_forbidden_labels(labels, forbidden_labels)
+        for labels in label_sets
+    ):
+        return
+
+    existing_function = None
+    if get_existing_function:
+        try:
+            existing_function = get_existing_function()
+        except mlrun.errors.MLRunNotFoundError:
+            pass
+
+    for labels, existing_labels in zip(
+        label_sets, _get_function_label_sets(existing_function)
+    ):
+        mlrun.k8s_utils.validate_labels_not_forbidden(
+            labels, forbidden_labels, existing_labels
+        )
 
 
 def _get_function_label_sets(
@@ -419,51 +457,6 @@ def _get_function_label_sets(
             }
         )
     return label_sets
-
-
-def validate_function_labels(
-    function: typing.Union[dict, mlrun.runtimes.KubeResource],
-    existing_function: dict | None = None,
-):
-    """
-    Validate the function labels against the labels listed in
-    mlconf.function.spec.forbidden_labels.
-    """
-    forbidden_labels = config.get_forbidden_function_labels()
-    if not forbidden_labels:
-        return
-
-    for labels, existing_labels in zip(
-        _get_function_label_sets(function),
-        _get_function_label_sets(existing_function),
-    ):
-        mlrun.k8s_utils.validate_labels_not_forbidden(
-            labels, forbidden_labels, existing_labels
-        )
-
-
-def get_stored_function(
-    db_session: Session,
-    name: str | None,
-    project: str | None,
-    tag: str | None = None,
-) -> dict | None:
-    """
-    Get the stored version of a function.
-
-    :return: the stored function, or None if it doesn't exist
-    """
-    if not name or not project:
-        return None
-    try:
-        return framework.utils.singletons.db.get_db().get_function(
-            db_session,
-            name=name,
-            project=project,
-            tag=tag or mlrun.common.constants.RESERVED_TAG_NAME_LATEST,
-        )
-    except mlrun.errors.MLRunNotFoundError:
-        return None
 
 
 def validate_function_volume_mounts(

@@ -221,6 +221,24 @@ def verify_label_key(key: str, allow_k8s_prefix: bool = False):
         )
 
 
+def get_forbidden_labels(
+    labels: dict | None,
+    forbidden_labels: list[tuple[str, str]],
+) -> dict:
+    """
+    Get the labels that are listed in the forbidden labels.
+
+    :param labels:           labels to check
+    :param forbidden_labels: (key, value) pairs; a label is forbidden when both its key and its value match
+    :return:                 the matching labels
+    """
+    return {
+        key: value
+        for key, value in (labels or {}).items()
+        if (key, str(value)) in forbidden_labels
+    }
+
+
 def validate_labels_not_forbidden(
     labels: dict | None,
     forbidden_labels: list[tuple[str, str]],
@@ -234,12 +252,8 @@ def validate_labels_not_forbidden(
     :param forbidden_labels: (key, value) pairs; a label is forbidden when both its key and its value match
     :param existing_labels:  labels of the stored object, if any
     """
-    if not labels or not forbidden_labels:
-        return
     existing_labels = existing_labels or {}
-    for key, value in labels.items():
-        if (key, str(value)) not in forbidden_labels:
-            continue
+    for key, value in get_forbidden_labels(labels, forbidden_labels).items():
         if key in existing_labels and existing_labels[key] == value:
             continue
         raise mlrun.errors.MLRunInvalidArgumentError(

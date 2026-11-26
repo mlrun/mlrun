@@ -142,6 +142,14 @@ def test_validate_labels_not_forbidden(labels, existing_labels, exception):
         )
 
 
+def test_get_forbidden_labels():
+    assert mlrun.k8s_utils.get_forbidden_labels(
+        {"blocked-key": "blocked", "other-blocked-key": "a", "team": "b"},
+        _FORBIDDEN_LABELS,
+    ) == {"blocked-key": "blocked"}
+    assert mlrun.k8s_utils.get_forbidden_labels(None, _FORBIDDEN_LABELS) == {}
+
+
 def test_validate_labels_not_forbidden_empty_list():
     mlrun.k8s_utils.validate_labels_not_forbidden({"blocked-key": "blocked"}, [])
 

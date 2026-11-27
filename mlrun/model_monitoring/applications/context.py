@@ -76,7 +76,6 @@ class MonitoringApplicationContext:
         :param endpoint_id:             (str) ID of the monitored model endpoint
         :param feature_set:              (FeatureSet) the model endpoint feature set
         :param endpoint_name:           (str) Name of the monitored model endpoint
-        :param output_stream_uri:       (str) URI of the output stream for results
         :param model_endpoint:          (ModelEndpoint) The model endpoint object.
         :param feature_names:           (list[str]) List of models feature names.
         :param label_names:             (list[str]) List of models label names.

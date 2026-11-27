@@ -486,6 +486,10 @@ jobs:
           set -e
           echo "[prestage] Pulling ${MLRUN_IMAGE} via crictl (Artifactory mirror)..."
           sudo crictl pull "${MLRUN_IMAGE}"
+          # The CRI pull skips the index's non-runtime (attestation) entry, which
+          # "ctr images push" needs in the content store. Pull all platforms to fetch it.
+          echo "[prestage] Pulling all index entries via ctr..."
+          sudo k3s ctr images pull --all-platforms "${MLRUN_IMAGE}"
           echo "[prestage] Tagging as ${LOCAL_IMAGE}..."
           sudo k3s ctr images tag "${MLRUN_IMAGE}" "${LOCAL_IMAGE}"
           echo "[prestage] Pushing to local registry (plain HTTP)..."

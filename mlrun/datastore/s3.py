@@ -17,6 +17,7 @@ import time
 from urllib.parse import urlparse
 
 import boto3
+import botocore.config
 import botocore.exceptions
 from boto3.s3.transfer import TransferConfig
 from fsspec.registry import get_filesystem_class
@@ -105,6 +106,11 @@ class S3Store(DataStore):
             multipart_chunksize=1024 * 1024 * 25,
         )
 
+        # Neutral user-agent appended to (not replacing) botocore's default.
+        client_config = botocore.config.Config(
+            user_agent_extra=f"mlrun/{mlrun.__version__}"
+        )
+
         # If user asks to assume a role, this needs to go through the STS client and retrieve temporary creds
         if assume_role_arn:
             client = boto3.client(
@@ -112,6 +118,7 @@ class S3Store(DataStore):
                 aws_access_key_id=access_key_id,
                 aws_secret_access_key=secret_key,
                 aws_session_token=session_token,
+                config=client_config,
             )
             self._temp_credentials = client.assume_role(
                 RoleArn=assume_role_arn, RoleSessionName="assumeRoleSession"
@@ -128,6 +135,7 @@ class S3Store(DataStore):
                 aws_secret_access_key=self._temp_credentials["SecretAccessKey"],
                 aws_session_token=self._temp_credentials["SessionToken"],
                 endpoint_url=endpoint_url,
+                config=client_config,
             )
             return
 
@@ -139,6 +147,7 @@ class S3Store(DataStore):
                 "s3",
                 region_name=region,
                 endpoint_url=endpoint_url,
+                config=client_config,
             )
             return
 
@@ -150,12 +159,16 @@ class S3Store(DataStore):
                 aws_secret_access_key=secret_key,
                 aws_session_token=session_token,
                 endpoint_url=endpoint_url,
+                config=client_config,
             )
         else:
             # No explicit credentials provided. Let boto3 use the default
             # credential chain (env vars, instance profile, IRSA, etc.).
             self.s3 = boto3.resource(
-                "s3", region_name=region, endpoint_url=endpoint_url
+                "s3",
+                region_name=region,
+                endpoint_url=endpoint_url,
+                config=client_config,
             )
             if not token_file and not self._has_default_credentials():
                 # No credentials available through any provider — fall back to
@@ -253,6 +266,7 @@ class S3Store(DataStore):
             secret=secret,
             token=token,
             use_listings_cache=False,
+            config_kwargs={"user_agent_extra": f"mlrun/{mlrun.__version__}"},
         )
 
         if endpoint_url:

@@ -1,11 +1,13 @@
 (mlrun-ce-installation)=
 # Installation
 
-MLRun CE can be installed on different platforms. Choose the installation guide that matches your environment:
+MLRun CE can be installed on different platforms. Choose the installation guide that matches your environment. 
+To install on any Kubernetes cluster, or locally on Docker Desktop, with a single command, see the [MLRun CE installer guide](./installer-guide.md).
 
 ```{toctree}
 :maxdepth: 1
 
+installer-guide
 kubernetes-install
 aws-install
 azure-install

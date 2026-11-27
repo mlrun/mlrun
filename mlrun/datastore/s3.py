@@ -266,6 +266,7 @@ class S3Store(DataStore):
             secret=secret,
             token=token,
             use_listings_cache=False,
+            config_kwargs={"user_agent_extra": f"mlrun/{mlrun.__version__}"},
         )
 
         if endpoint_url:

@@ -37,6 +37,7 @@ from sqlalchemy.orm import Session
 import mlrun.common.constants
 import mlrun.common.schemas
 import mlrun.errors
+import mlrun.k8s_utils
 import mlrun.runtimes.pod
 import mlrun.utils.helpers
 import mlrun.utils.notifications.notification_pusher
@@ -63,6 +64,11 @@ import services.api.crud
 import services.api.crud.runtimes.nuclio
 import services.api.utils.singletons.logs_dir
 import services.api.utils.singletons.scheduler
+
+_SPARK_LABEL_CONF_PREFIXES = (
+    "spark.kubernetes.driver.label.",
+    "spark.kubernetes.executor.label.",
+)
 
 
 def log_and_raise(status=HTTPStatus.BAD_REQUEST.value, **kw):
@@ -178,6 +184,7 @@ def _generate_function_and_task_from_submit_run_body(
     db_session: Session, auth_info: mlrun.common.schemas.AuthInfo, data
 ):
     function_dict, function_url, task = parse_submit_run_body(data)
+    function_record = None
 
     if function_dict and not function_url:
         function = new_function(runtime=function_dict)
@@ -204,7 +211,12 @@ def _generate_function_and_task_from_submit_run_body(
             # assign values from it to the main function object
             function = enrich_function_from_dict(function, function_dict)
 
-    apply_enrichment_and_validation_on_function(function=function, auth_info=auth_info)
+    # labels are validated only for functions not loaded from the db
+    apply_enrichment_and_validation_on_function(
+        function=function,
+        auth_info=auth_info,
+        validate_labels=function_record is None,
+    )
     apply_enrichment_and_validation_on_task(task, auth_info=auth_info)
 
     return function, task
@@ -340,6 +352,8 @@ def apply_enrichment_and_validation_on_function(
     mask_sensitive_data: bool = True,
     ensure_security_context: bool = True,
     allow_empty_access_key: bool = False,
+    validate_labels: bool = True,
+    get_existing_function: typing.Callable[[], dict | None] | None = None,
 ):
     """
     This function should be used only on server side.
@@ -350,6 +364,10 @@ def apply_enrichment_and_validation_on_function(
 
     When adding a new util function, go through the other flows that utilize the function
     and make sure to specify the appropriate flag for each runtime.
+
+    :param validate_labels:   whether to validate the function labels against the forbidden labels
+    :param get_existing_function: returns the stored version of the function, if any. It is called only when a function
+                                  label matches the forbidden labels.
     """
     # if auth given in request ensure the function pod will have these auth env vars set, otherwise the job won't
     # be able to communicate with the api
@@ -378,6 +396,67 @@ def apply_enrichment_and_validation_on_function(
     validate_function_volume_mounts(function)
     validate_function_env_vars(function)
     validate_function_secret_sources(function)
+    if validate_labels:
+        validate_function_labels(function, get_existing_function)
+
+
+def validate_function_labels(
+    function: typing.Union[dict, mlrun.runtimes.KubeResource],
+    get_existing_function: typing.Callable[[], dict] | None = None,
+):
+    """
+    Validate the function labels against the labels listed in
+    mlconf.function.spec.forbidden_labels.
+
+    :param function:              the function to validate
+    :param get_existing_function: returns the stored version of the function. It is called only when a function label
+                                  matches the list, and the labels that the stored function already has with the same
+                                  value are accepted.
+    """
+    forbidden_labels = config.get_forbidden_function_labels()
+    if not forbidden_labels:
+        return
+
+    label_sets = _get_function_label_sets(function)
+    if not any(
+        mlrun.k8s_utils.get_forbidden_labels(labels, forbidden_labels)
+        for labels in label_sets
+    ):
+        return
+
+    existing_function = None
+    if get_existing_function:
+        try:
+            existing_function = get_existing_function()
+        except mlrun.errors.MLRunNotFoundError:
+            pass
+
+    for labels, existing_labels in zip(
+        label_sets, _get_function_label_sets(existing_function)
+    ):
+        mlrun.k8s_utils.validate_labels_not_forbidden(
+            labels, forbidden_labels, existing_labels
+        )
+
+
+def _get_function_label_sets(
+    function: typing.Union[dict, mlrun.runtimes.KubeResource, None],
+) -> list[dict]:
+    """
+    Collect the label dicts of a function, one per source:
+    the metadata labels, then the driver and executor labels from the spark configuration.
+    """
+    label_sets = [dict(get_in(function, "metadata.labels") or {})]
+    spark_conf = get_in(function, "spec.spark_conf") or {}
+    for prefix in _SPARK_LABEL_CONF_PREFIXES:
+        label_sets.append(
+            {
+                conf_key.removeprefix(prefix): value
+                for conf_key, value in spark_conf.items()
+                if conf_key.startswith(prefix)
+            }
+        )
+    return label_sets
 
 
 def validate_function_volume_mounts(
@@ -858,7 +937,8 @@ def ensure_function_security_context(
     """
     For iguazio we enforce that pods run with user id and group id depending on
     mlrun.mlconf.function.spec.security_context.enrichment_mode
-    and mlrun.mlconf.function.spec.security_context.enrichment_group_id
+    and mlrun.mlconf.function.spec.security_context.enrichment_group_id, and run as non-root
+    per mlrun.mlconf.function.spec.security_context.default's "runAsNonRoot" value
     """
 
     # if security context is not required.
@@ -931,16 +1011,23 @@ def ensure_function_security_context(
         enriched_group_id = mlrun.mlconf.get_security_context_enrichment_group_id(
             auth_info.user_unix_id
         )
+        # runAsNonRoot is a policy choice, not a per-user identity value like uid/gid above, so
+        # it's sourced from the platform-wide default security context rather than hardcoded here.
+        run_as_non_root = mlrun.mlconf.get_default_function_security_context().get(
+            "runAsNonRoot"
+        )
         logger.debug(
             "Enriching/overriding security context",
             mode=mlrun.mlconf.function.spec.security_context.enrichment_mode,
             function_name=function.metadata.name,
             enriched_group_id=enriched_group_id,
             user_unix_id=auth_info.user_unix_id,
+            run_as_non_root=run_as_non_root,
         )
         function.spec.security_context = kubernetes.client.V1SecurityContext(
             run_as_user=auth_info.user_unix_id,
             run_as_group=enriched_group_id,
+            run_as_non_root=run_as_non_root,
         )
 
     else:
@@ -1227,9 +1314,12 @@ async def _delete_project(
             auth_info,
         )
 
-    await framework.utils.singletons.project_member.get_project_member().post_delete_project(
-        project_name
-    )
+    # Under Orca, the follower purge (commit_delete) cleans up logs once MLRun has
+    # actually removed the project, unless this task deleted it locally.
+    if force_delete or mlrun.mlconf.httpdb.projects.leader != "orca":
+        await framework.utils.singletons.project_member.get_project_member().post_delete_project(
+            project_name
+        )
 
 
 def verify_project_is_deleted(project_name, auth_info):

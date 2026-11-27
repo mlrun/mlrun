@@ -56,7 +56,7 @@ async def create_project(
         framework.api.deps.get_db_session
     ),
 ):
-    if mlrun.mlconf.is_iguazio_v4_mode():
+    if mlrun.mlconf.is_orca_mode():
         await framework.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
             mlrun.common.schemas.AuthorizationResourceTypes.project_global,
             mlrun.common.schemas.AuthorizationAction.create,
@@ -150,7 +150,7 @@ async def patch_project(
     # In IG4 mode, apply fine-grained permission checks
     # In IG3 mode, skip the check when the request comes from the leader; otherwise fall back to the standard
     # project-update permission to preserve backward compatibility.
-    if mlrun.mlconf.is_iguazio_v4_mode():
+    if mlrun.mlconf.is_orca_mode():
         await _verify_patch_project_permissions(name, project, auth_info)
     elif not framework.utils.helpers.is_request_from_leader(auth_info.projects_role):
         await framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
@@ -194,7 +194,7 @@ async def get_project(
     )
     # skip permission check if it's the leader in iguazio v3 mode
     if (
-        mlrun.mlconf.is_iguazio_v4_mode()
+        mlrun.mlconf.is_orca_mode()
         or not framework.utils.helpers.is_request_from_leader(auth_info.projects_role)
     ):
         # If the requesting user is the project owner, populate the OPA owner
@@ -248,7 +248,7 @@ async def delete_project(
 
     # skip permission check if it's the leader in iguazio v3 mode
     if (
-        mlrun.mlconf.is_iguazio_v4_mode()
+        mlrun.mlconf.is_orca_mode()
         or not framework.utils.helpers.is_request_from_leader(auth_info.projects_role)
     ):
         # Owners are trusted via spec.owner; populate the OPA owner cache
@@ -366,7 +366,10 @@ async def delete_project(
             framework.api.utils.verify_project_is_deleted, name, auth_info
         )
 
-    await get_project_member().post_delete_project(name)
+    # Under Orca, the follower purge (commit_delete) cleans up logs once MLRun has
+    # actually removed the project, unless this request deleted it locally.
+    if force_delete or mlrun.mlconf.httpdb.projects.leader != "orca":
+        await get_project_member().post_delete_project(name)
     if force_delete:
         return fastapi.Response(status_code=http.HTTPStatus.ACCEPTED.value)
     return fastapi.Response(status_code=http.HTTPStatus.NO_CONTENT.value)
@@ -393,7 +396,7 @@ async def list_projects(
     allowed_project_names = None
     # skip permission check if it's the leader in iguazio v3 mode
     if (
-        mlrun.mlconf.is_iguazio_v4_mode()
+        mlrun.mlconf.is_orca_mode()
         or not framework.utils.helpers.is_request_from_leader(auth_info.projects_role)
     ):
         projects_output = await run_in_threadpool(
@@ -450,7 +453,7 @@ async def list_project_summaries(
     allowed_project_names = projects_output.projects
     # skip permission check if it's the leader in iguazio v3 mode
     if (
-        mlrun.mlconf.is_iguazio_v4_mode()
+        mlrun.mlconf.is_orca_mode()
         or not framework.utils.helpers.is_request_from_leader(auth_info.projects_role)
     ):
         allowed_project_names = await framework.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions(
@@ -484,7 +487,7 @@ async def get_project_summary(
     )
     # skip permission check if it's the leader in iguazio v3 mode
     if (
-        mlrun.mlconf.is_iguazio_v4_mode()
+        mlrun.mlconf.is_orca_mode()
         or not framework.utils.helpers.is_request_from_leader(auth_info.projects_role)
     ):
         await framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
@@ -648,7 +651,7 @@ async def _ensure_project_create_or_update_permissions(
     """
     # Only check leader header in iguazio v3
     if (
-        not mlrun.mlconf.is_iguazio_v4_mode()
+        not mlrun.mlconf.is_orca_mode()
         and framework.utils.helpers.is_request_from_leader(auth_info.projects_role)
     ):
         return
@@ -701,7 +704,7 @@ async def _ensure_project_create_or_update_permissions(
 
     # In Iguazio v4 mode, mlrun is the project leader and main entrypoint so we must ensure
     # that the user has create permissions for projects.
-    if mlrun.mlconf.is_iguazio_v4_mode():
+    if mlrun.mlconf.is_orca_mode():
         await framework.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
             mlrun.common.schemas.AuthorizationResourceTypes.project_global,
             mlrun.common.schemas.AuthorizationAction.create,

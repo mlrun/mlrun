@@ -611,7 +611,7 @@ def test_enrich_and_validate_auth_token_name_scheduled_run_tolerates_missing_tok
 
     When a scheduled KubeJob fires and the user's auth token secret has been
     deleted (MLRunBadRequestError) or revoked/invalid (MLRunNotFoundError from
-    the iguazio SDK), the method should log a warning, skip the token mount,
+    the token lookup), the method should log a warning, skip the token mount,
     but still persist user_id on the spec and back-fill auth_info so that
     retries and downstream code keep working.
     """

@@ -33,6 +33,7 @@ import yaml
 from deepdiff import DeepDiff
 
 import mlrun.common.schemas
+import mlrun.projects.project
 from mlrun import get_run_db, mlconf
 from mlrun.utils import create_test_logger
 
@@ -41,6 +42,10 @@ logger = create_test_logger(name="test-system")
 
 class TestMLRunSystem:
     project_name = "system-test-project"
+    # Opt-in: skips the per-method project recreate/cascading-delete in favor of
+    # once per class. Only safe for classes that don't assume the project starts
+    # empty for every test (e.g. assertions counting all runs/artifacts/endpoints).
+    reuse_project_across_tests = False
     root_path = pathlib.Path(__file__).absolute().parent.parent.parent
     env_file_path = root_path / "tests" / "system" / "env.yml"
     results_path = root_path / "tests" / "test_results" / "system"
@@ -95,6 +100,11 @@ class TestMLRunSystem:
 
         cls.uploaded_code = False
 
+        if cls.reuse_project_across_tests and not cls._skip_set_environment():
+            cls.project = mlrun.get_or_create_project(
+                cls.project_name, "./", allow_cross_project=True
+            )
+
         if "MLRUN_IGUAZIO_API_URL" in env and "V3IO_ACCESS_KEY" in env:
             cls._igz_mgmt_client = igz_mgmt.Client(
                 endpoint=env["MLRUN_IGUAZIO_API_URL"],
@@ -132,9 +142,17 @@ class TestMLRunSystem:
         self._files_to_upload = []
 
         if not self._skip_set_environment():
-            self.project = mlrun.get_or_create_project(
-                self.project_name, "./", allow_cross_project=True
-            )
+            if self.reuse_project_across_tests:
+                # _setup_env's mlconf.reload() above, and the autouse
+                # config_test_base fixture (tests/common_fixtures.py), wipe
+                # active_project and pipeline_context.project on every test;
+                # the class-level project already exists, so just restore both,
+                # the same way new_project()/load_project() would.
+                mlrun.projects.project._set_as_current_active_project(self.project)
+            else:
+                self.project = mlrun.get_or_create_project(
+                    self.project_name, "./", allow_cross_project=True
+                )
 
         self.custom_setup()
 
@@ -146,10 +164,11 @@ class TestMLRunSystem:
     def _should_clean_resources():
         return os.environ.get("MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES") != "false"
 
-    def _delete_test_project(self, name=None):
-        if self._should_clean_resources():
-            self._run_db.delete_project(
-                name or self.project_name,
+    @classmethod
+    def _delete_test_project(cls, name=None):
+        if cls._should_clean_resources():
+            cls._run_db.delete_project(
+                name or cls.project_name,
                 deletion_strategy=mlrun.common.schemas.DeletionStrategy.cascading,
             )
 
@@ -160,12 +179,13 @@ class TestMLRunSystem:
 
         self._logger.debug("Removing test data from database")
         if self._should_clean_resources():
-            fsets = self._run_db.list_feature_sets()
+            fsets = self._run_db.list_feature_sets(project=self.project_name)
             if fsets:
                 for fset in fsets:
                     fset.purge_targets()
 
-        self._delete_test_project()
+        if not self.reuse_project_across_tests:
+            self._delete_test_project()
 
         self.custom_teardown()
 
@@ -176,6 +196,8 @@ class TestMLRunSystem:
     @classmethod
     def teardown_class(cls):
         cls.custom_teardown_class()
+        if cls.reuse_project_across_tests:
+            cls._delete_test_project()
         cls._disconnect_ssh()
         cls._teardown_env()
 

@@ -36,6 +36,7 @@ class TestApplicationStoreUri(tests.system.base.TestMLRunSystem):
     """
 
     project_name = "application-store-uri-system-test"
+    reuse_project_across_tests = True
 
     def custom_setup(self):
         super().custom_setup()

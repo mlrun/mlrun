@@ -34,7 +34,7 @@ from mlrun.utils import logger
 import framework.utils.auth.providers.nop
 import framework.utils.auth.providers.opa
 import framework.utils.clients.iguazio.v3
-import framework.utils.clients.iguazio.v4
+import framework.utils.clients.orca.v1
 
 
 class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
@@ -107,6 +107,7 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
         auth_info: schemas.AuthInfo,
         raise_on_forbidden: bool = True,
         resource_namespace: schemas.AuthorizationResourceNamespace = schemas.AuthorizationResourceNamespace.mlrun,
+        skip_logging_forbidden: bool = False,
     ) -> bool:
         project_resources = [
             # project name, resource name
@@ -124,6 +125,7 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
                         auth_info,
                         raise_on_forbidden,
                         resource_namespace,
+                        skip_logging_forbidden,
                     )
                     for project_resource in project_resources
                 ]
@@ -139,6 +141,7 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
         auth_info: schemas.AuthInfo,
         raise_on_forbidden: bool = True,
         resource_namespace: schemas.AuthorizationResourceNamespace = schemas.AuthorizationResourceNamespace.mlrun,
+        skip_logging_forbidden: bool = False,
     ) -> bool:
         return await self.query_permissions(
             self._generate_resource_string_from_project_resource(
@@ -150,6 +153,7 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
             action,
             auth_info,
             raise_on_forbidden,
+            skip_logging_forbidden,
         )
 
     async def query_project_permissions(
@@ -159,6 +163,7 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
         auth_info: schemas.AuthInfo,
         raise_on_forbidden: bool = True,
         resource_namespace: schemas.AuthorizationResourceNamespace = schemas.AuthorizationResourceNamespace.mlrun,
+        skip_logging_forbidden: bool = False,
     ) -> bool:
         return await self.query_permissions(
             self._generate_resource_string_from_project_name(
@@ -167,6 +172,7 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
             action,
             auth_info,
             raise_on_forbidden,
+            skip_logging_forbidden,
         )
 
     async def query_global_resource_permissions(
@@ -176,6 +182,7 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
         auth_info: schemas.AuthInfo,
         raise_on_forbidden: bool = True,
         resource_namespace: schemas.AuthorizationResourceNamespace = schemas.AuthorizationResourceNamespace.mlrun,
+        skip_logging_forbidden: bool = False,
     ) -> bool:
         return await self.query_resource_permissions(
             resource_type,
@@ -184,6 +191,7 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
             auth_info,
             raise_on_forbidden,
             resource_namespace,
+            skip_logging_forbidden,
         )
 
     async def query_resource_permissions(
@@ -194,6 +202,7 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
         auth_info: schemas.AuthInfo,
         raise_on_forbidden: bool = True,
         resource_namespace: schemas.AuthorizationResourceNamespace = schemas.AuthorizationResourceNamespace.mlrun,
+        skip_logging_forbidden: bool = False,
     ) -> bool:
         return await self.query_permissions(
             self._attach_resource_namespace(
@@ -203,6 +212,7 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
             action=action,
             auth_info=auth_info,
             raise_on_forbidden=raise_on_forbidden,
+            skip_logging_forbidden=skip_logging_forbidden,
         )
 
     async def query_permissions(
@@ -211,9 +221,10 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
         action: schemas.AuthorizationAction,
         auth_info: schemas.AuthInfo,
         raise_on_forbidden: bool = True,
+        skip_logging_forbidden: bool = False,
     ) -> bool:
         return await self._auth_provider.query_permissions(
-            resource, action, auth_info, raise_on_forbidden
+            resource, action, auth_info, raise_on_forbidden, skip_logging_forbidden
         )
 
     async def filter_by_permissions(
@@ -323,10 +334,13 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
         """
 
         async def _check_project_read_permissions():
+            # denies repeatedly while waiting for permission propagation to complete, so it's not
+            # an actor-initiated denial of a specific request and shouldn't be audited.
             await self.query_project_permissions(
                 project_name,
                 mlrun.common.schemas.AuthorizationAction.read,
                 auth_info,
+                skip_logging_forbidden=True,
             )
 
         await mlrun.utils.helpers.retry_until_successful_async(
@@ -400,7 +414,7 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
 
     @staticmethod
     def _iguaziov4_auth_configured():
-        return mlrun.mlconf.is_iguazio_v4_mode()
+        return mlrun.mlconf.is_orca_mode()
 
     @staticmethod
     def _parse_auth_header(
@@ -478,7 +492,7 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
         )
 
         if token is None:
-            iguazio_client = framework.utils.clients.iguazio.v4.AsyncClient()
+            iguazio_client = framework.utils.clients.orca.v1.AsyncClient()
             return await iguazio_client.verify_request_session(request)
 
         token_expires_at = resolve_jwt_expiration(token)
@@ -486,7 +500,7 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
 
         if token_expires_at is None or token_expires_at <= curr_time:
             # No expiry or an expired token means no caching
-            iguazio_client = framework.utils.clients.iguazio.v4.AsyncClient()
+            iguazio_client = framework.utils.clients.orca.v1.AsyncClient()
             return await iguazio_client.verify_request_session(request)
 
         key = self._token_cache_key(token)
@@ -496,7 +510,7 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
             # No task or an expired task means we have to create a new task
             is_existing_key = task_with_expiry is not None
 
-            iguazio_client = framework.utils.clients.iguazio.v4.AsyncClient()
+            iguazio_client = framework.utils.clients.orca.v1.AsyncClient()
             task = asyncio.create_task(iguazio_client.verify_request_session(request))
             task.add_done_callback(partial(self._on_verify_complete, key))
 
@@ -537,11 +551,11 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
 
     @property
     def _token_cache_max_size(self) -> int:
-        return mlrun.mlconf.httpdb.authentication.iguazio.token_cache.max_size
+        return mlrun.mlconf.httpdb.authentication.orca.token_cache.max_size
 
     @property
     def _token_cache_ttl_seconds(self) -> float:
-        return mlrun.mlconf.httpdb.authentication.iguazio.token_cache.ttl_seconds
+        return mlrun.mlconf.httpdb.authentication.orca.token_cache.ttl_seconds
 
     def _on_verify_complete(
         self, key: bytes, task: asyncio.Task[schemas.AuthInfo]

@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import base64
+import copy
 import json
 import pathlib
 import unittest.mock
@@ -1161,6 +1162,58 @@ def test_ensure_function_security_context_override_enrichment_mode(
     )
 
 
+def test_ensure_function_security_context_run_as_non_root_from_default(
+    db: Session, client: TestClient
+):
+    services.api.tests.unit.api.utils.create_project(client, PROJECT)
+    mlrun.mlconf.igz_version = "3.6"
+    mlrun.mlconf.function.spec.security_context.enrichment_mode = (
+        mlrun.common.schemas.SecurityContextEnrichmentModes.override.value
+    )
+    mlrun.mlconf.function.spec.security_context.default = base64.b64encode(
+        json.dumps({"runAsNonRoot": False}).encode("utf-8")
+    )
+
+    mlrun.utils.logger.info(
+        "runAsNonRoot in the default security context is False, enrichment should honor it"
+    )
+    framework.utils.clients.iguazio.v3.Client.get_user_unix_id = unittest.mock.Mock()
+    auth_info = mlrun.common.schemas.AuthInfo(user_unix_id=1000)
+    _, _, _, original_function_dict = _generate_original_function(
+        kind=mlrun.runtimes.RuntimeKinds.job
+    )
+
+    function = mlrun.new_function(runtime=original_function_dict)
+    framework.api.utils.ensure_function_security_context(function, auth_info)
+
+    assert function.spec.security_context.run_as_non_root is False
+
+
+def test_ensure_function_security_context_non_root_home_is_generated_not_stored(
+    db: Session, client: TestClient
+):
+    services.api.tests.unit.api.utils.create_project(client, PROJECT)
+    mlrun.mlconf.igz_version = "3.6"
+    mlrun.mlconf.function.spec.security_context.enrichment_mode = (
+        mlrun.common.schemas.SecurityContextEnrichmentModes.override.value
+    )
+    framework.utils.clients.iguazio.v3.Client.get_user_unix_id = unittest.mock.Mock()
+    auth_info = mlrun.common.schemas.AuthInfo(user_unix_id=1000)
+    _, _, _, original_function_dict = _generate_original_function(
+        kind=mlrun.runtimes.RuntimeKinds.job
+    )
+
+    function = mlrun.new_function(runtime=original_function_dict)
+    framework.api.utils.ensure_function_security_context(function, auth_info)
+
+    runtime_env, _ = function._generate_runtime_env()
+    assert runtime_env["HOME"] == "/tmp"
+
+    # the default is generated and must not be stored in the function spec
+    stored_env = function.to_dict()["spec"].get("env") or []
+    assert "HOME" not in [env_var["name"] for env_var in stored_env]
+
+
 def test_ensure_function_security_context_enrichment_group_id(
     db: Session, client: TestClient
 ):
@@ -1996,6 +2049,216 @@ def test_resolve_client_default_kfp_image(
 
 
 @pytest.mark.parametrize(
+    "function, existing_function, expected_exception",
+    [
+        ({"metadata": {"labels": {"team": "a"}}}, None, None),
+        # the same key with another value is allowed
+        ({"metadata": {"labels": {"blocked-key": "a"}}}, None, None),
+        (
+            {"metadata": {"labels": {"blocked-key": "blocked"}}},
+            None,
+            mlrun.errors.MLRunInvalidArgumentError,
+        ),
+        (
+            {"metadata": {"labels": {"blocked-key": "blocked"}}},
+            {"metadata": {"labels": {"blocked-key": "blocked"}}},
+            None,
+        ),
+        (
+            {"metadata": {"labels": {"blocked-key": "blocked"}}},
+            {"metadata": {"labels": {"blocked-key": "a"}}},
+            mlrun.errors.MLRunInvalidArgumentError,
+        ),
+        (
+            {
+                "spec": {
+                    "spark_conf": {
+                        "spark.kubernetes.driver.label.blocked-key": "blocked"
+                    }
+                }
+            },
+            None,
+            mlrun.errors.MLRunInvalidArgumentError,
+        ),
+        (
+            {
+                "spec": {
+                    "spark_conf": {
+                        "spark.kubernetes.executor.label.blocked.example.com/name": "blocked"
+                    }
+                }
+            },
+            None,
+            mlrun.errors.MLRunInvalidArgumentError,
+        ),
+        (
+            {"spec": {"spark_conf": {"spark.kubernetes.driver.label.team": "a"}}},
+            None,
+            None,
+        ),
+        (
+            {
+                "spec": {
+                    "spark_conf": {"spark.kubernetes.driver.label.blocked-key": "a"}
+                }
+            },
+            None,
+            None,
+        ),
+        # stored metadata labels are not the baseline for the spark label settings
+        (
+            {
+                "spec": {
+                    "spark_conf": {
+                        "spark.kubernetes.driver.label.blocked-key": "blocked"
+                    }
+                }
+            },
+            {"metadata": {"labels": {"blocked-key": "blocked"}}},
+            mlrun.errors.MLRunInvalidArgumentError,
+        ),
+    ],
+)
+def test_validate_function_labels(function, existing_function, expected_exception):
+    mlrun.mlconf.function.spec.forbidden_labels = (
+        "blocked-key=blocked,blocked.example.com/name=blocked"
+    )
+    if expected_exception:
+        with pytest.raises(expected_exception):
+            framework.api.utils.validate_function_labels(
+                function, lambda: existing_function
+            )
+    else:
+        framework.api.utils.validate_function_labels(
+            function, lambda: existing_function
+        )
+
+
+@pytest.mark.parametrize(
+    "labels, expect_lookup",
+    [
+        ({"team": "a"}, False),
+        ({"blocked-key": "a"}, False),
+        ({"blocked-key": "blocked"}, True),
+    ],
+)
+def test_validate_function_labels_looks_up_stored_function_only_when_needed(
+    labels, expect_lookup
+):
+    mlrun.mlconf.function.spec.forbidden_labels = "blocked-key=blocked"
+    get_existing_function = MagicMock(return_value=None)
+    function = {"metadata": {"labels": labels}}
+    if expect_lookup:
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+            framework.api.utils.validate_function_labels(
+                function, get_existing_function
+            )
+        get_existing_function.assert_called_once()
+    else:
+        framework.api.utils.validate_function_labels(function, get_existing_function)
+        get_existing_function.assert_not_called()
+
+
+def test_validate_function_labels_stored_function_not_found():
+    mlrun.mlconf.function.spec.forbidden_labels = "blocked-key=blocked"
+    get_existing_function = MagicMock(
+        side_effect=mlrun.errors.MLRunNotFoundError("not found")
+    )
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+        framework.api.utils.validate_function_labels(
+            {"metadata": {"labels": {"blocked-key": "blocked"}}},
+            get_existing_function,
+        )
+    get_existing_function.assert_called_once()
+
+
+def test_validate_function_labels_without_configured_labels():
+    mlrun.mlconf.function.spec.forbidden_labels = ""
+    framework.api.utils.validate_function_labels(
+        {"metadata": {"labels": {"blocked-key": "blocked"}}}
+    )
+
+
+def test_generate_function_and_task_from_submit_run_body_forbidden_labels(
+    db: Session, client: TestClient
+):
+    auth_info = mlrun.common.schemas.AuthInfo()
+    services.api.tests.unit.api.utils.create_project(client, PROJECT)
+    _, _, _, original_function = _generate_original_function()
+    original_function["metadata"]["labels"] = {"blocked-key": "blocked"}
+    project = original_function["metadata"]["project"]
+    function_name = original_function["metadata"]["name"]
+    function_tag = original_function["metadata"]["tag"]
+
+    # stored with the label before the option was set
+    resp = client.post(
+        f"projects/{project}/functions/{function_name}",
+        json=original_function,
+        params={"tag": function_tag},
+    )
+    assert resp.status_code == HTTPStatus.OK.value
+
+    mlrun.mlconf.function.spec.forbidden_labels = (
+        "blocked-key=blocked,other-blocked-key=blocked"
+    )
+
+    def _submit_body(labels):
+        return {
+            "task": {
+                "spec": {"function": f"{project}/{function_name}:{function_tag}"},
+                "metadata": {"name": "task-name", "project": project},
+            },
+            "function": {"metadata": {"labels": labels}},
+        }
+
+    # the unchanged stored label is preserved
+    fn, _ = _generate_function_and_task_from_submit_run_body(
+        db, auth_info, _submit_body({"team": "a"})
+    )
+    assert fn.metadata.labels["blocked-key"] == "blocked"
+
+    # validation applies to a function passed inline
+    inline_function = copy.deepcopy(original_function)
+    inline_function["metadata"]["labels"] = {"other-blocked-key": "blocked"}
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+        _generate_function_and_task_from_submit_run_body(
+            db,
+            auth_info,
+            {
+                "task": {"metadata": {"name": "task-name", "project": project}},
+                "function": inline_function,
+            },
+        )
+
+
+def test_store_function_forbidden_labels(db: Session, client: TestClient):
+    services.api.tests.unit.api.utils.create_project(client, PROJECT)
+    _, _, _, function = _generate_original_function()
+    project = function["metadata"]["project"]
+    function_name = function["metadata"]["name"]
+    function["metadata"]["labels"] = {"blocked-key": "blocked"}
+
+    mlrun.mlconf.function.spec.forbidden_labels = "blocked-key=blocked"
+    resp = client.post(f"projects/{project}/functions/{function_name}", json=function)
+    assert resp.status_code == HTTPStatus.BAD_REQUEST.value
+
+    # the same key with another value is allowed
+    function["metadata"]["labels"] = {"blocked-key": "a"}
+    resp = client.post(f"projects/{project}/functions/{function_name}", json=function)
+    assert resp.status_code == HTTPStatus.OK.value
+
+    mlrun.mlconf.function.spec.forbidden_labels = ""
+    function["metadata"]["labels"] = {"blocked-key": "blocked"}
+    resp = client.post(f"projects/{project}/functions/{function_name}", json=function)
+    assert resp.status_code == HTTPStatus.OK.value
+
+    # storing again with the same label is accepted
+    mlrun.mlconf.function.spec.forbidden_labels = "blocked-key=blocked"
+    resp = client.post(f"projects/{project}/functions/{function_name}", json=function)
+    assert resp.status_code == HTTPStatus.OK.value
+
+
+@pytest.mark.parametrize(
     "secret_sources, expected_exception",
     [
         # Inline secrets only (should pass)
@@ -2202,11 +2465,11 @@ def test_resolve_auth_token_name_success(
     monkeypatch, mock_k8s_helper, provided_token_name, token_data, expected_token
 ):
     """Test successful token resolution (both provided and auto-discovery)."""
-    mock_k8s_helper.get_user_secret_tokens_as_igz_yml_data.return_value = token_data
+    mock_k8s_helper.get_user_secret_tokens_as_token_file_data.return_value = token_data
 
     mock_resolve = unittest.mock.Mock(return_value=expected_token)
     monkeypatch.setattr(
-        "framework.utils.clients.iguazio.v4.Client.resolve_token_from_igz_yml",
+        "framework.utils.clients.orca.v1.Client.resolve_token_from_token_file",
         mock_resolve,
     )
 
@@ -2217,11 +2480,11 @@ def test_resolve_auth_token_name_success(
     assert result == expected_token
 
     # Verify k8s helper was called correctly
-    mock_k8s_helper.get_user_secret_tokens_as_igz_yml_data.assert_called_once_with(
+    mock_k8s_helper.get_user_secret_tokens_as_token_file_data.assert_called_once_with(
         "test-user", provided_token_name
     )
 
-    # Verify resolve_token_from_igz_yml was called with correct arguments
+    # Verify resolve_token_from_token_file was called with correct arguments
     mock_resolve.assert_called_once()
     call_args = mock_resolve.call_args
     assert call_args[0][1] == "test-user"  # user_id
@@ -2230,7 +2493,7 @@ def test_resolve_auth_token_name_success(
 
 def test_resolve_auth_token_name_k8s_error_token_not_found(mock_k8s_helper):
     """Test that k8s 400 error propagates when a specific token is not found."""
-    mock_k8s_helper.get_user_secret_tokens_as_igz_yml_data.side_effect = (
+    mock_k8s_helper.get_user_secret_tokens_as_token_file_data.side_effect = (
         mlrun.errors.MLRunBadRequestError("Token not found")
     )
 
@@ -2242,7 +2505,7 @@ def test_resolve_auth_token_name_k8s_error_token_not_found(mock_k8s_helper):
 
 def test_resolve_auth_token_name_k8s_error_no_tokens(mock_k8s_helper):
     """Test that k8s 400 error propagates when no token name is provided and no tokens exist."""
-    mock_k8s_helper.get_user_secret_tokens_as_igz_yml_data.side_effect = (
+    mock_k8s_helper.get_user_secret_tokens_as_token_file_data.side_effect = (
         mlrun.errors.MLRunBadRequestError("No tokens found for user 'test-user'")
     )
 
@@ -2280,10 +2543,10 @@ def test_resolve_auth_token_name_sdk_error(
     expected_match,
 ):
     """Test that SDK validation errors propagate correctly."""
-    mock_k8s_helper.get_user_secret_tokens_as_igz_yml_data.return_value = token_data
+    mock_k8s_helper.get_user_secret_tokens_as_token_file_data.return_value = token_data
 
     monkeypatch.setattr(
-        "framework.utils.clients.iguazio.v4.Client.resolve_token_from_igz_yml",
+        "framework.utils.clients.orca.v1.Client.resolve_token_from_token_file",
         unittest.mock.Mock(side_effect=mlrun.errors.MLRunNotFoundError(error_message)),
     )
 
@@ -2472,3 +2735,87 @@ def test_test_resolve_project_service_account_details_validity(
             forbidden_service_accounts=forbidden,
             default_service_account=default,
         )
+
+
+@pytest.fixture
+def mocked_deletion_project_member(monkeypatch) -> MagicMock:
+    member = MagicMock()
+    member.post_delete_project = AsyncMock()
+    monkeypatch.setattr(
+        "framework.utils.singletons.project_member.get_project_member",
+        lambda: member,
+    )
+    return member
+
+
+async def _run_deletion_wrapper(
+    project_state: mlrun.common.schemas.ProjectState = mlrun.common.schemas.ProjectState.online,
+):
+    await framework.api.utils._delete_project(
+        db_session=MagicMock(),
+        project=mlrun.common.schemas.Project(
+            metadata=mlrun.common.schemas.ProjectMetadata(name="proj"),
+            status=mlrun.common.schemas.ProjectStatus(state=project_state),
+        ),
+        deletion_strategy=mlrun.common.schemas.DeletionStrategy.cascading,
+        auth_info=mlrun.common.schemas.AuthInfo(),
+        wait_for_project_deletion=False,
+        background_task_name="task",
+    )
+
+
+@pytest.mark.parametrize("leader", ["mlrun", "iguazio"])
+async def test_delete_project_wrapper_cleans_logs_when_not_orca_leader(
+    monkeypatch, mocked_deletion_project_member, leader
+):
+    monkeypatch.setattr(mlrun.mlconf.httpdb.projects, "leader", leader)
+
+    await _run_deletion_wrapper()
+
+    mocked_deletion_project_member.post_delete_project.assert_awaited_once_with("proj")
+
+
+async def test_delete_project_wrapper_skips_log_cleanup_under_orca_leader(
+    monkeypatch, mocked_deletion_project_member
+):
+    """Under Orca the follower purge cleans up logs once the project is deleted."""
+    monkeypatch.setattr(mlrun.mlconf.httpdb.projects, "leader", "orca")
+
+    await _run_deletion_wrapper()
+
+    mocked_deletion_project_member.delete_project.assert_called_once()
+    mocked_deletion_project_member.post_delete_project.assert_not_awaited()
+
+
+async def test_delete_project_wrapper_failed_orca_action_skips_log_cleanup(
+    monkeypatch, mocked_deletion_project_member
+):
+    monkeypatch.setattr(mlrun.mlconf.httpdb.projects, "leader", "orca")
+    mocked_deletion_project_member.delete_project.side_effect = (
+        mlrun.errors.MLRunRuntimeError("action failed")
+    )
+
+    with pytest.raises(mlrun.errors.MLRunRuntimeError):
+        await _run_deletion_wrapper()
+
+    mocked_deletion_project_member.post_delete_project.assert_not_awaited()
+
+
+async def test_delete_project_wrapper_force_delete_under_orca_cleans_logs(
+    monkeypatch, mocked_deletion_project_member
+):
+    """When the project is gone from Orca, the wrapper deletes it locally, so no
+    follower purge will run - the wrapper must clean up logs itself."""
+    monkeypatch.setattr(mlrun.mlconf.httpdb.projects, "leader", "orca")
+    mocked_deletion_project_member.delete_project.side_effect = (
+        mlrun.errors.MLRunNotFoundError("not found")
+    )
+    local_delete_mock = MagicMock()
+    monkeypatch.setattr(services.api.crud.Projects, "delete_project", local_delete_mock)
+
+    await _run_deletion_wrapper(
+        project_state=mlrun.common.schemas.ProjectState.archived
+    )
+
+    local_delete_mock.assert_called_once()
+    mocked_deletion_project_member.post_delete_project.assert_awaited_once_with("proj")

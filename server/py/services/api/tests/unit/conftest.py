@@ -36,7 +36,7 @@ import mlrun_pipelines.client
 import mlrun_pipelines.utils
 
 import framework.utils.clients.iguazio.v3
-import framework.utils.clients.iguazio.v4
+import framework.utils.clients.orca.v1
 import framework.utils.projects.remotes.leader
 import framework.utils.singletons.k8s
 import services.api.crud
@@ -178,7 +178,9 @@ def kfp_client_mock(monkeypatch):
 @pytest.fixture()
 def api_url() -> str:
     api_url = "http://iguazio-api-url:8080"
+    # shared by the IG3 and the IG4 clients tests, which read different keys
     mlrun.mlconf.iguazio_api_url = api_url
+    mlrun.mlconf.orca_api_url = api_url
     return api_url
 
 
@@ -204,18 +206,13 @@ def iguazio_client(
         client_cls = module.Client if mode == "sync" else module.AsyncClient
         client = client_cls()
     elif version == "v4":
-        module = framework.utils.clients.iguazio.v4
-        client_cls = module.Client if mode == "sync" else module.AsyncClient
-
-        # PATCH iguazio.Client before instantiation
-        with unittest.mock.patch(
-            "framework.utils.clients.iguazio.v4.iguazio.Client"
-        ) as mock_iguazio_cls:
-            mock_instance = unittest.mock.MagicMock()
-            mock_iguazio_cls.return_value = mock_instance
-
-            # Now when Client.__init__ runs, self._client is assigned to mock_instance
-            client = client_cls()
+        module = framework.utils.clients.orca.v1
+        client_cls = {
+            "sync": module.Client,
+            "async": module.AsyncClient,
+            "follower": module.FollowerClient,
+        }[mode]
+        client = client_cls()
     else:
         raise ValueError(f"Unsupported client version: {version}")
 

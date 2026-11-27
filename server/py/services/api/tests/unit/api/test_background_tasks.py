@@ -34,6 +34,7 @@ import framework.api.deps
 import framework.utils.auth.verifier
 import framework.utils.background_tasks
 import framework.utils.clients.chief
+import services.api.api.endpoints.background_tasks as background_tasks_endpoints
 
 test_router = fastapi.APIRouter()
 
@@ -326,6 +327,32 @@ def test_get_internal_background_task_auth(
     )
 
 
+@pytest.mark.asyncio
+async def test_authorize_get_background_task_request_allows_leader_sa(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setattr(
+        mlrun.mlconf.httpdb.projects, "follower_leader_identity", "the-leader"
+    )
+    leader_auth_info = mlrun.common.schemas.AuthInfo(
+        username="the-leader",
+        kind=mlrun.common.schemas.AuthInfoKind.service_account,
+    )
+    background_task = mlrun.common.schemas.BackgroundTask(
+        metadata=mlrun.common.schemas.BackgroundTaskMetadata(name="task-1"),
+        spec=mlrun.common.schemas.BackgroundTaskSpec(),
+        status=mlrun.common.schemas.BackgroundTaskStatus(
+            state=mlrun.common.schemas.BackgroundTaskState.running
+        ),
+    )
+
+    result = await background_tasks_endpoints._authorize_get_background_task_request(
+        background_task, leader_auth_info
+    )
+
+    assert result is None
+
+
 def test_get_internal_background_task_redirect_from_worker_to_chief_exists(
     db: sqlalchemy.orm.Session,
     client: fastapi.testclient.TestClient,
@@ -388,15 +415,19 @@ async def test_internal_background_task_already_running(
     db: sqlalchemy.orm.Session, async_client: httpx.AsyncClient
 ):
     timeout = 3
+    kind = "long_bump_counter"
     curr_call_counter = call_counter
+    handler = framework.utils.background_tasks.InternalBackgroundTasksHandler()
 
     # if we await the first future before sending the second request, the second request will be sent after the whole
-    # background task is finished because of how httpx.AsyncClient works. To avoid this, we send both requests and
-    # await them together. This way, the second request will be sent before the first background task is finished and
-    # will be rejected.
+    # background task is finished because of how httpx.AsyncClient works. To avoid this, we send the first request
+    # then wait for it to actually lock the "long_bump_counter" kind before sending the second - this way the second
+    # request is guaranteed to be sent while the first background task is still running and gets rejected.
     first_future = await async_client.post(
         f"/test/long-internal-background-tasks/{timeout}"
     )
+    while not handler.get_active_background_task_by_kind(kind):
+        await asyncio.sleep(0.05)
     second_future = await async_client.post(
         f"/test/long-internal-background-tasks/{timeout}"
     )

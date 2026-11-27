@@ -134,8 +134,9 @@ def test_prepare_notifications_states(notifications, expected_states):
 
     # normalize the error strings for comparison
     result_dicts = [_normalize_error_messages(state.__dict__) for state in result]
+    expected_dicts = [state.__dict__ for state in expected_states]
 
-    assert result_dicts == expected_states
+    assert result_dicts == expected_dicts
 
 
 def _normalize_error_messages(state):

@@ -496,7 +496,7 @@ class BaseRuntimeHandler(ABC):
         token_name: str,
         auth_info: mlrun.common.schemas.AuthInfo | None = None,
     ):
-        if not mlrun.mlconf.is_iguazio_v4_mode():
+        if not mlrun.mlconf.is_orca_mode():
             return
 
         user_id = auth_info.user_id if auth_info else None
@@ -636,9 +636,15 @@ class BaseRuntimeHandler(ABC):
                 db_run_state=db_run_state,
                 now=now,
             )
-            run.setdefault("status", {})["state"] = RunStates.error
-            run.setdefault("status", {})["last_update"] = now.isoformat()
-            db.store_run(db_session, run, run_uid, project)
+            db.update_run(
+                db_session,
+                updates={
+                    "status.state": RunStates.error,
+                    "status.last_update": now.isoformat(),
+                },
+                uid=run_uid,
+                project=project,
+            )
             return
         if db_run_state in RunStates.non_terminal_states():
             if run_runtime_resources_map and run_uid in run_runtime_resources_map.get(
@@ -658,8 +664,12 @@ class BaseRuntimeHandler(ABC):
                     now=now,
                     debounce_period=debounce_period,
                 )
-                run.setdefault("status", {})["last_update"] = now.isoformat()
-                db.store_run(db_session, run, run_uid, project)
+                db.update_run(
+                    db_session,
+                    updates={"status.last_update": now.isoformat()},
+                    uid=run_uid,
+                    project=project,
+                )
                 return
 
             if datetime.fromisoformat(last_update_str) > now - timedelta(

@@ -20,6 +20,7 @@ import os
 import sys
 import time
 import typing
+import warnings
 from collections import namedtuple
 from contextlib import contextmanager
 from os import environ
@@ -47,6 +48,7 @@ import mlrun.common.types
 import mlrun.errors
 import mlrun.projects.project
 import mlrun.secrets
+import mlrun.utils.helpers
 from mlrun import RunObject
 from mlrun.auth.providers import IGTokenProvider, StaticTokenProvider
 from mlrun.db.httpdb import HTTPRunDB
@@ -84,6 +86,9 @@ def start_server(workdir, env_config: dict):
         f"sqlite:///{workdir}/mlrun.sqlite3?check_same_thread=false"
     )
     env["MLRUN_HTTPDB__LOGS_PATH"] = workdir
+    # this subprocess IS the api server, so it binds the native _v2 schema face (the client test
+    # process stays on _v1); the test image doesn't bake this in the way the mlrun-api image does.
+    env["MLRUN_IS_API_SERVER"] = "true"
     env.update(env_config or {})
     cmd = [
         executable,
@@ -529,9 +534,7 @@ def test_iguazio_v4_oauth_config_is_applied_before_token_provider_init(
     }
 
     # Ensure deterministic endpoint selection (external) regardless of env/CI kubernetes detection
-    monkeypatch.setattr(
-        mlrun.k8s_utils, "is_running_inside_kubernetes_cluster", lambda: False
-    )
+    monkeypatch.setattr(mlrun.k8s_utils, "is_running_in_kubernetes_pod", lambda: False)
 
     with _mock_httpdb_connect(server_cfg):
         db = HTTPRunDB("http://some-server:1919")
@@ -569,9 +572,8 @@ def test_iguazio_v4_oauth_config_uses_internal_endpoint_in_cluster(
         "oauth_internal_token_endpoint": internal_token_endpoint,
     }
 
-    monkeypatch.setattr(
-        mlrun.k8s_utils, "is_running_inside_kubernetes_cluster", lambda: True
-    )
+    monkeypatch.setattr(mlrun.k8s_utils, "is_running_in_kubernetes_pod", lambda: True)
+    monkeypatch.setattr(mlrun.utils.helpers, "is_running_in_runtime", lambda: True)
     monkeypatch.setattr(
         mlrun.auth.utils,
         "read_secret_tokens_file",
@@ -595,41 +597,117 @@ def test_iguazio_v4_oauth_config_uses_internal_endpoint_in_cluster(
         # Verify token_file is set to the expected path when running inside k8s
         expected_token_file = os.path.join(
             mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_PATH,
-            mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_FILE,
+            mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_ECOS_FILE,
         )
         assert mlrun.mlconf.auth_with_oauth_token.token_file == expected_token_file
 
 
+def test_iguazio_v4_oauth_token_file_uses_secret_path_without_sa_token_automount(
+    requests_mock: requests_mock_package.Mocker, monkeypatch
+):
+    """
+    Regression test for ML-13003: a job pod with automountServiceAccountToken disabled has no SA
+    token file, so kubernetes.config.load_incluster_config() would raise even though the pod is
+    genuinely in-cluster. connect() must still pick the internal endpoint and the job's
+    secret-volume token path, driven only by env vars the kubelet/mlrun inject regardless of
+    automount: KUBERNETES_SERVICE_HOST/KUBERNETES_SERVICE_PORT for the endpoint, MLRUN_RUNTIME_KIND
+    for the token file.
+    """
+    monkeypatch.setenv("KUBERNETES_SERVICE_HOST", "10.0.0.1")
+    monkeypatch.setenv("KUBERNETES_SERVICE_PORT", "443")
+    monkeypatch.setenv("MLRUN_RUNTIME_KIND", "job")
+
+    internal_token_endpoint = "https://dashboard.default-tenant.svc.cluster.local/api/v1/authentication/refresh-access-token"
+    iat = int(time.time())
+    exp = iat + 3600
+    jwt_token = _encode_jwt({"iat": iat, "exp": exp})
+    requests_mock.post(
+        internal_token_endpoint, json={"spec": {"accessToken": jwt_token}}
+    )
+
+    server_cfg = {
+        "version": mlrun.mlconf.version,
+        "authentication_mode": mlrun.common.types.AuthenticationMode.IGUAZIO_V4.value,
+        "oauth_enabled": True,
+        "oauth_external_token_endpoint": "https://dashboard.default-tenant.app.example.com/api/v1/authentication/refresh-access-token",
+        "oauth_internal_token_endpoint": internal_token_endpoint,
+    }
+
+    monkeypatch.setattr(
+        mlrun.auth.utils,
+        "read_secret_tokens_file",
+        lambda raise_on_error: {
+            "secretTokens": [{"name": "default", "token": "offline"}]
+        },
+    )
+
+    with _mock_httpdb_connect(server_cfg):
+        db = HTTPRunDB("http://some-server:1919")
+        db.connect()
+
+    expected_token_file = os.path.join(
+        mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_PATH,
+        mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_ECOS_FILE,
+    )
+    assert mlrun.mlconf.auth_with_oauth_token.token_file == expected_token_file
+    assert mlrun.mlconf.auth_token_endpoint == internal_token_endpoint
+
+
 @pytest.mark.parametrize(
-    "is_k8s,has_jupyter_env,preconfigured_token_file,expected_token_file_suffix",
+    "is_k8s,is_runtime,preconfigured_token_file,expected_token_file_suffix",
     [
-        # Running in k8s (not Jupyter) - should use k8s secret path
-        (True, False, None, "/var/mlrun-secrets/auth/.igz.yml"),
-        # Running in k8s under Jupyter - should use user home token file
-        (True, True, None, "~/.igz.yml"),
-        # Running locally (not k8s) - should use user home token file
+        # Running in k8s as an mlrun runtime (job/dask/nuclio) - should use k8s secret path
+        (True, True, None, "/var/mlrun-secrets/auth/.ecos.yml"),
+        # Running as an mlrun runtime where only the legacy secret file is mounted - should fall back to it
+        (True, True, None, "/var/mlrun-secrets/auth/.igz.yml"),
+        # Running in k8s but not as an mlrun runtime (e.g. Jupyter) - should use user home token file
+        (True, False, None, "~/.ecos.yml"),
+        # Running locally (not k8s, not a runtime) - should use user home token file
+        (False, False, None, "~/.ecos.yml"),
+        # Only the legacy token file exists - should fall back to it
         (False, False, None, "~/.igz.yml"),
+        # Both exist - new file wins
+        (False, False, None, "~/.ecos.yml (both exist)"),
         # Token file already configured - should not change it
-        (True, False, "/custom/path/token.yml", "/custom/path/token.yml"),
+        (True, True, "/custom/path/token.yml", "/custom/path/token.yml"),
     ],
 )
 def test_iguazio_v4_oauth_token_file_auto_initialization(
     requests_mock: requests_mock_package.Mocker,
     monkeypatch,
+    tmp_path,
     is_k8s,
-    has_jupyter_env,
+    is_runtime,
     preconfigured_token_file,
     expected_token_file_suffix,
 ):
     """
     Test that token_file is correctly auto-initialized based on environment:
-    - In k8s (not Jupyter): uses /var/mlrun-secrets/auth/.igz.yml
-    - In k8s under Jupyter: uses ~/.igz.yml
-    - Locally: uses ~/.igz.yml
+    - In k8s, as an mlrun runtime: uses /var/mlrun-secrets/auth/.ecos.yml, falling back to
+      /var/mlrun-secrets/auth/.igz.yml if only the latter exists
+    - In k8s, not an mlrun runtime (e.g. Jupyter): uses ~/.ecos.yml
+    - Locally: uses ~/.ecos.yml, falling back to ~/.igz.yml if only the latter exists
     - Pre-configured: preserves the existing value
     """
 
     mlrun.mlconf.auth_with_oauth_token.token_file = preconfigured_token_file
+
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    if expected_token_file_suffix == "~/.igz.yml":
+        (home / ".igz.yml").touch()
+    elif expected_token_file_suffix == "~/.ecos.yml (both exist)":
+        (home / ".igz.yml").touch()
+        (home / ".ecos.yml").touch()
+        expected_token_file_suffix = "~/.ecos.yml"
+    elif expected_token_file_suffix == "/var/mlrun-secrets/auth/.igz.yml":
+        real_exists = os.path.exists
+        monkeypatch.setattr(
+            os.path,
+            "exists",
+            lambda path: path == expected_token_file_suffix or real_exists(path),
+        )
 
     external_token_endpoint = "https://dashboard.default-tenant.app.example.com/api/v1/authentication/refresh-access-token"
     internal_token_endpoint = "https://dashboard.default-tenant.svc.cluster.local/api/v1/authentication/refresh-access-token"
@@ -650,16 +728,11 @@ def test_iguazio_v4_oauth_token_file_auto_initialization(
         "oauth_internal_token_endpoint": internal_token_endpoint,
     }
 
-    # Mock kubernetes detection
+    # Mock kubernetes detection and mlrun-runtime detection independently
+    monkeypatch.setattr(mlrun.k8s_utils, "is_running_in_kubernetes_pod", lambda: is_k8s)
     monkeypatch.setattr(
-        mlrun.k8s_utils, "is_running_inside_kubernetes_cluster", lambda: is_k8s
+        mlrun.utils.helpers, "is_running_in_runtime", lambda: is_runtime
     )
-
-    # Set or clear Jupyter environment variable
-    if has_jupyter_env:
-        monkeypatch.setenv("JPY_SESSION_NAME", "jupyter-session")
-    else:
-        monkeypatch.delenv("JPY_SESSION_NAME", raising=False)
 
     # Mock secret tokens reading for k8s environments
     monkeypatch.setattr(
@@ -673,8 +746,8 @@ def test_iguazio_v4_oauth_token_file_auto_initialization(
     # Determine the expected token file path
     if preconfigured_token_file:
         expected_token_file = preconfigured_token_file
-    elif expected_token_file_suffix == "~/.igz.yml":
-        expected_token_file = os.path.expanduser("~/.igz.yml")
+    elif expected_token_file_suffix.startswith("~/"):
+        expected_token_file = os.path.expanduser(expected_token_file_suffix)
     else:
         expected_token_file = expected_token_file_suffix
 
@@ -694,6 +767,57 @@ def test_connect_invokes_init_token_provider_from_env():
         db.connect()
 
 
+def test_connect_syncs_projects_leader_from_client_spec():
+    """``connect()`` syncs the server's project-sync leader, so ``_resolve_projects_client()``
+    can tell whether the API server has actually cut project CUD over to Orca - the SDK has no
+    other way to observe that.
+    """
+    mlrun.mlconf.httpdb.projects.leader = "mlrun"
+    server_cfg = {"version": mlrun.mlconf.version, "projects_leader": "orca"}
+    with _mock_httpdb_connect(server_cfg):
+        db = HTTPRunDB("http://some-server:1919")
+        db.connect()
+    assert mlrun.mlconf.httpdb.projects.leader == "orca"
+
+
+@pytest.mark.parametrize("spec_mode", ["iguazio-v4", "orca"])
+def test_connect_reads_both_ig4_authentication_modes_from_client_spec(spec_mode):
+    """The server sends "iguazio-v4" to support clients before 1.14.0. It is read as "orca" without a warning."""
+    mlrun.mlconf.httpdb.authentication.mode = "none"
+    server_cfg = {"version": mlrun.mlconf.version, "authentication_mode": spec_mode}
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", FutureWarning)
+        with _mock_httpdb_connect(server_cfg), _skip_token_provider_init():
+            HTTPRunDB("http://some-server:1919").connect()
+    assert mlrun.mlconf.httpdb.authentication.mode == "orca"
+    assert mlrun.mlconf.is_orca_mode()
+
+
+def test_connect_warns_on_locally_configured_iguazio_v4_mode():
+    mlrun.mlconf.httpdb.authentication.mode = "iguazio-v4"
+    server_cfg = {"version": mlrun.mlconf.version}
+    with pytest.warns(
+        FutureWarning, match="'iguazio-v4' \\(httpdb.authentication.mode\\)"
+    ):
+        with _mock_httpdb_connect(server_cfg), _skip_token_provider_init():
+            HTTPRunDB("http://some-server:1919").connect()
+    assert mlrun.mlconf.httpdb.authentication.mode == "orca"
+
+
+def test_connect_warns_on_shared_deprecated_keys_once_the_mode_is_synced(monkeypatch):
+    """The mode of a client is only known after ``connect()``, so shared deprecated keys warn only then."""
+    monkeypatch.setenv("MLRUN_IGUAZIO_API_URL", "https://orca.internal")
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", FutureWarning)
+        mlrun.mlconf.reload()
+
+    server_cfg = {"version": mlrun.mlconf.version, "authentication_mode": "iguazio-v4"}
+    with pytest.warns(FutureWarning, match="MLRUN_IGUAZIO_API_URL"):
+        with _mock_httpdb_connect(server_cfg), _skip_token_provider_init():
+            HTTPRunDB("http://some-server:1919").connect()
+    assert mlrun.mlconf.orca_api_url == "https://orca.internal"
+
+
 def test_connect_preserves_explicit_credentials_in_iguazio_v4(monkeypatch):
     """
     Explicit ``Credentials(token=...)`` own auth for the instance: ``connect()``
@@ -710,9 +834,7 @@ def test_connect_preserves_explicit_credentials_in_iguazio_v4(monkeypatch):
         "oauth_external_token_endpoint": "https://dashboard.example.com/refresh",
     }
     # deterministic endpoint selection
-    monkeypatch.setattr(
-        mlrun.k8s_utils, "is_running_inside_kubernetes_cluster", lambda: False
-    )
+    monkeypatch.setattr(mlrun.k8s_utils, "is_running_in_kubernetes_pod", lambda: False)
 
     token = "sa-bearer-token"
     credentials = mlrun.Credentials(token=token)
@@ -1358,13 +1480,18 @@ def test_paginated_list_runs(create_server):
     db, project_name = _store_runs(create_server, num_runs)
     page_size = 4
 
+    # No filter is given, so pagination goes through the "no filter" default
+    # (partition_by=project_and_name, partition_sort_by=updated,
+    # partition_order=desc - see crud.Runs().list_runs) - most-recently-updated
+    # run first, i.e. run-9 down to run-0.
+
     # First request (Page 1)
     runs, token = db.paginated_list_runs(project=project_name, page_size=page_size)
     _assert_list_response(
         runs,
         expected_results_count=page_size,
         identifier_name="name",
-        expected_first_result_name="run-0",
+        expected_first_result_name="run-9",
     )
     assert token is not None
 
@@ -1374,7 +1501,7 @@ def test_paginated_list_runs(create_server):
         runs,
         expected_results_count=page_size,
         identifier_name="name",
-        expected_first_result_name="run-4",
+        expected_first_result_name="run-5",
     )
     assert token is not None
 
@@ -1384,7 +1511,7 @@ def test_paginated_list_runs(create_server):
         runs,
         expected_results_count=2,
         identifier_name="name",
-        expected_first_result_name="run-8",
+        expected_first_result_name="run-1",
     )
     assert token is None
 
@@ -1396,7 +1523,7 @@ def test_paginated_list_runs(create_server):
         runs,
         expected_results_count=2,
         identifier_name="name",
-        expected_first_result_name="run-8",
+        expected_first_result_name="run-1",
     )
     assert token is None
 
@@ -1864,3 +1991,10 @@ def _configure_run_db_server(create_server):
     mlrun.db._last_db_url = server.url
 
     return server, db
+
+
+@contextmanager
+def _skip_token_provider_init():
+    """The orca modes initialize an OAuth token provider that needs endpoints the tests don't care about."""
+    with patch.object(HTTPRunDB, "_init_token_provider_from_env"):
+        yield

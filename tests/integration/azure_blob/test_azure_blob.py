@@ -276,7 +276,7 @@ class TestAzureBlob:
         assert result == b"test"
         with pytest.raises(
             TypeError,
-            match="Unable to put a value of type AzureBlobStore",
+            match="Unable to put a value of type int to AzureBlobStore",
         ):
             data_item.put(123)
 

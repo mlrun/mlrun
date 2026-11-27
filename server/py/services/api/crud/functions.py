@@ -13,10 +13,12 @@
 # limitations under the License.
 
 import datetime
+import functools
 from typing import Union
 
 import sqlalchemy.orm
 
+import mlrun.common.constants
 import mlrun.common.formatters
 import mlrun.common.helpers
 import mlrun.common.schemas
@@ -43,6 +45,15 @@ class Functions(
         versioned: bool = False,
         auth_info: mlrun.common.schemas.AuthInfo = None,
     ) -> str:
+        get_existing_function = functools.partial(
+            self.get_function,
+            db_session,
+            name=name,
+            project=project,
+            tag=tag
+            or mlrun.utils.get_in(function, "metadata.tag")
+            or mlrun.common.constants.RESERVED_TAG_NAME_LATEST,
+        )
         if auth_info:
             function_obj = mlrun.new_function(
                 name=name, project=project, runtime=function, tag=tag
@@ -57,8 +68,13 @@ class Functions(
                 allow_empty_access_key=True,
                 perform_auto_mount=False,
                 ensure_security_context=False,
+                get_existing_function=get_existing_function,
             )
             function = function_obj.to_dict()
+        else:
+            framework.api.utils.validate_function_labels(
+                function, get_existing_function
+            )
 
         return framework.utils.singletons.db.get_db().store_function(
             session=db_session,

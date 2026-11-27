@@ -136,6 +136,89 @@ def test_http_trigger():
     )
 
 
+@pytest.mark.parametrize(
+    "mode, creds, expected_mode_value",
+    [
+        (mlrun.common.schemas.HTTPTriggerAuthenticationMode.api, None, "api"),
+        (mlrun.common.schemas.HTTPTriggerAuthenticationMode.browser, None, "browser"),
+        (mlrun.common.schemas.HTTPTriggerAuthenticationMode.none, None, "none"),
+        (
+            mlrun.common.schemas.HTTPTriggerAuthenticationMode.basic,
+            ("user", "pass"),
+            "basicAuth",
+        ),
+    ],
+)
+def test_with_http_authentication_mode(monkeypatch, mode, creds, expected_mode_value):
+    monkeypatch.setattr(
+        mlrun.mlconf.httpdb.nuclio, "function_authentication_enabled", True
+    )
+    function: mlrun.runtimes.RemoteRuntime = mlrun.new_function("test", kind="nuclio")
+    function.with_http(authentication_mode=mode, authentication_creds=creds)
+
+    trigger = function.spec.config["spec.triggers.http"]
+    assert trigger["attributes"]["authenticationMode"] == expected_mode_value
+    if mode == mlrun.common.schemas.HTTPTriggerAuthenticationMode.basic:
+        username, password = creds
+        assert trigger["attributes"]["authentication"] == {
+            "basicAuth": {"username": username, "password": password}
+        }
+    else:
+        assert "authentication" not in trigger["attributes"]
+
+
+def test_with_http_authentication_flag_off_raises(monkeypatch):
+    monkeypatch.setattr(
+        mlrun.mlconf.httpdb.nuclio, "function_authentication_enabled", False
+    )
+    function: mlrun.runtimes.RemoteRuntime = mlrun.new_function("test", kind="nuclio")
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError, match="not supported"):
+        function.with_http(
+            authentication_mode=mlrun.common.schemas.HTTPTriggerAuthenticationMode.api
+        )
+
+
+def test_with_http_authentication_requires_min_nuclio_version(monkeypatch):
+    monkeypatch.setattr(
+        mlrun.mlconf.httpdb.nuclio, "function_authentication_enabled", True
+    )
+    monkeypatch.setattr(mlrun.mlconf, "nuclio_version", "1.17.3")
+    function: mlrun.runtimes.RemoteRuntime = mlrun.new_function("test", kind="nuclio")
+    with pytest.raises(mlrun.errors.MLRunIncompatibleVersionError, match="1.17.5"):
+        function.with_http(
+            authentication_mode=mlrun.common.schemas.HTTPTriggerAuthenticationMode.api
+        )
+
+
+def test_with_http_authentication_basic_missing_creds(monkeypatch):
+    monkeypatch.setattr(
+        mlrun.mlconf.httpdb.nuclio, "function_authentication_enabled", True
+    )
+    function: mlrun.runtimes.RemoteRuntime = mlrun.new_function("test", kind="nuclio")
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match="authentication_creds",
+    ):
+        function.with_http(
+            authentication_mode=mlrun.common.schemas.HTTPTriggerAuthenticationMode.basic
+        )
+
+
+def test_with_http_authentication_creds_non_basic_rejected(monkeypatch):
+    monkeypatch.setattr(
+        mlrun.mlconf.httpdb.nuclio, "function_authentication_enabled", True
+    )
+    function: mlrun.runtimes.RemoteRuntime = mlrun.new_function("test", kind="nuclio")
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match="only valid for 'basicAuth'",
+    ):
+        function.with_http(
+            authentication_mode=mlrun.common.schemas.HTTPTriggerAuthenticationMode.api,
+            authentication_creds=("user", "pass"),
+        )
+
+
 def test_nuclio_deploy_set_token_name():
     function: mlrun.runtimes.RemoteRuntime = mlrun.new_function("tst", kind="nuclio")
     db = mlrun.get_run_db()
@@ -282,6 +365,137 @@ def test_wait_for_deployment_clears_background_tasks_after_processing():
 
     function._check_model_endpoint_task_state.assert_called_once()
     assert function._deploy_background_tasks == {"background_tasks": []}
+
+
+@pytest.fixture
+def user_and_service_account_clients(monkeypatch):
+    monkeypatch.setattr(mlrun.mlconf, "dbpath", "https://mock-server")
+    user_client = mlrun.Client(credentials=mlrun.Credentials(token="user-token"))
+    service_account_client = mlrun.Client(
+        credentials=mlrun.Credentials(token="service-account-token")
+    )
+    for client in (user_client, service_account_client):
+        client._http_db.store_function = MagicMock()
+        client._http_db.deploy_nuclio_function = MagicMock()
+        client._http_db.get_nuclio_deploy_status = MagicMock()
+        client._http_db.remote_builder = MagicMock()
+        client._http_db.get_builder_status = MagicMock()
+    return user_client, service_account_client
+
+
+def test_wait_for_deployment_uses_active_session_db(user_and_service_account_clients):
+    """Submit as the user and wait as a read-only service account.
+
+    The wait must poll with the service account's DB rather than the DB cached at submit time,
+    and must not store the function, since the server persists the invocation command.
+    """
+    user_client, service_account_client = user_and_service_account_clients
+    function: mlrun.runtimes.RemoteRuntime = mlrun.new_function(
+        "tst", kind="nuclio", project="proj"
+    )
+    user_client._http_db.deploy_nuclio_function.return_value = {
+        "data": {"status": {"state": "deploying"}, "spec": function.spec.to_dict()}
+    }
+    ready_headers = {
+        "x-mlrun-function-status": "ready",
+        "x-mlrun-internal-invocation-urls": "tst.svc:8080",
+        "x-mlrun-external-invocation-urls": "tst.example.com",
+        "x-mlrun-address": "tst.example.com",
+    }
+
+    def get_ready_deploy_status(func, **kwargs):
+        mlrun.runtimes.nuclio.function.enrich_nuclio_function_from_headers(
+            func, ready_headers
+        )
+        return "", 1
+
+    service_account_client._http_db.get_nuclio_deploy_status.side_effect = (
+        get_ready_deploy_status
+    )
+
+    with user_client.session():
+        assert function.deploy(wait=False) is function
+    with (
+        service_account_client.session(),
+        patch("mlrun.runtimes.nuclio.function.sleep"),
+    ):
+        command = function.wait_for_deployment()
+
+    user_client._http_db.deploy_nuclio_function.assert_called_once()
+    service_account_client._http_db.deploy_nuclio_function.assert_not_called()
+    service_account_client._http_db.get_nuclio_deploy_status.assert_called_once()
+    user_client._http_db.get_nuclio_deploy_status.assert_not_called()
+    user_client._http_db.store_function.assert_not_called()
+    service_account_client._http_db.store_function.assert_not_called()
+    expected_command = mlrun.runtimes.nuclio.function.resolve_invocation_command(
+        external_invocation_urls=["tst.example.com"],
+        internal_invocation_urls=["tst.svc:8080"],
+        address="tst.example.com",
+    )
+    assert command == expected_command == "http://tst.example.com"
+    assert function.spec.command == expected_command
+
+
+def test_build_watch_uses_active_session_db(user_and_service_account_clients):
+    """Submit a job image build as the user and watch it as a service account."""
+    user_client, service_account_client = user_and_service_account_clients
+    function: mlrun.runtimes.KubejobRuntime = mlrun.new_function(
+        "tst", kind="job", project="proj", image="mlrun/mlrun"
+    )
+    function.spec.build.requirements = ["pandas"]
+    user_client._http_db.remote_builder.return_value = {
+        "data": {"status": {"state": "pending"}, "spec": {}},
+        "ready": False,
+    }
+    states = iter(["running", "ready"])
+
+    def get_builder_status(func, **kwargs):
+        func.status.state = next(states)
+        return "", None, None
+
+    service_account_client._http_db.get_builder_status.side_effect = get_builder_status
+
+    with user_client.session():
+        assert function.deploy(watch=False) is False
+    with service_account_client.session(), patch("mlrun.runtimes.pod.time.sleep"):
+        state = function._build_watch()
+
+    assert state == "ready"
+    user_client._http_db.remote_builder.assert_called_once()
+    service_account_client._http_db.remote_builder.assert_not_called()
+    assert service_account_client._http_db.get_builder_status.call_count == 2
+    user_client._http_db.get_builder_status.assert_not_called()
+    user_client._http_db.store_function.assert_not_called()
+    service_account_client._http_db.store_function.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "external_invocation_urls, internal_invocation_urls, address, expected",
+    [
+        (["ext"], ["int"], "addr", "http://ext"),
+        ([""], ["int"], "addr", "http://int"),
+        ([], [""], "addr", "http://addr"),
+        (None, None, "", None),
+        (
+            ["https://gateway.example.com/path"],
+            ["int"],
+            "",
+            "https://gateway.example.com/path",
+        ),
+        (["http://gateway.example.com"], [], "", "http://gateway.example.com"),
+    ],
+)
+def test_resolve_invocation_command(
+    external_invocation_urls, internal_invocation_urls, address, expected
+):
+    assert (
+        mlrun.runtimes.nuclio.function.resolve_invocation_command(
+            external_invocation_urls=external_invocation_urls,
+            internal_invocation_urls=internal_invocation_urls,
+            address=address,
+        )
+        == expected
+    )
 
 
 def test_v3io_stream_trigger():
@@ -666,6 +880,133 @@ def test_with_source_archive_removes_inline_code(logs_stream):
 
     # assert that the source was set correctly
     assert fn.spec.build.source == source
+
+
+@pytest.fixture
+def function_authentication_enabled(monkeypatch):
+    monkeypatch.setattr(
+        mlrun.mlconf.httpdb.nuclio, "function_authentication_enabled", True
+    )
+
+
+@pytest.fixture
+def run_db_token_provider():
+    token_provider = MagicMock()
+    token_provider.get_token.return_value = "env-token"
+    token_provider.is_iguazio_session.return_value = False
+    with patch.object(
+        mlrun, "get_run_db", return_value=MagicMock(token_provider=token_provider)
+    ):
+        yield token_provider
+
+
+def test_invoke_unauthenticated_when_function_auth_disabled(
+    monkeypatch, run_db_token_provider
+):
+    monkeypatch.setattr(
+        mlrun.mlconf.httpdb.nuclio, "function_authentication_enabled", False
+    )
+    fn = mlrun.new_function("test-fn", kind="nuclio")
+
+    request_kwargs = _invoke_and_get_request_kwargs(fn)
+
+    assert request_kwargs.get("auth") is None
+    run_db_token_provider.get_token.assert_not_called()
+
+
+def test_invoke_falls_back_to_run_db_token(
+    function_authentication_enabled, run_db_token_provider
+):
+    # ML-13135: on EcliptOS the HTTP trigger defaults to "api" auth and rejects credential-less invocations
+    fn = mlrun.new_function("test-fn", kind="nuclio")
+
+    request_kwargs = _invoke_and_get_request_kwargs(fn)
+
+    assert _bearer_header_of(request_kwargs["auth"]) == "Bearer env-token"
+
+
+def test_invoke_uses_auth_info_request_headers(
+    monkeypatch, function_authentication_enabled, run_db_token_provider
+):
+    monkeypatch.setattr(
+        mlrun.mlconf.httpdb.authentication,
+        "mode",
+        mlrun.common.types.AuthenticationMode.IGUAZIO_V4,
+    )
+    fn = mlrun.new_function("test-fn", kind="nuclio")
+    auth_info = mlrun.common.schemas.AuthInfo(
+        request_headers={
+            "Authorization": "Bearer caller-token",
+            "Host": "mlrun-api",
+            "Content-Length": "42",
+        }
+    )
+
+    request_kwargs = _invoke_and_get_request_kwargs(fn, auth_info=auth_info)
+
+    assert _bearer_header_of(request_kwargs["auth"]) == "Bearer caller-token"
+    # only the credential is taken from the caller's request headers
+    assert "Host" not in request_kwargs["headers"]
+    assert "Content-Length" not in request_kwargs["headers"]
+    run_db_token_provider.get_token.assert_not_called()
+
+
+def test_invoke_empty_auth_info_falls_back_to_run_db_token(
+    function_authentication_enabled, run_db_token_provider
+):
+    fn = mlrun.new_function("test-fn", kind="nuclio")
+
+    request_kwargs = _invoke_and_get_request_kwargs(
+        fn, auth_info=mlrun.common.schemas.AuthInfo()
+    )
+
+    assert _bearer_header_of(request_kwargs["auth"]) == "Bearer env-token"
+
+
+@pytest.mark.parametrize(
+    "invoke_kwargs",
+    [
+        {"headers": {"authorization": "Bearer explicit-token"}},
+        {"auth": ("user", "password")},
+    ],
+)
+def test_invoke_keeps_caller_credentials(
+    function_authentication_enabled, run_db_token_provider, invoke_kwargs
+):
+    fn = mlrun.new_function("test-fn", kind="nuclio")
+    expected_auth = invoke_kwargs.get("auth")
+
+    request_kwargs = _invoke_and_get_request_kwargs(fn, **invoke_kwargs)
+
+    assert request_kwargs.get("auth") == expected_auth
+    run_db_token_provider.get_token.assert_not_called()
+
+
+def test_invoke_unauthenticated_when_token_resolution_fails(
+    function_authentication_enabled, run_db_token_provider, logs_stream
+):
+    run_db_token_provider.get_token.side_effect = RuntimeError("token endpoint down")
+    fn = mlrun.new_function("test-fn", kind="nuclio")
+
+    request_kwargs = _invoke_and_get_request_kwargs(fn)
+
+    assert request_kwargs["auth"] is None
+    assert "Failed to resolve credentials for function invocation" in (
+        logs_stream.getvalue()
+    )
+
+
+def _invoke_and_get_request_kwargs(fn, **invoke_kwargs) -> dict:
+    fn._http_session = MagicMock()
+    fn._http_session.request.return_value = MagicMock(ok=True, content=b"")
+    fn.invoke("http://test-fn:8080/path", mock=False, **invoke_kwargs)
+    return fn._http_session.request.call_args.kwargs
+
+
+def _bearer_header_of(auth) -> str:
+    request = MagicMock(headers={})
+    auth(request)
+    return request.headers["Authorization"]
 
 
 class TestSetupModelMonitoring:

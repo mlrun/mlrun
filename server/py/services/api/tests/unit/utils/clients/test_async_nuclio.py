@@ -156,6 +156,77 @@ async def test_nuclio_store_api_gateway(
     )
 
 
+def _make_api_gateway_schema(name, project_name, authentication_mode=None):
+    spec = mlrun.common.schemas.APIGatewaySpec(
+        name=name,
+        path="/",
+        host="",
+        upstreams=[
+            mlrun.common.schemas.APIGatewayUpstream(
+                nucliofunction={"name": f"{project_name}-test-func"}
+            )
+        ],
+    )
+    if authentication_mode is not None:
+        spec.authenticationMode = authentication_mode
+    return mlrun.common.schemas.APIGateway(
+        metadata=mlrun.common.schemas.APIGatewayMetadata(name=name),
+        spec=spec,
+    )
+
+
+def _make_nuclio_response(name):
+    return mlrun.common.schemas.APIGateway(
+        metadata=mlrun.common.schemas.APIGatewayMetadata(name=name),
+        spec=mlrun.common.schemas.APIGatewaySpec(
+            name=name,
+            path="/",
+            host="test.host",
+            upstreams=[
+                mlrun.common.schemas.APIGatewayUpstream(
+                    nucliofunction={"name": "test-func"}
+                )
+            ],
+        ),
+    ).dict()
+
+
+@pytest.mark.asyncio
+async def test_store_api_gateway_omits_none_authentication_mode_when_function_auth_enabled(
+    api_url,
+    nuclio_client,
+    mock_aioresponse,
+    monkeypatch,
+):
+    """Server must strip authenticationMode='none' before forwarding to Nuclio when function auth is enabled."""
+    monkeypatch.setattr(
+        mlrun.config.config.httpdb.nuclio, "function_authentication_enabled", True
+    )
+    project_name = "default"
+    api_gateway_name = "test-gw"
+    request_url = f"{api_url}/api/api_gateways/{project_name}-{api_gateway_name}"
+
+    captured_body = {}
+
+    def capture_and_respond(url, **kwargs):
+        captured_body.update(kwargs.get("json", {}))
+        return CallbackResult(
+            status=http.HTTPStatus.ACCEPTED,
+            payload=_make_nuclio_response(api_gateway_name),
+        )
+
+    mock_aioresponse.put(request_url, callback=capture_and_respond)
+
+    schema = _make_api_gateway_schema(
+        api_gateway_name,
+        project_name,
+        authentication_mode=mlrun.common.schemas.APIGatewayAuthenticationMode.none,
+    )
+    await nuclio_client.store_api_gateway(project_name=project_name, api_gateway=schema)
+    assert "authenticationMode" not in captured_body.get("spec", {})
+    assert "authentication" not in captured_body.get("spec", {})
+
+
 @pytest.mark.asyncio
 async def test_nuclio_delete_function(
     api_url,

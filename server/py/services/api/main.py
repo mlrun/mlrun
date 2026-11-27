@@ -54,6 +54,7 @@ import services.api.runtime_handlers
 import services.api.utils.db.partitioner
 import services.api.utils.events.db_errors
 import services.api.utils.events.log_collector_errors
+import services.api.utils.events.permission_denied
 import services.api.utils.telemetry.inventory
 from framework.db.session import close_session, create_session
 from framework.utils.periodic import (
@@ -148,6 +149,7 @@ class Service(framework.service.Service):
         # Attach the DB connection-failed event listener before any DB work so
         # we capture connection issues that surface during initial migrations.
         services.api.utils.events.db_errors.register_for_default_engine()
+        services.api.utils.events.permission_denied.register_for_opa_provider()
         await mlrun.utils.run_in_threadpool(self._initialize_chief)
 
     async def _custom_teardown_service(self):

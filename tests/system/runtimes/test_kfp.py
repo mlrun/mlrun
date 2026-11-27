@@ -30,6 +30,7 @@ from mlrun_pipelines.common.models import RunStatuses
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured
 class TestKFP(tests.system.base.TestMLRunSystem):
     project_name = "kfp-system-test"
+    reuse_project_across_tests = True
 
     @pytest.mark.enterprise
     def test_kfp_with_mount(self):

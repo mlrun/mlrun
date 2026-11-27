@@ -12,10 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import functools
 import os
 import traceback
 from http import HTTPStatus
 
+import mlrun.common.constants
 import mlrun.common.schemas
 from mlrun.errors import err_to_str
 from mlrun.run import new_function
@@ -23,6 +25,7 @@ from mlrun.runtimes import RuntimeKinds
 from mlrun.utils import logger
 
 import framework.api.utils
+import services.api.crud
 import services.api.launcher
 from services.api.api.endpoints.nuclio import _deploy_nuclio_runtime
 from services.api.utils.builder import build_runtime
@@ -74,6 +77,13 @@ def build_function(
             perform_auto_mount=False,
             mask_sensitive_data=False,
             ensure_security_context=False,
+            get_existing_function=functools.partial(
+                services.api.crud.Functions().get_function,
+                db_session,
+                name=fn.metadata.name,
+                project=fn.metadata.project,
+                tag=fn.metadata.tag or mlrun.common.constants.RESERVED_TAG_NAME_LATEST,
+            ),
         )
 
         if is_nuclio_deploy:

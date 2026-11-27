@@ -52,6 +52,11 @@ MLRUN_ACTIVE_PROJECT = "MLRUN_ACTIVE_PROJECT"
 
 MLRUN_JOB_AUTH_SECRET_PATH = "/var/mlrun-secrets/auth"
 MLRUN_JOB_AUTH_SECRET_FILE = ".igz.yml"
+# Preferred in-pod token file name, MLRUN_JOB_AUTH_SECRET_FILE is the legacy fallback
+MLRUN_JOB_AUTH_SECRET_ECOS_FILE = ".ecos.yml"
+USER_TOKEN_FILE = "~/.ecos.yml"
+# Read-only fallback for token files created before the rename
+LEGACY_USER_TOKEN_FILE = "~/.igz.yml"
 MLRUN_RUNTIME_AUTH_DEFAULT_TOKEN_NAME = "default"
 
 MLRUN_TELEMETRY_OTLP_HEADERS_PATH = "/var/mlrun-secrets/telemetry-otlp-headers"

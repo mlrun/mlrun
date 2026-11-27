@@ -32,7 +32,10 @@ import tests.system.base
 from mlrun import feature_store as fstore
 from mlrun.datastore.sources import KafkaSource
 from mlrun.datastore.targets import ParquetTarget
-from mlrun.runtimes.nuclio.function import AsyncSpec
+from mlrun.runtimes.nuclio.function import (
+    AsyncSpec,
+    validate_nuclio_version_compatibility,
+)
 from mlrun.serving import ModelRunnerStep
 from mlrun.serving.remote import MLRunAPIRemoteStep, RemoteStep
 from tests.system.model_monitoring import TestMLRunSystemModelMonitoring
@@ -44,6 +47,7 @@ from tests.system.runtimes.assets.function_with_model import DummyModel, MyModel
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured
 class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
     project_name = "test-nuclio-runtime"
+    reuse_project_across_tests = True
 
     image: str = "mlrun/mlrun"
 
@@ -363,7 +367,14 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
         self._logger.debug("Deploying nuclio function")
         function.deploy()
 
-        assert len(self.project.list_model_endpoints().endpoints) == 1
+        assert (
+            len(
+                self.project.list_model_endpoints(
+                    names="my-model", function_name=function.metadata.name
+                ).endpoints
+            )
+            >= 1
+        )
 
     @pytest.mark.parametrize("raise_exception", [True, False])
     def test_deploy_model_runner_error_handler(self, raise_exception: bool):
@@ -1021,6 +1032,7 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
 @pytest.mark.enterprise
 class TestNuclioRuntimeWithStream(tests.system.base.TestMLRunSystem):
     project_name = "stream-project"
+    reuse_project_across_tests = True
     stream_container = "bigdata"
     path_uuid_part = uuid.uuid4()
     stream_path = f"/test_nuclio/test_serving_with_child_function-{path_uuid_part}/"
@@ -1170,6 +1182,7 @@ class MyMap(MapClass):
 @pytest.mark.enterprise
 class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
     project_name = "kafka-project"
+    reuse_project_across_tests = True
     topic_uuid_part = uuid.uuid4()
     topic = f"TestNuclioRuntimeWithKafka-{topic_uuid_part}"
     topic_out = f"TestNuclioRuntimeWithKafka-out-{topic_uuid_part}"
@@ -1410,6 +1423,7 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured
 class TestNuclioMLRunJobs(tests.system.base.TestMLRunSystem):
     project_name = "nuclio-mlrun-jobs"
+    reuse_project_across_tests = True
 
     image: str = "mlrun/mlrun"
 
@@ -1489,6 +1503,7 @@ class TestNuclioMLRunJobs(tests.system.base.TestMLRunSystem):
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured
 class TestNuclioAPIGateways(tests.system.base.TestMLRunSystem):
     project_name = "nuclio-mlrun-gateways"
+    reuse_project_across_tests = True
     gw_name = "test-gateway"
 
     def custom_setup(self):
@@ -1507,18 +1522,21 @@ class TestNuclioAPIGateways(tests.system.base.TestMLRunSystem):
         )
         self._cleanup_gateway()
 
-        api_gateway = self._get_basic_gateway()
-        api_gateway.with_basic_auth("test", "test")
-        api_gateway = self.project.store_api_gateway(api_gateway=api_gateway)
-        res = api_gateway.invoke(credentials=("test", "test"), verify=False)
-        assert res.status_code == 200
+        if not mlrun.mlconf.is_nuclio_function_authentication_enabled():
+            # API-Gateway-level basicAuth is only supported when function-level
+            # authentication is disabled on the platform.
+            api_gateway = self._get_basic_gateway()
+            api_gateway.with_basic_auth("test", "test")
+            api_gateway = self.project.store_api_gateway(api_gateway=api_gateway)
+            res = api_gateway.invoke(credentials=("test", "test"), verify=False)
+            assert res.status_code == 200
 
-        # check that api gateway url is in function's external_invocation_urls
-        self._check_functions_external_invocation_urls(
-            function_name=self.f1.metadata.name,
-            expected_url=api_gateway.invoke_url.replace("https://", ""),
-        )
-        self._cleanup_gateway()
+            # check that api gateway url is in function's external_invocation_urls
+            self._check_functions_external_invocation_urls(
+                function_name=self.f1.metadata.name,
+                expected_url=api_gateway.invoke_url.replace("https://", ""),
+            )
+            self._cleanup_gateway()
 
         api_gateway = self._get_basic_gateway()
         api_gateway.with_canary(functions=[self.f1, self.f2], canary=[50, 50])
@@ -1535,6 +1553,41 @@ class TestNuclioAPIGateways(tests.system.base.TestMLRunSystem):
             function_name=self.f2.metadata.name,
             expected_url=api_gateway.invoke_url.replace("https://", ""),
         )
+
+    def test_function_http_trigger_basic_auth(self):
+        """Function-level HTTP trigger basicAuth, enforced by the auth sidecar"""
+        if not mlrun.mlconf.is_nuclio_function_authentication_enabled():
+            pytest.skip(
+                "Function-level authentication is disabled on this platform "
+                "(httpdb.nuclio.function_authentication_enabled=False)"
+            )
+        if not validate_nuclio_version_compatibility("1.17.5"):
+            pytest.skip(
+                "Function-level HTTP trigger authentication requires Nuclio 1.17.5 or higher"
+            )
+
+        filename = str(self.assets_path / "nuclio_function.py")
+        fn = mlrun.code_to_function(
+            filename=filename,
+            name="nuclio-mlrun-basic-auth",
+            kind="nuclio",
+            handler="handler",
+        )
+        fn.with_http(
+            workers=1,
+            authentication_mode=mlrun.common.schemas.HTTPTriggerAuthenticationMode.basic,
+            authentication_creds=("test-user", "test-pass"),
+        )
+        fn.deploy()
+
+        data = fn.invoke(path="/", auth=("test-user", "test-pass"), verify=False)
+        assert data is not None
+
+        with pytest.raises(RuntimeError, match="401"):
+            fn.invoke(path="/", auth=("wrong", "creds"), verify=False)
+
+        with pytest.raises(RuntimeError, match="401"):
+            fn.invoke(path="/", verify=False)
 
     def _get_basic_gateway(self):
         return mlrun.runtimes.nuclio.api_gateway.APIGateway(
@@ -1581,6 +1634,7 @@ class TestNuclioRuntimeWithRabbitMQ(tests.system.base.TestMLRunSystem):
     """
 
     project_name = "rabbitmq-project"
+    reuse_project_across_tests = True
     exchange_uuid_part = uuid.uuid4()
     exchange_name = f"test-exchange-{exchange_uuid_part}"
     queue_name = f"test-queue-{exchange_uuid_part}"

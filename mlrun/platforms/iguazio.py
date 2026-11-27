@@ -44,7 +44,7 @@ def v3io_to_vol(name, remote="~/", access_key="", user="", secret=None):
     from kubernetes import client
 
     access_key = access_key or environ.get("V3IO_ACCESS_KEY")
-    opts = {"accessKey": access_key}
+    opts = {"accessKey": access_key} if access_key else {}
     user = user or environ.get("V3IO_USERNAME")
     if user:
         opts["dirsToCreate"] = f'[{{"name": "users//{user}", "permissions": 488}}]'
@@ -70,7 +70,7 @@ def v3io_to_vol(name, remote="~/", access_key="", user="", secret=None):
 
     vol = {
         "flexVolume": client.V1FlexVolumeSource(
-            "v3io/fuse", options=opts, secret_ref=secret
+            driver="v3io/fuse", options=opts, secret_ref=secret
         ),
         "name": name,
     }

@@ -29,6 +29,7 @@ from uuid import UUID
 import pydantic.v1
 import requests
 import semver
+from deprecated import deprecated
 from pydantic.v1 import parse_obj_as
 
 import mlrun
@@ -40,6 +41,7 @@ import mlrun.common.schemas
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.common.schemas.model_monitoring.model_endpoints as mm_endpoints
 import mlrun.common.types
+import mlrun.db.orca
 import mlrun.k8s_utils
 import mlrun.platforms
 import mlrun.projects
@@ -136,6 +138,7 @@ class HTTPRunDB(RunDBInterface):
     def __init__(self, url, *, credentials: "mlrun.client.Credentials | None" = None):
         self.server_version = ""
         self.session = None
+        self._projects_client = None
         self._wait_for_project_terminal_state_retry_interval = 3
         self._wait_for_background_task_terminal_state_retry_interval = 3
         self._wait_for_project_deletion_interval = 3
@@ -280,36 +283,10 @@ class HTTPRunDB(RunDBInterface):
                 ("params", params),
                 ("data", body),
                 ("json", json),
-                ("headers", headers),
             )
             if value is not None
         }
-
-        if self.user:
-            kw["auth"] = (self.user, self.password)
-        elif self.token_provider:
-            token = self.token_provider.get_token()
-            if token:
-                # Iguazio auth doesn't support passing token through bearer, so use cookie instead
-                if self.token_provider.is_iguazio_session():
-                    session_cookie = f'j:{{"sid": "{token}"}}'
-                    cookies = {
-                        "session": session_cookie,
-                    }
-                    kw["cookies"] = cookies
-                else:
-                    if (
-                        mlrun.common.schemas.HeaderNames.authorization
-                        not in kw.setdefault("headers", {})
-                    ):
-                        kw["headers"].update(
-                            {
-                                mlrun.common.schemas.HeaderNames.authorization: (
-                                    mlrun.common.schemas.AuthorizationHeaderPrefixes.bearer
-                                    + token
-                                )
-                            }
-                        )
+        kw.update(self._auth_request_kwargs(headers))
 
         if mlrun.common.schemas.HeaderNames.client_version not in kw.setdefault(
             "headers", {}
@@ -374,6 +351,45 @@ class HTTPRunDB(RunDBInterface):
             mlrun.errors.raise_for_status(response, error)
 
         return response
+
+    def _auth_request_kwargs(self, headers: dict | None = None) -> dict:
+        """Build the auth-related request kwargs (``auth``/``cookies``/``headers``) for the
+        credentials this instance was configured with. Shared by calls to MLRun's own API
+        (``api_call``) and, in enterprise mode, calls made directly to Orca - which trusts the
+        same IG4 session/token (see :class:`mlrun.db.orca.OrcaProjectsClient`).
+
+        :param headers: Extra headers to merge the auth header into, if any.
+        :return: Request kwargs (a subset of ``auth``/``cookies``/``headers``) to pass to
+            ``requests``.
+        """
+        kw = {}
+        if headers is not None:
+            kw["headers"] = headers
+        if self.user:
+            kw["auth"] = (self.user, self.password)
+        elif self.token_provider:
+            token = self.token_provider.get_token()
+            if token:
+                # Iguazio auth doesn't support passing token through bearer, so use cookie instead
+                if self.token_provider.is_iguazio_session():
+                    session_cookie = f'j:{{"sid": "{token}"}}'
+                    kw["cookies"] = {
+                        "session": session_cookie,
+                    }
+                else:
+                    if (
+                        mlrun.common.schemas.HeaderNames.authorization
+                        not in kw.setdefault("headers", {})
+                    ):
+                        kw["headers"].update(
+                            {
+                                mlrun.common.schemas.HeaderNames.authorization: (
+                                    mlrun.common.schemas.AuthorizationHeaderPrefixes.bearer
+                                    + token
+                                )
+                            }
+                        )
+        return kw
 
     def paginated_api_call(
         self,
@@ -506,6 +522,13 @@ class HTTPRunDB(RunDBInterface):
                 return False
 
         return True
+
+    @staticmethod
+    def _resolve_token_file(token_file: str, legacy_token_file: str) -> str:
+        """Return the legacy token file only if the new one is missing and the legacy one exists"""
+        if not os.path.exists(token_file) and os.path.exists(legacy_token_file):
+            return legacy_token_file
+        return token_file
 
     def connect(self, secrets=None) -> typing.Self:
         """Connect to the MLRun API server. Must be called prior to executing any other method.
@@ -675,9 +698,24 @@ class HTTPRunDB(RunDBInterface):
                         prefix,
                         store_prefix_value,
                     )
-            config.httpdb.authentication.mode = (
-                server_cfg.get("authentication_mode")
-                or config.httpdb.authentication.mode
+            # the server may still send the deprecated "iguazio-v4" value to support older clients. That is the
+            # server's remap and not a user setting, so it is read as "orca" without a warning. A locally
+            # configured "iguazio-v4" does warn.
+            # TODO: Remove "iguazio-v4" in 1.16.0
+            server_mode = server_cfg.get("authentication_mode")
+            if server_mode:
+                mode = mlrun.config.resolve_deprecated_authentication_mode(
+                    server_mode, warn=False
+                )
+            else:
+                mode = mlrun.config.resolve_deprecated_authentication_mode(
+                    config.httpdb.authentication.mode
+                )
+            config.httpdb.authentication.mode = mode
+            # the mode is only known now, so shared deprecated keys that were skipped at load can warn
+            config.warn_on_deprecated_keys()
+            config.httpdb.projects.leader = (
+                server_cfg.get("projects_leader") or config.httpdb.projects.leader
             )
 
             config.httpdb.authorization.namespaces.mlrun = (
@@ -686,29 +724,32 @@ class HTTPRunDB(RunDBInterface):
             )
 
             # Iguazio V4 OAuth token config auto-initialization
-            if (
-                config.httpdb.authentication.mode
-                == mlrun.common.types.AuthenticationMode.IGUAZIO_V4.value
-            ):
+            if config.is_orca_mode():
                 if not config.auth_with_oauth_token.token_file:
-                    user_token_file = os.path.expanduser("~/.igz.yml")
-
                     # runtimes
-                    # TODO: change to os.getenv("MLRUN_RUNTIME_KIND")
-                    # when https://github.com/mlrun/mlrun/pull/9121 is done.
-                    if (
-                        mlrun.k8s_utils.is_running_inside_kubernetes_cluster()
-                        and not os.environ.get("JPY_SESSION_NAME")
-                    ):
-                        user_token_file = os.path.join(
-                            mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_PATH,
-                            mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_FILE,
+                    if mlrun.utils.helpers.is_running_in_runtime():
+                        user_token_file = self._resolve_token_file(
+                            os.path.join(
+                                mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_PATH,
+                                mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_ECOS_FILE,
+                            ),
+                            os.path.join(
+                                mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_PATH,
+                                mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_FILE,
+                            ),
+                        )
+                    else:
+                        user_token_file = self._resolve_token_file(
+                            os.path.expanduser(mlrun.common.constants.USER_TOKEN_FILE),
+                            os.path.expanduser(
+                                mlrun.common.constants.LEGACY_USER_TOKEN_FILE
+                            ),
                         )
 
                     config.auth_with_oauth_token.token_file = user_token_file
 
                 # if running inside kubernetes, use the internal endpoint, otherwise use the external endpoint
-                if mlrun.k8s_utils.is_running_inside_kubernetes_cluster():
+                if mlrun.k8s_utils.is_running_in_kubernetes_pod():
                     config.auth_token_endpoint = server_cfg.get(
                         "oauth_internal_token_endpoint"
                     )
@@ -736,6 +777,10 @@ class HTTPRunDB(RunDBInterface):
                 config.telemetry.model_monitoring.interval = server_cfg[
                     "telemetry_model_monitoring_interval"
                 ]
+            if server_cfg.get("nuclio_function_authentication_enabled") is not None:
+                config.httpdb.nuclio.function_authentication_enabled = server_cfg[
+                    "nuclio_function_authentication_enabled"
+                ]
 
         except Exception as exc:
             logger.warning(
@@ -750,7 +795,7 @@ class HTTPRunDB(RunDBInterface):
 
         self._init_token_provider_from_env()
 
-        if config.is_iguazio_v4_mode() and config.auth_with_oauth_token.enabled:
+        if config.is_orca_mode() and config.auth_with_oauth_token.enabled:
             mlrun.secrets.sync_secret_tokens()
         return self
 
@@ -1118,7 +1163,10 @@ class HTTPRunDB(RunDBInterface):
 
         :param states: List only runs whose state is one of the provided states.
         :param sort: Whether to sort the result according to their start time. Otherwise, results will be
-            returned by their internal order in the DB (order will not be guaranteed).
+            returned by their internal order in the DB (order will not be guaranteed). Takes precedence over
+            `partition_sort_by` for the returned order - `partition_sort_by` only decides which run wins
+            *within* a partition, and, when `max_partitions` is set, which partitions are kept; it does not
+            affect the order of the final result.
         :param iter: If ``True`` return runs from all iterations. Otherwise, return only runs whose ``iter`` is 0.
         :param start_time_from: Filter by run start time in ``[start_time_from, start_time_to]``.
         :param start_time_to: Filter by run start time in ``[start_time_from, start_time_to]``.
@@ -3395,7 +3443,14 @@ class HTTPRunDB(RunDBInterface):
             - ``restrict`` (default) - Project must not have any related resources when deleted. If using
               this mode while related resources exist, the operation will fail.
             - ``cascade`` - Automatically delete all related resources when deleting the project.
+
+        If Orca manages projects and the server's deletion task fails, this logs a warning instead
+        of an error: Orca completes the deletion on its own, so there is no need to retry.
         """
+        projects_client = self._resolve_projects_client()
+        if projects_client is not None:
+            projects_client.delete_project(name, wait_for_completion=True)
+            return
 
         headers = {
             mlrun.common.schemas.HeaderNames.deletion_strategy: deletion_strategy
@@ -3419,11 +3474,22 @@ class HTTPRunDB(RunDBInterface):
                 background_task.status.state
                 == mlrun.common.schemas.BackgroundTaskState.failed
             ):
-                logger.error(
-                    "Project deletion failed",
-                    project_name=name,
-                    error=background_task.status.error,
-                )
+                # Under an Orca leader a failed task doesn't mean the deletion failed - Orca keeps
+                # reconciling the project until it's gone
+                if mlrun.mlconf.httpdb.projects.leader == "orca":
+                    logger.warning(
+                        "Project deletion was accepted and is in progress. The system is "
+                        "eventually consistent and will complete it automatically; there is no "
+                        "need to retry. The project name can be reused once deletion completes.",
+                        project_name=name,
+                        error=background_task.status.error,
+                    )
+                else:
+                    logger.error(
+                        "Project deletion failed",
+                        project_name=name,
+                        error=background_task.status.error,
+                    )
         elif response.status_code == http.HTTPStatus.NO_CONTENT:
             logger.info("Project deleted", project_name=name)
 
@@ -3433,6 +3499,11 @@ class HTTPRunDB(RunDBInterface):
         project: Union[dict, mlrun.projects.MlrunProject, mlrun.common.schemas.Project],
     ) -> mlrun.projects.MlrunProject:
         """Store a project in the DB. This operation will overwrite existing project of the same name if exists."""
+        projects_client = self._resolve_projects_client()
+        if projects_client is not None:
+            return projects_client.update_project(
+                name, project, wait_for_completion=True
+            )
 
         path = f"projects/{name}"
         error_message = f"Failed storing project {name}"
@@ -3465,6 +3536,14 @@ class HTTPRunDB(RunDBInterface):
         :param patch_mode: The strategy for merging the changes with the existing object. Can be either ``replace``
             or ``additive``.
         """
+        projects_client = self._resolve_projects_client()
+        if projects_client is not None:
+            return projects_client.patch_project(
+                name,
+                project,
+                patch_mode=mlrun.common.schemas.PatchMode(patch_mode),
+                wait_for_completion=True,
+            )
 
         path = f"projects/{name}"
         headers = {mlrun.common.schemas.HeaderNames.patch_mode: patch_mode}
@@ -3479,6 +3558,9 @@ class HTTPRunDB(RunDBInterface):
         project: Union[dict, mlrun.projects.MlrunProject, mlrun.common.schemas.Project],
     ) -> mlrun.projects.MlrunProject:
         """Create a new project. A project with the same name must not exist prior to creation."""
+        projects_client = self._resolve_projects_client()
+        if projects_client is not None:
+            return projects_client.create_project(project, wait_for_completion=True)
 
         if isinstance(project, mlrun.common.schemas.Project):
             project = project.dict()
@@ -3497,6 +3579,23 @@ class HTTPRunDB(RunDBInterface):
         if response.status_code == http.HTTPStatus.ACCEPTED:
             return self._wait_for_project_to_reach_terminal_state(project_name)
         return mlrun.projects.MlrunProject.from_dict(response.json())
+
+    def _resolve_projects_client(self) -> mlrun.db.orca.OrcaProjectsClient | None:
+        """Resolve the client project CUD should delegate to instead of this API, or ``None`` to
+        keep going through this API as usual. Some enterprise deployments run project CUD through
+        a separate management service instead - ``projects_leader`` is synced from the server's
+        own ``httpdb.projects.leader`` via ``connect()``'s client-spec, since that's the one fact
+        this client can't determine on its own.
+        """
+        if not (
+            mlrun.mlconf.is_orca_mode()
+            and mlrun.mlconf.orca_api_url
+            and mlrun.mlconf.httpdb.projects.leader == "orca"
+        ):
+            return None
+        if self._projects_client is None:
+            self._projects_client = mlrun.db.orca.OrcaProjectsClient(self)
+        return self._projects_client
 
     def _wait_for_project_to_reach_terminal_state(
         self, project_name: str
@@ -5460,13 +5559,21 @@ class HTTPRunDB(RunDBInterface):
             "stored per user. Use `store_secret_token` instead."
         )
 
+    # TODO: Remove in 1.16.0
+    @deprecated(
+        version="1.14.0",
+        reason="'list_secret_tokens' is deprecated in 1.14.0 and will be removed in 1.16.0. "
+        "Offline tokens are now managed by Oris, use the EcliptOS SDK's 'list_offline_tokens()' instead.",
+        category=FutureWarning,
+    )
     @mlrun.utils.iguazio_v4_only
     def list_secret_tokens(
         self,
         username: str | None = None,
     ) -> mlrun.common.schemas.ListSecretTokensResponse:
         """
-        List secret tokens. Only system-administrators can list tokens for other users.
+        (deprecated) List secret tokens. Only system-administrators can list tokens for other users.
+        Use the EcliptOS SDK's ``list_offline_tokens()`` instead.
 
         :param username: Optional; the username for which to list secret tokens.
                          Use ``"*"`` to list tokens for all users.
@@ -5502,12 +5609,22 @@ class HTTPRunDB(RunDBInterface):
 
         return mlrun.common.schemas.ListSecretTokensResponse(**response.json())
 
+    # TODO: Remove in 1.16.0
+    @deprecated(
+        version="1.14.0",
+        reason="'delete_secret_token' is deprecated in 1.14.0 and will be removed in 1.16.0. "
+        "Offline tokens are now managed by Oris, use the EcliptOS SDK's 'revoke_offline_session()' instead, "
+        "which revokes the token and deletes its MLRun copy.",
+        category=FutureWarning,
+    )
     @mlrun.utils.iguazio_v4_only
     def delete_secret_token(
         self, token_name: str, username: str | None = None
     ) -> mlrun.common.schemas.DeleteSecretTokenResponse:
         """
-        Delete a secret token. Only system-administrators can delete tokens for other users.
+        (deprecated) Delete a secret token. Only system-administrators can delete tokens for other users.
+        With a recent Oris this only deletes MLRun's copy of the token and no longer revokes it. Use the
+        EcliptOS SDK's ``revoke_offline_session()`` instead.
 
         :param token_name: The name of the token to delete.
         :param username: Optional; the username of the token owner.
@@ -5535,15 +5652,25 @@ class HTTPRunDB(RunDBInterface):
             )
         return result
 
+    # TODO: Remove in 1.16.0
+    @deprecated(
+        version="1.14.0",
+        reason="'delete_secret_tokens' is deprecated in 1.14.0 and will be removed in 1.16.0. "
+        "Offline tokens are now managed by Oris, use the EcliptOS SDK's 'revoke_offline_session()' instead, "
+        "which revokes the token and deletes its MLRun copy.",
+        category=FutureWarning,
+    )
     @mlrun.utils.iguazio_v4_only
     def delete_secret_tokens(
         self, username: str | None = None
     ) -> mlrun.common.schemas.DeleteSecretTokensResponse:
         """
-        Delete the user's stored secret token, if one exists. Only system-administrators
-        can delete tokens for other users.
+        (deprecated) Delete the user's stored secret token, if one exists. This only deletes MLRun's
+        copy of the token and does not revoke it. Use the EcliptOS SDK's ``revoke_offline_session()``
+        instead.
 
-        A single token is stored per user, so this deletes that token when present.
+        Only system-administrators can delete tokens for other users. A single token is stored
+        per user, so this deletes that token when present.
 
         :param username: Optional; the username of the token owner. If None, deletes the
             caller's own token.

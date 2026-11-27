@@ -22,7 +22,7 @@ import mlrun.common.schemas.model_monitoring as mm_schemas
 import mlrun.errors
 import mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_schema as timescaledb_schema
 import mlrun.utils
-from mlrun.common.schemas.model_monitoring.model_endpoints import _MetricPoint
+from mlrun.common.schemas.model_monitoring.model_endpoints import MetricPoint
 from mlrun.model_monitoring.db.tsdb.timescaledb.utils.timescaledb_dataframe_processor import (
     TimescaleDBDataFrameProcessor,
 )
@@ -199,7 +199,7 @@ class TimescaleDBPredictionsQueries:
         return mm_schemas.ModelEndpointMonitoringMetricValues(
             full_name=full_name,
             values=[
-                _MetricPoint(timestamp=timestamp, value=value)
+                MetricPoint(timestamp=timestamp, value=value)
                 for timestamp, value in zip(df.index, df[value_col])
             ],
         )

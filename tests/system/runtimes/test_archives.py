@@ -67,6 +67,7 @@ need_gcs_workload_identity = pytest.mark.skipif(
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured
 class TestArchiveSources(tests.system.base.TestMLRunSystem):
     project_name = "git-tests"
+    reuse_project_across_tests = True
 
     def custom_setup(self):
         super().custom_setup()

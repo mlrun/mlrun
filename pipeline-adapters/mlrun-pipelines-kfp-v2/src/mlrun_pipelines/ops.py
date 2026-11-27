@@ -210,11 +210,22 @@ def add_labels(task, function, scrape_metrics=False):
     )
 
 
-def add_default_env(task):
+def add_default_env(task, runtime_kind: str | None = None):
+    # Mirrors MLRUN_RUNTIME_KIND from mlrun/runtimes/base.py so
+    # is_running_in_runtime() also detects KFP pipeline-step pods.
+    if runtime_kind:
+        task.set_env_variable(name="MLRUN_RUNTIME_KIND", value=runtime_kind)
+
     if hasattr(kfp_k8s, "use_field_path_as_env"):
         kfp_k8s.use_field_path_as_env(task, "MLRUN_NAMESPACE", "metadata.namespace")
         # Inject the full pod name for runner_pod annotation.
         kfp_k8s.use_field_path_as_env(task, "MLRUN_POD_NAME", "metadata.name")
+        if not runtime_kind:
+            kfp_k8s.use_field_path_as_env(
+                task,
+                "MLRUN_RUNTIME_KIND",
+                f"metadata.labels['{mlrun_constants.MLRunInternalLabels.mlrun_class}']",
+            )
     else:
         # TODO: remove this warning as soon as "use_field_path_as_env" is available for MLRun SDK
         logger.warning(
@@ -374,7 +385,7 @@ def generate_image_builder_pipeline_node(
         task.set_env_variable(
             name="V3IO_ACCESS_KEY", value=os.environ.get("V3IO_ACCESS_KEY")
         )
-    add_default_env(task)
+    add_default_env(task, runtime_kind=function.kind)
     return task
 
 
@@ -400,5 +411,5 @@ def generate_deployer_pipeline_node(
     add_function_node_selection_attributes(function, task)
     add_annotations(task, PipelineRunType.deploy, function, func_url)
 
-    add_default_env(task)
+    add_default_env(task, runtime_kind=function.kind)
     return task

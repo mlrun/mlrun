@@ -28,6 +28,7 @@ import framework.api.deps
 import framework.utils.clients.iguazio.v3
 import framework.utils.runtimes.nuclio
 import services.api.utils.builder
+import services.api.utils.helpers
 from framework.api.utils import get_allowed_path_prefixes_list
 
 router = fastapi.APIRouter()
@@ -45,7 +46,7 @@ def get_frontend_spec(
     jobs_dashboard_url = None
     model_monitoring_dashboard_url = None
     session = auth_info.session
-    if session and is_iguazio_session_cookie(session):
+    if (session and is_iguazio_session_cookie(session)) or mlrun.mlconf.is_ce_mode():
         jobs_dashboard_url = _resolve_jobs_dashboard_url(session)
         model_monitoring_dashboard_url = _resolve_model_monitoring_dashboard_url(
             session
@@ -130,7 +131,9 @@ def _resolve_feature_flags() -> mlrun.common.schemas.FeatureFlags:
     if mlrun.mlconf.httpdb.authorization.mode == "opa":
         project_membership = mlrun.common.schemas.ProjectMembershipFeatureFlag.enabled
     authentication = mlrun.common.types.AuthenticationMode(
-        mlrun.mlconf.httpdb.authentication.mode
+        services.api.utils.helpers.resolve_spec_authentication_mode(
+            mlrun.mlconf.httpdb.authentication.mode
+        )
     )
     nuclio_streams = mlrun.common.schemas.NuclioStreamsFeatureFlag.disabled
 

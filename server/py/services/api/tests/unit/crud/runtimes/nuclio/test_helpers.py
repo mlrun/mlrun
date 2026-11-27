@@ -20,6 +20,7 @@ import pytest
 
 import mlrun
 import mlrun.common.constants as mlrun_constants
+import mlrun.errors
 
 import services.api.crud.runtimes.nuclio.function
 import services.api.crud.runtimes.nuclio.helpers
@@ -66,7 +67,7 @@ def test_compiled_function_config_nuclio_golang():
 
 def test_compiled_function_config_nuclio_python():
     name = f"{assets_path}/training.py"
-    project = mlrun.get_or_create_project("test")
+    project = mlrun.get_or_create_project("test", save=False)
     fn = project.set_function(name, name="nuclio", kind="nuclio", handler="my_hand")
     fn.with_annotations({"something": "somewhat"})
     (
@@ -108,6 +109,44 @@ def test_compiled_function_config_merges_default_pod_labels(monkeypatch):
     assert labels["env"] == "prod"
     # mlrun/class system label always applied
     assert labels[mlrun_constants.MLRunInternalLabels.mlrun_class] == "remote"
+
+
+@pytest.mark.parametrize(
+    "function_labels, config_labels, raises",
+    [
+        ({"team": "ml"}, {"metadata.labels.owner": "a"}, False),
+        ({"blocked-key": "blocked"}, {}, False),
+        # the same key with another value is allowed
+        ({}, {"metadata.labels.blocked-key": "a"}, False),
+        ({}, {"metadata.labels.blocked-key": "blocked"}, True),
+        (
+            {"blocked-key": "blocked"},
+            {"metadata.labels.blocked-key": "blocked"},
+            False,
+        ),
+        ({"blocked-key": "a"}, {"metadata.labels.blocked-key": "blocked"}, True),
+        ({}, {"metadata.labels": {"blocked.example.com/name": "blocked"}}, True),
+    ],
+)
+def test_compiled_function_config_forbidden_labels(
+    monkeypatch, function_labels, config_labels, raises
+):
+    monkeypatch.setattr(
+        mlrun.mlconf.function.spec,
+        "forbidden_labels",
+        "blocked-key=blocked,blocked.example.com/name=blocked",
+    )
+    name = f"{assets_path}/training.py"
+    fn = mlrun.code_to_function(
+        "nuclio", filename=name, kind="nuclio", handler="my_hand"
+    )
+    fn.metadata.labels = function_labels
+    fn.spec.config.update(config_labels)
+    if raises:
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+            services.api.crud.runtimes.nuclio.function._compile_function_config(fn)
+    else:
+        services.api.crud.runtimes.nuclio.function._compile_function_config(fn)
 
 
 def test_compiled_function_config_sidecar_image_enrichment():
@@ -435,7 +474,9 @@ def test_compile_nuclio_function_with_store_source_redeploy_is_idempotent(
         }
     }
 
-    services.api.crud.runtimes.nuclio.function._compile_function_config(func)
+    _, _, config = services.api.crud.runtimes.nuclio.function._compile_function_config(
+        func
+    )
 
     # Exactly one init container in spec.config (no duplication on rebuild).
     init_containers = func.spec.config.get("spec.initContainers") or []
@@ -453,10 +494,10 @@ def test_compile_nuclio_function_with_store_source_redeploy_is_idempotent(
     ]
     assert len(project_secret_refs) == 1
 
-    # extend_config later merges nuclio_spec into base_spec; without the dedupe
-    # we'd see two entries with the same name here and Nuclio would reject
-    # the K8s Deployment with "Duplicate value".
-    base_spec_init = mlrun.utils.get_in(func.spec.base_spec, "spec.initContainers", [])
+    # extend_config merges nuclio_spec into (a copy of) base_spec; without the
+    # dedupe we'd see two entries with the same name in the compiled config and
+    # Nuclio would reject the K8s Deployment with "Duplicate value".
+    base_spec_init = mlrun.utils.get_in(config, "spec.initContainers", [])
     base_loader_count = sum(
         1 for c in base_spec_init if c.get("name") == init_container_name
     )
@@ -475,7 +516,7 @@ def test_compile_nuclio_function_with_store_source_redeploy_is_idempotent(
     # user-set entry untouched. Without the base_spec dedupe, extend_config's
     # append-merge would produce two entries per name and Nuclio would
     # reject the K8s Deployment with "Duplicate value".
-    base_env = mlrun.utils.get_in(func.spec.base_spec, "spec.env", []) or []
+    base_env = mlrun.utils.get_in(config, "spec.env", []) or []
     base_real_handlers = [e for e in base_env if e.get("name") == "MLRUN_REAL_HANDLER"]
     assert len(base_real_handlers) == 1
     assert base_real_handlers[0]["value"] == "main:handler"

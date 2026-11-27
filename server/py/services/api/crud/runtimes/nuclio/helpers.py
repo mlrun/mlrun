@@ -386,12 +386,14 @@ def parse_extra_args_to_nuclio_build_flags(extra_args: str) -> list[str]:
 
 
 def _get_auto_mount_env_as_dict() -> dict:
-    """Return plain-value env vars produced by the configured storage auto-mount modifier.
+    """Return the env vars produced by the configured storage auto-mount modifier as plain values.
 
-    Mirrors the logic in builder._resolve_storage_auto_mount_env but returns a plain dict
-    instead of a list of V1EnvVar so callers can do O(1) key lookups. Only plain-value
-    entries are included; valueFrom (secretKeyRef) entries are intentionally skipped
-    because those secret values are already reachable via get_project_secret_data().
+    Based on builder.resolve_storage_auto_mount_env, but returns a plain dict so callers can
+    do O(1) key lookups. Nuclio's codeEntryAttributes are static data with no pod to resolve
+    secretKeyRef or envFrom entries, so entries referencing the auto-mount ``secret_name``
+    (e.g. mount_s3 credentials, or secret_env without keys) are dereferenced by reading that
+    secret. As in a pod, env entries take precedence over envFrom ones. References to other
+    secrets are skipped.
     """
     auto_mount_type = mlrun.runtimes.pod.AutoMountType(
         mlrun.mlconf.storage.auto_mount_type
@@ -401,6 +403,10 @@ def _get_auto_mount_env_as_dict() -> dict:
         return {}
     scratch = mlrun.runtimes.KubejobRuntime()
     scratch.try_auto_mount_based_on_config()
+
+    secret_name = mlrun.mlconf.get_storage_auto_mount_params().get("secret_name")
+    secret_data = _get_auto_mount_secret_data(secret_name) if secret_name else {}
+
     result = {}
     for env_var in scratch.spec.env or []:
         name = env_var["name"] if isinstance(env_var, dict) else env_var.name
@@ -409,6 +415,43 @@ def _get_auto_mount_env_as_dict() -> dict:
             if isinstance(env_var, dict)
             else getattr(env_var, "value", None)
         )
+        if not value and secret_data:
+            ref_name, ref_key = _get_secret_key_ref(env_var)
+            if ref_name == secret_name:
+                value = secret_data.get(ref_key)
         if value:
             result[name] = value
+
+    if secret_data and any(
+        env_from.secret_ref and env_from.secret_ref.name == secret_name
+        for env_from in scratch.spec.env_from
+    ):
+        for key, value in secret_data.items():
+            if value:
+                result.setdefault(key, value)
     return result
+
+
+def _get_auto_mount_secret_data(secret_name: str) -> dict:
+    k8s_helper = framework.utils.singletons.k8s.get_k8s_helper()
+    if not k8s_helper.is_running_inside_kubernetes_cluster():
+        return {}
+    secret_data = k8s_helper.get_secret_data(secret_name)
+    if not secret_data:
+        logger.warning(
+            "Auto-mount secret not found or empty, skipping credentials enrichment",
+            secret_name=secret_name,
+        )
+    return secret_data
+
+
+def _get_secret_key_ref(env_var) -> tuple[str | None, str | None]:
+    if isinstance(env_var, dict):
+        secret_key_ref = (env_var.get("valueFrom") or {}).get("secretKeyRef") or {}
+        return secret_key_ref.get("name"), secret_key_ref.get("key")
+    secret_key_ref = getattr(
+        getattr(env_var, "value_from", None), "secret_key_ref", None
+    )
+    if not secret_key_ref:
+        return None, None
+    return secret_key_ref.name, secret_key_ref.key

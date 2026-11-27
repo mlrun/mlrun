@@ -282,7 +282,7 @@ class TestPrepareOTelEvent:
     BASE_ATTRS = {
         "project": PROJECT,
         "app.name": APP,
-        "function.name": FUNC_NAME,
+        "serving.function.name": FUNC_NAME,
         "endpoint.uid": EP_ID,
         "endpoint.name": EP_NAME,
     }
@@ -304,10 +304,11 @@ class TestPrepareOTelEvent:
 
     @classmethod
     def test_result_and_metric_shape(cls, app_ctx: Mock) -> None:
-        """Results carry `result.name` + `result.kind` + `result.status` under
-        the single `mlrun.model_monitoring.result` instrument name; metrics
-        carry `metric.name` under `mlrun.model_monitoring.metric` and don't get
-        the result-only attributes."""
+        """Results carry `result.name` + `result.kind` under the single
+        `mlrun.model_monitoring.result` instrument name, plus a matching
+        `mlrun.model_monitoring.result.status` entry whose value is the status;
+        metrics carry `metric.name` under `mlrun.model_monitoring.metric` and
+        don't get the result-only attributes."""
         results = [
             ModelMonitoringApplicationResult(
                 name="general_drift",
@@ -320,17 +321,24 @@ class TestPrepareOTelEvent:
         event = _PrepareOTelEvent().do((results, app_ctx))
         by_name = cls._by_name(event["metrics"])
 
+        result_attrs = {
+            **cls.BASE_ATTRS,
+            "result.name": "general_drift",
+            "result.kind": "data_drift",
+        }
         result_entry = by_name["mlrun.model_monitoring.result"]
         assert result_entry == {
             "metric_name": "mlrun.model_monitoring.result",
             "value": 0.42,
             "type": "gauge",
-            "attributes": {
-                **cls.BASE_ATTRS,
-                "result.name": "general_drift",
-                "result.kind": "data_drift",
-                "result.status": "detected",
-            },
+            "attributes": result_attrs,
+        }
+        status_entry = by_name["mlrun.model_monitoring.result.status"]
+        assert status_entry == {
+            "metric_name": "mlrun.model_monitoring.result.status",
+            "value": float(mm_constants.ResultStatusApp.detected.value),
+            "type": "gauge",
+            "attributes": result_attrs,
         }
         metric_entry = by_name["mlrun.model_monitoring.metric"]
         assert metric_entry == {
@@ -364,12 +372,63 @@ class TestPrepareOTelEvent:
 
         assert [m["metric_name"] for m in event["metrics"]] == [
             "mlrun.model_monitoring.result",
+            "mlrun.model_monitoring.result.status",
             "mlrun.model_monitoring.result",
+            "mlrun.model_monitoring.result.status",
         ]
         assert [m["attributes"]["result.name"] for m in event["metrics"]] == [
             "general_drift",
+            "general_drift",
+            "concept_drift",
             "concept_drift",
         ]
+
+    @classmethod
+    @pytest.mark.parametrize("status", list(mm_constants.ResultStatusApp))
+    def test_result_status_exported_as_value(
+        cls, app_ctx: Mock, status: mm_constants.ResultStatusApp
+    ) -> None:
+        """The status is the value of the status gauge, never an attribute, so
+        a status change overwrites the same series instead of creating a new
+        one that lives alongside the stale one."""
+        results = [
+            ModelMonitoringApplicationResult(
+                name="general_drift",
+                value=0.42,
+                kind=mm_constants.ResultKindApp.data_drift,
+                status=status,
+            )
+        ]
+        event = _PrepareOTelEvent().do((results, app_ctx))
+        by_name = cls._by_name(event["metrics"])
+
+        assert by_name["mlrun.model_monitoring.result.status"]["value"] == float(
+            status.value
+        )
+        for entry in event["metrics"]:
+            assert "result.status" not in entry["attributes"]
+
+    @classmethod
+    def test_result_attributes_stable_across_status_change(cls, app_ctx: Mock) -> None:
+        """The same result yields identical attribute sets whether it is
+        detected or not — the OTel SDK keys stored gauge values by attribute
+        set, so this is what keeps one series per result."""
+
+        def _attributes_by_name(
+            status: mm_constants.ResultStatusApp,
+        ) -> dict[str, dict]:
+            result = ModelMonitoringApplicationResult(
+                name="general_drift",
+                value=0.42,
+                kind=mm_constants.ResultKindApp.data_drift,
+                status=status,
+            )
+            event = _PrepareOTelEvent().do(([result], app_ctx))
+            return {m["metric_name"]: m["attributes"] for m in event["metrics"]}
+
+        assert _attributes_by_name(
+            mm_constants.ResultStatusApp.detected
+        ) == _attributes_by_name(mm_constants.ResultStatusApp.no_detection)
 
     @classmethod
     def test_stats_entries_skipped(cls, app_ctx: Mock) -> None:
@@ -421,7 +480,7 @@ class TestPrepareOTelEvent:
         assert attrs == {
             "project": cls.PROJECT,
             "app.name": cls.APP,
-            "function.name": cls.FUNC_NAME,
+            "serving.function.name": cls.FUNC_NAME,
             "metric.name": "m",
         }
 

@@ -174,3 +174,76 @@ def test_cli_load_source_custom_target():
         target_dir=custom_target,
         project=None,
     )
+
+
+def test_cli_mint_registry_credentials_ecr():
+    runner = CliRunner()
+    registry = "123456789012.dkr.ecr.us-east-1.amazonaws.com"
+    dest = f"{registry}/my-repo:latest"
+
+    with unittest.mock.patch("mlrun.__main__.mint_ecr_authfile") as mock_mint:
+        result = runner.invoke(
+            main,
+            [
+                "mint-registry-credentials",
+                "--provider",
+                "ecr",
+                "--registry",
+                registry,
+                "--dest",
+                dest,
+                "--authfile",
+                "/auth/config.json",
+            ],
+        )
+
+    assert result.exit_code == 0
+    assert "Successfully minted ecr registry credentials" in result.output
+    mock_mint.assert_called_once_with(registry, "/auth/config.json", dest=dest)
+
+
+def test_cli_mint_registry_credentials_acr():
+    runner = CliRunner()
+    registry = "myregistry.azurecr.io"
+
+    with unittest.mock.patch("mlrun.__main__.mint_acr_authfile") as mock_mint:
+        result = runner.invoke(
+            main,
+            [
+                "mint-registry-credentials",
+                "--provider",
+                "acr",
+                "--registry",
+                registry,
+                "--authfile",
+                "/auth/config.json",
+            ],
+        )
+
+    assert result.exit_code == 0
+    assert "Successfully minted acr registry credentials" in result.output
+    mock_mint.assert_called_once_with(registry, "/auth/config.json")
+
+
+def test_cli_mint_registry_credentials_failure():
+    runner = CliRunner()
+
+    with unittest.mock.patch(
+        "mlrun.__main__.mint_ecr_authfile",
+        side_effect=ValueError("no credentials found"),
+    ):
+        result = runner.invoke(
+            main,
+            [
+                "mint-registry-credentials",
+                "--provider",
+                "ecr",
+                "--registry",
+                "123456789012.dkr.ecr.us-east-1.amazonaws.com",
+                "--authfile",
+                "/auth/config.json",
+            ],
+        )
+
+    assert result.exit_code == 1
+    assert "Error minting registry credentials:" in result.output

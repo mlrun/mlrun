@@ -424,6 +424,9 @@ class RunDBMock:
     ):
         self._artifacts.pop((key, iter or 0), None)
 
+    def store_log(self, uid, project="", body=None, append=False):
+        pass
+
     def store_run(self, struct, uid, project="", iter=0):
         if hasattr(struct, "to_dict"):
             struct = struct.to_dict()

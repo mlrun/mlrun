@@ -15,7 +15,7 @@
 ARG CUDA_VER=12.8.1-cudnn-devel-ubuntu22.04
 
 # CUDA Based image (including cudnn and cuda-toolkit):
-FROM gcr.io/iguazio/nvidia/cuda:$CUDA_VER
+FROM nvidia/cuda:$CUDA_VER
 
 # Update apt:
 ARG DEBIAN_FRONTEND="noninteractive"

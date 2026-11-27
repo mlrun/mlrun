@@ -311,7 +311,7 @@ async def test_do_not_escape_cookie(
         return aiohttp.web.Response(status=200)
 
     fastapi_app = unittest.mock.Mock()
-    fastapi_app.extra = {"mlrun_service_name": "test"}
+    fastapi_app.state.mlrun_service_name = "test"
     mock_request = fastapi.Request({"type": "http"})
     mock_request._headers = starlette.datastructures.Headers()
     mock_request._cookies = {"session": session_cookie}
@@ -335,3 +335,20 @@ async def test_do_not_escape_cookie(
         mlrun.mlconf.igz_version = "0.5.0"
         response = await chief_client.trigger_migrations(mock_request)
         assert response.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_is_followers_sync_ready(
+    api_url: str,
+    chief_client: framework.utils.clients.chief.Client,
+    aioresponses_mock: aioresponses_mock,
+):
+    aioresponses_mock.get(
+        f"{api_url}/api/v1/followers-sync-status", payload={"ready": True}
+    )
+    assert await chief_client.is_followers_sync_ready() is True
+
+    aioresponses_mock.get(
+        f"{api_url}/api/v1/followers-sync-status", payload={"ready": False}
+    )
+    assert await chief_client.is_followers_sync_ready() is False

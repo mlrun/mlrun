@@ -32,6 +32,7 @@ import tests.system.base
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured
 class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
     project_name = "application-system-test"
+    reuse_project_across_tests = True
 
     def custom_setup(self):
         super().custom_setup()
@@ -154,10 +155,19 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
 
     @pytest.mark.enterprise
     def test_deploy_application_with_custom_api_gateway(self):
+        if mlrun.mlconf.is_nuclio_function_authentication_enabled():
+            pytest.skip(
+                "API-Gateway-level authentication is not supported when function-level "
+                "authentication is enabled on this platform "
+                "(httpdb.nuclio.function_authentication_enabled=True)"
+            )
+
         self._upload_code_to_cluster()
 
         self._logger.debug("Creating application")
-        function, source = self._create_vizro_application()
+        # dedicated name: "vizro-app" is redeployed by other tests in this class
+        # with a default gateway, which would leak into this test's gateway-count asserts
+        function, source = self._create_vizro_application(name="vizro-app-custom-gw")
 
         self._logger.debug("Deploying vizro application")
         function.deploy(with_mlrun=False, create_default_api_gateway=False)
@@ -398,7 +408,7 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
         function = self.project.set_function(
             name=name,
             kind="application",
-            requirements=["vizro<0.1.32", "gunicorn", "Werkzeug==2.2.2"],
+            requirements=["vizro<0.1.32", "gunicorn<24", "Werkzeug==2.2.2", "plotly<7"],
             with_repo=with_repo,
         )
         function.set_internal_application_port(8050)

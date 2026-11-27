@@ -20,8 +20,8 @@ import mlrun.common.types
 import services.api.utils.events.base
 import services.api.utils.events.events_factory
 import services.api.utils.events.iguazio
-import services.api.utils.events.iguazio_v4
 import services.api.utils.events.nop
+import services.api.utils.events.orca
 
 
 @pytest.mark.parametrize(
@@ -66,7 +66,7 @@ import services.api.utils.events.nop
             "4.0.0",
             mlrun.common.types.AuthenticationMode.IGUAZIO_V4,
             None,
-            services.api.utils.events.iguazio_v4.Client,
+            services.api.utils.events.orca.Client,
         ),
         # explicit v4 kind without v4 auth mode -> error
         (

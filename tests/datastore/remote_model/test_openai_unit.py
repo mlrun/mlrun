@@ -538,6 +538,7 @@ class TestOpenAIStreaming:
         provider = mlrun.get_model_provider(
             url="openai://gpt-4o-mini",
             secrets={"OPENAI_API_KEY": "test-key"},
+            default_invoke_kwargs={"max_tokens": 60},
         )
         mock_create = unittest.mock.MagicMock(return_value=iter([]))
         with unittest.mock.patch.object(
@@ -553,4 +554,5 @@ class TestOpenAIStreaming:
         call_kwargs = mock_create.call_args
         assert call_kwargs.kwargs["stream"] is True
         assert call_kwargs.kwargs["temperature"] == 0.5
+        assert call_kwargs.kwargs["max_tokens"] == 60
         assert call_kwargs.kwargs["model"] == "gpt-4o-mini"

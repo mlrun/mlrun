@@ -858,7 +858,11 @@ class MonitoringDeployment:
 
         # Add an explicit HTTP trigger so the stream pod is reachable via HTTP.
         # async mode: stream processing is I/O bound and benefits from async + many connections.
-        function.with_http(async_spec=AsyncSpec(enabled=True))
+        # Callers POST to this Service with no credentials (MODEL_MONITORING_URL).
+        function.with_http(
+            async_spec=AsyncSpec(enabled=True),
+            **self._unauthenticated_http_trigger_kwargs(),
+        )
 
         # Apply feature store run configurations on the serving function
         run_config = fstore.RunConfig(function=function, local=False)
@@ -899,6 +903,12 @@ class MonitoringDeployment:
             stream_args=config.model_endpoint_monitoring.controller_stream_args,
         )
 
+        # Manual HTTP runs share the cron chief path. workers=1 matches the single
+        # worker Nuclio gives this implicit HTTP trigger. Declaring the trigger is
+        # what lets us set authenticationMode; otherwise the platform defaults it to api.
+        if http_auth_kwargs := self._unauthenticated_http_trigger_kwargs():
+            function.with_http(workers=1, **http_auth_kwargs)
+
         function = self._apply_access_key_and_mount_function(
             function=function,
             function_name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
@@ -909,6 +919,25 @@ class MonitoringDeployment:
         )
 
         return function
+
+    def _unauthenticated_http_trigger_kwargs(
+        self,
+    ) -> dict[str, mlrun.common.schemas.HTTPTriggerAuthenticationMode]:
+        """Kwargs for ``with_http`` that turn function-level HTTP authentication off.
+
+        When the platform flag is on, an HTTP trigger with no ``authenticationMode``
+        is authenticated (``api`` on EcliptOS) and the auth-proxy rejects credential-less
+        calls. ``with_http`` rejects ``authentication_mode`` while the flag is off, so
+        the kwargs stay empty in that case.
+
+        :return: ``{"authentication_mode": none}`` when function authentication is
+            enabled, otherwise an empty dict.
+        """
+        if not mlrun.mlconf.is_nuclio_function_authentication_enabled():
+            return {}
+        return {
+            "authentication_mode": mlrun.common.schemas.HTTPTriggerAuthenticationMode.none,
+        }
 
     def _apply_access_key_and_mount_function(
         self,

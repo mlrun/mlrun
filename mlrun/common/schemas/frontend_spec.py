@@ -13,60 +13,12 @@
 # limitations under the License.
 
 
-import pydantic.v1
+# Facade re-exporting the ``_shared`` layer and the active model face, preserving the
+# ``mlrun.common.schemas.frontend_spec`` import path.
+from ._dispatch import USE_V2_SCHEMAS as _USE_V2
+from ._shared.frontend_spec import *  # noqa: F401,F403
 
-import mlrun.common.types
-
-from .k8s import Resources
-
-
-class ProjectMembershipFeatureFlag(mlrun.common.types.StrEnum):
-    enabled = "enabled"
-    disabled = "disabled"
-
-
-class PreemptionNodesFeatureFlag(mlrun.common.types.StrEnum):
-    enabled = "enabled"
-    disabled = "disabled"
-
-
-class NuclioStreamsFeatureFlag(mlrun.common.types.StrEnum):
-    enabled = "enabled"
-    disabled = "disabled"
-
-
-class FeatureFlags(pydantic.v1.BaseModel):
-    project_membership: ProjectMembershipFeatureFlag
-    authentication: mlrun.common.types.AuthenticationMode
-    nuclio_streams: NuclioStreamsFeatureFlag
-    preemption_nodes: PreemptionNodesFeatureFlag
-
-
-class ArtifactLimits(pydantic.v1.BaseModel):
-    max_chunk_size: int
-    max_preview_size: int
-    max_download_size: int
-
-
-class FrontendSpec(pydantic.v1.BaseModel):
-    jobs_dashboard_url: str | None
-    model_monitoring_dashboard_url: str | None
-    abortable_function_kinds: list[str] = []
-    feature_flags: FeatureFlags
-    default_function_priority_class_name: str | None
-    valid_function_priority_class_names: list[str] = []
-    default_function_image_by_kind: dict[str, str] = {}
-    function_deployment_target_image_template: str | None
-    function_deployment_target_image_name_prefix_template: str
-    function_deployment_target_image_registries_to_enforce_prefix: list[str] = []
-    function_deployment_mlrun_requirement: str | None
-    auto_mount_type: str | None
-    auto_mount_params: dict[str, str] = {}
-    default_artifact_path: str
-    default_function_pod_resources: Resources = Resources()
-    default_function_preemption_mode: str
-    feature_store_data_prefixes: dict[str, str] | None
-    allowed_artifact_path_prefixes_list: list[str]
-    ce: dict | None
-    internal_labels: list[str] = []
-    artifact_limits: ArtifactLimits
+if _USE_V2:
+    from ._v2.frontend_spec import *  # noqa: F401,F403
+else:
+    from ._v1.frontend_spec import *  # noqa: F401,F403

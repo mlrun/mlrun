@@ -686,6 +686,64 @@ class TestKubejobRuntime(TestRuntimeBase):
             in str(exc.value)
         )
 
+    def test_run_non_root_gets_default_home(self, db: Session, k8s_secrets_mock):
+        runtime = self._generate_runtime()
+        runtime.with_security_context(
+            self._generate_security_context(run_as_user=12345, run_as_group=12345)
+        )
+        self.execute_function(runtime)
+        assert self._get_pod_home_envs() == [{"name": "HOME", "value": "/tmp"}]
+
+        # the generated default must not become part of the function spec
+        assert not runtime.is_env_exists("HOME")
+
+    def test_run_root_has_no_default_home(self, db: Session, k8s_secrets_mock):
+        runtime = self._generate_runtime()
+        self.execute_function(runtime)
+        assert self._get_pod_home_envs() == []
+
+        runtime = self._generate_runtime()
+        runtime.with_security_context(self._generate_security_context(run_as_user=0))
+        self.execute_function(runtime)
+        assert self._get_pod_home_envs() == []
+
+    @pytest.mark.parametrize(
+        "home_kwargs, expected_home_env",
+        [
+            ({"value": "/home/user"}, {"name": "HOME", "value": "/home/user"}),
+            (
+                {
+                    "value_from": k8s_client.V1EnvVarSource(
+                        config_map_key_ref=k8s_client.V1ConfigMapKeySelector(
+                            name="cm", key="home"
+                        )
+                    )
+                },
+                {
+                    "name": "HOME",
+                    "valueFrom": {"configMapKeyRef": {"name": "cm", "key": "home"}},
+                },
+            ),
+        ],
+    )
+    def test_run_non_root_explicit_home_wins(
+        self, db: Session, k8s_secrets_mock, home_kwargs, expected_home_env
+    ):
+        runtime = self._generate_runtime()
+        runtime.with_security_context(
+            self._generate_security_context(run_as_user=12345, run_as_group=12345)
+        )
+        runtime.set_env("HOME", **home_kwargs)
+        self.execute_function(runtime)
+        assert self._get_pod_home_envs() == [expected_home_env]
+
+    def _get_pod_home_envs(self) -> list[dict]:
+        pod = self._get_pod_creation_args()
+        env = k8s_client.ApiClient().sanitize_for_serialization(
+            pod.spec.containers[0].env
+        )
+        return [env_var for env_var in env if env_var["name"] == "HOME"]
+
     def test_run_with_mounts(self, db: Session, k8s_secrets_mock):
         runtime = self._generate_runtime()
 
@@ -1128,13 +1186,14 @@ def my_func(context):
     ):
         mlrun.mlconf.httpdb.builder.docker_registry = "localhost:5000"
         with unittest.mock.patch(
-            "services.api.utils.builder.make_kaniko_pod", unittest.mock.MagicMock()
+            "services.api.utils.builder.kaniko.make_kaniko_pod",
+            unittest.mock.MagicMock(),
         ):
             runtime = self._generate_runtime()
             runtime.spec.build.base_image = "some/image"
             runtime.spec.build.commands = copy.deepcopy(commands)
             self.deploy(db, runtime, with_mlrun=with_mlrun)
-            dockerfile = services.api.utils.builder.make_kaniko_pod.call_args[1][
+            dockerfile = services.api.utils.builder.kaniko.make_kaniko_pod.call_args[1][
                 "dockertext"
             ]
             if expected_to_upgrade:
@@ -1154,7 +1213,7 @@ def my_func(context):
                         "\nRUN python -m pip install -r /empty/requirements.txt"
                     )
                     kaniko_pod_requirements = (
-                        services.api.utils.builder.make_kaniko_pod.call_args[1][
+                        services.api.utils.builder.kaniko.make_kaniko_pod.call_args[1][
                             "requirements"
                         ]
                     )
@@ -1247,7 +1306,8 @@ def my_func(context):
     ):
         mlrun.mlconf.httpdb.builder.docker_registry = "localhost:5000"
         with unittest.mock.patch(
-            "services.api.utils.builder.make_kaniko_pod", unittest.mock.MagicMock()
+            "services.api.utils.builder.kaniko.make_kaniko_pod",
+            unittest.mock.MagicMock(),
         ):
             runtime = self._generate_runtime()
             runtime.spec.build.base_image = "some/image"
@@ -1260,7 +1320,7 @@ def my_func(context):
             )
 
             self.deploy(db, runtime, with_mlrun=with_mlrun)
-            dockerfile = services.api.utils.builder.make_kaniko_pod.call_args[1][
+            dockerfile = services.api.utils.builder.kaniko.make_kaniko_pod.call_args[1][
                 "dockertext"
             ]
 
@@ -1269,7 +1329,9 @@ def my_func(context):
                 "\nRUN python -m pip install -r /empty/requirements.txt"
             )
             kaniko_pod_requirements = (
-                services.api.utils.builder.make_kaniko_pod.call_args[1]["requirements"]
+                services.api.utils.builder.kaniko.make_kaniko_pod.call_args[1][
+                    "requirements"
+                ]
             )
             if with_mlrun:
                 expected_str = f"\nRUN python -m pip install --upgrade pip{mlrun.mlconf.httpdb.builder.pip_version}"

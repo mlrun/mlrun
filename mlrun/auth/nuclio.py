@@ -31,7 +31,7 @@ class NuclioAuthInfo(_NuclioAuthInfo):
     def from_auth_info(cls, auth_info: "mlrun.common.schemas.auth.AuthInfo"):
         if not auth_info:
             return None
-        if mlrun.mlconf.is_iguazio_v4_mode():
+        if mlrun.mlconf.is_orca_mode():
             return cls.from_request_headers(auth_info.request_headers)
         if auth_info.session != "":
             return NuclioAuthInfo(
@@ -63,7 +63,7 @@ class NuclioAuthInfo(_NuclioAuthInfo):
 
     @classmethod
     def from_envvar(cls):
-        if mlrun.mlconf.is_iguazio_v4_mode():
+        if mlrun.mlconf.is_orca_mode():
             token_provider = mlrun.auth.providers.IGTokenProvider(
                 token_endpoint=mlrun.mlconf.auth_token_endpoint,
             )

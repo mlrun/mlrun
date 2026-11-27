@@ -54,7 +54,8 @@ def _resolve_mpijob_crd_version_best_effort():
     if config.mpijob_crd_version:
         return config.mpijob_crd_version
 
-    if not mlrun.k8s_utils.is_running_inside_kubernetes_cluster():
+    # needs a working k8s client below (list_pods), so stays on the SA-token-backed check
+    if not mlrun.k8s_utils.has_incluster_kubernetes_client_config():
         return None
 
     k8s_helper = framework.utils.singletons.k8s.get_k8s_helper()

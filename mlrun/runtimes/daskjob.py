@@ -202,7 +202,7 @@ class DaskCluster(KubejobRuntime):
     def __init__(self, spec=None, metadata=None):
         super().__init__(spec, metadata)
         self._cluster = None
-        self.use_remote = not mlrun.k8s_utils.is_running_inside_kubernetes_cluster()
+        self.use_remote = not mlrun.k8s_utils.is_running_in_kubernetes_pod()
         self.spec.build.base_image = (
             self.spec.build.base_image or mlrun.mlconf.default_base_image
         )
@@ -228,7 +228,7 @@ class DaskCluster(KubejobRuntime):
         # The Dask runtime is not supported on Iguazio v4 (IG4) systems, where the dask cluster can
         # no longer be brought up. Bringing one up would otherwise fail with an opaque
         # "Failed bringing up dask cluster" error.
-        if config.is_iguazio_v4_mode():
+        if config.is_orca_mode():
             raise mlrun.errors.MLRunBadRequestError(
                 "The Dask runtime is not supported on this system."
             )
@@ -563,6 +563,8 @@ class DaskCluster(KubejobRuntime):
         # TODO: investigate if the following instructions could overwrite the environment on any MLRun API Pod
         # Such action could result on race conditions against other runtimes and MLRun itself
         extra_env, _ = self._generate_runtime_env(runobj)
+        # the non-root HOME default is for dask worker pods, not the caller's process
+        extra_env.pop("HOME", None)
         # Since it runs locally, we don't need the external sources env vars
         environ.update(extra_env)
 
@@ -588,5 +590,5 @@ class DaskCluster(KubejobRuntime):
         client = self.client
         setattr(context, "dask_client", client)
         sout, serr = exec_from_params(handler, runobj, context)
-        log_std(self._db_conn, runobj, sout, serr, skip=self.is_child, show=False)
+        log_std(self._get_db(), runobj, sout, serr, skip=self.is_child, show=False)
         return context.to_dict()

@@ -12,9 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import mlrun.common.types
 
-
-class HTTPSessionRetryMode(mlrun.common.types.StrEnum):
-    enabled = "enabled"
-    disabled = "disabled"
+# Facade re-exporting the ``_shared`` layer, preserving the
+# ``mlrun.common.schemas.http`` import path.
+from ._shared.http import *  # noqa: F401,F403

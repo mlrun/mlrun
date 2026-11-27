@@ -50,6 +50,10 @@ kubeconfig
 # Build directories and files
 .bin
 build/
+# generated Go proto sources are checked in: Dependabot/CodeQL run `go list`/`go build`
+# against a bare checkout with no protoc step, and these local packages must resolve
+!server/go/proto/build/
+!server/go/proto/build/**
 dist/
 mlrun.egg-info/
 mlrun/utils/version/version.json

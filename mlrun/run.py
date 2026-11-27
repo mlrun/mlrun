@@ -794,8 +794,12 @@ def code_to_function(
     is_nuclio, sub_kind = RuntimeKinds.resolve_nuclio_sub_kind(kind)
     code_origin = add_name(add_code_metadata(filename), name)
 
+    # filename is reused below for spec recording (origin_filename, command),
+    # so don't overwrite it with the resolved local path.
+    nuclio_source = _resolve_remote_function_source(filename)
+
     name, spec, code = nuclio.build_file(
-        filename,
+        nuclio_source,
         name=name,
         handler=handler or "handler",
         kind=sub_kind,
@@ -816,7 +820,7 @@ def code_to_function(
         is_nuclio, sub_kind = RuntimeKinds.resolve_nuclio_sub_kind(kind)
         if is_nuclio:
             name, spec, code = nuclio.build_file(
-                filename,
+                nuclio_source,
                 name=name,
                 handler=handler or "handler",
                 kind=sub_kind,
@@ -864,7 +868,9 @@ def code_to_function(
     else:
         raise ValueError(f"unsupported runtime ({kind})")
 
-    name, spec, code = nuclio.build_file(filename, name=name, ignored_tags=ignored_tags)
+    name, spec, code = nuclio.build_file(
+        nuclio_source, name=name, ignored_tags=ignored_tags
+    )
 
     if not name:
         raise ValueError("name must be specified")
@@ -894,6 +900,20 @@ def code_to_function(
         update_function_entry_points(runtime, code)
     runtime.spec.default_handler = handler
     return runtime
+
+
+def _resolve_remote_function_source(filename: str) -> str:
+    # Pre-fetch via mlrun.get_dataitem so nuclio.build_file sees a local path.
+    # git:// stays with nuclio's GitRepo (mlrun has no GitStore).
+    if not filename or "://" not in filename or filename.startswith("git://"):
+        return filename
+    scheme = filename.split("://", 1)[0].lower()
+    logger.debug(
+        "Pre-fetching function source via mlrun datastore",
+        scheme=scheme,
+        filename=filename,
+    )
+    return get_dataitem(filename).local()
 
 
 def _run_pipeline(

@@ -41,6 +41,12 @@ class TestMockModelProviderTracking(
     project_name = "mock-model-tracking-test"
     image = "mlrun/mlrun"
 
+    @staticmethod
+    def _verify_endpoint_schema(mep, expected_input):
+        """Feature/label names are stored on the endpoint record, not in the parquet rows."""
+        assert mep.spec.feature_names == list(expected_input.keys())
+        assert mep.spec.label_names == ["answer", "usage"]
+
     def _verify_direct_parquet_contents(self, v3io_df, endpoint_name, batch_len):
         """Verify parquet contents by splitting by request_id and validating each group"""
         grouped = v3io_df.groupby("request_id")
@@ -81,11 +87,8 @@ class TestMockModelProviderTracking(
         assert row["effective_sample_count"] == batch_size
         assert row["estimated_prediction_count"] == batch_size
 
-        expected_feature_names = list(expected_input.keys())
-
-        assert list(row["feature_names"]) == expected_feature_names
-
-        assert list(row["label_names"]) == ["answer", "usage"]
+        # Feature and label names are the parquet column names, not per-row values.
+        assert set(expected_input) | {"answer", "usage"} <= set(row.index)
 
         for key in expected_input:
             assert row[key] == expected_input[key], (
@@ -255,6 +258,7 @@ class TestMockModelProviderTracking(
             tsdb_metrics=True,
         )
         assert mep is not None
+        self._verify_endpoint_schema(mep, BATCH_INPUT_DATA[0])
 
         tsdb_client = mlrun.model_monitoring.get_tsdb_connector(
             project=self.project.name, profile=self.mm_tsdb_profile
@@ -382,6 +386,7 @@ class TestMockModelProviderTracking(
             tsdb_metrics=True,
         )
         assert mep is not None
+        self._verify_endpoint_schema(mep, BATCH_INPUT_DATA[0])
 
         # Verify TSDB predictions - should still have 3 successful batches (2+2+1)
         # Error batch is not counted as a prediction

@@ -3,6 +3,11 @@
 
 The liveOps stage ensures that the models are always performing optimally and adapting to new data. 
 
+**In this section**
+-[Model Monitoring](#model-monitoring)
+-[Alerts](#alerts)
+-[Guardrails](#guardrails)
+
 ## Model Monitoring
 
 MLRun includes tools for monitoring the performance of deployed models in real-time. This helps in identifying issues like model performance, operational performance, and concept and data drift. The [MLRun hub](https://www.mlrun.org/hub/) has additional monitoring apps that you can [import to your project](../../runtimes/load-from-hub.md#modules). 

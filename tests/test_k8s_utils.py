@@ -13,7 +13,9 @@
 # limitations under the License.
 
 from contextlib import nullcontext as does_not_raise
+from unittest import mock
 
+import kubernetes.config
 import pytest
 
 import mlrun.errors
@@ -91,6 +93,67 @@ def test_verify_label_key(label_key, exception):
         mlrun.k8s_utils.verify_label_key(label_key, allow_k8s_prefix=False)
 
 
+_FORBIDDEN_LABELS = [
+    ("blocked-key", "blocked"),
+    ("other-blocked-key", "blocked"),
+    ("blocked.example.com/name", "blocked"),
+]
+
+
+@pytest.mark.parametrize(
+    "labels, existing_labels, exception",
+    [
+        ({"team": "a", "blocked-keys": "blocked"}, None, does_not_raise()),
+        (None, None, does_not_raise()),
+        # the same key with another value is allowed
+        ({"blocked-key": "a"}, None, does_not_raise()),
+        (
+            {"blocked-key": "blocked"},
+            None,
+            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+        ),
+        (
+            {"blocked.example.com/name": "blocked"},
+            None,
+            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+        ),
+        # unchanged labels of the stored object are accepted
+        (
+            {"blocked-key": "blocked", "team": "b"},
+            {"blocked-key": "blocked"},
+            does_not_raise(),
+        ),
+        (
+            {"blocked-key": "blocked"},
+            {"blocked-key": "a"},
+            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+        ),
+        (
+            {"blocked-key": "blocked", "other-blocked-key": "blocked"},
+            {"blocked-key": "blocked"},
+            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+        ),
+    ],
+)
+def test_validate_labels_not_forbidden(labels, existing_labels, exception):
+    with exception:
+        mlrun.k8s_utils.validate_labels_not_forbidden(
+            labels, _FORBIDDEN_LABELS, existing_labels
+        )
+
+
+def test_get_forbidden_labels():
+    assert mlrun.k8s_utils.get_forbidden_labels(
+        {"blocked-key": "blocked", "other-blocked-key": "a", "team": "b"},
+        _FORBIDDEN_LABELS,
+    ) == {"blocked-key": "blocked"}
+    assert mlrun.k8s_utils.get_forbidden_labels(None, _FORBIDDEN_LABELS) == {}
+
+
+def test_validate_labels_not_forbidden_empty_list():
+    mlrun.k8s_utils.validate_labels_not_forbidden({"blocked-key": "blocked"}, [])
+
+
 @pytest.mark.parametrize(
     "node_selectors, expected",
     [
@@ -142,3 +205,48 @@ def test_verify_label_key(label_key, exception):
 def test_validate_node_selectors(node_selectors, expected):
     with expected:
         mlrun.k8s_utils.validate_node_selectors(node_selectors)
+
+
+@pytest.mark.parametrize(
+    "service_host, service_port, expected",
+    [
+        ("10.0.0.1", "443", True),
+        (None, None, False),
+        ("10.0.0.1", None, False),
+        (None, "443", False),
+        ("", "", False),
+    ],
+)
+def test_is_running_in_kubernetes_pod(
+    monkeypatch, service_host, service_port, expected
+):
+    for name, value in (
+        ("KUBERNETES_SERVICE_HOST", service_host),
+        ("KUBERNETES_SERVICE_PORT", service_port),
+    ):
+        if value is None:
+            monkeypatch.delenv(name, raising=False)
+        else:
+            monkeypatch.setenv(name, value)
+
+    assert mlrun.k8s_utils.is_running_in_kubernetes_pod() is expected
+
+
+@pytest.mark.parametrize(
+    "load_incluster_config_side_effect, expected",
+    [
+        (None, True),
+        (kubernetes.config.ConfigException("no token file"), False),
+    ],
+)
+def test_has_incluster_kubernetes_client_config(
+    monkeypatch, load_incluster_config_side_effect, expected
+):
+    monkeypatch.setattr(mlrun.k8s_utils, "_running_inside_kubernetes_cluster", None)
+    monkeypatch.setattr(
+        kubernetes.config,
+        "load_incluster_config",
+        mock.Mock(side_effect=load_incluster_config_side_effect),
+    )
+
+    assert mlrun.k8s_utils.has_incluster_kubernetes_client_config() is expected

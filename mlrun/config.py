@@ -24,6 +24,7 @@ mapped to config.httpdb.port. Values should be in JSON format.
 import base64
 import binascii
 import copy
+import dataclasses
 import json
 import os
 import typing
@@ -37,6 +38,7 @@ import dotenv
 import semver
 import urllib3.exceptions
 import yaml
+from deprecated import deprecated
 
 import mlrun.common.constants
 import mlrun.common.schemas
@@ -94,9 +96,14 @@ default_config = {
     "kfp_image": "mlrun/mlrun-kfp",  # image to use for KFP runner
     "dask_kfp_image": "mlrun/mlrun",  # image to use for dask KFP runner
     "igz_version": "",  # the version of the iguazio system the API is running on
+    "oris_version": "",  # resolved lazily from Oris's own info API, see resolve_oris_version()
+    # TODO: Remove in 1.16.0 - deprecated in 1.14.0, use the orca_* keys instead (still read by IG3)
     "iguazio_api_url": "",  # the url to iguazio api (internal / external access with priority to internal)
     "iguazio_api_url_ingress": "",  # the url to iguazio api ingress (for external access)
     "iguazio_api_ssl_verify": True,  # verify ssl certificate of iguazio api
+    "orca_api_url": "",  # the url to orca api (internal / external access with priority to internal)
+    "orca_api_url_ingress": "",  # the url to orca api ingress (for external access)
+    "orca_api_ssl_verify": True,  # verify ssl certificate of orca api
     "spark_app_image": "",  # image to use for spark operator app runtime
     "spark_app_image_tag": "",  # image tag to use for spark operator app runtime
     "spark_history_server_path": "",  # spark logs directory for spark history server
@@ -299,11 +306,15 @@ default_config = {
                     # sets the user id to be used for kfp pods when enrichment mode is not disabled
                     "kfp_pod_user_unix_id": 5,
                 },
+                # HOME injected into non-root functions; empty disables injection
+                "non_root_home": "/tmp",
             },
             "service_account": {
                 "default": None,
                 "forbidden_service_accounts": "",
             },
+            # comma-separated "key=value" labels rejected by function validation
+            "forbidden_labels": "",
             "state_thresholds": {
                 "default": {
                     "pending_scheduled": "1h",
@@ -451,10 +462,21 @@ default_config = {
             "allow_local_run": False,
         },
         "authentication": {
-            "mode": "none",  # one of none, basic, bearer, iguazio, iguazio-v4
+            # one of none, basic, bearer, iguazio, orca. "iguazio-v4" is a deprecated alias of "orca"
+            "mode": "none",
             "basic": {"username": "", "password": ""},
             "bearer": {"token": ""},
+            # IG3 settings. The IG4 (orca) code reads the "orca" section below instead. The keys of this section
+            # that IG4 used to read are deprecated aliases of their "orca" counterparts
             "iguazio": {
+                "session_verification_endpoint": "data_sessions/verifications/app_service",
+                "authentication_endpoint": "api/v1/authentication/refresh-access-token",
+                "token_cache": {
+                    "max_size": 128,
+                    "ttl_seconds": 30,
+                },
+            },
+            "orca": {
                 "session_verification_endpoint": "data_sessions/verifications/app_service",
                 "authentication_endpoint": "api/v1/authentication/refresh-access-token",
                 "token_cache": {
@@ -471,6 +493,9 @@ default_config = {
         "nuclio": {
             # One of ClusterIP | NodePort
             "default_service_type": "NodePort",
+            # When True the platform has function-level (behind-Service) authentication enabled;
+            # set by mlefi via MLRUN_HTTPDB__NUCLIO__FUNCTION_AUTHENTICATION_ENABLED env var.
+            "function_authentication_enabled": False,
             # The following modes apply when user did not configure an ingress
             #
             #   name        |  description
@@ -556,6 +581,17 @@ default_config = {
             "iguazio_client_job_cache_ttl": "20 minutes",
             "nuclio_project_deletion_verification_timeout": "300 seconds",
             "nuclio_project_deletion_verification_interval": "5 seconds",
+            # TODO: Remove in 1.16.0 - deprecated in 1.14.0, use the orca_* counterparts below
+            "iguazio_project_states_poll_interval": "2 seconds",
+            "iguazio_project_states_poll_timeout": "300 seconds",
+            "iguazio_request_timeout": "20 seconds",
+            # when the leader is orca, how often to poll GET /api/v1/trackable-actions/executions while waiting
+            # for an operation (create/update/delete) to reach a terminal state, and how long to wait before
+            # giving up
+            "orca_project_states_poll_interval": "2 seconds",
+            "orca_project_states_poll_timeout": "300 seconds",
+            # when the leader is orca, the SDK's own per-request timeout for talking to Orca directly
+            "orca_request_timeout": "20 seconds",
             "summaries": {
                 # Number of days back to include when calculating the project pipeline summary.
                 "list_pipelines_time_period_in_days": 2,
@@ -564,10 +600,22 @@ default_config = {
             "stale_resource_ttl_create": "2 minutes",
             "stale_resource_ttl_update": "2 minutes",
             "stale_resource_ttl_delete": "10 minutes",
+            # Expected service-account identity (AuthInfo.username) of the configured
+            # project leader when MLRun is a follower (distinct from "followers" above,
+            # which is the list MLRun fans out to when it's the leader). Inbound
+            # /follower/projects calls are rejected with 403 unless the caller is a
+            # service account matching this identity.
+            "follower_leader_identity": "",
         },
         # The API needs to know what is its k8s svc url so it could enrich it in the jobs it creates
         "api_url": "",
         "builder": {
+            # the container-image build engine used for kubernetes-based function builds. "kaniko" (default)
+            # and "buildah" are implemented; the engine is selected here without code changes. see
+            # BuilderBackend in services/api/utils/builder/. buildah is opt-in and handles Docker Hub /
+            # private / ECR / ACR / GAR registry auth and remote source acquisition itself, same as
+            # kaniko - there is no fallback between the two.
+            "builder_backend": "kaniko",
             # setting the docker registry to be used for built images, can include the repository as well, e.g.
             # index.docker.io/<username>, if not included repository will default to mlrun
             "docker_registry": "",
@@ -598,6 +646,27 @@ default_config = {
             "kaniko_image_fs_extraction_retries": "3",
             # kaniko sometimes fails to push image to registry due to network issues
             "kaniko_image_push_retry": "3",
+            # buildah builder image (used when builder_backend="buildah"). the stock image is used as-is:
+            # it ships subuid/subgid for its "build" user (uid 1000), which is all the rootless build needs.
+            "buildah_image": "quay.io/buildah/stable",
+            # buildah storage driver, "overlay" (default, fast, shares layers) or "vfs" (slower, works
+            # anywhere). not auto-negotiated - buildah errors if the configured driver can't mount.
+            "buildah_storage_driver": "overlay",
+            # AppArmor profile for the buildah build container, applied via the
+            # container.apparmor.security.beta.kubernetes.io annotation. "unconfined" (default) is required
+            # wherever the runtime enforces its default profile (e.g. GKE/AKS) - that profile blocks the
+            # mount/unshare syscalls the rootless build needs; it is a harmless no-op where AppArmor is not
+            # loaded. "" skips the annotation; "localhost/<profile>" selects a site-provided profile.
+            "buildah_apparmor_profile": "unconfined",
+            # buildah retries a failed image push this many times (maps to `buildah push --retry`)
+            "buildah_push_retry": "3",
+            # init container image that mints ECR/ACR push credentials for Buildah via boto3 /
+            # azure-identity (see services/api/utils/builder/registry_auth.py). Empty derives from
+            # default_base_image, which ships those SDKs via the "complete" extra unless overridden;
+            # override must have python and the same SDKs. GAR/GCR credential exchange runs inline in
+            # the main Buildah container instead (see registry_auth.gar_credential_exchange_script)
+            # and does not use this image.
+            "registry_credential_exchange_image": "",
             # additional docker build args in json encoded base64 format
             "build_args": "",
             # labels to be applied to builder pods - json string base64 encoded format.
@@ -853,9 +922,6 @@ default_config = {
         # which returns the version from the version.json file
         "release": "",
     },
-    "debug": {
-        "expose_internal_api_endpoints": False,
-    },
     "workflows": {
         "default_workflow_runner_name": "workflow-runner-{}",
         "concurrent_delete_worker_count": 20,
@@ -1021,6 +1087,15 @@ default_config = {
         "model_monitoring": {
             # 0 = manual flush per do() (ManualMetricReader); >0 = PeriodicExportingMetricReader interval (seconds).
             "interval": 60,
+        },
+        # Per-REST-call processing time middleware. Inherits the master `telemetry.enabled` kill-switch.
+        # Default true so that enabling telemetry (the master switch) is sufficient.
+        "rest_metrics": {
+            "enabled": True,
+            # Caps data points per OTLP export gRPC request; the exporter
+            # splits into multiple requests above this to stay under gRPC's
+            # 4MB message-size limit.
+            "max_export_batch_size": 7000,
         },
     },
     "system_id": "",
@@ -1440,6 +1515,10 @@ class Config:
         # determine is Nuclio service is detected, when the nuclio_version is not set
         return bool(mlrun.mlconf.nuclio_version)
 
+    def is_nuclio_function_authentication_enabled(self) -> bool:
+        """Return True when the platform has function-level (behind-Service) authentication enabled."""
+        return bool(mlrun.mlconf.httpdb.nuclio.function_authentication_enabled)
+
     def use_nuclio_mock(self, force_mock=None):
         # determine if to use Nuclio mock service
         mock_nuclio = mlrun.mlconf.mock_nuclio_deployment
@@ -1555,14 +1634,68 @@ class Config:
             == mlrun.common.types.AuthenticationMode.IGUAZIO
         )
 
-    def is_iguazio_v4_mode(self):
-        return (
-            config.httpdb.authentication.mode
-            == mlrun.common.types.AuthenticationMode.IGUAZIO_V4
+    def is_orca_mode(self):
+        # "iguazio-v4" is the deprecated name of "orca". Load time and connect() normalize it, but the mode can also
+        # be assigned programmatically afterwards, so both values are accepted here
+        # TODO: Remove "iguazio-v4" in 1.16.0
+        return config.httpdb.authentication.mode in (
+            mlrun.common.types.AuthenticationMode.ORCA,
+            mlrun.common.types.AuthenticationMode.IGUAZIO_V4,
         )
 
+    # TODO: Remove in 1.16.0
+    @deprecated(
+        version="1.14.0",
+        reason="'is_iguazio_v4_mode' will be removed in 1.16.0, use 'is_orca_mode' instead",
+        category=FutureWarning,
+    )
+    def is_iguazio_v4_mode(self):
+        return self.is_orca_mode()
+
+    def warn_on_deprecated_keys(self):
+        """
+        Warn (once per key per config load) about the deprecated IG4 config keys that were provided.
+
+        Keys only IG4 reads always warn. Keys IG3 also reads warn only in IG4 mode: the server knows its mode at
+        load, but clients learn it from the client spec, so this is called again after ``HTTPRunDB.connect()``
+        syncs the mode.
+        """
+        # TODO: Remove in 1.16.0
+        # imported lazily: this runs while mlrun.config is being imported, before mlrun.utils can be
+        import mlrun.utils
+
+        for alias in _DEPRECATED_KEY_ALIASES:
+            if alias.old not in self._pending_deprecated_keys:
+                continue
+            if alias.shared and not self.is_orca_mode():
+                continue
+            self._pending_deprecated_keys.remove(alias.old)
+            mlrun.utils.logger.warning(
+                "Deprecated config key is set",
+                deprecated_key=alias.old_env_name,
+                replacement=alias.new_env_name,
+                deprecated_in="1.14.0",
+                removal_version="1.16.0",
+            )
+            warnings.warn(
+                f"'{alias.old_env_name}' is deprecated in 1.14.0 and will be removed in 1.16.0, "
+                f"use '{alias.new_env_name}' instead.",
+                FutureWarning,
+                stacklevel=2,
+            )
+
+    @property
+    def _pending_deprecated_keys(self) -> set[str]:
+        """
+        The deprecated keys provided in the current config load that were not warned about yet.
+
+        Created on first use and kept out of ``_cfg``, so it is not a config key. Nested sections are short-lived
+        Config objects built on every attribute access, and only the root uses this.
+        """
+        return self.__dict__.setdefault("_pending_deprecated_keys_set", set())
+
     def is_using_v3io(self) -> bool:
-        return not self.is_iguazio_v4_mode() and not self.is_ce_mode()
+        return not self.is_orca_mode() and not self.is_ce_mode()
 
     def is_explicit_ack_enabled(self) -> bool:
         return self.httpdb.nuclio.explicit_ack == "enabled" and (
@@ -1582,6 +1715,17 @@ class Config:
             ]
 
         return []
+
+    def get_forbidden_function_labels(self) -> list[tuple[str, str]]:
+        forbidden_labels_str = self.function.spec.forbidden_labels
+        if not forbidden_labels_str:
+            return []
+        forbidden_labels = []
+        for entry in forbidden_labels_str.split(","):
+            key, separator, value = entry.strip().partition("=")
+            if separator and key:
+                forbidden_labels.append((key, value))
+        return forbidden_labels
 
 
 # Global configuration
@@ -1619,18 +1763,31 @@ def _do_populate(env=None, skip_errors=False, skip_env_file=False):
     else:
         config.update(default_config)
     config_path = os.environ.get(env_file_key)
+    file_data = {}
     if config_path:
         with open(config_path) as fp:
-            data = yaml.safe_load(fp)
+            file_data = yaml.safe_load(fp)
 
-        if not isinstance(data, dict):
+        if not isinstance(file_data, dict):
             raise TypeError(f"configuration in {config_path} not a dict")
 
-        config.update(data, skip_errors=skip_errors)
+    env_data = read_env(env)
 
-    data = read_env(env)
-    if data:
-        config.update(data, skip_errors=skip_errors)
+    # TODO: Remove in 1.16.0
+    config._pending_deprecated_keys.clear()
+    config._pending_deprecated_keys.update(
+        _resolve_deprecated_key_aliases(file_data, env_data)
+    )
+
+    if file_data:
+        config.update(file_data, skip_errors=skip_errors)
+    if env_data:
+        config.update(env_data, skip_errors=skip_errors)
+
+    config.httpdb.authentication.mode = resolve_deprecated_authentication_mode(
+        config.httpdb.authentication.mode
+    )
+    config.warn_on_deprecated_keys()
 
     _configure_ssl_verification(config.httpdb.http.verify)
     _validate_config(config)
@@ -1807,6 +1964,160 @@ def read_env(env=None, prefix=env_prefix):
             config = {"httpdb": httpdb, **config}
 
     return config
+
+
+def resolve_deprecated_authentication_mode(mode: str, *, warn: bool = True) -> str:
+    """
+    Resolve the deprecated "iguazio-v4" authentication mode to its replacement, "orca".
+
+    :param mode: the authentication mode
+    :param warn: whether to warn when the deprecated value is resolved. Pass False when the value comes from the
+                 server and not from the user's own configuration.
+    :return:     "orca" for "iguazio-v4", any other mode unchanged
+    """
+    # TODO: Remove in 1.16.0
+    # imported lazily: this runs while mlrun.config is being imported, before mlrun.utils can be
+    import mlrun.utils
+
+    if mode != mlrun.common.types.AuthenticationMode.IGUAZIO_V4:
+        return mode
+
+    if warn:
+        mlrun.utils.logger.warning(
+            "Deprecated authentication mode is set",
+            deprecated_mode=mlrun.common.types.AuthenticationMode.IGUAZIO_V4,
+            replacement=mlrun.common.types.AuthenticationMode.ORCA,
+            deprecated_in="1.14.0",
+            removal_version="1.16.0",
+        )
+        warnings.warn(
+            f"'{mlrun.common.types.AuthenticationMode.IGUAZIO_V4}' (httpdb.authentication.mode) is deprecated "
+            f"in 1.14.0 and will be removed in 1.16.0, "
+            f"use '{mlrun.common.types.AuthenticationMode.ORCA}' instead.",
+            FutureWarning,
+            stacklevel=2,
+        )
+    return mlrun.common.types.AuthenticationMode.ORCA
+
+
+# TODO: Remove in 1.16.0
+@dataclasses.dataclass(frozen=True)
+class _DeprecatedKeyAlias:
+    """
+    A config key deprecated in 1.14.0 in favor of an orca_* key.
+
+    :param old:     dotted path of the deprecated key
+    :param new:     dotted path of the key that replaces it
+    :param shared:  whether IG3 also reads the old key. Shared keys stay valid for IG3 and warn only in IG4 mode
+    """
+
+    old: str
+    new: str
+    shared: bool = False
+
+    @property
+    def old_env_name(self) -> str:
+        return _env_name(self.old)
+
+    @property
+    def new_env_name(self) -> str:
+        return _env_name(self.new)
+
+
+# TODO: Remove in 1.16.0
+_DEPRECATED_KEY_ALIASES = (
+    _DeprecatedKeyAlias("iguazio_api_url", "orca_api_url", shared=True),
+    _DeprecatedKeyAlias("iguazio_api_url_ingress", "orca_api_url_ingress"),
+    _DeprecatedKeyAlias("iguazio_api_ssl_verify", "orca_api_ssl_verify", shared=True),
+    _DeprecatedKeyAlias(
+        "httpdb.authentication.iguazio.session_verification_endpoint",
+        "httpdb.authentication.orca.session_verification_endpoint",
+        shared=True,
+    ),
+    _DeprecatedKeyAlias(
+        "httpdb.authentication.iguazio.authentication_endpoint",
+        "httpdb.authentication.orca.authentication_endpoint",
+    ),
+    _DeprecatedKeyAlias(
+        "httpdb.authentication.iguazio.token_cache.max_size",
+        "httpdb.authentication.orca.token_cache.max_size",
+        shared=True,
+    ),
+    _DeprecatedKeyAlias(
+        "httpdb.authentication.iguazio.token_cache.ttl_seconds",
+        "httpdb.authentication.orca.token_cache.ttl_seconds",
+        shared=True,
+    ),
+    _DeprecatedKeyAlias(
+        "httpdb.projects.iguazio_project_states_poll_interval",
+        "httpdb.projects.orca_project_states_poll_interval",
+    ),
+    _DeprecatedKeyAlias(
+        "httpdb.projects.iguazio_project_states_poll_timeout",
+        "httpdb.projects.orca_project_states_poll_timeout",
+    ),
+    _DeprecatedKeyAlias(
+        "httpdb.projects.iguazio_request_timeout",
+        "httpdb.projects.orca_request_timeout",
+    ),
+)
+
+
+def _resolve_deprecated_key_aliases(*sources: dict) -> set[str]:
+    """
+    Copy every deprecated key that was provided to its replacement, unless the replacement was provided as well,
+    in which case the replacement wins.
+
+    Works on the raw provided values (config file, environment), not on the loaded config, so a deprecated key
+    that merely holds its default is never mistaken for user input.
+
+    A replacement provided by any source wins over a deprecated key provided by any source, even a later one (an env
+    var). Only values provided while the config loads are aliased: assigning a deprecated key afterwards
+    (``mlrun.mlconf.iguazio_api_url = ...``) is not seen by the IG4 code.
+
+    :param sources: raw nested config dicts, in the order they are applied (later ones take precedence).
+                    Modified in place.
+    :return:        the dotted paths of the deprecated keys that were provided
+    """
+    provided = set()
+    for alias in _DEPRECATED_KEY_ALIASES:
+        old_path = alias.old.split(".")
+        new_path = alias.new.split(".")
+        old_sources = [s for s in sources if _has_nested_key(s, old_path)]
+        if not old_sources:
+            continue
+        provided.add(alias.old)
+        if any(_has_nested_key(s, new_path) for s in sources):
+            continue
+        _set_nested_key(
+            old_sources[-1], new_path, _get_nested_key(old_sources[-1], old_path)
+        )
+    return provided
+
+
+def _env_name(dotted_path: str) -> str:
+    return env_prefix + dotted_path.upper().replace(".", "__")
+
+
+def _has_nested_key(data: dict, path: list[str]) -> bool:
+    for name in path:
+        if not isinstance(data, dict) or name not in data:
+            return False
+        data = data[name]
+    return True
+
+
+def _get_nested_key(data: dict, path: list[str]):
+    for name in path:
+        data = data[name]
+    return data
+
+
+def _set_nested_key(data: dict, path: list[str], value) -> None:
+    *parents, leaf = path
+    for name in parents:
+        data = data.setdefault(name, {})
+    data[leaf] = value
 
 
 # populate config, skip errors when setting the config attributes and issue warnings instead

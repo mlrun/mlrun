@@ -262,3 +262,55 @@ async def test_resolve_target_username_for_delete_handles_none_auth_username(
         await user_secrets._resolve_target_username_for_delete_secret_tokens(
             auth_info, "some-user"
         )
+
+
+@pytest.mark.asyncio
+async def test_authorize_service_account_store_secret_tokens_skips_regular_user(
+    auth_info: mlrun.common.schemas.AuthInfo, monkeypatch
+):
+    async def _fail_if_called(self, *args, **kwargs):
+        raise AssertionError("query_global_resource_permissions should not be called")
+
+    monkeypatch.setattr(
+        user_secrets.framework.utils.auth.verifier.AuthVerifier,
+        "query_global_resource_permissions",
+        _fail_if_called,
+    )
+
+    await user_secrets._authorize_service_account_store_secret_tokens(auth_info)
+
+
+@pytest.mark.asyncio
+async def test_authorize_service_account_store_secret_tokens_authorized(
+    mock_query_global_resource_permissions,
+):
+    mock_query_global_resource_permissions(
+        mlrun.common.schemas.AuthorizationAction.store, True
+    )
+    sa_auth_info = mlrun.common.schemas.AuthInfo(
+        username=_AUTH_USERNAME,
+        user_id=_AUTH_USER_ID,
+        kind=mlrun.common.schemas.AuthInfoKind.service_account,
+    )
+
+    await user_secrets._authorize_service_account_store_secret_tokens(sa_auth_info)
+
+
+@pytest.mark.asyncio
+async def test_authorize_service_account_store_secret_tokens_denied(monkeypatch):
+    async def _deny(self, *args, **kwargs):
+        raise mlrun.errors.MLRunAccessDeniedError("Access denied")
+
+    monkeypatch.setattr(
+        user_secrets.framework.utils.auth.verifier.AuthVerifier,
+        "query_global_resource_permissions",
+        _deny,
+    )
+    sa_auth_info = mlrun.common.schemas.AuthInfo(
+        username=_AUTH_USERNAME,
+        user_id=_AUTH_USER_ID,
+        kind=mlrun.common.schemas.AuthInfoKind.service_account,
+    )
+
+    with pytest.raises(mlrun.errors.MLRunAccessDeniedError):
+        await user_secrets._authorize_service_account_store_secret_tokens(sa_auth_info)

@@ -12,10 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+
+import kubernetes.client as k8s_client
 import pytest
 
 import mlrun
 import mlrun.errors
+import mlrun.k8s_utils
 from mlrun import new_function, new_task
 from mlrun.common.types import AuthenticationMode
 from tests.conftest import tag_test, verify_state
@@ -51,6 +55,24 @@ def test_dask_local():
     function.spec.remote = False
     run = function.run(spec, handler=my_func)
     verify_state(run)
+
+
+def test_dask_run_keeps_caller_home(monkeypatch):
+    # the run executes in the caller's process; dask worker pods get HOME from the server
+    monkeypatch.setenv("HOME", "/home/user")
+    monkeypatch.setattr(mlrun.runtimes.DaskCluster, "client", None)
+    function = new_function(kind="dask")
+    function.spec.remote = False
+    function.with_security_context(k8s_client.V1SecurityContext(run_as_user=12345))
+    run_homes = []
+
+    def record_home(context):
+        run_homes.append(os.environ["HOME"])
+
+    function.run(handler=record_home)
+
+    assert run_homes == ["/home/user"]
+    assert os.environ["HOME"] == "/home/user"
 
 
 @pytest.mark.parametrize(
@@ -92,3 +114,14 @@ def test_dask_run_raises_in_iguazio_v4(monkeypatch):
         mlrun.errors.MLRunBadRequestError, match="not supported on this system"
     ):
         new_function(kind="dask").run(handler=my_func)
+
+
+@pytest.mark.parametrize("in_cluster", [True, False])
+def test_dask_use_remote_reflects_in_cluster_detection(monkeypatch, in_cluster):
+    monkeypatch.setattr(
+        mlrun.k8s_utils, "is_running_in_kubernetes_pod", lambda: in_cluster
+    )
+
+    function = new_function(kind="dask")
+
+    assert function.use_remote is not in_cluster

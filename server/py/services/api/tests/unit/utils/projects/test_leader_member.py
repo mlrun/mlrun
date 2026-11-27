@@ -26,6 +26,7 @@ from mlrun.utils import logger
 
 import framework.utils.auth.providers.opa
 import framework.utils.auth.verifier
+import framework.utils.clients.orca.v1
 import framework.utils.projects.leader
 import framework.utils.projects.remotes.follower
 import framework.utils.singletons.project_member
@@ -361,6 +362,16 @@ def test_ensure_project(
     )
 
 
+def test_ensure_project_open_for_resource_creation_is_noop_for_leader(
+    projects_leader: framework.utils.projects.leader.Member,
+):
+    # must never raise, even for a project that doesn't exist
+    projects_leader.ensure_project_open_for_resource_creation(
+        None,
+        "project-name-does-not-exist",
+    )
+
+
 def test_store_project_creation(
     db: sqlalchemy.orm.Session,
     projects_leader: framework.utils.projects.leader.Member,
@@ -575,6 +586,31 @@ def test_delete_project_follower_explicit_order(
     _assert_project_in_followers([leader_follower, nop_follower], project)
 
 
+def test_initialize_igz_follower(
+    monkeypatch: pytest.MonkeyPatch,
+    projects_leader: framework.utils.projects.leader.Member,
+):
+    monkeypatch.setattr(mlrun.mlconf, "orca_api_url", "http://iguazio-api-url:8080")
+    follower = projects_leader._initialize_follower("igz")
+    assert isinstance(follower, framework.utils.clients.orca.v1.FollowerClient)
+
+
+def test_delete_project_runs_igz_follower_after_nuclio(
+    monkeypatch: pytest.MonkeyPatch,
+    projects_leader: framework.utils.projects.leader.Member,
+):
+    # "alpha" sorts before "igz", so igz only lands right after nuclio through the explicit order
+    monkeypatch.setattr(
+        projects_leader,
+        "_followers",
+        {name: unittest.mock.Mock() for name in ("alpha", "igz", "nuclio")},
+    )
+    ordered_names = [
+        name for name, _ in projects_leader._get_ordered_followers("delete_project")
+    ]
+    assert ordered_names == ["nuclio", "igz", "alpha"]
+
+
 def test_list_projects(
     db: sqlalchemy.orm.Session,
     projects_leader: framework.utils.projects.leader.Member,
@@ -731,6 +767,27 @@ async def test_ensure_project_populates_opa_owner_cache_across_replicas(
             )
 
     await opa_provider._sessions.async_close()
+
+
+def test_enrich_project_converts_desired_state_to_project_state():
+    project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name="project-name"),
+        spec=mlrun.common.schemas.ProjectSpec(
+            desired_state=mlrun.common.schemas.ProjectDesiredState.online
+        ),
+    )
+    framework.utils.projects.leader.Member._enrich_project(project)
+    assert project.status.state == mlrun.common.schemas.ProjectState.online
+    assert type(project.status.state) is mlrun.common.schemas.ProjectState
+
+
+def test_enrich_project_desired_state_none():
+    project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name="project-name"),
+        spec=mlrun.common.schemas.ProjectSpec(desired_state=None),
+    )
+    framework.utils.projects.leader.Member._enrich_project(project)
+    assert project.status.state is None
 
 
 def _assert_project_not_in_followers(followers, name):

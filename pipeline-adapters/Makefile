@@ -17,16 +17,26 @@ PACKAGES ?= mlrun-pipelines-kfp-common mlrun-pipelines-kfp-v1-8 mlrun-pipelines-
 TWINE_USERNAME ?= __token__
 TWINE_PASSWORD ?= "replace with your token"
 
-.PHONY: build release clean
+BUMP ?= patch
 
-build:
+.DEFAULT_GOAL := help
+
+.PHONY: help build release clean bump-version
+
+help: ## Display available commands
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
+
+bump-version: ## Bump the patch (default) or minor (BUMP=minor) version across all packages
+	@python bump_version.py $(BUMP)
+
+build: ## Build all packages
 	@for pkg in $(PACKAGES); do \
         echo "Building $$pkg"; \
         cd $$pkg && python -m build; \
         cd ..; \
     done
 
-release:
+release: ## Release all packages to PyPI
 	@set -e;\
 	for pkg in $(PACKAGES); do \
         echo "Releasing $$pkg to PyPI"; \
@@ -34,7 +44,7 @@ release:
         cd ..; \
     done
 
-clean:
+clean: ## Remove build artifacts from all packages
 	@for pkg in $(PACKAGES); do \
 	  echo "Cleaning $$pkg"; \
 	  (cd $$pkg && rm -rf dist build *.egg-info src/*.egg-info); \

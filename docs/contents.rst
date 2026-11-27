@@ -30,7 +30,7 @@ Table of Contents
    
    mlops-dev-flow
    data-prep/index
-   development/index
+   development/model-training-tracking
    deployment/index
    model-monitoring/mlops-monitoring
    projects/ci-cd-automate

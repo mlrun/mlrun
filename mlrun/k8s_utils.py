@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import copy
+import os
 import re
 import typing
 import warnings
@@ -31,7 +32,16 @@ SanitizedK8sObj = dict[str, typing.Any]
 K8sObjList = typing.Union[list[K8sObj], list[SanitizedK8sObj]]
 
 
-def is_running_inside_kubernetes_cluster():
+def has_incluster_kubernetes_client_config() -> bool:
+    """
+    Check whether a working, credentialed in-cluster Kubernetes client config can be loaded.
+
+    Depends on the service-account token being mounted; returns False even inside a real pod when
+    automountServiceAccountToken is disabled. Use is_running_in_kubernetes_pod() instead when the
+    caller only needs "am I in a pod" and does not need to talk to the k8s API.
+
+    :return: True if a working in-cluster k8s client config could be loaded, False otherwise.
+    """
     global _running_inside_kubernetes_cluster
     if _running_inside_kubernetes_cluster is None:
         try:
@@ -40,6 +50,24 @@ def is_running_inside_kubernetes_cluster():
         except kubernetes.config.ConfigException:
             _running_inside_kubernetes_cluster = False
     return _running_inside_kubernetes_cluster
+
+
+def is_running_in_kubernetes_pod() -> bool:
+    """
+    Check whether the current process is running inside a Kubernetes pod.
+
+    Checks only the KUBERNETES_SERVICE_HOST / KUBERNETES_SERVICE_PORT env vars the kubelet
+    injects into every pod via service links, regardless of automountServiceAccountToken — the
+    same first signal kubernetes.config.incluster_config and Go's client-go rest.InClusterConfig()
+    check before ever touching the service-account token. Use this instead of
+    has_incluster_kubernetes_client_config() when the caller only needs "am I in a pod" and does
+    not need a working k8s API client.
+
+    :return: True if running inside a Kubernetes pod, False otherwise.
+    """
+    return bool(os.environ.get("KUBERNETES_SERVICE_HOST")) and bool(
+        os.environ.get("KUBERNETES_SERVICE_PORT")
+    )
 
 
 def generate_preemptible_node_selector_requirements(
@@ -190,6 +218,46 @@ def verify_label_key(key: str, allow_k8s_prefix: bool = False):
     if not allow_k8s_prefix and prefix in {"k8s.io", "kubernetes.io"}:
         raise mlrun.errors.MLRunInvalidArgumentError(
             "Labels cannot start with 'k8s.io/' or 'kubernetes.io/'"
+        )
+
+
+def get_forbidden_labels(
+    labels: dict | None,
+    forbidden_labels: list[tuple[str, str]],
+) -> dict:
+    """
+    Get the labels that are listed in the forbidden labels.
+
+    :param labels:           labels to check
+    :param forbidden_labels: (key, value) pairs; a label is forbidden when both its key and its value match
+    :return:                 the matching labels
+    """
+    return {
+        key: value
+        for key, value in (labels or {}).items()
+        if (key, str(value)) in forbidden_labels
+    }
+
+
+def validate_labels_not_forbidden(
+    labels: dict | None,
+    forbidden_labels: list[tuple[str, str]],
+    existing_labels: dict | None = None,
+):
+    """
+    Validate that labels don't add or change a label listed in the forbidden labels.
+    A forbidden label that already exists in existing_labels with the same value is allowed.
+
+    :param labels:           labels to validate
+    :param forbidden_labels: (key, value) pairs; a label is forbidden when both its key and its value match
+    :param existing_labels:  labels of the stored object, if any
+    """
+    existing_labels = existing_labels or {}
+    for key, value in get_forbidden_labels(labels, forbidden_labels).items():
+        if key in existing_labels and existing_labels[key] == value:
+            continue
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"Label '{key}={value}' is not allowed on a function"
         )
 
 

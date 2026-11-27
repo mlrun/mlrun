@@ -1,3 +1,4 @@
+(mlrun-ce-installation)=
 # Installation
 
 MLRun CE can be installed on different platforms. Choose the installation guide that matches your environment:

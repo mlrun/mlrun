@@ -20,7 +20,9 @@ import httpx
 from fastapi.testclient import TestClient
 
 import mlrun.common.schemas
+import mlrun.errors
 
+import framework.utils.auth.verifier
 import framework.utils.clients.iguazio.v3
 
 PROJECT = "project-name"
@@ -143,6 +145,31 @@ def assert_pagination_info(
         assert first_result_identifier == expected_first_result_name, (
             f"Expected first result identifier '{expected_first_result_name}', got '{first_result_identifier}'"
         )
+
+
+def mock_function_read_only_permissions():
+    """Patch the auth verifier so that only function ``read`` is permitted.
+
+    :return: A patcher (usable as a context manager) for the verifier's project resource query.
+    """
+
+    async def query_project_resource_permissions(
+        resource_type, project_name, resource_name, action, auth_info, **kwargs
+    ):
+        if (
+            resource_type == mlrun.common.schemas.AuthorizationResourceTypes.function
+            and action != mlrun.common.schemas.AuthorizationAction.read
+        ):
+            raise mlrun.errors.MLRunAccessDeniedError(
+                f"Not allowed to {action} function {resource_name}"
+            )
+        return True
+
+    return unittest.mock.patch.object(
+        framework.utils.auth.verifier.AuthVerifier,
+        "query_project_resource_permissions",
+        side_effect=query_project_resource_permissions,
+    )
 
 
 def _create_project_obj(

@@ -63,10 +63,10 @@ class TestExceptionHandling(tests.integration.sdk_api.base.TestMLRunIntegration)
         invalid_deletion_strategy = "some_strategy"
         with pytest.raises(
             mlrun.errors.MLRunHTTPError,
-            match=r"Failed deleting project some-project-name details: \[{'loc':"
-            r" \['header', 'x-mlrun-deletion-strategy'], 'msg': \"value is not a valid enumeration member; "
-            r"permitted: 'restrict', 'restricted', 'cascade', 'cascading', 'check'\", 'type': 'type_error.enum',"
-            r" 'ctx': {'enum_values': \['restrict', 'restricted', 'cascade', 'cascading', 'check']}}]",
+            match=r"Failed deleting project some-project-name details: \[{'type': 'enum', 'loc':"
+            r" \['header', 'x-mlrun-deletion-strategy'], 'msg': \"Input should be 'restrict', "
+            r"'restricted', 'cascade', 'cascading' or 'check'\", 'input': 'some_strategy', 'ctx': "
+            r"{'expected': \"'restrict', 'restricted', 'cascade', 'cascading' or 'check'\"}}]",
         ):
             mlrun.get_run_db().delete_project(
                 "some-project-name", deletion_strategy=invalid_deletion_strategy

@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import functools
 import traceback
 from http import HTTPStatus
 
@@ -86,6 +87,12 @@ async def store_function(
             mlrun.common.schemas.AuthorizationAction.store,
             auth_info,
         )
+    )
+    await run_in_threadpool(
+        framework.utils.singletons.project_member.get_project_member().ensure_project_open_for_resource_creation,
+        db_session,
+        project,
+        auth_info=auth_info,
     )
     data = None
     try:
@@ -251,6 +258,12 @@ async def build_function(
             auth_info,
         )
     )
+    await run_in_threadpool(
+        framework.utils.singletons.project_member.get_project_member().ensure_project_open_for_resource_creation,
+        db_session,
+        project,
+        auth_info=auth_info,
+    )
 
     # schedules are meant to be run solely by the chief then if serving function and track_models is enabled,
     # it means that schedules will be created as part of building the function, and if not chief then redirect to chief.
@@ -335,6 +348,12 @@ async def start_function(
             auth_info,
         )
     )
+    await run_in_threadpool(
+        framework.utils.singletons.project_member.get_project_member().ensure_project_open_for_resource_creation,
+        db_session,
+        function.metadata.project,
+        auth_info=auth_info,
+    )
     background_timeout = mlrun.mlconf.background_tasks.default_timeouts.runtimes.dask
 
     background_task = await run_in_threadpool(
@@ -399,9 +418,9 @@ async def build_status(
         mlrun.common.schemas.AuthorizationResourceTypes.function,
         project,
         name,
-        # store since with the current mechanism we update the status (and store the function) in the DB when a client
-        # query for the status
-        mlrun.common.schemas.AuthorizationAction.store,
+        # read, since storing the polled status is internal server synchronization rather than a
+        # caller-authored function update
+        mlrun.common.schemas.AuthorizationAction.read,
         auth_info,
     )
     fn = await run_in_threadpool(
@@ -695,6 +714,14 @@ def _start_function(
         framework.api.utils.apply_enrichment_and_validation_on_function(
             function,
             auth_info,
+            get_existing_function=functools.partial(
+                services.api.crud.Functions().get_function,
+                db_session,
+                name=function.metadata.name,
+                project=function.metadata.project,
+                tag=function.metadata.tag
+                or mlrun.common.constants.RESERVED_TAG_NAME_LATEST,
+            ),
         )
 
         services.api.crud.Functions().start_function(

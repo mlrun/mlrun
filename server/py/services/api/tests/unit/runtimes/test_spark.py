@@ -46,6 +46,9 @@ class TestSpark3Runtime(services.api.tests.unit.runtimes.base.TestRuntimeBase):
     ) -> mlrun.runtimes.Spark3Runtime:
         runtime = mlrun.runtimes.Spark3Runtime()
         runtime.spec.image = self.image_name
+        # self.image_name ("mlrun/mlrun:latest") is honestly opaque; these tests aren't about
+        # version resolution, so set spec.spark_version explicitly rather than deriving it.
+        runtime.spec.spark_version = "3.5.5"
         if set_resources:
             runtime.with_executor_requests(cpu=1, mem="512m")
             runtime.with_driver_requests(cpu=1, mem="512m")
@@ -1243,6 +1246,37 @@ class TestSpark3Runtime(services.api.tests.unit.runtimes.base.TestRuntimeBase):
             "use func.with_source_archive(pull_at_runtime=False)"
         )
 
+    @pytest.mark.parametrize(
+        "explicit_home, expected_home_envs",
+        [
+            (None, []),
+            ("/home/user", [{"name": "HOME", "value": "/home/user"}]),
+        ],
+    )
+    def test_run_non_root_default_security_context_keeps_home(
+        self,
+        db: sqlalchemy.orm.Session,
+        k8s_secrets_mock,
+        explicit_home,
+        expected_home_envs,
+    ):
+        mlrun.mlconf.function.spec.security_context.default = base64.b64encode(
+            json.dumps({"runAsNonRoot": True}).encode("utf-8")
+        ).decode("utf-8")
+        runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime()
+        if explicit_home:
+            runtime.set_env("HOME", explicit_home)
+        self.execute_function(runtime)
+
+        body = self._get_custom_object_creation_body()
+        for role in ["driver", "executor"]:
+            home_envs = [
+                env_var
+                for env_var in body["spec"][role]["env"]
+                if env_var["name"] == "HOME"
+            ]
+            assert home_envs == expected_home_envs
+
     def test_mount_secret_token_to_spark_driver_and_executor(
         self, db: sqlalchemy.orm.Session, k8s_secrets_mock
     ):
@@ -1274,7 +1308,7 @@ class TestSpark3Runtime(services.api.tests.unit.runtimes.base.TestRuntimeBase):
         # Get the existing k8s helper and add our mocks to it
         k8s_helper = framework.utils.singletons.k8s.get_k8s_helper()
         k8s_helper._get_user_token_secret = unittest.mock.Mock(return_value=mock_secret)
-        k8s_helper.get_user_secret_tokens_as_igz_yml_data = unittest.mock.Mock(
+        k8s_helper.get_user_secret_tokens_as_token_file_data = unittest.mock.Mock(
             return_value=""
         )
         k8s_helper.get_project_secret_keys = unittest.mock.Mock(return_value=[])
@@ -1344,24 +1378,166 @@ class TestSpark3Runtime(services.api.tests.unit.runtimes.base.TestRuntimeBase):
             f"Actual volumes: {volumes}"
         )
 
-    def test_executor_service_account_token_not_mounted(
+    def test_service_account_token_mounting(
         self, db: sqlalchemy.orm.Session, k8s_secrets_mock
     ):
-        """Executor pods must not mount the service-account token."""
+        """Driver pods must mount the service-account token, while executors must not."""
         runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime()
         self.execute_function(runtime)
 
         body = self._get_custom_object_creation_body()
 
+        driver_template_spec = body["spec"]["driver"]["template"]["spec"]
+        assert driver_template_spec["automountServiceAccountToken"] is True, (
+            "Driver SA token must be mounted"
+        )
+        assert driver_template_spec["containers"] == [
+            {"name": "spark-kubernetes-driver"}
+        ], "Driver template must name the Spark driver container"
+
         executor_template_spec = body["spec"]["executor"]["template"]["spec"]
         assert executor_template_spec["automountServiceAccountToken"] is False, (
             "Executor SA token must not be mounted"
         )
-        # The named container prevents Spark's pod-template loader from failing.
         assert executor_template_spec["containers"] == [
             {"name": "spark-kubernetes-executor"}
         ], "Executor template must name the spark executor container"
-        # Driver keeps its token, so no token-disabling pod template is added.
-        assert "template" not in body["spec"]["driver"], (
-            "Driver must keep its SA token (no token-disabling pod template)"
+
+    @pytest.fixture
+    def spark_platform_image_config(self):
+        original_image = mlrun.mlconf.spark_app_image
+        original_tag = mlrun.mlconf.spark_app_image_tag
+        yield
+        mlrun.mlconf.spark_app_image = original_image
+        mlrun.mlconf.spark_app_image_tag = original_tag
+
+    def test_spark_version_resolved_from_spark3_platform_config(
+        self, db: sqlalchemy.orm.Session, k8s_secrets_mock, spark_platform_image_config
+    ):
+        mlrun.mlconf.spark_app_image = (
+            "mckinsey-ig4-next-gen-docker-local.jfrog.io/spark-app"
         )
+        mlrun.mlconf.spark_app_image_tag = "3.5.6-scala2.12-java17-ubuntu-1"
+        runtime = mlrun.runtimes.Spark3Runtime()
+        runtime.with_executor_requests(cpu=1, mem="512m")
+        runtime.with_driver_requests(cpu=1, mem="512m")
+        self.execute_function(runtime)
+
+        body = self._get_custom_object_creation_body()
+        assert body["spec"]["sparkVersion"] == "3.5.6"
+        assert body["spec"]["image"].endswith("3.5.6-scala2.12-java17-ubuntu-1")
+
+    def test_spark_version_resolved_from_spark4_platform_config(
+        self, db: sqlalchemy.orm.Session, k8s_secrets_mock, spark_platform_image_config
+    ):
+        mlrun.mlconf.spark_app_image = (
+            "mckinsey-ig4-next-gen-docker-local.jfrog.io/spark-app"
+        )
+        mlrun.mlconf.spark_app_image_tag = "4.2.0-scala2.13-java25-ubuntu-1"
+        runtime = mlrun.runtimes.Spark3Runtime()
+        runtime.with_executor_requests(cpu=1, mem="512m")
+        runtime.with_driver_requests(cpu=1, mem="512m")
+        self.execute_function(runtime)
+
+        body = self._get_custom_object_creation_body()
+        assert body["spec"]["sparkVersion"] == "4.2.0"
+        assert body["spec"]["image"].endswith("4.2.0-scala2.13-java25-ubuntu-1")
+
+    def test_spark_version_gpu_path_resolves_same_version_as_cpu(
+        self, db: sqlalchemy.orm.Session, k8s_secrets_mock, spark_platform_image_config
+    ):
+        mlrun.mlconf.spark_app_image = (
+            "mckinsey-ig4-next-gen-docker-local.jfrog.io/spark-app"
+        )
+        mlrun.mlconf.spark_app_image_tag = "4.2.0-scala2.13-java25-ubuntu-1"
+        runtime = mlrun.runtimes.Spark3Runtime()
+        runtime.with_executor_requests(cpu=1, mem="512m")
+        runtime.with_driver_requests(cpu=1, mem="512m")
+        runtime.with_executor_limits(cpu="2", gpus=1)
+        runtime.with_driver_limits(cpu="2", gpus=1)
+        self.execute_function(runtime)
+
+        body = self._get_custom_object_creation_body()
+        assert body["spec"]["sparkVersion"] == "4.2.0"
+        assert "-cuda" in body["spec"]["image"]
+        assert body["spec"]["image"].endswith("4.2.0-scala2.13-java25-ubuntu-1")
+
+    def test_spark_version_resolved_from_generated_default_image(
+        self, db: sqlalchemy.orm.Session, k8s_secrets_mock, spark_platform_image_config
+    ):
+        mlrun.mlconf.spark_app_image = (
+            "mckinsey-ig4-next-gen-docker-local.jfrog.io/spark-app"
+        )
+        mlrun.mlconf.spark_app_image_tag = "4.2.0-scala2.13-java25-ubuntu-1"
+        mlrun.mlconf.httpdb.builder.docker_registry = "test_registry"
+        runtime = mlrun.runtimes.Spark3Runtime()
+        runtime.spec.use_default_image = True
+        runtime.with_executor_requests(cpu=1, mem="512m")
+        runtime.with_driver_requests(cpu=1, mem="512m")
+        self.execute_function(runtime)
+
+        body = self._get_custom_object_creation_body()
+        assert body["spec"]["sparkVersion"] == "4.2.0"
+
+    def test_spark_version_resolved_from_deployed_default_image(
+        self, db: sqlalchemy.orm.Session, k8s_secrets_mock, spark_platform_image_config
+    ):
+        mlrun.mlconf.spark_app_image = (
+            "mckinsey-ig4-next-gen-docker-local.jfrog.io/spark-app"
+        )
+        mlrun.mlconf.spark_app_image_tag = "3.5.6-scala2.12-java17-ubuntu-1"
+        mlrun.mlconf.httpdb.builder.docker_registry = "test_registry"
+        runtime = mlrun.runtimes.Spark3Runtime()
+        runtime.spec.image = mlrun.runtimes.Spark3Runtime.default_mlrun_image
+        runtime.with_executor_requests(cpu=1, mem="512m")
+        runtime.with_driver_requests(cpu=1, mem="512m")
+        self.execute_function(runtime)
+
+        body = self._get_custom_object_creation_body()
+        assert body["spec"]["sparkVersion"] == "3.5.6"
+        assert body["spec"]["image"].endswith("spark-job-default-image")
+
+    def test_spark_version_resolved_from_built_function_base_image(
+        self, db: sqlalchemy.orm.Session, k8s_secrets_mock
+    ):
+        mlrun.mlconf.httpdb.builder.docker_registry = "test_registry"
+        runtime = mlrun.runtimes.Spark3Runtime()
+        runtime.spec.image = ".sparkjob-from-github:latest"
+        runtime.spec.build.base_image = "iguazio/spark-app:3.5.5-b697"
+        runtime.with_executor_requests(cpu=1, mem="512m")
+        runtime.with_driver_requests(cpu=1, mem="512m")
+        self.execute_function(runtime)
+
+        body = self._get_custom_object_creation_body()
+        assert body["spec"]["sparkVersion"] == "3.5.5"
+        assert body["spec"]["image"].endswith("sparkjob-from-github:latest")
+
+    def test_run_fails_when_opaque_image_has_no_explicit_version(
+        self, db: sqlalchemy.orm.Session, k8s_secrets_mock
+    ):
+        runtime = mlrun.runtimes.Spark3Runtime()
+        runtime.spec.image = "mlrun/mlrun:latest"
+        runtime.with_executor_requests(cpu=1, mem="512m")
+        runtime.with_driver_requests(cpu=1, mem="512m")
+
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+            self.execute_function(runtime)
+
+        framework.utils.singletons.k8s.get_k8s_helper().crdapi.create_namespaced_custom_object.assert_not_called()
+
+    def test_run_fails_when_explicit_version_major_mismatches_platform_image(
+        self, db: sqlalchemy.orm.Session, k8s_secrets_mock
+    ):
+        runtime = mlrun.runtimes.Spark3Runtime()
+        runtime.spec.image = (
+            "mckinsey-ig4-next-gen-docker-local.jfrog.io/spark-app:"
+            "4.2.0-scala2.13-java25-ubuntu-1"
+        )
+        runtime.spec.spark_version = "3.5.5"
+        runtime.with_executor_requests(cpu=1, mem="512m")
+        runtime.with_driver_requests(cpu=1, mem="512m")
+
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+            self.execute_function(runtime)
+
+        framework.utils.singletons.k8s.get_k8s_helper().crdapi.create_namespaced_custom_object.assert_not_called()

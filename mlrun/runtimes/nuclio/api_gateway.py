@@ -30,7 +30,58 @@ from mlrun.model import ModelObj
 from mlrun.platforms.iguazio import min_iguazio_versions
 from mlrun.utils import logger
 
-from .function import min_nuclio_versions
+from .function import (
+    min_nuclio_versions,
+    resolve_invoke_auth,
+    validate_basic_auth_creds,
+)
+
+
+def _resolve_authentication_mode(
+    mode: schemas.APIGatewayAuthenticationMode | None,
+) -> schemas.APIGatewayAuthenticationMode | None:
+    """Return None only when mode is 'none' and function auth is enabled.
+
+    Non-none modes are left as-is so Nuclio can reject them explicitly,
+    preserving defense-in-depth rather than silently downgrading auth.
+    """
+    if (
+        mlrun.mlconf.is_nuclio_function_authentication_enabled()
+        and mode == schemas.APIGatewayAuthenticationMode.none
+    ):
+        return None
+    return mode
+
+
+def validate_authentication(
+    authentication_mode: schemas.APIGatewayAuthenticationMode | None,
+    authentication_creds: tuple[str, str] | None,
+) -> None:
+    """Validate API-Gateway-level authentication inputs.
+
+    Callers must invoke this once, up front, before constructing the ``APIGatewaySpec`` or
+    calling ``APIGateway.with_*_auth`` setters. Consolidates two rules in one place:
+
+    * When function-level authentication is enabled on the platform (via
+      ``httpdb.nuclio.function_authentication_enabled``), API-Gateway-level auth is not
+      supported — configure it on the function HTTP trigger via ``fn.with_http(...)`` instead.
+    * ``basicAuth`` requires ``authentication_creds=(username, password)``.
+
+    :raises MLRunInvalidArgumentError: on either rule violation.
+    """
+    if (
+        mlrun.mlconf.is_nuclio_function_authentication_enabled()
+        and authentication_mode is not None
+        and authentication_mode != schemas.APIGatewayAuthenticationMode.none
+    ):
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"authentication_mode={authentication_mode.value!r} is not supported on the API "
+            f"Gateway when function-level authentication is enabled. Configure it on the function "
+            f"HTTP trigger instead: fn.with_http(authentication_mode=..., authentication_creds=...)."
+        )
+
+    if authentication_mode == schemas.APIGatewayAuthenticationMode.basic:
+        validate_basic_auth_creds(authentication_creds)
 
 
 class Authenticator(typing.Protocol):
@@ -417,9 +468,14 @@ class APIGateway(ModelObj):
         :param headers: (dict, optional) The HTTP headers for the invocation.
         :param credentials: (Optional[tuple[str, str]], optional) The (username,password) for the invocation if required
             can also be set by the environment variable (_, V3IO_ACCESS_KEY) for access key authentication.
+            Applies only to the gateway's own ``basicAuth`` and ``accessKey`` authentication modes.
+            When function-level authentication is enabled, the gateway holds no authentication, and
+            invoke attaches the caller's platform credentials unless you pass an ``Authorization``
+            header or ``auth``.
         :param path: (str, optional) The sub-path for the invocation.
         :param body: (Optional[Union[str, bytes, dict]]) The body of the invocation.
-        :param kwargs: (dict) Additional keyword arguments.
+        :param kwargs: (dict) Additional keyword arguments passed to ``requests.request``. An ``auth``
+            keyword argument takes precedence over the gateway's authentication mode.
 
         :return: The response from the API gateway invocation.
         """
@@ -435,44 +491,16 @@ class APIGateway(ModelObj):
                 f"API gateway is not ready. Current state: {self.status.state}"
             )
 
-        auth = None
+        auth = kwargs.pop("auth", None)
 
-        if (
-            self.spec.authentication.authentication_mode
-            == schemas.APIGatewayAuthenticationMode.basic.value
+        if auth is None:
+            auth = self._resolve_gateway_auth(credentials=credentials)
+        if auth is None and not any(
+            key.lower() == "authorization" for key in headers or {}
         ):
-            if not credentials:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    "API Gateway invocation requires authentication. Please pass credentials"
-                )
-            auth = mlrun.auth.nuclio.NuclioAuthInfo(
-                username=credentials[0], password=credentials[1]
-            ).to_requests_auth()
-
-        if (
-            self.spec.authentication.authentication_mode
-            == schemas.APIGatewayAuthenticationMode.access_key.value
-        ):
-            # inject access key from env
-            if credentials:
-                auth = mlrun.auth.nuclio.NuclioAuthInfo(
-                    username=credentials[0],
-                    password=credentials[1],
-                    mode=NuclioAuthKinds.iguazio,
-                ).to_requests_auth()
-            else:
-                auth = (
-                    mlrun.auth.nuclio.NuclioAuthInfo().from_envvar().to_requests_auth()
-                )
-            if not auth:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    "API Gateway invocation requires authentication. Please set V3IO_ACCESS_KEY env var"
-                )
-        if (
-            self.spec.authentication.authentication_mode
-            == schemas.APIGatewayAuthenticationMode.iguazio.value
-        ):
-            auth = mlrun.auth.nuclio.NuclioAuthInfo.from_envvar().to_requests_auth()
+            # with function-level authentication the gateway forwards the request as is,
+            # and the function's HTTP trigger authenticates it
+            auth = resolve_invoke_auth(auth_info=None)
         url = urljoin(self.invoke_url, path or "")
 
         # Determine the correct keyword argument for the body
@@ -694,8 +722,10 @@ class APIGateway(ModelObj):
                 description=self.spec.description,
                 host=self.spec.host,
                 path=self.spec.path,
-                authenticationMode=schemas.APIGatewayAuthenticationMode.from_str(
-                    self.spec.authentication.authentication_mode
+                authenticationMode=_resolve_authentication_mode(
+                    schemas.APIGatewayAuthenticationMode.from_str(
+                        self.spec.authentication.authentication_mode
+                    )
                 ),
                 upstreams=upstreams,
             ),
@@ -722,6 +752,44 @@ class APIGateway(ModelObj):
     def _generate_basic_auth(username: str, password: str):
         token = base64.b64encode(f"{username}:{password}".encode()).decode()
         return f"{mlrun.common.schemas.AuthorizationHeaderPrefixes.basic}{token}"
+
+    def _resolve_gateway_auth(
+        self, credentials: tuple[str, str] | None
+    ) -> requests.auth.AuthBase | None:
+        """Resolve the requests auth object for the gateway's own authentication mode.
+
+        :param credentials: the (username, password) passed to ``invoke``, if any.
+        :return: a requests auth object, or None when the gateway holds no authentication.
+        """
+        mode = self.spec.authentication.authentication_mode
+        if mode == schemas.APIGatewayAuthenticationMode.basic.value:
+            if not credentials:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "API Gateway invocation requires authentication. Please pass credentials"
+                )
+            return mlrun.auth.nuclio.NuclioAuthInfo(
+                username=credentials[0], password=credentials[1]
+            ).to_requests_auth()
+        if mode == schemas.APIGatewayAuthenticationMode.access_key.value:
+            # inject access key from env
+            if credentials:
+                auth = mlrun.auth.nuclio.NuclioAuthInfo(
+                    username=credentials[0],
+                    password=credentials[1],
+                    mode=NuclioAuthKinds.iguazio,
+                ).to_requests_auth()
+            else:
+                auth = (
+                    mlrun.auth.nuclio.NuclioAuthInfo().from_envvar().to_requests_auth()
+                )
+            if not auth:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "API Gateway invocation requires authentication. Please set V3IO_ACCESS_KEY env var"
+                )
+            return auth
+        if mode == schemas.APIGatewayAuthenticationMode.iguazio.value:
+            return mlrun.auth.nuclio.NuclioAuthInfo.from_envvar().to_requests_auth()
+        return None
 
     @staticmethod
     def _resolve_canary(

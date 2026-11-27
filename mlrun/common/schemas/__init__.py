@@ -131,7 +131,7 @@ from .function import (
     PreemptionModes,
     SecurityContextEnrichmentModes,
 )
-from .http import HTTPSessionRetryMode
+from .http import HTTPSessionRetryMode, HTTPTriggerAuthenticationMode
 from .hub import (
     HubCatalog,
     HubItem,

@@ -42,7 +42,7 @@ When working with a private Git repository, you need to create **GIT_TOKEN** sec
 ## Using GitHub Actions
 
 When running using [GitHub Actions](https://docs.github.com/en/actions) you need to set the credentials/secrets 
-and add a script under the `.github/workflows/` directory, which is executed when the code is commited/pushed.
+and add a script under the `.github/workflows/` directory, which is executed when the code is committed/pushed.
 
 Example script that is invoked when you add the comment "/run" to your pull request:
 
@@ -83,7 +83,7 @@ See the full example in [**https://github.com/mlrun/project-demo**](https://gith
 ## Using GitLab CI/CD
 
 When running using [GitLab CI/CD](https://docs.gitlab.com/ee/ci/) you need to set the credentials/secrets 
-and update the script `.gitlab-ci.yml` directory, which is executed when code is commited/pushed.
+and update the script `.gitlab-ci.yml` directory, which is executed when code is committed/pushed.
 
 Example script that is invoked when you create a pull request (merge requests):
 

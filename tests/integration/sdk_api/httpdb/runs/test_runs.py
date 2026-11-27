@@ -273,8 +273,19 @@ class TestRuns(tests.integration.sdk_api.base.TestMLRunIntegration):
             expected_number_of_runs=5,
             project=project_name,
         )
-        # The elements are not ordered as they were originally stored because some of the elements
-        # have a start_time from the previous day, which affects their sorting order.
+        # No filter is given, so this goes through the "no filter" default
+        # (partition_by=project_and_name, partition_sort_by=updated,
+        # partition_order=desc - see crud.Runs().list_runs). Each run has a
+        # distinct name, so each is its own partition (partition_sort_by only
+        # decides row *selection* within a partition, a no-op here). The global
+        # order across partitions follows list_runs's own `sort` contract
+        # (default True: order by start_time), not partition_sort_by - see
+        # ML-13004. run-name-4 has no explicit start_time, so it defaults to
+        # real now() at store time (stored last, so latest); run-name-1/3 share
+        # the fake "now()-5h" offset and run-name-0/2 share "now()-1day", with
+        # run-name-3/run-name-2 each a hair more recent than run-name-1/run-name-0
+        # respectively, since their now() calls were evaluated later while
+        # building the `statuses` list above.
         expected_names = [
             "run-name-4",
             "run-name-3",

@@ -35,8 +35,7 @@ updates:
 
   # go modules
   - package-ecosystem: gomod
-    directories:
-      - "server/go/**/*"
+    directory: "/server/go"
     schedule:
       interval: daily
     commit-message:

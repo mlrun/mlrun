@@ -99,7 +99,10 @@ def test_find_service_correctness(client: fastapi.testclient.TestClient):
         "alert-activations",
     }
     for app_route in client.app.router.routes:
-        app_route: fastapi.routing.APIRoute
+        # newer FastAPI versions also list each include_router() call as a routes entry
+        # (fastapi.routing._IncludedRouter), alongside the individual leaf routes it expands to
+        if not isinstance(app_route, fastapi.routing.APIRoute):
+            continue
         for method in app_route.methods:
             path = app_route.path
             for prefix in ["/api", "/api/v1", "/api/v2", "/v1", "/v2", "/"]:

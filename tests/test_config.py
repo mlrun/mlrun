@@ -12,11 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import http.server
 import json
 import os
 import pathlib
 import subprocess
 import sys
+import threading
 import unittest.mock
 import warnings
 from contextlib import contextmanager
@@ -1079,6 +1081,42 @@ def test_resolve_deprecated_authentication_mode():
         assert (
             mlrun.config.resolve_deprecated_authentication_mode("iguazio-v4") == "orca"
         )
+
+
+def test_import_syncs_config_from_server_without_warning():
+    class ClientSpecHandler(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            body = json.dumps(
+                {"version": "1.14.0", "authentication_mode": "none"}
+            ).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *args):
+            pass
+
+    with http.server.HTTPServer(("127.0.0.1", 0), ClientSpecHandler) as server:
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        env = {
+            **os.environ,
+            "MLRUN_DBPATH": f"http://127.0.0.1:{server.server_port}",
+        }
+        out = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                "import mlrun; print(mlrun.mlconf.httpdb.authentication.mode)",
+            ],
+            capture_output=True,
+            env=env,
+        )
+        server.shutdown()
+
+    assert out.returncode == 0, out.stderr.decode()
+    assert "Failed syncing config from server" not in out.stdout.decode()
+    assert out.stdout.decode().strip().endswith("none")
 
 
 @pytest.mark.parametrize("mode", ["none", "iguazio"])

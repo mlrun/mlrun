@@ -58,7 +58,7 @@ from mlrun_pipelines.utils import compile_pipeline
 from ..artifacts import Artifact
 from ..common.schemas import AlertActivations
 from ..common.schemas.model_monitoring import FunctionSummary
-from ..config import config
+from ..config import config, resolve_deprecated_authentication_mode
 from ..datastore.datastore_profile import DatastoreProfile2Json
 from ..feature_store import FeatureSet, FeatureVector
 from ..lists import ArtifactList, RunList
@@ -704,11 +704,9 @@ class HTTPRunDB(RunDBInterface):
             # TODO: Remove "iguazio-v4" in 1.16.0
             server_mode = server_cfg.get("authentication_mode")
             if server_mode:
-                mode = mlrun.config.resolve_deprecated_authentication_mode(
-                    server_mode, warn=False
-                )
+                mode = resolve_deprecated_authentication_mode(server_mode, warn=False)
             else:
-                mode = mlrun.config.resolve_deprecated_authentication_mode(
+                mode = resolve_deprecated_authentication_mode(
                     config.httpdb.authentication.mode
                 )
             config.httpdb.authentication.mode = mode

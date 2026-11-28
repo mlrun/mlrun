@@ -449,7 +449,7 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
         worker_pod_image_pull_backoff = self._generate_pod(
             "worker_in_image_pull_backoff",
             self._generate_job_labels(
-                image_pull_backoff_job,
+                image_pull_backoff_job["metadata"]["name"],
                 uid=image_pull_backoff_job_uid,
                 job_labels=self.worker_pod_labels,
             ),

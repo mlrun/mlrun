@@ -388,10 +388,18 @@ def enrich_dask_cluster(
         "volume_mounts": spec.volume_mounts,
     }
     scheduler_container = client.V1Container(
-        resources=spec.scheduler_resources, args=scheduler_args, **container_kwargs
+        resources=framework.utils.singletons.k8s.sanitize_resource_quantities(
+            spec.scheduler_resources
+        ),
+        args=scheduler_args,
+        **container_kwargs,
     )
     worker_container = client.V1Container(
-        resources=spec.worker_resources, args=worker_args, **container_kwargs
+        resources=framework.utils.singletons.k8s.sanitize_resource_quantities(
+            spec.worker_resources
+        ),
+        args=worker_args,
+        **container_kwargs,
     )
 
     # We query the project to enrich the worker and scheduler pod spec with the project's default node selector.

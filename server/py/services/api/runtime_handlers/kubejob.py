@@ -269,7 +269,9 @@ def func_to_pod(
         working_dir=workdir,
         image_pull_policy=runtime.spec.image_pull_policy,
         volume_mounts=runtime.spec.volume_mounts,
-        resources=runtime.spec.resources,
+        resources=framework.utils.singletons.k8s.sanitize_resource_quantities(
+            runtime.spec.resources
+        ),
         lifecycle=lifecycle,
     )
 

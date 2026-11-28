@@ -943,5 +943,7 @@ jobs:
         set +x
 
     - name: Final clean up
-      if: always()
+      # When debugging (debug_enabled) and the job failed, keep the k3s cluster so it can be inspected over SSH.
+      # The next job on this runner cleans it up in its "Check and cleanup any previous K3S installation" step.
+      if: ${{ always() && !(failure() && (inputs.debug_enabled || env.DEFAULT_DEBUG_ENABLED) == 'true') }}
       uses: ./.github/actions/cleanup-k3s

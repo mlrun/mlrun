@@ -56,6 +56,12 @@ _FUNCTION_INVENTORY_KINDS = mlrun.runtimes.constants.RuntimeKinds.all()
 
 # Sort/cursor floor for list_project_states() when a project has no updated_at yet.
 _PROJECT_STATES_EPOCH = datetime.datetime.min.replace(tzinfo=datetime.UTC)
+# The desired states the leader may set on a follower update; `offline` is a valid
+# ProjectDesiredState but not a state the follower contract allows an update from.
+_FOLLOWER_DESIRED_STATES = (
+    mlrun.common.schemas.ProjectDesiredState.online,
+    mlrun.common.schemas.ProjectDesiredState.archived,
+)
 
 
 class Projects(
@@ -1386,7 +1392,7 @@ class Projects(
             updated_at = datetime.datetime.now(datetime.UTC)
             # Start from the stored project to keep the MLRun-specific spec the leader
             # never sends; only the common set (labels/annotations/owner/description)
-            # is overwritten.
+            # and the desired state are overwritten.
             stored = self.get_project(session, name)
             updated = mlrun.common.schemas.Project(**stored.dict())
             # The leader sends its full label/annotation sets, so a sent dict (even {})
@@ -1401,9 +1407,28 @@ class Projects(
                 updated.metadata.annotations = project.metadata.annotations
             updated.spec.owner = project.spec.owner
             updated.spec.description = project.spec.description
+            # spec.desired_state defaults to online, so only a value the leader actually
+            # sent counts: an absent or null field must not un-archive the project.
+            if (
+                "desired_state" in project.spec.model_fields_set
+                and project.spec.desired_state is not None
+            ):
+                desired_state = project.spec.desired_state
+                if desired_state not in _FOLLOWER_DESIRED_STATES:
+                    raise mlrun.errors.MLRunBadRequestError(
+                        f"Unsupported desired_state '{desired_state.value}' for project "
+                        f"{name}; a follower accepts only "
+                        f"{[state.value for state in _FOLLOWER_DESIRED_STATES]}"
+                    )
+                # Same mapping the leader's _enrich_project applies on the native path.
+                updated.spec.desired_state = desired_state
+                updated.status.state = mlrun.common.schemas.ProjectState(
+                    desired_state.value
+                )
             updated.status.op_id = op_id
             updated.status.updated_at = updated_at
             self.store_project(session, name, updated)
+            existing.status.state = updated.status.state
             existing.status.op_id = op_id
             existing.status.updated_at = updated_at
             return existing

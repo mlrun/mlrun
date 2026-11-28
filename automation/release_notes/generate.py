@@ -41,6 +41,8 @@ class ReleaseNotesGenerator:
         r"$"
     )
     bug_fixes_words = ["fix", "bug"]
+    # GitHub rejects release bodies longer than this (in characters)
+    max_release_notes_length = 125000
 
     def __init__(
         self,
@@ -194,6 +196,7 @@ class ReleaseNotesGenerator:
         self.output_release_notes(release_notes)
 
     def output_release_notes(self, release_notes: str):
+        release_notes = self._fit_release_notes_to_max_length(release_notes)
         print(release_notes)
         if self._tmp_file_path:
             logger.info(
@@ -201,6 +204,38 @@ class ReleaseNotesGenerator:
             )
             with open(self._tmp_file_path, "w") as f:
                 f.write(release_notes)
+
+    def _fit_release_notes_to_max_length(self, release_notes: str) -> str:
+        """
+        Shorten release notes that exceed GitHub's release body limit: first drop the "Pull requests"
+        section (it repeats the highlights), then cut at a line boundary. A link to the full diff is
+        appended either way.
+        """
+        if len(release_notes) <= self.max_release_notes_length:
+            return release_notes
+
+        self._logger.warning(
+            "Release notes exceed GitHub's release body limit, truncating",
+            extra=dict(
+                length=len(release_notes), max_length=self.max_release_notes_length
+            ),
+        )
+        truncation_note = (
+            "\n_Release notes were truncated to fit GitHub's size limit. Full list of changes: "
+            f"https://github.com/mlrun/mlrun/compare/{self._previous_release}...{self._release}_\n"
+        )
+        release_notes = re.sub(
+            r"\n#### Pull requests:\n.*?(?=\n#### |\Z)",
+            "",
+            release_notes,
+            flags=re.DOTALL,
+        )
+        # leave room for the truncation note and the newline that precedes it
+        max_length = self.max_release_notes_length - len(truncation_note) - 1
+        if len(release_notes) > max_length:
+            release_notes = release_notes[:max_length]
+            release_notes = release_notes[: release_notes.rfind("\n") + 1]
+        return release_notes.rstrip("\n") + "\n" + truncation_note
 
     def _generate_highlight_notes_from_commits(self, commits: str):
         feature_notes = ""
